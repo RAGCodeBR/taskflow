@@ -18,6 +18,7 @@ export interface Task {
   status_id: string | null;
   priority: "low" | "medium" | "high" | "urgent" | null;
   due_date: string | null;
+  due_time: string | null;
   assignee_id: string | null;
   assigned_by: string | null;
   assigned_at: string | null;
@@ -338,5 +339,4 @@ export function useTaskStatuses() {
     },
   });
 }
-
 

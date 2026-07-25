@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   Calendar as CalendarIcon,
+  Clock3,
   ChevronDown,
   ChevronRight,
   Check,
@@ -95,6 +96,9 @@ interface CardComment {
 
 const LINK_MIME = "text/uri-list";
 const DESCRIPTION_COLLAPSED_LIMIT = 140;
+const DEFAULT_DEADLINE_TIME = "12:00";
+const formatDueTime = (time: string | null) => time?.slice(0, 5) ?? null;
+const hasExplicitDueTime = (time: string | null) => Boolean(formatDueTime(time));
 
 interface Props {
   task: Task;
@@ -171,7 +175,7 @@ export function TaskCard({
   const [newSubtask, setNewSubtask] = useState("");
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [commentSubtaskDraft, setCommentSubtaskDraft] = useState<Record<string, string>>({});
-  const [dueChange, setDueChange] = useState<{ open: boolean; pending: string | null; reason: string }>({ open: false, pending: null, reason: "" });
+  const [dueChange, setDueChange] = useState<{ open: boolean; pending: string | null; pendingTime: string | null; reason: string }>({ open: false, pending: null, pendingTime: null, reason: "" });
   const [historyOpen, setHistoryOpen] = useState(false);
   const { data: dueHistory = [] } = useQuery({
     queryKey: ["task_due_date_changes", task.id],
@@ -456,8 +460,13 @@ export function TaskCard({
   };
 
   const dueDate = task.due_date ? new Date(task.due_date) : null;
+  const dueTime = formatDueTime(task.due_time);
+  const dueHasTime = Boolean(dueTime);
+  const dueMoment = dueDate && dueTime
+    ? new Date(`${format(dueDate, "yyyy-MM-dd")}T${dueTime}:00`)
+    : dueDate;
   const dueLabel = dueDate
-    ? format(dueDate, "dd MMM", { locale: ptBR })
+    ? `${format(dueDate, "dd MMM", { locale: ptBR })}${dueHasTime ? ` · ${dueTime}` : ""}`
     : null;
 
   const dueMeta = (() => {
@@ -479,6 +488,23 @@ export function TaskCard({
       };
     }
     if (diffDays === 0) {
+      if (dueHasTime) {
+        if (dueMoment && dueMoment.getTime() < now.getTime()) {
+          const overdueHours = Math.max(1, Math.ceil((now.getTime() - dueMoment.getTime()) / 3_600_000));
+          return {
+            state: "overdue" as const,
+            label: overdueHours === 1 ? "Atrasado 1h" : `Atrasado ${overdueHours}h`,
+            days: 0,
+            subtext: dueLabel,
+          };
+        }
+        return {
+          state: "today" as const,
+          label: `Vence às ${dueTime}`,
+          days: 0,
+          subtext: dueLabel,
+        };
+      }
       return {
         state: "today" as const,
         label: "Vence hoje",
@@ -706,16 +732,16 @@ export function TaskCard({
     toast.success("Tarefa concluída");
   };
 
-  const openDueChange = (nextIso: string | null) => {
+  const openDueChange = ({ dueDate: nextIso, dueTime }: { dueDate: string | null; dueTime: string | null }) => {
     const oldIso = task.due_date ?? null;
-    if (oldIso === nextIso) return;
-    setDueChange({ open: true, pending: nextIso, reason: "" });
+    if (oldIso === nextIso && (task.due_time ?? null) === dueTime) return;
+    setDueChange({ open: true, pending: nextIso, pendingTime: dueTime, reason: "" });
   };
 
   const confirmDueChange = async (skipReason = false) => {
     const nextIso = dueChange.pending;
     const oldIso = task.due_date ?? null;
-    setDueChange({ open: false, pending: null, reason: "" });
+    setDueChange({ open: false, pending: null, pendingTime: null, reason: "" });
     // registra histórico (só quando havia algum prazo antes ou passa a ter)
     if (user && (oldIso || nextIso)) {
       await supabase.from("task_due_date_changes").insert({
@@ -727,7 +753,7 @@ export function TaskCard({
       });
       void qc.invalidateQueries({ queryKey: ["task_due_date_changes", task.id] });
     }
-    await update({ due_date: nextIso });
+    await update({ due_date: nextIso, due_time: dueChange.pendingTime });
   };
 
 
@@ -748,7 +774,7 @@ export function TaskCard({
           <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onPointerDown={stop} onClick={(event) => { stop(event); onEdit?.(); }} title="Editar tarefa" aria-label="Editar tarefa"><MoreHorizontal className="h-3.5 w-3.5" /></Button>
         </div>
         <div className={cn("flex items-center gap-1 border-t px-2 py-1 text-[11px]", dueChipClass)}>
-          <CalendarIcon className="h-3 w-3 shrink-0" />
+          {dueHasTime ? <Clock3 className="h-3 w-3 shrink-0" /> : <CalendarIcon className="h-3 w-3 shrink-0" />}
           <span className="truncate">{dueLabel ? `Prazo: ${dueLabel}` : "Sem prazo"}</span>
         </div>
       </div>
@@ -1399,7 +1425,7 @@ export function TaskCard({
                   )}
                   title={dueMeta.label}
                 >
-                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {dueHasTime ? <Clock3 className="h-3.5 w-3.5" /> : <CalendarIcon className="h-3.5 w-3.5" />}
                   <span className="flex items-center gap-1.5">
                     <span className="text-[10px] font-medium opacity-90">{dueMeta.label}</span>
                     <span className="font-semibold">{dueMeta.subtext}</span>
@@ -1585,7 +1611,7 @@ export function TaskCard({
       />
 
       {/* Diálogo de justificativa ao mudar prazo */}
-      <Dialog open={dueChange.open} onOpenChange={(o) => { if (!o) setDueChange({ open: false, pending: null, reason: "" }); }}>
+      <Dialog open={dueChange.open} onOpenChange={(o) => { if (!o) setDueChange({ open: false, pending: null, pendingTime: null, reason: "" }); }}>
         <DialogContent onPointerDown={stop} onClick={stop} className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm">Justificar mudança de prazo</DialogTitle>
@@ -1605,7 +1631,7 @@ export function TaskCard({
             <p className="text-[10px] text-muted-foreground">Se não justificar, a mudança será registrada sem motivo.</p>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setDueChange({ open: false, pending: null, reason: "" })}>Cancelar</Button>
+            <Button variant="ghost" size="sm" onClick={() => setDueChange({ open: false, pending: null, pendingTime: null, reason: "" })}>Cancelar</Button>
             <Button variant="outline" size="sm" onClick={() => void confirmDueChange(true)}>Mudar sem justificar</Button>
             <Button size="sm" onClick={() => void confirmDueChange(false)}>Salvar</Button>
           </DialogFooter>
@@ -1914,16 +1940,25 @@ function SubtaskDuePopover({
   );
 }
 
-function DueDateEditor({ task, onChange }: { task: Task; onChange: (v: string | null) => void }) {
+function DueDateEditor({ task, onChange }: { task: Task; onChange: (v: { dueDate: string | null; dueTime: string | null }) => void }) {
   const [dateStr, setDateStr] = useState(task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : "");
-  const commit = () => onChange(dateStr ? new Date(`${dateStr}T12:00:00`).toISOString() : null);
+  const [timeStr, setTimeStr] = useState(formatDueTime(task.due_time) ?? "");
+  const commit = () => onChange({
+    dueDate: dateStr ? new Date(`${dateStr}T${DEFAULT_DEADLINE_TIME}:00`).toISOString() : null,
+    dueTime: dateStr ? timeStr || null : null,
+  });
 
   return (
     <PopoverField label="Prazo">
       <div className="space-y-2">
         <Input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} className="h-8 text-xs" />
+        <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1">
+          <Clock3 className="h-3.5 w-3.5 text-primary" />
+          <Input type="time" step="300" value={timeStr} onChange={(e) => setTimeStr(e.target.value)} className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0" aria-label="Hora do prazo (opcional)" />
+          <span className="text-[10px] text-muted-foreground">Opcional</span>
+        </div>
         <div className="flex items-center justify-between gap-2">
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setDateStr(""); onChange(null); }}>Limpar</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setDateStr(""); setTimeStr(""); onChange({ dueDate: null, dueTime: null }); }}>Limpar</Button>
           <Button size="sm" className="h-7 text-xs" onClick={commit}>Salvar</Button>
         </div>
       </div>
@@ -1964,4 +1999,3 @@ function DescriptionEditor({ initial, onSave }: { initial: string; onSave: (v: s
     </div>
   );
 }
-

@@ -951,6 +951,7 @@ export type Database = {
           deleted_by: string | null
           description: string | null
           due_date: string | null
+          due_time: string | null
           id: string
           interruptions: number
           position: number
@@ -976,6 +977,7 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
           id?: string
           interruptions?: number
           position?: number
@@ -1001,6 +1003,7 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
           id?: string
           interruptions?: number
           position?: number
