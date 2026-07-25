@@ -165,7 +165,7 @@ function CalendarPage() {
                           color: client?.color || t.color || "#1e3a8a",
                         }}
                       >
-                        {t.title}
+                        {t.due_time ? `${t.due_time.slice(0, 5)} · ${t.title}` : t.title}
                       </button>
                     );
                   })}

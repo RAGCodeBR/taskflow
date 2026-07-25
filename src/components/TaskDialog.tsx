@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useClients, useColumns, useProfiles, type Task } from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Trash2, Paperclip, Send, Download, ExternalLink, X, Plus, Link2, ChevronDown, ChevronRight } from "lucide-react";
+import { Trash2, Paperclip, Send, Download, ExternalLink, X, Plus, Link2, ChevronDown, ChevronRight, Clock3 } from "lucide-react";
 import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -33,7 +33,10 @@ interface SubtaskAttachment { id: string; subtask_id: string; file_name: string;
 interface SubtaskDueChange { id: string; subtask_id: string; old_due_date: string | null; new_due_date: string | null; reason: string | null; created_at: string; }
 interface Comment { id: string; title: string | null; body: string; author_id: string; created_at: string; }
 
-const deadlineToIso = (date: string) => date ? new Date(`${date}T12:00:00`).toISOString() : null;
+const DEFAULT_DEADLINE_TIME = "12:00";
+const deadlineToIso = (date: string) =>
+  date ? new Date(`${date}T${DEFAULT_DEADLINE_TIME}:00`).toISOString() : null;
+const normalizeDueTime = (time: string | null) => time?.slice(0, 5) ?? "";
 interface Attachment { id: string; file_name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; }
 const LINK_MIME = "text/uri-list";
 
@@ -54,6 +57,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>([]);
   const [collaboratorPickerOpen, setCollaboratorPickerOpen] = useState(false);
   const [dueDate, setDueDate] = useState<string>("");
+  const [dueTime, setDueTime] = useState<string>("");
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
 
@@ -98,6 +102,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setAssigneeId(task.assignee_id ?? "");
       void loadCollaborators(task.id);
       setDueDate(task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : "");
+      setDueTime(normalizeDueTime(task.due_time));
       currentTaskIdRef.current = task.id;
       setCurrentTaskId(task.id);
       setNewSubtask("");
@@ -106,7 +111,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       loadRelated(task.id);
     } else {
       setTitle(""); setDescription(""); setStatus("todo"); setPriority("medium");
-      setColumnId(defaultColumnId ?? ""); setClientId(""); setAssigneeId(""); setCollaboratorIds([]); setDueDate("");
+      setColumnId(defaultColumnId ?? ""); setClientId(""); setAssigneeId(""); setCollaboratorIds([]); setDueDate(""); setDueTime("");
       currentTaskIdRef.current = null;
       setCurrentTaskId(null);
       setSubtasks([]); setComments([]); setAttachments([]); setNewCommentTitle(""); setNewComment(""); setOpenComments({});
@@ -176,6 +181,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     client_id: clientId || null,
     assignee_id: assigneeId || null,
     due_date: deadlineToIso(dueDate),
+    due_time: dueDate ? dueTime || null : null,
     completed_at: status === "done" ? new Date().toISOString() : null,
   });
 
@@ -550,19 +556,34 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
               <Label className="text-xs">
                 Prazo {!task ? <span className="text-destructive">*</span> : null}
               </Label>
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="task-deadline-date flex-1"
-                  required={!task && !recurrenceEnabled}
-                />
-                {dueDate && (
-                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => setDueDate("")} title="Sem prazo">
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
+              <div className="rounded-md border bg-muted/30 p-1.5 shadow-sm">
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="task-deadline-date h-9 flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0"
+                    required={!task && !recurrenceEnabled}
+                  />
+                  {dueDate && (
+                    <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => { setDueDate(""); setDueTime(""); }} title="Sem prazo">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <div className="mt-1 flex items-center gap-2 border-t px-1.5 pt-1.5">
+                  <Clock3 className="h-3.5 w-3.5 text-primary" />
+                  <Input
+                    type="time"
+                    value={dueTime}
+                    onChange={(e) => setDueTime(e.target.value)}
+                    className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
+                    step="300"
+                    disabled={!dueDate}
+                    aria-label="Hora do prazo (opcional)"
+                  />
+                  <span className="whitespace-nowrap text-[10px] text-muted-foreground">Opcional</span>
+                </div>
               </div>
             </div>
             <div className="space-y-2">

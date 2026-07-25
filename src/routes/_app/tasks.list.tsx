@@ -229,7 +229,9 @@ function ListPage() {
                     )}
                   </td>
                   <td className={`border-r px-2 py-2 whitespace-nowrap ${overdue ? "font-medium text-destructive" : "text-muted-foreground"}`}>
-                    {t.due_date ? format(new Date(t.due_date), "dd MMM yyyy", { locale: ptBR }) : "—"}
+                    {t.due_date
+                      ? `${format(new Date(t.due_date), "dd MMM yyyy", { locale: ptBR })}${t.due_time ? ` · ${t.due_time.slice(0, 5)}` : ""}`
+                      : "—"}
                   </td>
                   <td className="px-1 py-2 text-center">
                     <Button
