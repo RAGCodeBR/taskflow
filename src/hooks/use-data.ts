@@ -117,6 +117,13 @@ export interface ClientInvoice {
   paid_at: string | null;
   payment_method: "pix" | "boleto" | "link";
   payment_link: string | null;
+  pix_key: string | null;
+  boleto_file_name: string | null;
+  boleto_storage_path: string | null;
+  boleto_mime_type: string | null;
+  invoice_file_name: string | null;
+  invoice_storage_path: string | null;
+  invoice_mime_type: string | null;
   created_at: string;
 }
 
@@ -339,4 +346,3 @@ export function useTaskStatuses() {
     },
   });
 }
-
