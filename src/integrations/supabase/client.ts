@@ -99,6 +99,9 @@ function createFallbackSupabaseClient() {
         getPublicUrl: () => ({ data: { publicUrl: '' }, error }),
       }),
     },
+    functions: {
+      invoke: () => Promise.resolve({ data: null, error }),
+    },
     removeChannel: () => undefined,
   } as any;
 }
