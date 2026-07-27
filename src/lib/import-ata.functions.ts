@@ -1,17 +1,20 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { generateGeminiContent } from "@/lib/gemini.server";
 
-const InputSchema = z.object({
-  pdfBase64: z.string().optional(),
-  text: z.string().optional(),
-  filename: z.string().optional(),
-  members: z.array(z.object({ id: z.string(), name: z.string() })).max(200),
-  clients: z.array(z.object({ id: z.string(), name: z.string() })).max(500),
-  tags: z.array(z.object({ id: z.string(), name: z.string() })).max(500),
-}).refine((d) => !!(d.pdfBase64 || (d.text && d.text.trim())), {
-  message: "Envie um PDF ou cole o texto da ata",
-});
+const InputSchema = z
+  .object({
+    pdfBase64: z.string().optional(),
+    text: z.string().optional(),
+    filename: z.string().optional(),
+    members: z.array(z.object({ id: z.string(), name: z.string() })).max(200),
+    clients: z.array(z.object({ id: z.string(), name: z.string() })).max(500),
+    tags: z.array(z.object({ id: z.string(), name: z.string() })).max(500),
+  })
+  .refine((d) => !!(d.pdfBase64 || (d.text && d.text.trim())), {
+    message: "Envie um PDF ou cole o texto da ata",
+  });
 
 export interface ExtractedTask {
   title: string;
@@ -27,10 +30,17 @@ export interface ExtractedTask {
 }
 
 function norm(s: string) {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
-function matchByName<T extends { id: string; name: string }>(arr: T[], name: string | null): T | null {
+function matchByName<T extends { id: string; name: string }>(
+  arr: T[],
+  name: string | null,
+): T | null {
   if (!name) return null;
   const n = norm(name);
   if (!n) return null;
@@ -45,13 +55,10 @@ function matchByName<T extends { id: string; name: string }>(arr: T[], name: str
   return m ?? null;
 }
 
-export const parseAtaWithClaude = createServerFn({ method: "POST" })
+export const parseAtaWithGemini = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => InputSchema.parse(data))
   .handler(async ({ data }) => {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY ausente");
-
     const memberList = data.members.map((m) => m.name).join(", ") || "(nenhum)";
     const today = new Date().toISOString().slice(0, 10);
 
@@ -71,42 +78,30 @@ REGRAS:
 SAÍDA: Apenas JSON válido, sem markdown, sem \`\`\`. Formato:
 {"tasks":[{"title":"...","description":"...","assignee_name":"...|null","due_date":"AAAA-MM-DD|null","client_name":"...|null","tag_name":"...|null","priority":"medium"}]}`;
 
-    const userContent: Array<Record<string, unknown>> = [];
+    const userContent: Array<
+      { text: string } | { inlineData: { mimeType: string; data: string } }
+    > = [];
     if (data.pdfBase64) {
       userContent.push({
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: data.pdfBase64 },
+        inlineData: { mimeType: "application/pdf", data: data.pdfBase64 },
       });
     }
     userContent.push({
-      type: "text",
       text: data.text
         ? `Conteúdo da ata:\n\n${data.text}\n\nExtraia as tarefas conforme as regras.`
         : `Extraia as tarefas da ata anexa conforme as regras. Arquivo: ${data.filename ?? "ata.pdf"}`,
     });
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-5",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userContent }],
-      }),
+    const raw = await generateGeminiContent({
+      systemInstruction: systemPrompt,
+      parts: userContent,
+      responseMimeType: "application/json",
     });
-
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(`Claude API ${res.status}: ${t.slice(0, 300)}`);
-    }
-    const json = await res.json();
-    const raw: string = json?.content?.[0]?.text ?? "";
-    const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+    const cleaned = raw
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
 
     let parsed: { tasks?: unknown };
     try {
@@ -119,7 +114,7 @@ SAÍDA: Apenas JSON válido, sem markdown, sem \`\`\`. Formato:
     }
 
     const taskArr = Array.isArray((parsed as { tasks?: unknown }).tasks)
-      ? ((parsed as { tasks: unknown[] }).tasks)
+      ? (parsed as { tasks: unknown[] }).tasks
       : [];
 
     const out: ExtractedTask[] = taskArr.map((t) => {
@@ -131,15 +126,18 @@ SAÍDA: Apenas JSON válido, sem markdown, sem \`\`\`. Formato:
       const matchedClient = matchByName(data.clients, clientName);
       const matchedTag = matchByName(data.tags, tagName);
       const priorityRaw = typeof o.priority === "string" ? o.priority.toLowerCase() : "medium";
-      const priority = (["low", "medium", "high", "urgent"].includes(priorityRaw)
-        ? priorityRaw
-        : "medium") as ExtractedTask["priority"];
+      const priority = (
+        ["low", "medium", "high", "urgent"].includes(priorityRaw) ? priorityRaw : "medium"
+      ) as ExtractedTask["priority"];
       return {
         title: String(o.title ?? "").slice(0, 200) || "Tarefa sem título",
         description: String(o.description ?? ""),
         assignee_name: assigneeName,
         assignee_id: matchedAssignee?.id ?? null,
-        due_date: typeof o.due_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.due_date) ? o.due_date : null,
+        due_date:
+          typeof o.due_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.due_date)
+            ? o.due_date
+            : null,
         client_name: clientName,
         client_id: matchedClient?.id ?? null,
         tag_name: tagName,

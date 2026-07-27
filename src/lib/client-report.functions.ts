@@ -1,16 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { generateGeminiContent } from "@/lib/gemini.server";
 
 export const generateClientReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { clientId: string }) => {
-    if (!input?.clientId || typeof input.clientId !== "string") throw new Error("clientId requerido");
+    if (!input?.clientId || typeof input.clientId !== "string")
+      throw new Error("clientId requerido");
     return { clientId: input.clientId };
   })
   .handler(async ({ data, context }) => {
-    const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) throw new Error("LOVABLE_API_KEY ausente");
     const { supabase } = context;
+    // Kept only while the legacy block below is retained as unreachable code.
+    const apiKey = process.env.LOVABLE_API_KEY ?? "";
 
     const { data: client, error: cErr } = await supabase
       .from("clients")
@@ -22,37 +24,71 @@ export const generateClientReport = createServerFn({ method: "POST" })
 
     const { data: tasks, error: tErr } = await supabase
       .from("tasks")
-      .select("id, title, description, status, priority, due_date, completed_at, created_at, updated_at, assignee_id")
+      .select(
+        "id, title, description, status, priority, due_date, completed_at, created_at, updated_at, assignee_id",
+      )
       .eq("client_id", data.clientId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (tErr) throw tErr;
 
     const taskIds = (tasks ?? []).map((t) => t.id);
-    const [{ data: subs }, { data: notes }, { data: profiles }, { data: dueChanges }, { data: interruptions }] = await Promise.all([
+    const [
+      { data: subs },
+      { data: notes },
+      { data: profiles },
+      { data: dueChanges },
+      { data: interruptions },
+    ] = await Promise.all([
       taskIds.length
-        ? supabase.from("subtasks").select("id, task_id, title, done, position, due_date, completed_at, comment_id").in("task_id", taskIds).order("position")
+        ? supabase
+            .from("subtasks")
+            .select("id, task_id, title, done, position, due_date, completed_at, comment_id")
+            .in("task_id", taskIds)
+            .order("position")
         : Promise.resolve({ data: [] as any[] }),
       taskIds.length
-        ? supabase.from("comments").select("id, task_id, title, body, created_at, position").in("task_id", taskIds).order("position")
+        ? supabase
+            .from("comments")
+            .select("id, task_id, title, body, created_at, position")
+            .in("task_id", taskIds)
+            .order("position")
         : Promise.resolve({ data: [] as any[] }),
       supabase.from("profiles").select("id, full_name, email"),
       taskIds.length
-        ? supabase.from("task_due_date_changes").select("task_id, old_due_date, new_due_date, reason, created_at").in("task_id", taskIds).order("created_at")
+        ? supabase
+            .from("task_due_date_changes")
+            .select("task_id, old_due_date, new_due_date, reason, created_at")
+            .in("task_id", taskIds)
+            .order("created_at")
         : Promise.resolve({ data: [] as any[] }),
       taskIds.length
-        ? supabase.from("task_interruptions").select("task_id, reason, created_at").in("task_id", taskIds).order("created_at")
+        ? supabase
+            .from("task_interruptions")
+            .select("task_id, reason, created_at")
+            .in("task_id", taskIds)
+            .order("created_at")
         : Promise.resolve({ data: [] as any[] }),
     ]);
 
     const subIds = (subs ?? []).map((s: any) => s.id);
     const { data: subDueChanges } = subIds.length
-      ? await supabase.from("subtask_due_date_changes").select("subtask_id, old_due_date, new_due_date, reason, created_at").in("subtask_id", subIds).order("created_at")
+      ? await supabase
+          .from("subtask_due_date_changes")
+          .select("subtask_id, old_due_date, new_due_date, reason, created_at")
+          .in("subtask_id", subIds)
+          .order("created_at")
       : { data: [] as any[] };
 
-    const profileById = new Map((profiles ?? []).map((p: any) => [p.id, p.full_name || p.email || "?"]));
+    const profileById = new Map(
+      (profiles ?? []).map((p: any) => [p.id, p.full_name || p.email || "?"]),
+    );
     const stripHtml = (s: string | null | undefined) =>
-      (s ?? "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+      (s ?? "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 
     const subById = new Map((subs ?? []).map((s: any) => [s.id, s]));
 
@@ -78,18 +114,28 @@ export const generateClientReport = createServerFn({ method: "POST" })
               prazo: s.due_date,
               mudancas_prazo: (subDueChanges ?? [])
                 .filter((c: any) => c.subtask_id === s.id)
-                .map((c: any) => ({ de: c.old_due_date, para: c.new_due_date, motivo: c.reason ?? null })),
+                .map((c: any) => ({
+                  de: c.old_due_date,
+                  para: c.new_due_date,
+                  motivo: c.reason ?? null,
+                })),
             })),
         }));
-        const subtarefasRaiz = taskSubs.filter((s: any) => !s.comment_id).map((s: any) => ({
-          titulo: stripHtml(s.title),
-          feita: s.done,
-          concluida_em: s.completed_at,
-          prazo: s.due_date,
-          mudancas_prazo: (subDueChanges ?? [])
-            .filter((c: any) => c.subtask_id === s.id)
-            .map((c: any) => ({ de: c.old_due_date, para: c.new_due_date, motivo: c.reason ?? null })),
-        }));
+        const subtarefasRaiz = taskSubs
+          .filter((s: any) => !s.comment_id)
+          .map((s: any) => ({
+            titulo: stripHtml(s.title),
+            feita: s.done,
+            concluida_em: s.completed_at,
+            prazo: s.due_date,
+            mudancas_prazo: (subDueChanges ?? [])
+              .filter((c: any) => c.subtask_id === s.id)
+              .map((c: any) => ({
+                de: c.old_due_date,
+                para: c.new_due_date,
+                motivo: c.reason ?? null,
+              })),
+          }));
         return {
           titulo: t.title,
           descricao: stripHtml(t.description).slice(0, 800),
@@ -103,8 +149,14 @@ export const generateClientReport = createServerFn({ method: "POST" })
           subtarefas_raiz: subtarefasRaiz,
           mudancas_prazo: (dueChanges ?? [])
             .filter((c: any) => c.task_id === t.id)
-            .map((c: any) => ({ de: c.old_due_date, para: c.new_due_date, motivo: c.reason ?? null })),
-          interrupcoes: (interruptions ?? []).filter((i: any) => i.task_id === t.id).map((i: any) => ({ motivo: i.reason, quando: i.created_at })),
+            .map((c: any) => ({
+              de: c.old_due_date,
+              para: c.new_due_date,
+              motivo: c.reason ?? null,
+            })),
+          interrupcoes: (interruptions ?? [])
+            .filter((i: any) => i.task_id === t.id)
+            .map((i: any) => ({ motivo: i.reason, quando: i.created_at })),
         };
       }),
     };
@@ -130,25 +182,50 @@ DIRETRIZES:
 DADOS (JSON):
 ${JSON.stringify(payload)}`;
 
+    const geminiRaw = await generateGeminiContent({
+      systemInstruction: "Produza relatórios executivos em HTML limpo, sem inventar dados.",
+      parts: [{ text: prompt }],
+      responseMimeType: "text/html",
+    });
+    const geminiHtml = geminiRaw
+      .replace(/^```html\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
+    return {
+      html: geminiHtml,
+      stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending },
+    };
+
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: "google/gemini-2.5-pro",
         messages: [
-          { role: "system", content: "Você produz relatórios executivos em HTML limpo, sem inventar dados." },
+          {
+            role: "system",
+            content: "Você produz relatórios executivos em HTML limpo, sem inventar dados.",
+          },
           { role: "user", content: prompt },
         ],
       }),
     });
     if (!res.ok) {
       const t = await res.text();
-      if (res.status === 429) throw new Error("Limite de requisições atingido. Tente novamente em instantes.");
-      if (res.status === 402) throw new Error("Créditos de IA esgotados. Adicione créditos no workspace.");
+      if (res.status === 429)
+        throw new Error("Limite de requisições atingido. Tente novamente em instantes.");
+      if (res.status === 402)
+        throw new Error("Créditos de IA esgotados. Adicione créditos no workspace.");
       throw new Error(`AI: ${res.status} ${t.slice(0, 200)}`);
     }
     const json = await res.json();
     const raw: string = json?.choices?.[0]?.message?.content ?? "";
-    const html = raw.replace(/^```html\s*/i, "").replace(/```\s*$/i, "").trim();
-    return { html, stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending } };
+    const html = raw
+      .replace(/^```html\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
+    return {
+      html,
+      stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending },
+    };
   });

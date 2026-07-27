@@ -1,22 +1,22 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { generateGeminiContent } from "@/lib/gemini.server";
 
-const InputSchema = z.object({
-  pdfBase64: z.string().optional(),
-  text: z.string().optional(),
-  filename: z.string().optional(),
-}).refine((d) => !!(d.pdfBase64 || (d.text && d.text.trim())), {
-  message: "Envie um PDF ou cole o texto da reunião",
-});
+const InputSchema = z
+  .object({
+    pdfBase64: z.string().optional(),
+    text: z.string().optional(),
+    filename: z.string().optional(),
+  })
+  .refine((d) => !!(d.pdfBase64 || (d.text && d.text.trim())), {
+    message: "Envie um PDF ou cole o texto da reunião",
+  });
 
-export const formatAtaWithClaude = createServerFn({ method: "POST" })
+export const formatAtaWithGemini = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => InputSchema.parse(data))
   .handler(async ({ data }) => {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY ausente");
-
     const today = new Date().toLocaleDateString("pt-BR");
 
     const systemPrompt = `Você organiza notas de reunião em uma ATA formal em português, no formato HTML estruturado abaixo. Use APENAS o conteúdo fornecido — não invente fatos. Se um campo não estiver claro, use "—".
@@ -55,42 +55,30 @@ REGRAS:
 - Não adicione introdução nem encerramento fora do HTML.
 - Não use markdown. Apenas HTML simples (h2, h3, p, ul, li, table, tr, td, th, strong, em).`;
 
-    const userContent: Array<Record<string, unknown>> = [];
+    const userContent: Array<
+      { text: string } | { inlineData: { mimeType: string; data: string } }
+    > = [];
     if (data.pdfBase64) {
       userContent.push({
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: data.pdfBase64 },
+        inlineData: { mimeType: "application/pdf", data: data.pdfBase64 },
       });
     }
     userContent.push({
-      type: "text",
       text: data.text
         ? `Conteúdo bruto da reunião:\n\n${data.text}\n\nGere a ata formatada em HTML conforme as regras.`
         : `Gere a ata formatada da reunião anexa conforme as regras.`,
     });
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-5",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userContent }],
-      }),
+    const raw = await generateGeminiContent({
+      systemInstruction: systemPrompt,
+      parts: userContent,
+      responseMimeType: "text/html",
     });
-
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(`Claude API ${res.status}: ${t.slice(0, 300)}`);
-    }
-    const json = await res.json();
-    const raw: string = json?.content?.[0]?.text ?? "";
-    const html = raw.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+    const html = raw
+      .replace(/^```html\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
 
     // Extract a plain-text version for the `content` column
     const text = html

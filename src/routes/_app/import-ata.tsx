@@ -14,8 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sparkles, Upload, FileText, Loader2, Trash2, Plus, CheckCircle2, NotebookPen, FileSignature } from "lucide-react";
 import { toast } from "sonner";
-import { parseAtaWithClaude, type ExtractedTask } from "@/lib/import-ata.functions";
-import { formatAtaWithClaude } from "@/lib/format-ata.functions";
+import { parseAtaWithGemini, type ExtractedTask } from "@/lib/import-ata.functions";
+import { formatAtaWithGemini } from "@/lib/format-ata.functions";
 
 export const Route = createFileRoute("/_app/import-ata")({
   component: ImportAtaPage,
@@ -30,8 +30,8 @@ function ImportAtaPage() {
   const { data: clients = [] } = useClients();
   const { data: tags = [] } = useTaskTags();
   const { data: statuses = [] } = useTaskStatuses();
-  const runParse = useServerFn(parseAtaWithClaude);
-  const runFormat = useServerFn(formatAtaWithClaude);
+  const runParse = useServerFn(parseAtaWithGemini);
+  const runFormat = useServerFn(formatAtaWithGemini);
 
   const [tab, setTab] = useState<"pdf" | "text">("pdf");
   const [file, setFile] = useState<File | null>(null);
@@ -237,7 +237,7 @@ function ImportAtaPage() {
         <Tabs value={tab} onValueChange={(v) => setTab(v as "pdf" | "text")}>
           <TabsList>
             <TabsTrigger value="pdf"><FileText className="h-4 w-4 mr-1" />PDF da ata</TabsTrigger>
-            <TabsTrigger value="text"><Sparkles className="h-4 w-4 mr-1" />Texto do Claude</TabsTrigger>
+            <TabsTrigger value="text"><Sparkles className="h-4 w-4 mr-1" />Texto do Gemini</TabsTrigger>
           </TabsList>
           <TabsContent value="pdf" className="mt-3 space-y-3">
             <label className="flex items-center gap-3 rounded-md border border-dashed p-4 cursor-pointer hover:bg-muted/40">
@@ -252,7 +252,7 @@ function ImportAtaPage() {
           <TabsContent value="text" className="mt-3 space-y-3">
             <Textarea
               rows={10}
-              placeholder="Cole aqui o conteúdo da ata (ou a resposta do Claude com as próximas etapas)..."
+              placeholder="Cole aqui o conteúdo da ata (ou a resposta do Gemini com as próximas etapas)..."
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
