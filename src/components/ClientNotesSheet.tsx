@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { AttachmentPreviewDialog, type PreviewableAttachment } from "@/components/AttachmentPreviewDialog";
+import { FileDropZone } from "@/components/FileDropZone";
 
 const PREVIEWABLE_MIME_RE = /^(image\/|video\/|audio\/|text\/)|application\/pdf|json/i;
 
@@ -37,10 +38,11 @@ interface NoteAttachment {
 
 const sb = supabase as any;
 
-export function ClientNotesSheet({ open, onOpenChange, initialClientId }: {
+export function ClientNotesSheet({ open, onOpenChange, initialClientId, embedded = false }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initialClientId?: string | null;
+  embedded?: boolean;
 }) {
   const { user } = useAuth();
   const { data: clients = [] } = useClients();
@@ -53,7 +55,7 @@ export function ClientNotesSheet({ open, onOpenChange, initialClientId }: {
   }, [initialClientId]);
 
   useEffect(() => {
-    if (!open || clientId) return;
+    if ((!open && !embedded) || clientId) return;
     if (clients[0]) setClientId(clients[0].id);
   }, [open, clients, clientId]);
 
@@ -71,8 +73,8 @@ export function ClientNotesSheet({ open, onOpenChange, initialClientId }: {
   };
 
   useEffect(() => {
-    if (open && clientId) void load(clientId);
-  }, [open, clientId]);
+    if ((open || embedded) && clientId) void load(clientId);
+  }, [open, embedded, clientId]);
 
   const addNote = async () => {
     if (!clientId || !user) return;
@@ -99,15 +101,23 @@ export function ClientNotesSheet({ open, onOpenChange, initialClientId }: {
   const currentClient = useMemo(() => clients.find((c) => c.id === clientId), [clients, clientId]);
   const pendingCount = notes.filter((n) => !n.done).length;
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="flex h-[85vh] w-full flex-col p-0 sm:max-w-none">
-        <SheetHeader className="border-b px-4 py-3">
-          <SheetTitle>Anotações do cliente</SheetTitle>
-          <SheetDescription>
-            Anotações livres, com checkbox e anexos. Role na horizontal para navegar.
-          </SheetDescription>
-        </SheetHeader>
+  const content = (
+    <>
+        {embedded ? (
+          <div className="border-b px-4 py-3">
+            <h2 className="text-lg font-semibold">Anotações do cliente</h2>
+            <p className="text-sm text-muted-foreground">
+              Anotações livres, com checkbox e anexos. Role na horizontal para navegar.
+            </p>
+          </div>
+        ) : (
+          <SheetHeader className="border-b px-4 py-3">
+            <SheetTitle>Anotações do cliente</SheetTitle>
+            <SheetDescription>
+              Anotações livres, com checkbox e anexos. Role na horizontal para navegar.
+            </SheetDescription>
+          </SheetHeader>
+        )}
 
         <div className="flex items-center gap-2 border-b px-4 py-3">
           <Select value={clientId ?? undefined} onValueChange={(v) => setClientId(v)}>
@@ -153,6 +163,17 @@ export function ClientNotesSheet({ open, onOpenChange, initialClientId }: {
         </div>
 
         {clientId && <ClientFilesPanel clientId={clientId} />}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex min-h-[680px] flex-col">{content}</div>;
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="flex h-[85vh] w-full flex-col p-0 sm:max-w-none">
+        {content}
       </SheetContent>
     </Sheet>
   );
@@ -342,7 +363,11 @@ function NoteCard({
             className="min-h-[120px] resize-y text-sm"
           />
 
-          <div className="rounded-md border border-dashed bg-muted/30 p-2">
+          <FileDropZone
+            onFiles={(files) => void onFiles(files)}
+            disabled={uploading}
+            className="rounded-md border border-dashed bg-muted/30 p-2"
+          >
             <div className="mb-2 flex items-center justify-between">
               <p className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                 <Paperclip className="h-3 w-3" /> Arquivos e imagens ({atts.length})
@@ -422,7 +447,7 @@ function NoteCard({
                 })}
               </div>
             )}
-          </div>
+          </FileDropZone>
 
           <p className="text-[10px] text-muted-foreground">
             Atualizado em {format(new Date(note.updated_at), "dd MMM yyyy HH:mm", { locale: ptBR })}
@@ -528,7 +553,11 @@ function ClientFilesPanel({ clientId }: { clientId: string }) {
   };
 
   return (
-    <div className="border-t bg-muted/20">
+    <FileDropZone
+      onFiles={(files) => void onFiles(files)}
+      disabled={uploading}
+      className="border-t bg-muted/20"
+    >
       <div className="flex items-center justify-between px-4 py-2">
         <button
           type="button"
@@ -605,6 +634,6 @@ function ClientFilesPanel({ clientId }: { clientId: string }) {
         onOpenChange={(o) => { if (!o) setPreview(null); }}
         attachment={preview}
       />
-    </div>
+    </FileDropZone>
   );
 }

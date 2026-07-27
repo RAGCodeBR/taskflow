@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ImageUp, LoaderCircle, Pencil, Plus, Save, Trash2, Users } from "lucide-react";
+import { ArrowLeft, Building2, ChevronDown, ImageUp, LoaderCircle, NotebookPen, Pencil, Plus, Save, Trash2, Users } from "lucide-react";
 import { DndContext, PointerSensor, closestCenter, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -11,11 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { type Client, type ClientDepartment, type ClientDepartmentEmployee, type ClientSystemAccess } from "@/hooks/use-data";
+import { type Client, type ClientBranch, type ClientDepartment, type ClientDepartmentEmployee, type ClientSystemAccess } from "@/hooks/use-data";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { NotesWorkspace } from "@/routes/_app/notes";
 
 export const Route = createFileRoute("/_app/clients/$clientId/edit")({
   component: EditClientPage,
@@ -24,6 +25,7 @@ export const Route = createFileRoute("/_app/clients/$clientId/edit")({
 const EMPTY_DEPARTMENTS: ClientDepartment[] = [];
 const EMPTY_EMPLOYEES: ClientDepartmentEmployee[] = [];
 const EMPTY_SYSTEM_ACCESSES: ClientSystemAccess[] = [];
+const EMPTY_BRANCHES: ClientBranch[] = [];
 
 function EditClientPage() {
   const { clientId } = Route.useParams();
@@ -79,6 +81,17 @@ function EditClientPage() {
       return (data ?? []) as ClientSystemAccess[];
     },
   });
+  const { data: branches = EMPTY_BRANCHES } = useQuery({
+    queryKey: ["client-branches", clientId],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("client_branches" as any) as any)
+        .select("*")
+        .eq("client_id", clientId)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as ClientBranch[];
+    },
+  });
   const [saving, setSaving] = useState(false);
   const [cnpj, setCnpj] = useState("");
   const [legalName, setLegalName] = useState("");
@@ -113,6 +126,14 @@ function EditClientPage() {
   const [systemAccessLogin, setSystemAccessLogin] = useState("");
   const [systemAccessPassword, setSystemAccessPassword] = useState("");
   const [systemAccessNotes, setSystemAccessNotes] = useState("");
+  const [branchFormOpen, setBranchFormOpen] = useState(false);
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
+  const [branchName, setBranchName] = useState("");
+  const [branchCnpj, setBranchCnpj] = useState("");
+  const [branchAddress, setBranchAddress] = useState("");
+  const [branchPhone, setBranchPhone] = useState("");
+  const [branchEmail, setBranchEmail] = useState("");
+  const [activeTab, setActiveTab] = useState("client");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   useEffect(() => {
@@ -423,6 +444,62 @@ function EditClientPage() {
     toast.success("Acesso excluído");
   };
 
+  const resetBranchForm = () => {
+    setBranchFormOpen(false);
+    setEditingBranchId(null);
+    setBranchName("");
+    setBranchCnpj("");
+    setBranchAddress("");
+    setBranchPhone("");
+    setBranchEmail("");
+  };
+
+  const saveBranch = async () => {
+    if (!branchName.trim()) {
+      toast.error("Informe o nome da filial.");
+      return;
+    }
+    const payload = {
+      name: branchName.trim(),
+      cnpj: branchCnpj.trim() || null,
+      address: branchAddress.trim() || null,
+      phone: branchPhone.trim() || null,
+      email: branchEmail.trim() || null,
+    };
+    const { error } = editingBranchId
+      ? await (supabase.from("client_branches" as any) as any).update(payload).eq("id", editingBranchId)
+      : await (supabase.from("client_branches" as any) as any).insert({ ...payload, client_id: clientId });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["client-branches", clientId] });
+    const wasEditing = !!editingBranchId;
+    resetBranchForm();
+    toast.success(wasEditing ? "Filial atualizada" : "Filial cadastrada");
+  };
+
+  const startBranchEdit = (branch: ClientBranch) => {
+    setEditingBranchId(branch.id);
+    setBranchName(branch.name);
+    setBranchCnpj(branch.cnpj ?? "");
+    setBranchAddress(branch.address ?? "");
+    setBranchPhone(branch.phone ?? "");
+    setBranchEmail(branch.email ?? "");
+    setBranchFormOpen(true);
+  };
+
+  const deleteBranch = async (branch: ClientBranch) => {
+    if (!confirm(`Excluir a filial "${branch.name}"?`)) return;
+    const { error } = await (supabase.from("client_branches" as any) as any).delete().eq("id", branch.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["client-branches", clientId] });
+    toast.success("Filial excluída");
+  };
+
   const startEmployeeDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     const startX = event.clientX;
     const startY = event.clientY;
@@ -461,7 +538,7 @@ function EditClientPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <div className={`mx-auto w-full ${activeTab === "notes" ? "max-w-5xl" : "max-w-4xl"} space-y-6 p-6`}>
       <header className="flex items-center gap-4">
         <Button asChild size="icon" variant="ghost" title="Voltar para clientes">
           <Link to="/clients">
@@ -477,11 +554,13 @@ function EditClientPage() {
       </header>
 
       <Card className="p-6">
-        <Tabs defaultValue="client">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="client">Dados do cliente</TabsTrigger>
+            <TabsTrigger value="branches">Outras filiais</TabsTrigger>
             <TabsTrigger value="departments">Departamentos</TabsTrigger>
             <TabsTrigger value="system">Sistemas</TabsTrigger>
+            <TabsTrigger value="notes">Anotações</TabsTrigger>
           </TabsList>
 
           <TabsContent value="client" className="mt-6">
@@ -608,6 +687,57 @@ function EditClientPage() {
                   {saving ? "Salvando..." : "Salvar alterações"}
                 </Button>
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="branches" className="mt-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold">Outras filiais</h2>
+                <p className="text-sm text-muted-foreground">
+                  Cadastre as demais unidades vinculadas a este cliente.
+                </p>
+              </div>
+              <Button onClick={() => { resetBranchForm(); setBranchFormOpen(true); }}>
+                <Plus className="mr-2 h-4 w-4" />
+                Cadastrar filial
+              </Button>
+            </div>
+
+            {branchFormOpen && (
+              <div className="space-y-4 rounded-lg border p-4">
+                <h3 className="font-medium">{editingBranchId ? "Editar filial" : "Nova filial"}</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Nome da filial"><Input value={branchName} onChange={(event) => setBranchName(event.target.value)} /></Field>
+                  <Field label="CNPJ"><Input value={branchCnpj} onChange={(event) => setBranchCnpj(event.target.value)} /></Field>
+                  <Field label="Telefone"><Input value={branchPhone} onChange={(event) => setBranchPhone(event.target.value)} /></Field>
+                  <Field label="E-mail"><Input type="email" value={branchEmail} onChange={(event) => setBranchEmail(event.target.value)} /></Field>
+                </div>
+                <Field label="Endereço"><Textarea value={branchAddress} onChange={(event) => setBranchAddress(event.target.value)} /></Field>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={resetBranchForm}>Cancelar</Button>
+                  <Button onClick={saveBranch}>Salvar filial</Button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {branches.map((branch) => (
+                <div key={branch.id} className="flex items-start justify-between gap-3 rounded-lg border p-4">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 font-medium"><Building2 className="h-4 w-4 text-muted-foreground" />{branch.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {[branch.cnpj && `CNPJ: ${branch.cnpj}`, branch.phone, branch.email].filter(Boolean).join(" · ") || "Sem contatos cadastrados"}
+                    </p>
+                    {branch.address && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{branch.address}</p>}
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button size="icon" variant="ghost" title="Editar filial" onClick={() => startBranchEdit(branch)}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" title="Excluir filial" onClick={() => deleteBranch(branch)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </div>
+                </div>
+              ))}
+              {branches.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma filial cadastrada.</p>}
             </div>
           </TabsContent>
 
@@ -756,6 +886,16 @@ function EditClientPage() {
               ))}
               {systemAccesses.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum acesso cadastrado.</p>}
             </div>
+          </TabsContent>
+          <TabsContent value="notes" className="mt-6">
+            <div className="mb-4 flex items-center gap-2">
+              <NotebookPen className="h-5 w-5 text-primary" />
+              <div>
+                <h2 className="font-semibold">Anotações</h2>
+                <p className="text-sm text-muted-foreground">Anotações, pendências, links e anexos deste cliente.</p>
+              </div>
+            </div>
+            <NotesWorkspace fixedClientId={clientId} embedded />
           </TabsContent>
         </Tabs>
       </Card>

@@ -3,13 +3,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Download, ExternalLink, GripVertical, Image as ImageIcon, Link2, Paperclip, Pencil, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
+import { FileDropZone } from "@/components/FileDropZone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
-import type { Client, KanbanColumn, Profile, Task, TaskTag } from "@/hooks/use-data";
+import { useAssignableProfiles, type Client, type KanbanColumn, type Profile, type Task, type TaskTag } from "@/hooks/use-data";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Attachment {
@@ -58,6 +59,7 @@ export function InlineTaskEditor({
 }: Props) {
   const qc = useQueryClient();
   const { user, isAdmin } = useAuth();
+  const { data: assignableProfiles = [] } = useAssignableProfiles();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     title: task.title,
@@ -452,7 +454,7 @@ export function InlineTaskEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem responsável</SelectItem>
-                  {profiles.map((profile) => (
+                  {assignableProfiles.map((profile) => (
                     <SelectItem key={profile.id} value={profile.id}>
                       {profile.full_name || profile.email}
                     </SelectItem>
@@ -508,7 +510,13 @@ export function InlineTaskEditor({
             </>
           ) : null}
 
-          <div className="space-y-2 rounded-md border border-dashed p-2">
+          <FileDropZone
+            onFiles={(files) => {
+              const file = files.item(0);
+              if (file) void uploadFile(file);
+            }}
+            className="space-y-2 rounded-md border border-dashed p-2"
+          >
             <div className="flex items-center justify-between gap-2">
               <Label className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <Paperclip className="h-3 w-3" />Arquivos
@@ -613,7 +621,7 @@ export function InlineTaskEditor({
                 </Button>
               </div>
             </div>
-          </div>
+          </FileDropZone>
         </div>
 
         <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">

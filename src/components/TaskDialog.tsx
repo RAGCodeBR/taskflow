@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/use-auth";
-import { useClients, useColumns, useProfiles, useUserRoles, type Task } from "@/hooks/use-data";
+import { useAssignableProfiles, useClients, useColumns, useProfiles, type Task } from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
+import { FileDropZone } from "@/components/FileDropZone";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { RichTextEditor } from "@/components/RichTextEditor";
 
@@ -98,11 +99,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const { data: cols } = useColumns();
   const { data: clients } = useClients();
   const { data: profiles } = useProfiles();
-  const { data: userRoles = [] } = useUserRoles();
-  const clientUserIds = useMemo(
-    () => new Set(userRoles.filter((item) => item.role === "client").map((item) => item.user_id)),
-    [userRoles],
-  );
+  const { data: assignableProfiles = [] } = useAssignableProfiles();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -804,11 +801,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-64 p-2">
                   <div className="max-h-56 space-y-0.5 overflow-y-auto">
-                    {(profiles ?? [])
-                      .filter(
-                        (profile) => profile.is_active !== false && !clientUserIds.has(profile.id),
-                      )
-                      .map((profile) => {
+                    {assignableProfiles.map((profile) => {
                         const selected = collaboratorIds.includes(profile.id);
                         const name = profile.full_name || profile.email || "Usuário sem nome";
                         return (
@@ -924,7 +917,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Ninguém</SelectItem>
-                  {profiles?.map((p) => (
+                  {assignableProfiles.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.full_name || p.email}
                     </SelectItem>
@@ -1160,7 +1153,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">Ninguém</SelectItem>
-                                {profiles?.map((p) => (
+                                {assignableProfiles.map((p) => (
                                   <SelectItem key={p.id} value={p.id}>
                                     {p.full_name || p.email}
                                   </SelectItem>
@@ -1208,7 +1201,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                                 </Button>
                               </div>
                             ))}
-                            <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed py-1.5 text-[11px] text-muted-foreground hover:bg-muted/40">
+                            <FileDropZone
+                              onFiles={(files) => {
+                                const file = files.item(0);
+                                if (file) void uploadSubFile(s, file);
+                              }}
+                            >
+                              <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed py-1.5 text-[11px] text-muted-foreground hover:bg-muted/40">
                               <Paperclip className="h-3 w-3" /> Anexar arquivo
                               <input
                                 type="file"
@@ -1219,7 +1218,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                                   e.target.value = "";
                                 }}
                               />
-                            </label>
+                              </label>
+                            </FileDropZone>
                           </div>
                         </div>
                       )}
@@ -1250,7 +1250,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Sem responsável</SelectItem>
-                      {profiles?.map((p) => (
+                      {assignableProfiles.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.full_name || p.email}
                         </SelectItem>
@@ -1377,7 +1377,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     </Button>
                   </div>
                 ))}
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-3 text-sm text-muted-foreground hover:bg-muted/40">
+                <FileDropZone
+                  onFiles={(files) => {
+                    const file = files.item(0);
+                    if (file) void uploadFile(file);
+                  }}
+                >
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-3 text-sm text-muted-foreground hover:bg-muted/40">
                   <Paperclip className="h-4 w-4" /> Anexar arquivo
                   <input
                     type="file"
@@ -1388,7 +1394,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                       e.target.value = "";
                     }}
                   />
-                </label>
+                  </label>
+                </FileDropZone>
               </TabsContent>
             </Tabs>
           }

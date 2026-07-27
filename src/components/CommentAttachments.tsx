@@ -3,6 +3,7 @@ import { FileText, Image as ImageIcon, Paperclip, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
+import { FileDropZone } from "@/components/FileDropZone";
 import { toast } from "sonner";
 
 interface CommentAttachment {
@@ -124,7 +125,11 @@ export function CommentAttachments({
   };
 
   return (
-    <div className="border-t bg-muted/10 px-2 py-1.5">
+    <FileDropZone
+      onFiles={(files) => void upload(files)}
+      disabled={uploading}
+      className="border-t bg-muted/10 px-2 py-1.5"
+    >
       <div className="mb-1 flex items-center justify-between">
         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Arquivos ({items.length})
@@ -216,6 +221,6 @@ export function CommentAttachments({
           onOpenChange={(o) => { if (!o) setPreview(null); }}
         />
       ) : null}
-    </div>
+    </FileDropZone>
   );
 }

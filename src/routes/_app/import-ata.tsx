@@ -16,6 +16,7 @@ import { Sparkles, Upload, FileText, Loader2, Trash2, Plus, CheckCircle2, Notebo
 import { toast } from "sonner";
 import { parseAtaWithGemini, type ExtractedTask } from "@/lib/import-ata.functions";
 import { formatAtaWithGemini } from "@/lib/format-ata.functions";
+import { FileDropZone } from "@/components/FileDropZone";
 
 export const Route = createFileRoute("/_app/import-ata")({
   component: ImportAtaPage,
@@ -240,14 +241,19 @@ function ImportAtaPage() {
             <TabsTrigger value="text"><Sparkles className="h-4 w-4 mr-1" />Texto do Gemini</TabsTrigger>
           </TabsList>
           <TabsContent value="pdf" className="mt-3 space-y-3">
-            <label className="flex items-center gap-3 rounded-md border border-dashed p-4 cursor-pointer hover:bg-muted/40">
+            <FileDropZone
+              onFiles={(files) => setFile(files.item(0))}
+              className="rounded-md"
+            >
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border border-dashed p-4 hover:bg-muted/40">
               <Upload className="h-5 w-5 text-muted-foreground" />
               <div className="flex-1">
                 <div className="text-sm font-medium">{file ? file.name : "Selecionar PDF"}</div>
                 <div className="text-xs text-muted-foreground">{file ? `${(file.size / 1024).toFixed(0)} KB` : "Aceita atas em PDF (até ~10MB)"}</div>
               </div>
               <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            </label>
+              </label>
+            </FileDropZone>
           </TabsContent>
           <TabsContent value="text" className="mt-3 space-y-3">
             <Textarea

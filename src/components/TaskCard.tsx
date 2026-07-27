@@ -51,13 +51,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
+import { FileDropZone } from "@/components/FileDropZone";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
 import { CommentAttachments } from "@/components/CommentAttachments";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  useUserRoles,
+  useAssignableProfiles,
   type Client,
   type KanbanColumn,
   type Profile,
@@ -176,11 +177,7 @@ export function TaskCard({
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [collaboratorsOpen, setCollaboratorsOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
-  const { data: userRoles = [] } = useUserRoles();
-  const clientUserIds = useMemo(
-    () => new Set(userRoles.filter((item) => item.role === "client").map((item) => item.user_id)),
-    [userRoles],
-  );
+  const { data: assignableProfiles = [] } = useAssignableProfiles();
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [comments, setComments] = useState<CardComment[]>([]);
@@ -349,8 +346,8 @@ export function TaskCard({
           profiles.find((profile) => profile.id === collaborator.collaborator_id),
         )
         .filter((profile): profile is Profile => Boolean(profile))
-        .filter((profile) => !clientUserIds.has(profile.id)),
-    [clientUserIds, collaborators, profiles, task.id],
+        .filter((profile) => assignableProfiles.some((assignable) => assignable.id === profile.id)),
+    [assignableProfiles, collaborators, profiles, task.id],
   );
   const taskPeople = useMemo(
     () =>
@@ -1500,7 +1497,7 @@ export function TaskCard({
                                         onClear={() => void updateSubtaskDue(s, "")}
                                       />
                                       <SubtaskAssigneePopover
-                                        profiles={profiles}
+                                        profiles={assignableProfiles}
                                         value={s.assignee_id}
                                         onChange={(v) => void updateSubtaskAssignee(s, v)}
                                       />
@@ -1745,11 +1742,7 @@ export function TaskCard({
               </CollapsibleTrigger>
               <CollapsibleContent className="border-t p-1.5">
                 <div className="max-h-56 space-y-0.5 overflow-y-auto">
-                  {profiles
-                    .filter(
-                      (profile) => profile.is_active !== false && !clientUserIds.has(profile.id),
-                    )
-                    .map((profile) => {
+                  {assignableProfiles.map((profile) => {
                       const checked = taskCollaborators.some(
                         (collaborator) => collaborator.id === profile.id,
                       );
@@ -1917,7 +1910,7 @@ export function TaskCard({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">Sem responsável</SelectItem>
-                          {profiles.map((p) => (
+                          {assignableProfiles.map((p) => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.full_name || p.email}
                             </SelectItem>
@@ -1996,6 +1989,13 @@ export function TaskCard({
                 ) : null}
 
                 {/* Upload button */}
+                <FileDropZone
+                  onFiles={(files) => {
+                    const file = files.item(0);
+                    if (file) void uploadFile(file);
+                  }}
+                  className="w-full"
+                >
                 <button
                   type="button"
                   onPointerDown={stop}
@@ -2018,6 +2018,7 @@ export function TaskCard({
                     e.target.value = "";
                   }}
                 />
+                </FileDropZone>
               </div>
             ) : null}
           </div>

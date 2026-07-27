@@ -102,6 +102,17 @@ export interface ClientSystemAccess {
   created_at: string;
   updated_at: string;
 }
+export interface ClientBranch {
+  id: string;
+  client_id: string;
+  name: string;
+  cnpj: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  created_at: string;
+  updated_at: string;
+}
 export interface Profile {
   id: string;
   full_name: string | null;
@@ -276,6 +287,17 @@ export function useUserRoles() {
       const { data, error } = await supabase.from("user_roles").select("user_id, role");
       if (error) throw error;
       return (data ?? []) as UserRole[];
+    },
+  });
+}
+
+export function useAssignableProfiles() {
+  return useQuery({
+    queryKey: ["assignable-profiles"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc("list_task_assignees") as any);
+      if (error) throw error;
+      return (data ?? []) as Profile[];
     },
   });
 }

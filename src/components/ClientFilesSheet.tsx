@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useClients } from "@/hooks/use-data";
 import { toast } from "sonner";
 import { AttachmentPreviewDialog, type PreviewableAttachment } from "@/components/AttachmentPreviewDialog";
+import { FileDropZone } from "@/components/FileDropZone";
 
 const PREVIEWABLE_MIME_RE = /^(image\/|video\/|audio\/|text\/)|application\/pdf|json/i;
 const sb = supabase as any;
@@ -148,7 +149,12 @@ export function ClientFilesSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex items-center gap-2 border-b px-4 py-3">
+        <FileDropZone
+          onFiles={(uploadedFiles) => void onUpload(uploadedFiles)}
+          disabled={!clientId || uploading}
+          className="border-b px-4 py-3"
+        >
+          <div className="flex items-center gap-2">
           <Select value={clientId ?? undefined} onValueChange={(v) => setClientId(v)}>
             <SelectTrigger className="w-[260px]">
               <SelectValue placeholder="Selecione um cliente" />
@@ -166,7 +172,7 @@ export function ClientFilesSheet({
               accept="*/*"
               className="hidden"
               onChange={(e) => void onUpload(e.target.files)}
-              disabled={!clientId}
+              disabled={!clientId || uploading}
             />
             <span className="inline-flex items-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted">
               {uploading ? "Enviando…" : "+ Adicionar arquivo"}
@@ -175,7 +181,8 @@ export function ClientFilesSheet({
           {clientId && (
             <p className="ml-auto text-xs text-muted-foreground">{files.length} arquivo(s)</p>
           )}
-        </div>
+          </div>
+        </FileDropZone>
 
         <div className="flex-1 overflow-y-auto p-4">
           {!clientId ? (

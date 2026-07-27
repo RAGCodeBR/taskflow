@@ -16,6 +16,7 @@ import {
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { FileDropZone } from "@/components/FileDropZone";
 import { marked } from "marked";
 import { AttachmentPreviewDialog, type PreviewableAttachment } from "@/components/AttachmentPreviewDialog";
 import { formatNoteWithAI } from "@/lib/ai-format.functions";
@@ -268,11 +269,17 @@ function openNotePrintPreview({
 }
 
 
-function NotesPage() {
+export function NotesWorkspace({
+  fixedClientId,
+  embedded = false,
+}: {
+  fixedClientId?: string;
+  embedded?: boolean;
+}) {
   const { user } = useAuth();
   const { data: clients = [] } = useClients();
 
-  const [clientId, setClientId] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(fixedClientId ?? null);
   const [notes, setNotes] = useState<ClientNote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -287,8 +294,12 @@ function NotesPage() {
   }, [sortMode]);
 
   useEffect(() => {
-    if (!clientId && clients[0]) setClientId(clients[0].id);
-  }, [clients, clientId]);
+    if (fixedClientId) {
+      setClientId(fixedClientId);
+    } else if (!clientId && clients[0]) {
+      setClientId(clients[0].id);
+    }
+  }, [clients, clientId, fixedClientId]);
 
   const load = async (cid: string) => {
     setLoading(true);
@@ -395,7 +406,7 @@ function NotesPage() {
   const selected = useMemo(() => notes.find((n) => n.id === selectedId) ?? null, [notes, selectedId]);
 
   return (
-    <div className="flex h-[calc(100vh-0px)] flex-col">
+    <div className={embedded ? "flex min-h-[720px] flex-col" : "flex h-[calc(100vh-0px)] flex-col"}>
       <header className="border-b bg-background p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -407,12 +418,14 @@ function NotesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Select value={clientId ?? undefined} onValueChange={(v) => setClientId(v)}>
-              <SelectTrigger className="w-[260px]"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {!fixedClientId && (
+              <Select value={clientId ?? undefined} onValueChange={(v) => setClientId(v)}>
+                <SelectTrigger className="w-[260px]"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+                <SelectContent>
+                  {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
             <Button onClick={addNote} disabled={!clientId}>
               <Plus className="mr-1 h-4 w-4" /> Nova anotação
             </Button>
@@ -525,6 +538,10 @@ function NotesPage() {
       </div>
     </div>
   );
+}
+
+function NotesPage() {
+  return <NotesWorkspace />;
 }
 
 function NoteEditor({
@@ -903,7 +920,11 @@ function NoteEditor({
           />
 
           {/* Anexos */}
-          <div className="mt-6 space-y-2">
+          <FileDropZone
+            onFiles={(files) => void onUpload(files)}
+            disabled={uploading}
+            className="mt-6 space-y-2"
+          >
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Paperclip className="h-4 w-4" /> Anexos
@@ -971,7 +992,7 @@ function NoteEditor({
                 })}
               </ul>
             )}
-          </div>
+          </FileDropZone>
 
           <p className="mt-4 text-[11px] text-muted-foreground">
             Atualizado em {format(new Date(note.updated_at), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}.
@@ -1018,4 +1039,3 @@ function NoteEditor({
     </>
   );
 }
-

@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FileDropZone } from "@/components/FileDropZone";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/_app/portal/financeiro")({ component: ClientFinancePage });
@@ -126,7 +127,19 @@ function ClientFinancePage() {
 }
 
 function DocumentPicker({ label, existing, file, inputRef, onPick }: { label: string; existing?: string | null; file: File | null; inputRef: RefObject<HTMLInputElement | null>; onPick: (file: File | null) => void }) {
-  return <div className="space-y-2"><Label>{label}</Label><div className="flex flex-wrap items-center gap-2"><input ref={inputRef} type="file" className="hidden" accept="application/pdf,image/*,.xml,.doc,.docx" onChange={(event) => onPick(event.target.files?.[0] ?? null)} /><Button type="button" variant="outline" onClick={() => inputRef.current?.click()}><Paperclip /> {file ? "Trocar arquivo" : existing ? "Substituir arquivo" : "Anexar arquivo"}</Button><span className="max-w-full truncate text-sm text-muted-foreground">{file?.name ?? existing ?? "Nenhum arquivo anexado"}</span></div></div>;
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <FileDropZone
+        onFiles={(files) => onPick(files.item(0))}
+        className="flex flex-wrap items-center gap-2"
+      >
+        <input ref={inputRef} type="file" className="hidden" accept="application/pdf,image/*,.xml,.doc,.docx" onChange={(event) => onPick(event.target.files?.[0] ?? null)} />
+        <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}><Paperclip /> {file ? "Trocar arquivo" : existing ? "Substituir arquivo" : "Anexar arquivo"}</Button>
+        <span className="max-w-full truncate text-sm text-muted-foreground">{file?.name ?? existing ?? "Nenhum arquivo anexado"}</span>
+      </FileDropZone>
+    </div>
+  );
 }
 
 function InvoiceInstructions({ invoice, onOpenFile, onCopyPix }: { invoice: ClientInvoice; onOpenFile: (path: string) => void; onCopyPix: (key: string) => void }) {
