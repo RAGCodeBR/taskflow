@@ -79,10 +79,12 @@ Deno.serve(async (request) => {
         ? []
         : role === "admin"
           ? allAdminPermissions
-          : role === "client"
-            ? clientPermissions
-            : Array.isArray(data.permissions)
-              ? data.permissions
+          : Array.isArray(data.permissions)
+            ? data.permissions.filter(
+                (permission): permission is string => typeof permission === "string",
+              )
+            : role === "client"
+              ? clientPermissions
               : [];
 
     if (action === "create") {

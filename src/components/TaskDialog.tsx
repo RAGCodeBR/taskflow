@@ -5,17 +5,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/use-auth";
-import { useClients, useColumns, useProfiles, type Task } from "@/hooks/use-data";
+import { useClients, useColumns, useProfiles, useUserRoles, type Task } from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Trash2, Paperclip, Send, Download, ExternalLink, X, Plus, Link2, ChevronDown, ChevronRight, Clock3 } from "lucide-react";
+import {
+  Trash2,
+  Paperclip,
+  Send,
+  Download,
+  ExternalLink,
+  X,
+  Plus,
+  Link2,
+  ChevronDown,
+  ChevronRight,
+  Clock3,
+} from "lucide-react";
 import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -28,16 +46,50 @@ interface Props {
   defaultColumnId?: string | null;
 }
 
-interface Subtask { id: string; title: string; done: boolean; position: number; due_date: string | null; assignee_id: string | null; notes: string | null; }
-interface SubtaskAttachment { id: string; subtask_id: string; file_name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; }
-interface SubtaskDueChange { id: string; subtask_id: string; old_due_date: string | null; new_due_date: string | null; reason: string | null; created_at: string; }
-interface Comment { id: string; title: string | null; body: string; author_id: string; created_at: string; }
+interface Subtask {
+  id: string;
+  title: string;
+  done: boolean;
+  position: number;
+  due_date: string | null;
+  assignee_id: string | null;
+  notes: string | null;
+}
+interface SubtaskAttachment {
+  id: string;
+  subtask_id: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+}
+interface SubtaskDueChange {
+  id: string;
+  subtask_id: string;
+  old_due_date: string | null;
+  new_due_date: string | null;
+  reason: string | null;
+  created_at: string;
+}
+interface Comment {
+  id: string;
+  title: string | null;
+  body: string;
+  author_id: string;
+  created_at: string;
+}
 
 const DEFAULT_DEADLINE_TIME = "12:00";
 const deadlineToIso = (date: string) =>
   date ? new Date(`${date}T${DEFAULT_DEADLINE_TIME}:00`).toISOString() : null;
 const normalizeDueTime = (time: string | null) => time?.slice(0, 5) ?? "";
-interface Attachment { id: string; file_name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; }
+interface Attachment {
+  id: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+}
 const LINK_MIME = "text/uri-list";
 
 export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props) {
@@ -46,6 +98,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const { data: cols } = useColumns();
   const { data: clients } = useClients();
   const { data: profiles } = useProfiles();
+  const { data: userRoles = [] } = useUserRoles();
+  const clientUserIds = useMemo(
+    () => new Set(userRoles.filter((item) => item.role === "client").map((item) => item.user_id)),
+    [userRoles],
+  );
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -62,7 +119,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [dueTime, setDueTime] = useState<string>("");
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
-
 
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtask, setNewSubtask] = useState("");
@@ -89,12 +145,20 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [recurrenceEnd, setRecurrenceEnd] = useState<string>("");
   const [recurrenceOffsets, setRecurrenceOffsets] = useState<Record<number, number>>({
-    0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
+    0: 0,
+    1: 0,
+    2: 0,
+    3: 0,
+    4: 0,
+    5: 0,
+    6: 0,
   });
   const filteredClients = useMemo(() => {
     const term = clientSearch.trim().toLocaleLowerCase("pt-BR");
     const allClients = clients ?? [];
-    return term ? allClients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term)) : allClients;
+    return term
+      ? allClients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term))
+      : allClients;
   }, [clients, clientSearch]);
   const selectedClient = clients?.find((client) => client.id === clientId);
 
@@ -120,11 +184,24 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setNewSubtaskAssignee("");
       loadRelated(task.id);
     } else {
-      setTitle(""); setDescription(""); setStatus("todo"); setPriority("medium");
-      setColumnId(defaultColumnId ?? ""); setClientId(""); setAssigneeId(""); setCollaboratorIds([]); setDueDate(""); setDueTime("");
+      setTitle("");
+      setDescription("");
+      setStatus("todo");
+      setPriority("medium");
+      setColumnId(defaultColumnId ?? "");
+      setClientId("");
+      setAssigneeId("");
+      setCollaboratorIds([]);
+      setDueDate("");
+      setDueTime("");
       currentTaskIdRef.current = null;
       setCurrentTaskId(null);
-      setSubtasks([]); setComments([]); setAttachments([]); setNewCommentTitle(""); setNewComment(""); setOpenComments({});
+      setSubtasks([]);
+      setComments([]);
+      setAttachments([]);
+      setNewCommentTitle("");
+      setNewComment("");
+      setOpenComments({});
       setNewSubtask("");
       setNewSubtaskDue("");
       setNewSubtaskAssignee("");
@@ -133,7 +210,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setRecurrenceEnd("");
       setRecurrenceOffsets({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 });
     }
-
   }, [open, task, defaultColumnId]);
 
   const loadRelated = async (taskId: string) => {
@@ -155,7 +231,9 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       toast.error(error.message);
       return;
     }
-    setCollaboratorIds((data ?? []).map((collaborator: { collaborator_id: string }) => collaborator.collaborator_id));
+    setCollaboratorIds(
+      (data ?? []).map((collaborator: { collaborator_id: string }) => collaborator.collaborator_id),
+    );
   };
 
   const syncCollaborators = async (taskId: string) => {
@@ -199,18 +277,24 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   // expired token. Database writes must use the live session so they are sent
   // as `authenticated`, not `anon` (which RLS correctly rejects).
   const getAuthenticatedUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session?.user) {
       toast.error("Sua sessão expirou. Entre novamente para criar uma tarefa.");
       return null;
     }
-    const { data: { user: authenticatedUser }, error } = await supabase.auth.getUser();
+    const {
+      data: { user: authenticatedUser },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !authenticatedUser) {
       toast.error("Não foi possível validar sua sessão. Entre novamente para criar uma tarefa.");
       return null;
     }
     const url = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+    const publishableKey =
+      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
     if (!url || !publishableKey) {
       toast.error("A conexão com o Supabase não está configurada.");
       return null;
@@ -232,8 +316,14 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (existingId) return existingId;
     const authenticated = await getAuthenticatedUser();
     if (!authenticated) return null;
-    if (!title.trim()) { toast.error("Defina um título antes de adicionar itens"); return null; }
-    if (!dueDate && !recurrenceEnabled) { toast.error("Defina um prazo antes de criar a tarefa"); return null; }
+    if (!title.trim()) {
+      toast.error("Defina um título antes de adicionar itens");
+      return null;
+    }
+    if (!dueDate && !recurrenceEnabled) {
+      toast.error("Defina um prazo antes de criar a tarefa");
+      return null;
+    }
     // Do not use INSERT ... RETURNING here. The tasks SELECT policy checks
     // visibility through can_view_task(), which cannot see a just-inserted row
     // from inside the same RETURNING statement. A client UUID lets us continue
@@ -244,11 +334,16 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       ...buildPayload(),
       created_by: authenticated.user.id,
     });
-    if (error) { toast.error(error.message); return null; }
+    if (error) {
+      toast.error(error.message);
+      return null;
+    }
     currentTaskIdRef.current = taskId;
     setCurrentTaskId(taskId);
     await syncCollaborators(taskId);
-    await supabase.from("task_history").insert({ task_id: taskId, user_id: authenticated.user.id, action: "created" });
+    await supabase
+      .from("task_history")
+      .insert({ task_id: taskId, user_id: authenticated.user.id, action: "created" });
     qc.invalidateQueries({ queryKey: ["tasks"] });
     return taskId;
   };
@@ -260,13 +355,17 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const due = newSubtaskDue;
     const assignee = newSubtaskAssignee;
     const position = subtasks.length;
-    const { data, error } = await supabase.from("subtasks").insert({
-      task_id: taskId,
-      title,
-      position,
-      due_date: deadlineToIso(due),
-      assignee_id: assignee || null,
-    } as any).select("id, title, done, position, due_date, assignee_id, notes").single();
+    const { data, error } = await supabase
+      .from("subtasks")
+      .insert({
+        task_id: taskId,
+        title,
+        position,
+        due_date: deadlineToIso(due),
+        assignee_id: assignee || null,
+      } as any)
+      .select("id, title, done, position, due_date, assignee_id, notes")
+      .single();
 
     if (error) {
       toast.error(error.message);
@@ -285,7 +384,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
 
   const save = async () => {
-    if (!title.trim()) { toast.error("Título é obrigatório"); return; }
+    if (!title.trim()) {
+      toast.error("Título é obrigatório");
+      return;
+    }
     const authenticated = await getAuthenticatedUser();
     if (!authenticated) return;
     const existingTaskId = currentTaskIdRef.current ?? currentTaskId;
@@ -300,18 +402,35 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         const { error } = await supabase.from("tasks").update(payload).eq("id", existingTaskId);
         if (error) throw error;
         await syncCollaborators(existingTaskId);
-        await supabase.from("task_history").insert({ task_id: existingTaskId, user_id: authenticated.user.id, action: "updated" });
+        await supabase
+          .from("task_history")
+          .insert({ task_id: existingTaskId, user_id: authenticated.user.id, action: "updated" });
         if (!(await commitPendingSubtask(existingTaskId))) return;
       } else if (recurrenceEnabled) {
         if (newSubtask.trim()) {
-          toast.error("Para subtarefas com responsável, crie uma tarefa única ou adicione após criar as recorrências.");
+          toast.error(
+            "Para subtarefas com responsável, crie uma tarefa única ou adicione após criar as recorrências.",
+          );
           return;
         }
-        if (recurrenceDays.length === 0) { toast.error("Selecione ao menos um dia da semana"); setSaving(false); return; }
-        if (!recurrenceEnd) { toast.error("Defina a data final da recorrência"); setSaving(false); return; }
-                const start = new Date(); start.setHours(0, 0, 0, 0);
+        if (recurrenceDays.length === 0) {
+          toast.error("Selecione ao menos um dia da semana");
+          setSaving(false);
+          return;
+        }
+        if (!recurrenceEnd) {
+          toast.error("Defina a data final da recorrência");
+          setSaving(false);
+          return;
+        }
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
         const end = new Date(recurrenceEnd + "T23:59:59");
-        if (end < start) { toast.error("A data final deve ser futura"); setSaving(false); return; }
+        if (end < start) {
+          toast.error("A data final deve ser futura");
+          setSaving(false);
+          return;
+        }
         const rows: ReturnType<typeof buildPayload>[] = [];
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           const wd = d.getDay();
@@ -321,7 +440,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
           due.setHours(12, 0, 0, 0);
           rows.push({ ...payload, due_date: due.toISOString() });
         }
-        if (rows.length === 0) { toast.error("Nenhuma ocorrência no intervalo"); setSaving(false); return; }
+        if (rows.length === 0) {
+          toast.error("Nenhuma ocorrência no intervalo");
+          setSaving(false);
+          return;
+        }
         const tasksToCreate = rows.map((row) => ({
           id: crypto.randomUUID(),
           ...row,
@@ -342,7 +465,9 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
           created_by: authenticated.user.id,
         });
         if (error) throw error;
-        await supabase.from("task_history").insert({ task_id: taskId, user_id: authenticated.user.id, action: "created" });
+        await supabase
+          .from("task_history")
+          .insert({ task_id: taskId, user_id: authenticated.user.id, action: "created" });
         currentTaskIdRef.current = taskId;
         setCurrentTaskId(taskId);
         await syncCollaborators(taskId);
@@ -357,8 +482,9 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       onOpenChange(false);
     } catch (e) {
       toast.error((e as Error).message);
-
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async () => {
@@ -374,7 +500,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     onOpenChange(false);
   };
 
-
   // Subtasks
   const addSubtask = async () => {
     if (!newSubtask.trim()) return;
@@ -383,14 +508,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     await commitPendingSubtask(tid);
   };
 
-
   const toggleSubtask = async (st: Subtask) => {
     await supabase.from("subtasks").update({ done: !st.done }).eq("id", st.id);
-    setSubtasks(subtasks.map(s => s.id === st.id ? { ...s, done: !s.done } : s));
+    setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, done: !s.done } : s)));
   };
   const deleteSubtask = async (id: string) => {
     await supabase.from("subtasks").delete().eq("id", id);
-    setSubtasks(subtasks.filter(s => s.id !== id));
+    setSubtasks(subtasks.filter((s) => s.id !== id));
   };
   const updateSubtaskDue = async (st: Subtask, isoOrEmpty: string, reason?: string) => {
     const next = deadlineToIso(isoOrEmpty);
@@ -398,86 +522,124 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (next === prev) return;
     const { error } = await supabase.from("subtasks").update({ due_date: next }).eq("id", st.id);
     if (error) return toast.error(error.message);
-    setSubtasks(subtasks.map(s => s.id === st.id ? { ...s, due_date: next } : s));
+    setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, due_date: next } : s)));
     if (user) {
       await supabase.from("subtask_due_date_changes").insert({
-        subtask_id: st.id, old_due_date: prev, new_due_date: next,
-        reason: reason?.trim() || null, user_id: user.id,
+        subtask_id: st.id,
+        old_due_date: prev,
+        new_due_date: next,
+        reason: reason?.trim() || null,
+        user_id: user.id,
       });
       // refresh history if open
       if (subDueOpen[st.id]) void loadSubDueChanges(st.id);
     }
   };
   const loadSubDueChanges = async (subtaskId: string) => {
-    const { data } = await supabase.from("subtask_due_date_changes")
-      .select("*").eq("subtask_id", subtaskId).order("created_at", { ascending: false });
-    setSubDueChanges(prev => ({ ...prev, [subtaskId]: (data ?? []) as SubtaskDueChange[] }));
+    const { data } = await supabase
+      .from("subtask_due_date_changes")
+      .select("*")
+      .eq("subtask_id", subtaskId)
+      .order("created_at", { ascending: false });
+    setSubDueChanges((prev) => ({ ...prev, [subtaskId]: (data ?? []) as SubtaskDueChange[] }));
   };
   const toggleSubDueHistory = async (subtaskId: string) => {
     const willOpen = !subDueOpen[subtaskId];
-    setSubDueOpen(prev => ({ ...prev, [subtaskId]: willOpen }));
+    setSubDueOpen((prev) => ({ ...prev, [subtaskId]: willOpen }));
     if (willOpen && !subDueChanges[subtaskId]) await loadSubDueChanges(subtaskId);
   };
   const updateSubtaskAssignee = async (st: Subtask, value: string) => {
     const next = value === "none" ? null : value;
-    const { error } = await (supabase.from("subtasks") as any).update({ assignee_id: next }).eq("id", st.id);
+    const { error } = await (supabase.from("subtasks") as any)
+      .update({ assignee_id: next })
+      .eq("id", st.id);
     if (error) return toast.error(error.message);
-    setSubtasks(subtasks.map(s => s.id === st.id ? { ...s, assignee_id: next } : s));
+    setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, assignee_id: next } : s)));
   };
   const updateSubtaskNotes = async (st: Subtask, notes: string) => {
-    const { error } = await (supabase.from("subtasks") as any).update({ notes: notes || null }).eq("id", st.id);
+    const { error } = await (supabase.from("subtasks") as any)
+      .update({ notes: notes || null })
+      .eq("id", st.id);
     if (error) return toast.error(error.message);
-    setSubtasks(subtasks.map(s => s.id === st.id ? { ...s, notes: notes || null } : s));
+    setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, notes: notes || null } : s)));
   };
   const loadSubAttachments = async (subtaskId: string) => {
     const { data } = await (supabase.from("subtask_attachments") as any)
-      .select("*").eq("subtask_id", subtaskId).order("created_at");
-    setSubAttachments(prev => ({ ...prev, [subtaskId]: (data ?? []) as SubtaskAttachment[] }));
+      .select("*")
+      .eq("subtask_id", subtaskId)
+      .order("created_at");
+    setSubAttachments((prev) => ({ ...prev, [subtaskId]: (data ?? []) as SubtaskAttachment[] }));
   };
   const toggleSubExpanded = async (id: string) => {
     const willOpen = !subExpanded[id];
-    setSubExpanded(prev => ({ ...prev, [id]: willOpen }));
+    setSubExpanded((prev) => ({ ...prev, [id]: willOpen }));
     if (willOpen && !subAttachments[id]) await loadSubAttachments(id);
   };
   const uploadSubFile = async (st: Subtask, file: File) => {
     if (!user) return;
-    const tid = currentTaskId ?? await ensureTask();
+    const tid = currentTaskId ?? (await ensureTask());
     if (!tid) return;
     const path = `${tid}/subtasks/${st.id}/${Date.now()}-${file.name}`;
     const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
     if (upErr) return toast.error(upErr.message);
-    const { data, error } = await (supabase.from("subtask_attachments") as any).insert({
-      subtask_id: st.id, task_id: tid, file_name: file.name, storage_path: path,
-      mime_type: file.type, size_bytes: file.size, uploaded_by: user.id,
-    }).select().single();
+    const { data, error } = await (supabase.from("subtask_attachments") as any)
+      .insert({
+        subtask_id: st.id,
+        task_id: tid,
+        file_name: file.name,
+        storage_path: path,
+        mime_type: file.type,
+        size_bytes: file.size,
+        uploaded_by: user.id,
+      })
+      .select()
+      .single();
     if (error) return toast.error(error.message);
-    setSubAttachments(prev => ({ ...prev, [st.id]: [ ...(prev[st.id] ?? []), data as SubtaskAttachment ] }));
+    setSubAttachments((prev) => ({
+      ...prev,
+      [st.id]: [...(prev[st.id] ?? []), data as SubtaskAttachment],
+    }));
     toast.success("Arquivo enviado");
   };
 
   const downloadSubFile = async (att: SubtaskAttachment) => {
-    const { data, error } = await supabase.storage.from("task-attachments").download(att.storage_path);
+    const { data, error } = await supabase.storage
+      .from("task-attachments")
+      .download(att.storage_path);
     if (error) return toast.error(error.message);
     const url = URL.createObjectURL(data);
-    const a = document.createElement("a"); a.href = url; a.download = att.file_name;
-    document.body.appendChild(a); a.click(); a.remove();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = att.file_name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
   const deleteSubFile = async (att: SubtaskAttachment) => {
     await supabase.storage.from("task-attachments").remove([att.storage_path]);
     await (supabase.from("subtask_attachments") as any).delete().eq("id", att.id);
-    setSubAttachments(prev => ({ ...prev, [att.subtask_id]: (prev[att.subtask_id] ?? []).filter(x => x.id !== att.id) }));
+    setSubAttachments((prev) => ({
+      ...prev,
+      [att.subtask_id]: (prev[att.subtask_id] ?? []).filter((x) => x.id !== att.id),
+    }));
   };
-
 
   // Comments
   const addComment = async () => {
     if (!newComment.trim() || !user) return;
     const tid = await ensureTask();
     if (!tid) return;
-    const { data, error } = await supabase.from("comments").insert({
-      task_id: tid, author_id: user.id, body: newComment, title: newCommentTitle.trim() || null,
-    }).select().single();
+    const { data, error } = await supabase
+      .from("comments")
+      .insert({
+        task_id: tid,
+        author_id: user.id,
+        body: newComment,
+        title: newCommentTitle.trim() || null,
+      })
+      .select()
+      .single();
     if (error) return toast.error(error.message);
     setComments([...comments, data as Comment]);
     setNewComment("");
@@ -487,7 +649,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const deleteComment = async (id: string) => {
     const { error } = await supabase.from("comments").delete().eq("id", id);
     if (error) return toast.error(error.message);
-    setComments(comments.filter(c => c.id !== id));
+    setComments(comments.filter((c) => c.id !== id));
   };
 
   // Attachments
@@ -498,10 +660,18 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const path = `${tid}/${Date.now()}-${file.name}`;
     const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
     if (upErr) return toast.error(upErr.message);
-    const { data, error } = await supabase.from("attachments").insert({
-      task_id: tid, file_name: file.name, storage_path: path,
-      mime_type: file.type, size_bytes: file.size, uploaded_by: user.id,
-    }).select().single();
+    const { data, error } = await supabase
+      .from("attachments")
+      .insert({
+        task_id: tid,
+        file_name: file.name,
+        storage_path: path,
+        mime_type: file.type,
+        size_bytes: file.size,
+        uploaded_by: user.id,
+      })
+      .select()
+      .single();
     if (error) return toast.error(error.message);
     setAttachments([...attachments, data as Attachment]);
     toast.success("Arquivo enviado");
@@ -517,7 +687,9 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
   const downloadAttachment = async (att: Attachment) => {
     if (att.mime_type === LINK_MIME) return openAttachment(att);
-    const { data, error } = await supabase.storage.from("task-attachments").download(att.storage_path);
+    const { data, error } = await supabase.storage
+      .from("task-attachments")
+      .download(att.storage_path);
     if (error) return toast.error(error.message);
 
     const blobUrl = URL.createObjectURL(data);
@@ -532,7 +704,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const deleteAttachment = async (att: Attachment) => {
     await supabase.storage.from("task-attachments").remove([att.storage_path]);
     await supabase.from("attachments").delete().eq("id", att.id);
-    setAttachments(attachments.filter(a => a.id !== att.id));
+    setAttachments(attachments.filter((a) => a.id !== att.id));
   };
 
   return (
@@ -545,14 +717,23 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Título *</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="O que precisa ser feito?" />
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="O que precisa ser feito?"
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
             <div className="space-y-2">
               <Label className="text-xs">Prioridade</Label>
-              <Select value={priority ?? "none"} onValueChange={(v) => setPriority(v === "none" ? null : (v as Task["priority"]))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={priority ?? "none"}
+                onValueChange={(v) => setPriority(v === "none" ? null : (v as Task["priority"]))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem prioridade</SelectItem>
                   <SelectItem value="low">Baixa</SelectItem>
@@ -576,7 +757,17 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     required={!task && !recurrenceEnabled}
                   />
                   {dueDate && (
-                    <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => { setDueDate(""); setDueTime(""); }} title="Sem prazo">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => {
+                        setDueDate("");
+                        setDueTime("");
+                      }}
+                      title="Sem prazo"
+                    >
                       <X className="h-4 w-4" />
                     </Button>
                   )}
@@ -592,7 +783,9 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     disabled={!dueDate}
                     aria-label="Hora do prazo (opcional)"
                   />
-                  <span className="whitespace-nowrap text-[10px] text-muted-foreground">Opcional</span>
+                  <span className="whitespace-nowrap text-[10px] text-muted-foreground">
+                    Opcional
+                  </span>
                 </div>
               </div>
             </div>
@@ -611,37 +804,49 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-64 p-2">
                   <div className="max-h-56 space-y-0.5 overflow-y-auto">
-                    {(profiles ?? []).filter((profile) => profile.is_active !== false).map((profile) => {
-                      const selected = collaboratorIds.includes(profile.id);
-                      const name = profile.full_name || profile.email || "Usuário sem nome";
-                      return (
-                        <label
-                          key={profile.id}
-                          className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
-                        >
-                          <Checkbox
-                            checked={selected}
-                            onCheckedChange={() => toggleCollaborator(profile.id)}
-                          />
-                          <span className="truncate">{name}</span>
-                        </label>
-                      );
-                    })}
+                    {(profiles ?? [])
+                      .filter(
+                        (profile) => profile.is_active !== false && !clientUserIds.has(profile.id),
+                      )
+                      .map((profile) => {
+                        const selected = collaboratorIds.includes(profile.id);
+                        const name = profile.full_name || profile.email || "Usuário sem nome";
+                        return (
+                          <label
+                            key={profile.id}
+                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                          >
+                            <Checkbox
+                              checked={selected}
+                              onCheckedChange={() => toggleCollaborator(profile.id)}
+                            />
+                            <span className="truncate">{name}</span>
+                          </label>
+                        );
+                      })}
                   </div>
                 </PopoverContent>
               </Popover>
             </div>
-
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="space-y-2">
               <Label className="text-xs">Status</Label>
-              <Select value={columnId || "none"} onValueChange={(v) => setColumnId(v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+              <Select
+                value={columnId || "none"}
+                onValueChange={(v) => setColumnId(v === "none" ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nenhuma" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhuma</SelectItem>
-                  {cols?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {cols?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -654,7 +859,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
+                <PopoverContent
+                  align="start"
+                  className="w-[var(--radix-popover-trigger-width)] p-2"
+                >
                   <Input
                     autoFocus
                     value={clientSearch}
@@ -663,26 +871,64 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     className="mb-2 h-8 text-xs"
                   />
                   <div className="space-y-1">
-                    <button type="button" onClick={() => { setClientId(""); setClientPickerOpen(false); }} className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${!clientId ? "bg-muted font-medium" : ""}`}>Nenhum</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClientId("");
+                        setClientPickerOpen(false);
+                      }}
+                      className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${!clientId ? "bg-muted font-medium" : ""}`}
+                    >
+                      Nenhum
+                    </button>
                     {filteredClients.slice(0, 5).map((client) => (
-                      <button key={client.id} type="button" onClick={() => { setClientId(client.id); setClientPickerOpen(false); }} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${clientId === client.id ? "bg-muted font-medium" : ""}`}>
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: client.color ?? "#94a3b8" }} />
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => {
+                          setClientId(client.id);
+                          setClientPickerOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${clientId === client.id ? "bg-muted font-medium" : ""}`}
+                      >
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: client.color ?? "#94a3b8" }}
+                        />
                         <span className="truncate">{client.name}</span>
                       </button>
                     ))}
-                    {filteredClients.length === 0 && <p className="px-2 py-2 text-xs text-muted-foreground">Nenhum cliente encontrado.</p>}
+                    {filteredClients.length === 0 && (
+                      <p className="px-2 py-2 text-xs text-muted-foreground">
+                        Nenhum cliente encontrado.
+                      </p>
+                    )}
                   </div>
-                  {filteredClients.length > 5 && <p className="mt-2 text-[10px] text-muted-foreground">Exibindo os 5 primeiros resultados. Refine a pesquisa para encontrar outro cliente.</p>}
+                  {filteredClients.length > 5 && (
+                    <p className="mt-2 text-[10px] text-muted-foreground">
+                      Exibindo os 5 primeiros resultados. Refine a pesquisa para encontrar outro
+                      cliente.
+                    </p>
+                  )}
                 </PopoverContent>
               </Popover>
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Responsável</Label>
-              <Select value={assigneeId || "none"} onValueChange={(v) => setAssigneeId(v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Ninguém" /></SelectTrigger>
+              <Select
+                value={assigneeId || "none"}
+                onValueChange={(v) => setAssigneeId(v === "none" ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Ninguém" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Ninguém</SelectItem>
-                  {profiles?.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name || p.email}</SelectItem>)}
+                  {profiles?.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.full_name || p.email}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -701,7 +947,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
           {!currentTaskId && (
             <div className="space-y-3 rounded-md border bg-muted/20 p-3">
               <label className="flex items-center gap-2 text-sm font-medium">
-                <Checkbox checked={recurrenceEnabled} onCheckedChange={(v) => setRecurrenceEnabled(!!v)} />
+                <Checkbox
+                  checked={recurrenceEnabled}
+                  onCheckedChange={(v) => setRecurrenceEnabled(!!v)}
+                />
                 Criar como tarefa recorrente
               </label>
               {recurrenceEnabled && (
@@ -709,13 +958,19 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   <div className="space-y-2">
                     <Label className="text-xs">Dias da semana</Label>
                     <div className="flex flex-wrap gap-1.5">
-                      {["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"].map((label, idx) => {
+                      {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((label, idx) => {
                         const active = recurrenceDays.includes(idx);
                         return (
                           <button
                             key={idx}
                             type="button"
-                            onClick={() => setRecurrenceDays(active ? recurrenceDays.filter(d => d !== idx) : [...recurrenceDays, idx].sort())}
+                            onClick={() =>
+                              setRecurrenceDays(
+                                active
+                                  ? recurrenceDays.filter((d) => d !== idx)
+                                  : [...recurrenceDays, idx].sort(),
+                              )
+                            }
                             className={`rounded-md border px-3 py-1 text-xs transition ${active ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
                           >
                             {label}
@@ -727,14 +982,20 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label className="text-xs">Repetir até</Label>
-                      <Input type="date" value={recurrenceEnd} onChange={(e) => setRecurrenceEnd(e.target.value)} />
+                      <Input
+                        type="date"
+                        value={recurrenceEnd}
+                        onChange={(e) => setRecurrenceEnd(e.target.value)}
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Prazo personalizado por dia (dias após a ocorrência)</Label>
+                    <Label className="text-xs">
+                      Prazo personalizado por dia (dias após a ocorrência)
+                    </Label>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {recurrenceDays.map(wd => {
-                        const labels = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+                      {recurrenceDays.map((wd) => {
+                        const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
                         return (
                           <div key={wd} className="flex items-center gap-2">
                             <span className="w-10 text-xs text-muted-foreground">{labels[wd]}</span>
@@ -743,7 +1004,12 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                               min={0}
                               max={30}
                               value={recurrenceOffsets[wd] ?? 0}
-                              onChange={(e) => setRecurrenceOffsets({ ...recurrenceOffsets, [wd]: Math.max(0, Number(e.target.value) || 0) })}
+                              onChange={(e) =>
+                                setRecurrenceOffsets({
+                                  ...recurrenceOffsets,
+                                  [wd]: Math.max(0, Number(e.target.value) || 0),
+                                })
+                              }
                               className="h-8 w-16"
                             />
                             <span className="text-xs text-muted-foreground">d</span>
@@ -751,15 +1017,17 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                         );
                       })}
                     </div>
-                    <p className="text-xs text-muted-foreground">Ex.: Seg=1 → tarefa de segunda vence na terça. Use 0 para vencer no próprio dia.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ex.: Seg=1 → tarefa de segunda vence na terça. Use 0 para vencer no próprio
+                      dia.
+                    </p>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {(
-
+          {
             <Tabs defaultValue="subtasks">
               <TabsList>
                 <TabsTrigger value="subtasks">Subtarefas ({subtasks.length})</TabsTrigger>
@@ -767,28 +1035,49 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 <TabsTrigger value="files">Arquivos ({attachments.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="subtasks" className="space-y-2">
-                {subtasks.map(s => {
+                {subtasks.map((s) => {
                   const dueStr = s.due_date ? format(new Date(s.due_date), "yyyy-MM-dd") : "";
                   const historyOpen = subDueOpen[s.id];
                   const history = subDueChanges[s.id] ?? [];
                   const expanded = subExpanded[s.id];
                   const files = subAttachments[s.id] ?? [];
-                  const assignee = profiles?.find(p => p.id === s.assignee_id);
+                  const assignee = profiles?.find((p) => p.id === s.assignee_id);
                   return (
                     <div key={s.id} className="space-y-1.5 rounded-md border bg-muted/30 px-3 py-2">
                       <div className="flex items-center gap-2">
                         <Checkbox checked={s.done} onCheckedChange={() => toggleSubtask(s)} />
-                        <span className={`flex-1 text-sm ${s.done ? "line-through text-muted-foreground" : ""}`}>{s.title}</span>
+                        <span
+                          className={`flex-1 text-sm ${s.done ? "line-through text-muted-foreground" : ""}`}
+                        >
+                          {s.title}
+                        </span>
                         {assignee && (
                           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                             {assignee.full_name || assignee.email}
                           </span>
                         )}
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toggleSubExpanded(s.id)} title="Detalhes">
-                          {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => toggleSubExpanded(s.id)}
+                          title="Detalhes"
+                        >
+                          {expanded ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          )}
                         </Button>
                         {canDeleteSubtask(s) && (
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteSubtask(s.id)}><X className="h-3.5 w-3.5" /></Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => deleteSubtask(s.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 pl-6">
@@ -801,45 +1090,81 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                         />
                         {s.due_date && (
                           <Button
-                            type="button" size="sm" variant="ghost"
+                            type="button"
+                            size="sm"
+                            variant="ghost"
                             className="h-7 px-2 text-xs text-muted-foreground"
                             onClick={() => {
-                              const reason = window.prompt("Motivo para remover o prazo? (opcional)") ?? "";
+                              const reason =
+                                window.prompt("Motivo para remover o prazo? (opcional)") ?? "";
                               void updateSubtaskDue(s, "", reason);
                             }}
                           >
                             Indefinido
                           </Button>
                         )}
-                        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => toggleSubDueHistory(s.id)}>
-                          {historyOpen ? <ChevronDown className="mr-1 h-3 w-3" /> : <ChevronRight className="mr-1 h-3 w-3" />}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => toggleSubDueHistory(s.id)}
+                        >
+                          {historyOpen ? (
+                            <ChevronDown className="mr-1 h-3 w-3" />
+                          ) : (
+                            <ChevronRight className="mr-1 h-3 w-3" />
+                          )}
                           Alterações
                         </Button>
                       </div>
                       {historyOpen && (
                         <div className="ml-6 space-y-1 border-l pl-2">
                           {history.length === 0 ? (
-                            <p className="text-[11px] text-muted-foreground">Sem alterações registradas.</p>
-                          ) : history.map(h => (
-                            <div key={h.id} className="text-[11px] text-muted-foreground">
-                              <span className="font-medium text-foreground">{h.old_due_date ? format(new Date(h.old_due_date), "dd/MM/yyyy") : "sem prazo"}</span>
-                              {" → "}
-                              <span className="font-medium text-foreground">{h.new_due_date ? format(new Date(h.new_due_date), "dd/MM/yyyy") : "sem prazo"}</span>
-                              {h.reason ? <> — {h.reason}</> : null}
-                              <span className="ml-2 opacity-60">{format(new Date(h.created_at), "dd/MM/yyyy")}</span>
-                            </div>
-                          ))}
+                            <p className="text-[11px] text-muted-foreground">
+                              Sem alterações registradas.
+                            </p>
+                          ) : (
+                            history.map((h) => (
+                              <div key={h.id} className="text-[11px] text-muted-foreground">
+                                <span className="font-medium text-foreground">
+                                  {h.old_due_date
+                                    ? format(new Date(h.old_due_date), "dd/MM/yyyy")
+                                    : "sem prazo"}
+                                </span>
+                                {" → "}
+                                <span className="font-medium text-foreground">
+                                  {h.new_due_date
+                                    ? format(new Date(h.new_due_date), "dd/MM/yyyy")
+                                    : "sem prazo"}
+                                </span>
+                                {h.reason ? <> — {h.reason}</> : null}
+                                <span className="ml-2 opacity-60">
+                                  {format(new Date(h.created_at), "dd/MM/yyyy")}
+                                </span>
+                              </div>
+                            ))
+                          )}
                         </div>
                       )}
                       {expanded && (
                         <div className="ml-6 space-y-2 border-l pl-3">
                           <div className="space-y-1">
                             <Label className="text-[10px] text-muted-foreground">Responsável</Label>
-                            <Select value={s.assignee_id || "none"} onValueChange={(v) => updateSubtaskAssignee(s, v)}>
-                              <SelectTrigger className="h-8"><SelectValue placeholder="Ninguém" /></SelectTrigger>
+                            <Select
+                              value={s.assignee_id || "none"}
+                              onValueChange={(v) => updateSubtaskAssignee(s, v)}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue placeholder="Ninguém" />
+                              </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">Ninguém</SelectItem>
-                                {profiles?.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name || p.email}</SelectItem>)}
+                                {profiles?.map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.full_name || p.email}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -848,24 +1173,52 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                             <Textarea
                               rows={2}
                               defaultValue={s.notes ?? ""}
-                              onBlur={(e) => { if ((e.target.value || "") !== (s.notes ?? "")) void updateSubtaskNotes(s, e.target.value); }}
+                              onBlur={(e) => {
+                                if ((e.target.value || "") !== (s.notes ?? ""))
+                                  void updateSubtaskNotes(s, e.target.value);
+                              }}
                               placeholder="Notas desta subtarefa"
                               className="text-xs"
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px] text-muted-foreground">Arquivos</Label>
-                            {files.map(a => (
-                              <div key={a.id} className="flex items-center gap-2 rounded border bg-background px-2 py-1 text-xs">
+                            {files.map((a) => (
+                              <div
+                                key={a.id}
+                                className="flex items-center gap-2 rounded border bg-background px-2 py-1 text-xs"
+                              >
                                 <Paperclip className="h-3 w-3 text-muted-foreground" />
                                 <span className="flex-1 truncate">{a.file_name}</span>
-                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => downloadSubFile(a)}><Download className="h-3 w-3" /></Button>
-                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deleteSubFile(a)}><X className="h-3 w-3" /></Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={() => downloadSubFile(a)}
+                                >
+                                  <Download className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={() => deleteSubFile(a)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
                               </div>
                             ))}
                             <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed py-1.5 text-[11px] text-muted-foreground hover:bg-muted/40">
                               <Paperclip className="h-3 w-3" /> Anexar arquivo
-                              <input type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadSubFile(s, f); e.target.value = ""; }} />
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) void uploadSubFile(s, f);
+                                  e.target.value = "";
+                                }}
+                              />
                             </label>
                           </div>
                         </div>
@@ -874,27 +1227,53 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   );
                 })}
                 <div className="flex flex-wrap gap-2">
-                  <Input placeholder="Nova subtarefa" value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addSubtask()} className="min-w-[180px] flex-1" />
-                  <Input type="date" value={newSubtaskDue} onChange={(e) => setNewSubtaskDue(e.target.value)} className="w-52" title="Prazo (opcional)" />
-                  <Select value={newSubtaskAssignee || "none"} onValueChange={(v) => setNewSubtaskAssignee(v === "none" ? "" : v)}>
-                    <SelectTrigger className="w-44" title="Responsável (opcional)"><SelectValue placeholder="Responsável" /></SelectTrigger>
+                  <Input
+                    placeholder="Nova subtarefa"
+                    value={newSubtask}
+                    onChange={(e) => setNewSubtask(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addSubtask()}
+                    className="min-w-[180px] flex-1"
+                  />
+                  <Input
+                    type="date"
+                    value={newSubtaskDue}
+                    onChange={(e) => setNewSubtaskDue(e.target.value)}
+                    className="w-52"
+                    title="Prazo (opcional)"
+                  />
+                  <Select
+                    value={newSubtaskAssignee || "none"}
+                    onValueChange={(v) => setNewSubtaskAssignee(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger className="w-44" title="Responsável (opcional)">
+                      <SelectValue placeholder="Responsável" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Sem responsável</SelectItem>
-                      {profiles?.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name || p.email}</SelectItem>)}
+                      {profiles?.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.full_name || p.email}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  <Button onClick={addSubtask} size="icon"><Plus className="h-4 w-4" /></Button>
+                  <Button onClick={addSubtask} size="icon">
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Defina responsável e prazo já ao criar. Use a seta para editar anotações e anexar arquivos.</p>
-
+                <p className="text-[11px] text-muted-foreground">
+                  Defina responsável e prazo já ao criar. Use a seta para editar anotações e anexar
+                  arquivos.
+                </p>
               </TabsContent>
 
               <TabsContent value="comments" className="space-y-2">
                 <div className="max-h-72 space-y-2 overflow-y-auto">
-                  {comments.map(c => {
-                    const author = profiles?.find(p => p.id === c.author_id);
+                  {comments.map((c) => {
+                    const author = profiles?.find((p) => p.id === c.author_id);
                     const isOpen = openComments[c.id] ?? false;
-                    const headTitle = c.title?.trim() || (c.body.split("\n")[0].slice(0, 60) || "Anotação");
+                    const headTitle =
+                      c.title?.trim() || c.body.split("\n")[0].slice(0, 60) || "Anotação";
                     return (
                       <Collapsible
                         key={c.id}
@@ -905,7 +1284,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                         <div className="flex items-center gap-1 px-2 py-1.5">
                           <CollapsibleTrigger asChild>
                             <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0">
-                              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              {isOpen ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
                             </Button>
                           </CollapsibleTrigger>
                           <CollapsibleTrigger asChild>
@@ -916,7 +1299,12 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                           <span className="shrink-0 text-[10px] text-muted-foreground">
                             {format(new Date(c.created_at), "dd/MM/yyyy")}
                           </span>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => deleteComment(c.id)}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 shrink-0"
+                            onClick={() => deleteComment(c.id)}
+                          >
                             <X className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -943,39 +1331,87 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
                     />
-                    <Button onClick={addComment} size="icon" className="self-stretch"><Send className="h-4 w-4" /></Button>
+                    <Button onClick={addComment} size="icon" className="self-stretch">
+                      <Send className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </TabsContent>
               <TabsContent value="files" className="space-y-2">
-                {attachments.map(a => (
-                  <div key={a.id} className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
-                    {a.mime_type === LINK_MIME ? <Link2 className="h-4 w-4 text-muted-foreground" /> : <Paperclip className="h-4 w-4 text-muted-foreground" />}
+                {attachments.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2"
+                  >
+                    {a.mime_type === LINK_MIME ? (
+                      <Link2 className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Paperclip className="h-4 w-4 text-muted-foreground" />
+                    )}
                     <span className="flex-1 truncate text-sm">{a.file_name}</span>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openAttachment(a)}><ExternalLink className="h-3.5 w-3.5" /></Button>
-                    {a.mime_type !== LINK_MIME && <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => downloadAttachment(a)}><Download className="h-3.5 w-3.5" /></Button>}
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteAttachment(a)}><X className="h-3.5 w-3.5" /></Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => openAttachment(a)}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Button>
+                    {a.mime_type !== LINK_MIME && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => downloadAttachment(a)}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => deleteAttachment(a)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 ))}
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-3 text-sm text-muted-foreground hover:bg-muted/40">
                   <Paperclip className="h-4 w-4" /> Anexar arquivo
-                  <input type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }} />
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadFile(f);
+                      e.target.value = "";
+                    }}
+                  />
                 </label>
               </TabsContent>
             </Tabs>
-          )}
+          }
 
           <div className="flex justify-between gap-2 pt-2">
             <div>
               {currentTaskId && canDeleteTask && (
-                <Button variant="ghost" onClick={remove} className="text-destructive hover:text-destructive">
+                <Button
+                  variant="ghost"
+                  onClick={remove}
+                  className="text-destructive hover:text-destructive"
+                >
                   <Trash2 className="mr-2 h-4 w-4" /> Excluir
                 </Button>
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? "Salvando…" : "Salvar"}
+              </Button>
             </div>
           </div>
         </div>

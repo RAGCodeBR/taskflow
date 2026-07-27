@@ -152,7 +152,6 @@ export function useClientInvoices() {
   });
 }
 
-
 export function useTasks() {
   return useQuery({
     queryKey: ["tasks"],
@@ -198,7 +197,10 @@ export function useColumns() {
   });
 }
 
-export interface UserColumnOrder { column_id: string; position: number }
+export interface UserColumnOrder {
+  column_id: string;
+  position: number;
+}
 export function useUserColumnOrder() {
   return useQuery({
     queryKey: ["user_column_order"],
@@ -217,7 +219,10 @@ export function useUserColumnOrder() {
   });
 }
 
-export interface UserTaskOrder { task_id: string; position: number }
+export interface UserTaskOrder {
+  task_id: string;
+  position: number;
+}
 export function useUserTaskOrder() {
   return useQuery({
     queryKey: ["user_task_order"],
@@ -250,9 +255,27 @@ export function useProfiles() {
   return useQuery({
     queryKey: ["profiles"],
     queryFn: async () => {
-      const { data, error } = await (supabase.from("profiles") as any).select("id, full_name, avatar_url, is_active");
+      const { data, error } = await (supabase.from("profiles") as any).select(
+        "id, full_name, avatar_url, is_active",
+      );
       if (error) throw error;
       return (data ?? []) as Profile[];
+    },
+  });
+}
+
+export interface UserRole {
+  user_id: string;
+  role: "admin" | "collaborator" | "client";
+}
+
+export function useUserRoles() {
+  return useQuery({
+    queryKey: ["user_roles"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("user_roles").select("user_id, role");
+      if (error) throw error;
+      return (data ?? []) as UserRole[];
     },
   });
 }
@@ -261,15 +284,14 @@ export function useTaskCollaborators() {
   return useQuery({
     queryKey: ["task_collaborators"],
     queryFn: async () => {
-      const { data, error } = await (supabase.from("task_collaborators") as any)
-        .select("task_id, collaborator_id, added_by, created_at");
+      const { data, error } = await (supabase.from("task_collaborators") as any).select(
+        "task_id, collaborator_id, added_by, created_at",
+      );
       if (error) throw error;
       return (data ?? []) as TaskCollaborator[];
     },
   });
 }
-
-
 
 export function useTaskTags() {
   return useQuery({
@@ -286,7 +308,10 @@ export function useTaskTags() {
   });
 }
 
-export interface TaskTagLink { task_id: string; tag_id: string }
+export interface TaskTagLink {
+  task_id: string;
+  tag_id: string;
+}
 export function useTaskTagLinks() {
   return useQuery({
     queryKey: ["task_tag_links"],
@@ -315,14 +340,10 @@ export function useSubtasks() {
     // Realtime updates keep task/subtask counters fresh across browser tabs and team members.
     const channel = supabase
       .channel(`subtasks-cache-${Math.random().toString(36).slice(2)}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "subtasks" },
-        () => {
-          void qc.invalidateQueries({ queryKey: ["subtasks"] });
-          void qc.invalidateQueries({ queryKey: ["tasks"] });
-        },
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "subtasks" }, () => {
+        void qc.invalidateQueries({ queryKey: ["subtasks"] });
+        void qc.invalidateQueries({ queryKey: ["tasks"] });
+      })
       .subscribe();
 
     return () => {
@@ -347,10 +368,7 @@ export function useTaskStatuses() {
   return useQuery({
     queryKey: ["task_statuses"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("task_statuses")
-        .select("*")
-        .order("position");
+      const { data, error } = await supabase.from("task_statuses").select("*").order("position");
       if (error) throw error;
       return (data ?? []) as TaskStatus[];
     },
