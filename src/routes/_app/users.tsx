@@ -21,7 +21,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import { Archive, Plus, ShieldCheck, User as UserIcon, UserCheck, UserX } from "lucide-react";
+import {
+  Archive,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  User as UserIcon,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 
@@ -51,7 +59,18 @@ const defaults: FormState = {
   email: "",
   password: "",
   role: "collaborator",
-  permissions: ["dashboard", "tasks", "notes"],
+  permissions: [
+    "dashboard",
+    "tasks",
+    "notes",
+    "import_ata",
+    "clients",
+    "reports",
+    "portal",
+    "calendar",
+    "trash",
+    "settings",
+  ],
   clientId: "",
 };
 const roleLabel: Record<Role, string> = {
@@ -171,7 +190,13 @@ function AccessForm({
   );
 }
 
-function UserDetailsForm({ value, onChange }: { value: FormState; onChange: (next: FormState) => void }) {
+function UserDetailsForm({
+  value,
+  onChange,
+}: {
+  value: FormState;
+  onChange: (next: FormState) => void;
+}) {
   return (
     <div className="space-y-4 border-b pb-4">
       <div className="space-y-2">
@@ -191,7 +216,9 @@ function UserDetailsForm({ value, onChange }: { value: FormState; onChange: (nex
           onChange={(event) => onChange({ ...value, password: event.target.value })}
           placeholder="Deixe em branco para manter a senha atual"
         />
-        <p className="text-xs text-muted-foreground">A nova senha deve ter ao menos 6 caracteres.</p>
+        <p className="text-xs text-muted-foreground">
+          A nova senha deve ter ao menos 6 caracteres.
+        </p>
       </div>
     </div>
   );
@@ -221,13 +248,19 @@ function UsersPage() {
         []) as { user_id: string; permissions: string[] }[],
   });
   const invokeAccessManager = async (
-    action: "create" | "update",
+    action: "create" | "update" | "delete",
     data: Record<string, unknown>,
   ) => {
     const { data: result, error } = await supabase.functions.invoke("admin-user-access", {
       body: { action, data },
     });
-    if (error) throw error;
+    if (error) {
+      const details = await error.context
+        ?.clone()
+        .json()
+        .catch(() => null);
+      throw new Error(details?.error ?? error.message);
+    }
     if (result?.error) throw new Error(result.error);
     return result;
   };
@@ -276,6 +309,14 @@ function UsersPage() {
       toast.success("Status atualizado");
     },
     onError: (e: any) => toast.error(e.message),
+  });
+  const deleteAccess = useMutation({
+    mutationFn: (userId: string) => invokeAccessManager("delete", { userId }),
+    onSuccess: () => {
+      refresh();
+      toast.success("Acesso excluído permanentemente.");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível excluir o acesso."),
   });
   const activeProfiles = useMemo(
     () => profiles.filter((p) => (p as any).is_active !== false),
@@ -335,14 +376,29 @@ function UsersPage() {
             Definir categoria e acessos
           </Button>
           {!self && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="mt-2 w-full"
-              onClick={() => setActive.mutate({ userId: p.id, active: false })}
-            >
-              <UserX className="mr-1 h-3 w-3" /> Desativar acesso
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 w-full"
+                onClick={() => setActive.mutate({ userId: p.id, active: false })}
+              >
+                <UserX className="mr-1 h-3 w-3" /> Desativar acesso
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 w-full text-destructive hover:text-destructive"
+                disabled={deleteAccess.isPending}
+                onClick={() => {
+                  if (confirm(`Excluir permanentemente o acesso de "${p.full_name || p.email}"?`)) {
+                    deleteAccess.mutate(p.id);
+                  }
+                }}
+              >
+                <Trash2 className="mr-1 h-3 w-3" /> Excluir acesso
+              </Button>
+            </>
           )}
         </div>
       </Card>

@@ -56,10 +56,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(admin);
     setIsCollaborator(collaborator);
     setIsClient(client);
-    const { data: link } = await (supabase.from("client_user_links" as any) as any).select("client_id").eq("user_id", uid).maybeSingle();
+    const { data: link } = await (supabase.from("client_user_links" as any) as any)
+      .select("client_id")
+      .eq("user_id", uid)
+      .maybeSingle();
     setClientId(link?.client_id ?? null);
-    const { data: access } = await (supabase.from("user_permissions") as any).select("permissions").eq("user_id", uid).maybeSingle();
-    setPermissions(admin ? ["dashboard", "tasks", "notes", "import_ata", "clients", "reports", "portal", "calendar", "users", "trash", "settings"] : (access?.permissions ?? []));
+    const { data: access } = await (supabase.from("user_permissions") as any)
+      .select("permissions")
+      .eq("user_id", uid)
+      .maybeSingle();
+    setPermissions(
+      admin
+        ? [
+            "dashboard",
+            "tasks",
+            "notes",
+            "import_ata",
+            "clients",
+            "reports",
+            "portal",
+            "calendar",
+            "users",
+            "trash",
+            "settings",
+          ]
+        : (access?.permissions ?? []),
+    );
   };
 
   useEffect(() => {
@@ -89,6 +111,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+
+    // An administrator can change a person's access while that person is
+    // already signed in. Refresh when the browser returns to this tab and
+    // subscribe for an immediate update when Realtime is enabled.
+    const refreshAccess = () => void loadProfile(user.id);
+    window.addEventListener("focus", refreshAccess);
+    const channel = supabase
+      .channel(`user-access-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "user_permissions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        refreshAccess,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_roles", filter: `user_id=eq.${user.id}` },
+        refreshAccess,
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("focus", refreshAccess);
+      void supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   const signOut = async () => {
     // Supabase clears the persisted browser session; the listener above resets local React state.
     await supabase.auth.signOut();
@@ -100,7 +155,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasPermission = (permission: string) => isAdmin || permissions.includes(permission);
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, isAdmin, isCollaborator, isClient, clientId, permissions, hasPermission, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        profile,
+        isAdmin,
+        isCollaborator,
+        isClient,
+        clientId,
+        permissions,
+        hasPermission,
+        loading,
+        signOut,
+        refreshProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -111,5 +181,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
-
-

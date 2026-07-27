@@ -2,7 +2,26 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, ListChecks, Users, Building2, Settings, LogOut, Moon, Sun, PanelLeft, PanelRight, NotebookPen, BarChart3, Trash2, FileUp, PanelsTopLeft, CalendarCog, CircleDollarSign, ChevronDown } from "lucide-react";
+import {
+  LayoutDashboard,
+  ListChecks,
+  Users,
+  Building2,
+  Settings,
+  LogOut,
+  Moon,
+  Sun,
+  PanelLeft,
+  PanelRight,
+  NotebookPen,
+  BarChart3,
+  Trash2,
+  FileUp,
+  PanelsTopLeft,
+  CalendarCog,
+  CircleDollarSign,
+  ChevronDown,
+} from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AssignmentPopup } from "@/components/AssignmentPopup";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -30,19 +49,33 @@ const allNav: readonly NavItem[] = [
   { to: "/notes", label: "Anotações", icon: NotebookPen },
   { to: "/import-ata", label: "Importar Ata", icon: FileUp },
   { to: "/clients", label: "Clientes", icon: Building2 },
-  { to: "/reports", label: "Relatórios", icon: BarChart3, adminOnly: true },
+  { to: "/reports", label: "Relatórios", icon: BarChart3 },
   { to: "/portal", label: "Portal do Cliente", icon: PanelsTopLeft },
+  { to: "/calendario", label: "Calendário", icon: CalendarCog },
   { to: "/users", label: "Usuários", icon: Users, adminOnly: true },
   { to: "/trash", label: "Lixeira", icon: Trash2 },
   { to: "/settings", label: "Personalizar", icon: Settings },
 ] as const;
 
-
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile, user, signOut, isAdmin, hasPermission } = useAuth();
   const nav = useMemo(() => {
-    const accessByPath: Record<string, string> = { "/dashboard": "dashboard", "/tasks": "tasks", "/notes": "notes", "/import-ata": "import_ata", "/clients": "clients", "/reports": "reports", "/portal": "portal", "/calendario": "calendar", "/users": "users", "/trash": "trash", "/settings": "settings" };
-    return allNav.filter((item) => (!item.adminOnly || isAdmin) && hasPermission(accessByPath[item.to]));
+    const accessByPath: Record<string, string> = {
+      "/dashboard": "dashboard",
+      "/tasks": "tasks",
+      "/notes": "notes",
+      "/import-ata": "import_ata",
+      "/clients": "clients",
+      "/reports": "reports",
+      "/portal": "portal",
+      "/calendario": "calendar",
+      "/users": "users",
+      "/trash": "trash",
+      "/settings": "settings",
+    };
+    return allNav.filter(
+      (item) => (!item.adminOnly || isAdmin) && hasPermission(accessByPath[item.to]),
+    );
   }, [isAdmin, hasPermission]);
 
   const { theme, toggle } = useTheme();
@@ -66,8 +99,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         }`}
         style={{ background: "var(--gradient-sidebar)" }}
       >
-        <div className={`flex items-center gap-2 py-5 ${sidebarOpen ? "px-5" : "px-2 justify-center"}`}>
-          <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black ${sidebarOpen ? "h-9 w-9" : "h-9 w-9"}`}>
+        <div
+          className={`flex items-center gap-2 py-5 ${sidebarOpen ? "px-5" : "px-2 justify-center"}`}
+        >
+          <div
+            className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black ${sidebarOpen ? "h-9 w-9" : "h-9 w-9"}`}
+          >
             <img src={taskflowLogo} alt="TaskFlow" className="h-full w-full object-contain" />
           </div>
           {sidebarOpen && <span className="text-lg font-semibold">TaskFlow</span>}
@@ -87,7 +124,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <nav className="flex-1 space-y-1 px-3">
           {nav.map((n) => {
-            if (n.to === "/portal") return <PortalNavGroup key={n.to} expanded={sidebarOpen} active={pathname.startsWith("/portal/")} />;
+            if (n.to === "/portal")
+              return (
+                <PortalNavGroup
+                  key={n.to}
+                  expanded={sidebarOpen}
+                  active={pathname.startsWith("/portal/")}
+                />
+              );
             const Active = pathname === n.to || pathname.startsWith(n.to + "/");
             const Icon = n.icon;
             return (
@@ -110,11 +154,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className={`border-t border-sidebar-border p-3 ${sidebarOpen ? "" : "flex flex-col items-center gap-2"}`}>
-          <div className={`flex items-center gap-3 rounded-lg p-2 ${sidebarOpen ? "" : "flex-col"}`}>
+        <div
+          className={`border-t border-sidebar-border p-3 ${sidebarOpen ? "" : "flex flex-col items-center gap-2"}`}
+        >
+          <div
+            className={`flex items-center gap-3 rounded-lg p-2 ${sidebarOpen ? "" : "flex-col"}`}
+          >
             <Avatar className="h-8 w-8">
-              <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || user?.email || "Usuário"} />
-              <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">{initials}</AvatarFallback>
+              <AvatarImage
+                src={profile?.avatar_url || undefined}
+                alt={profile?.full_name || user?.email || "Usuário"}
+              />
+              <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
+                {initials}
+              </AvatarFallback>
             </Avatar>
             {sidebarOpen && (
               <div className="min-w-0 flex-1">
@@ -123,10 +176,22 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             )}
             <div className={`flex ${sidebarOpen ? "gap-1" : "flex-col gap-2"}`}>
-              <Button size="icon" variant="ghost" className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent" onClick={toggle} title={theme === "dark" ? "Modo claro" : "Modo escuro"}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                onClick={toggle}
+                title={theme === "dark" ? "Modo claro" : "Modo escuro"}
+              >
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent" onClick={signOut} title="Sair">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                onClick={signOut}
+                title="Sair"
+              >
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -143,16 +208,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         <NotificationBell />
       </div>
 
-
       {/* Mobile overlay sidebar */}
       {sidebarOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
-          <div className="w-56 bg-background border-r flex flex-col" style={{ background: "var(--gradient-sidebar)" }}>
+          <div
+            className="w-56 bg-background border-r flex flex-col"
+            style={{ background: "var(--gradient-sidebar)" }}
+          >
             <div className="flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-2">
-              <div className="flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black h-9 w-9">
-                <img src={taskflowLogo} alt="TaskFlow" className="h-full w-full object-contain" />
-              </div>
+                <div className="flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black h-9 w-9">
+                  <img src={taskflowLogo} alt="TaskFlow" className="h-full w-full object-contain" />
+                </div>
                 <span className="text-lg font-semibold">TaskFlow</span>
               </div>
               <Button size="icon" variant="ghost" onClick={() => setSidebarOpen(false)}>
@@ -161,8 +228,23 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <nav className="flex-1 space-y-1 px-3">
               {nav.map((n) => {
-                if (n.to === "/portal") return <PortalNavGroup key={n.to} expanded active={pathname.startsWith("/portal/")} onNavigate={() => setSidebarOpen(false)} />;
-            if (n.to === "/portal") return <PortalNavGroup key={n.to} expanded={sidebarOpen} active={pathname.startsWith("/portal/")} />;
+                if (n.to === "/portal")
+                  return (
+                    <PortalNavGroup
+                      key={n.to}
+                      expanded
+                      active={pathname.startsWith("/portal/")}
+                      onNavigate={() => setSidebarOpen(false)}
+                    />
+                  );
+                if (n.to === "/portal")
+                  return (
+                    <PortalNavGroup
+                      key={n.to}
+                      expanded={sidebarOpen}
+                      active={pathname.startsWith("/portal/")}
+                    />
+                  );
                 const Active = pathname === n.to || pathname.startsWith(n.to + "/");
                 const Icon = n.icon;
                 return (
@@ -185,17 +267,36 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="border-t border-sidebar-border p-3">
               <div className="flex items-center gap-3 rounded-lg p-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || user?.email || "Usuário"} />
-                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">{initials}</AvatarFallback>
+                  <AvatarImage
+                    src={profile?.avatar_url || undefined}
+                    alt={profile?.full_name || user?.email || "Usuário"}
+                  />
+                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
+                    {initials}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{profile?.full_name || user?.email}</p>
+                  <p className="truncate text-sm font-medium">
+                    {profile?.full_name || user?.email}
+                  </p>
                   <p className="truncate text-xs text-sidebar-foreground/60">{user?.email}</p>
                 </div>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={toggle} title={theme === "dark" ? "Modo claro" : "Modo escuro"}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={toggle}
+                  title={theme === "dark" ? "Modo claro" : "Modo escuro"}
+                >
                   {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={signOut} title="Sair">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={signOut}
+                  title="Sair"
+                >
                   <LogOut className="h-4 w-4" />
                 </Button>
               </div>
@@ -216,7 +317,51 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-function PortalNavGroup({ expanded, active, onNavigate }: { expanded: boolean; active: boolean; onNavigate?: () => void }) {
-  if (!expanded) return <div title="Portal do Cliente" className={`flex justify-center rounded-lg px-2 py-2 ${active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70"}`}><PanelsTopLeft className="h-4 w-4" /></div>;
-  return <Collapsible defaultOpen={active} className="space-y-1"><CollapsibleTrigger className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"}`}><PanelsTopLeft className="h-4 w-4" /><span className="flex-1 text-left">Portal do Cliente</span><ChevronDown className="h-4 w-4" /></CollapsibleTrigger><CollapsibleContent className="space-y-1 pl-4"><Link to="/portal/entregas" onClick={onNavigate} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"><CalendarCog className="h-4 w-4" />Calendário de Entregas</Link><Link to="/portal/financeiro" onClick={onNavigate} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"><CircleDollarSign className="h-4 w-4" />Financeiro</Link></CollapsibleContent></Collapsible>;
+function PortalNavGroup({
+  expanded,
+  active,
+  onNavigate,
+}: {
+  expanded: boolean;
+  active: boolean;
+  onNavigate?: () => void;
+}) {
+  if (!expanded)
+    return (
+      <div
+        title="Portal do Cliente"
+        className={`flex justify-center rounded-lg px-2 py-2 ${active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70"}`}
+      >
+        <PanelsTopLeft className="h-4 w-4" />
+      </div>
+    );
+  return (
+    <Collapsible defaultOpen={active} className="space-y-1">
+      <CollapsibleTrigger
+        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"}`}
+      >
+        <PanelsTopLeft className="h-4 w-4" />
+        <span className="flex-1 text-left">Portal do Cliente</span>
+        <ChevronDown className="h-4 w-4" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-1 pl-4">
+        <Link
+          to="/portal/entregas"
+          onClick={onNavigate}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+        >
+          <CalendarCog className="h-4 w-4" />
+          Calendário de Entregas
+        </Link>
+        <Link
+          to="/portal/financeiro"
+          onClick={onNavigate}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+        >
+          <CircleDollarSign className="h-4 w-4" />
+          Financeiro
+        </Link>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }

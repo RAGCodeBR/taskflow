@@ -68,18 +68,22 @@ Deno.serve(async (request) => {
     const action = payload?.action;
     const data = payload?.data ?? {};
     const role = data.role;
-    if (!["admin", "collaborator", "client"].includes(role))
+    if (!["create", "update", "delete"].includes(action))
+      return response({ error: "Ação inválida." }, 400);
+    if (action !== "delete" && !["admin", "collaborator", "client"].includes(role))
       return response({ error: "Categoria de acesso inválida." }, 400);
-    if (role === "client" && !validUuid(data.clientId))
+    if (action !== "delete" && role === "client" && !validUuid(data.clientId))
       return response({ error: "Selecione o cliente que será vinculado a este acesso." }, 400);
     const permissions =
-      role === "admin"
-        ? allAdminPermissions
-        : role === "client"
-          ? clientPermissions
-          : Array.isArray(data.permissions)
-            ? data.permissions
-            : [];
+      action === "delete"
+        ? []
+        : role === "admin"
+          ? allAdminPermissions
+          : role === "client"
+            ? clientPermissions
+            : Array.isArray(data.permissions)
+              ? data.permissions
+              : [];
 
     if (action === "create") {
       if (typeof data.fullName !== "string" || data.fullName.trim().length < 2)
@@ -116,7 +120,10 @@ Deno.serve(async (request) => {
     if (action === "update") {
       if (typeof data.fullName !== "string" || data.fullName.trim().length < 2)
         return response({ error: "Informe o nome completo." }, 400);
-      if (data.password !== undefined && (typeof data.password !== "string" || data.password.length < 6))
+      if (
+        data.password !== undefined &&
+        (typeof data.password !== "string" || data.password.length < 6)
+      )
         return response({ error: "A nova senha deve ter ao menos 6 caracteres." }, 400);
       if (!validUuid(data.userId)) return response({ error: "Usuário inválido." }, 400);
       if (data.userId === authData.user.id && role !== "admin")
@@ -125,10 +132,15 @@ Deno.serve(async (request) => {
           400,
         );
       const authUpdate = {
-        data: { full_name: data.fullName.trim(), role },
+        // The Admin API accepts user_metadata (not the client-side `data`
+        // property). Using `data` made every access update be rejected by GoTrue.
+        user_metadata: { full_name: data.fullName.trim(), role },
         ...(data.password ? { password: data.password } : {}),
       };
-      const { error: authUpdateError } = await admin.auth.admin.updateUserById(data.userId, authUpdate);
+      const { error: authUpdateError } = await admin.auth.admin.updateUserById(
+        data.userId,
+        authUpdate,
+      );
       if (authUpdateError) throw authUpdateError;
       const { error: profileUpdateError } = await admin
         .from("profiles")
@@ -156,6 +168,13 @@ Deno.serve(async (request) => {
       if (linkError) throw linkError;
       return response({ ok: true });
     }
+
+    if (!validUuid(data.userId)) return response({ error: "Usuário inválido." }, 400);
+    if (data.userId === authData.user.id)
+      return response({ error: "Você não pode excluir seu próprio acesso." }, 400);
+    const { error: deleteError } = await admin.auth.admin.deleteUser(data.userId);
+    if (deleteError) throw deleteError;
+    return response({ ok: true });
 
     return response({ error: "Ação inválida." }, 400);
   } catch (error) {
