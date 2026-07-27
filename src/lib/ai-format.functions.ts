@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { generateGeminiContent } from "@/lib/gemini.server";
 
 export const formatNoteWithAI = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -10,7 +11,6 @@ export const formatNoteWithAI = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) throw new Error("LOVABLE_API_KEY ausente");
 
     const prompt = `Você é um assistente que reformata anotações de reunião em HTML profissional, claro e bem estruturado em PORTUGUÊS do Brasil.
 
@@ -25,6 +25,18 @@ Título da anotação: ${data.title || "(sem título)"}
 
 HTML original:
 ${data.html}`;
+
+    const geminiContent = await generateGeminiContent({
+      systemInstruction:
+        "Reformate anotações em HTML limpo e profissional, sem inventar informações.",
+      parts: [{ text: prompt }],
+      responseMimeType: "text/plain",
+    });
+    const geminiHtml = geminiContent
+      .replace(/^```html\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
+    return { html: geminiHtml || data.html };
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -47,6 +59,9 @@ ${data.html}`;
     }
     const json = await res.json();
     const content: string = json?.choices?.[0]?.message?.content ?? "";
-    const cleaned = content.replace(/^```html\s*/i, "").replace(/```\s*$/i, "").trim();
+    const cleaned = content
+      .replace(/^```html\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
     return { html: cleaned || data.html };
   });

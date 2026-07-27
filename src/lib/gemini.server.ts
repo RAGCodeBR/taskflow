@@ -3,7 +3,7 @@ type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: str
 type GenerateGeminiInput = {
   systemInstruction: string;
   parts: GeminiPart[];
-  responseMimeType?: "text/plain" | "text/html" | "application/json";
+  responseMimeType?: "text/plain" | "application/json";
 };
 
 export async function generateGeminiContent({
@@ -15,19 +15,29 @@ export async function generateGeminiContent({
   if (!apiKey)
     throw new Error("A IA ainda não foi configurada. Defina GEMINI_API_KEY no servidor.");
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: "user", parts }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 4096, responseMimeType },
-      }),
-    },
-  );
+  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+  const request = () =>
+    fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: "user", parts }],
+          generationConfig: { maxOutputTokens: 4096, responseMimeType },
+        }),
+      },
+    );
+
+  let response = await request();
+  // Gemini can briefly return 429/503 during demand spikes. Retry these
+  // transient statuses before reporting a failure to the person using the app.
+  for (const delay of [800, 1_600, 3_200]) {
+    if (response.status !== 429 && response.status !== 503) break;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    response = await request();
+  }
 
   if (!response.ok) {
     const details = await response.text();

@@ -72,7 +72,7 @@ REGRAS:
     const raw = await generateGeminiContent({
       systemInstruction: systemPrompt,
       parts: userContent,
-      responseMimeType: "text/html",
+      responseMimeType: "text/plain",
     });
     const html = raw
       .replace(/^```html\s*/i, "")

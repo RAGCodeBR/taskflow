@@ -185,7 +185,7 @@ ${JSON.stringify(payload)}`;
     const geminiRaw = await generateGeminiContent({
       systemInstruction: "Produza relatórios executivos em HTML limpo, sem inventar dados.",
       parts: [{ text: prompt }],
-      responseMimeType: "text/html",
+      responseMimeType: "text/plain",
     });
     const geminiHtml = geminiRaw
       .replace(/^```html\s*/i, "")
