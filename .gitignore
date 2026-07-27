@@ -22,6 +22,9 @@ work-*.sql
 .wrangler/
 .dev.vars
 
+# Vercel build output
+.vercel/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

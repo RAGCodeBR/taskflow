@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { type Client, type ClientDepartment, type ClientDepartmentEmployee } from "@/hooks/use-data";
+import { type Client, type ClientDepartment, type ClientDepartmentEmployee, type ClientSystemAccess } from "@/hooks/use-data";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/_app/clients/$clientId/edit")({
 
 const EMPTY_DEPARTMENTS: ClientDepartment[] = [];
 const EMPTY_EMPLOYEES: ClientDepartmentEmployee[] = [];
+const EMPTY_SYSTEM_ACCESSES: ClientSystemAccess[] = [];
 
 function EditClientPage() {
   const { clientId } = Route.useParams();
@@ -66,6 +67,18 @@ function EditClientPage() {
       return (data ?? []) as ClientDepartmentEmployee[];
     },
   });
+  const { data: systemAccesses = EMPTY_SYSTEM_ACCESSES } = useQuery({
+    queryKey: ["client-system-accesses", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("client_system_accesses")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("title");
+      if (error) throw error;
+      return (data ?? []) as ClientSystemAccess[];
+    },
+  });
   const [saving, setSaving] = useState(false);
   const [cnpj, setCnpj] = useState("");
   const [legalName, setLegalName] = useState("");
@@ -94,6 +107,12 @@ function EditClientPage() {
   const [employeeAvatarUrls, setEmployeeAvatarUrls] = useState<Record<string, string>>({});
   const [selectedEmployee, setSelectedEmployee] = useState<ClientDepartmentEmployee | null>(null);
   const [employeeDialogPosition, setEmployeeDialogPosition] = useState({ x: 0, y: 0 });
+  const [systemAccessFormOpen, setSystemAccessFormOpen] = useState(false);
+  const [editingSystemAccessId, setEditingSystemAccessId] = useState<string | null>(null);
+  const [systemAccessTitle, setSystemAccessTitle] = useState("");
+  const [systemAccessLogin, setSystemAccessLogin] = useState("");
+  const [systemAccessPassword, setSystemAccessPassword] = useState("");
+  const [systemAccessNotes, setSystemAccessNotes] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   useEffect(() => {
@@ -351,6 +370,59 @@ function EditClientPage() {
     toast.success("Funcionário excluído");
   };
 
+  const resetSystemAccessForm = () => {
+    setSystemAccessFormOpen(false);
+    setEditingSystemAccessId(null);
+    setSystemAccessTitle("");
+    setSystemAccessLogin("");
+    setSystemAccessPassword("");
+    setSystemAccessNotes("");
+  };
+
+  const saveSystemAccess = async () => {
+    if (!systemAccessTitle.trim() || !systemAccessLogin.trim() || !systemAccessPassword) {
+      toast.error("Informe o título, login e senha do acesso.");
+      return;
+    }
+    const values = {
+      title: systemAccessTitle.trim(),
+      login: systemAccessLogin.trim(),
+      password: systemAccessPassword,
+      notes: systemAccessNotes.trim() || null,
+    };
+    const { error } = editingSystemAccessId
+      ? await supabase.from("client_system_accesses").update(values).eq("id", editingSystemAccessId)
+      : await supabase.from("client_system_accesses").insert({ ...values, client_id: clientId });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["client-system-accesses", clientId] });
+    const wasEditing = !!editingSystemAccessId;
+    resetSystemAccessForm();
+    toast.success(wasEditing ? "Acesso atualizado" : "Acesso cadastrado");
+  };
+
+  const startSystemAccessEdit = (access: ClientSystemAccess) => {
+    setEditingSystemAccessId(access.id);
+    setSystemAccessTitle(access.title);
+    setSystemAccessLogin(access.login);
+    setSystemAccessPassword(access.password);
+    setSystemAccessNotes(access.notes ?? "");
+    setSystemAccessFormOpen(true);
+  };
+
+  const deleteSystemAccess = async (access: ClientSystemAccess) => {
+    if (!confirm(`Excluir o acesso "${access.title}"?`)) return;
+    const { error } = await supabase.from("client_system_accesses").delete().eq("id", access.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["client-system-accesses", clientId] });
+    toast.success("Acesso excluído");
+  };
+
   const startEmployeeDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     const startX = event.clientX;
     const startY = event.clientY;
@@ -409,6 +481,7 @@ function EditClientPage() {
           <TabsList>
             <TabsTrigger value="client">Dados do cliente</TabsTrigger>
             <TabsTrigger value="departments">Departamentos</TabsTrigger>
+            <TabsTrigger value="system">Sistemas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="client" className="mt-6">
@@ -638,6 +711,51 @@ function EditClientPage() {
                 </div>
               </SortableContext>
             </DndContext>
+          </TabsContent>
+          <TabsContent value="system" className="mt-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold">Sistemas</h2>
+                <p className="text-sm text-muted-foreground">Gerencie os acessos e credenciais deste cliente.</p>
+              </div>
+              <Button onClick={() => { resetSystemAccessForm(); setSystemAccessFormOpen(true); }}>
+                <Plus className="mr-2 h-4 w-4" />
+                Cadastrar Acesso
+              </Button>
+            </div>
+
+            {systemAccessFormOpen && (
+              <div className="space-y-4 rounded-lg border p-4">
+                <h3 className="font-medium">{editingSystemAccessId ? "Editar acesso" : "Novo acesso"}</h3>
+                <Field label="Título"><Input value={systemAccessTitle} onChange={(event) => setSystemAccessTitle(event.target.value)} placeholder="Ex.: Portal do cliente" /></Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Login"><Input value={systemAccessLogin} onChange={(event) => setSystemAccessLogin(event.target.value)} /></Field>
+                  <Field label="Senha"><Input type="password" value={systemAccessPassword} onChange={(event) => setSystemAccessPassword(event.target.value)} /></Field>
+                </div>
+                <Field label="Observação"><Textarea value={systemAccessNotes} onChange={(event) => setSystemAccessNotes(event.target.value)} /></Field>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={resetSystemAccessForm}>Cancelar</Button>
+                  <Button onClick={saveSystemAccess}>Salvar acesso</Button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {systemAccesses.map((access) => (
+                <div key={access.id} className="flex items-start justify-between gap-3 rounded-lg border p-4">
+                  <div className="min-w-0">
+                    <p className="font-medium">{access.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Login: {access.login}</p>
+                    {access.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{access.notes}</p>}
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button size="icon" variant="ghost" title="Editar acesso" onClick={() => startSystemAccessEdit(access)}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" title="Excluir acesso" onClick={() => deleteSystemAccess(access)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </div>
+                </div>
+              ))}
+              {systemAccesses.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum acesso cadastrado.</p>}
+            </div>
           </TabsContent>
         </Tabs>
       </Card>

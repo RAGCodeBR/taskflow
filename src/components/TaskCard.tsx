@@ -1530,13 +1530,11 @@ export function TaskCard({
               label="Adicionar cliente"
               render={(close) => (
                 <PopoverField label="Cliente">
-                  <Select value={task.client_id ?? "none"} onValueChange={(v) => { void update({ client_id: v === "none" ? null : v }); close(); }}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {clients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
+                  <ClientPicker
+                    clients={clients}
+                    value={task.client_id}
+                    onChange={(clientId) => { void update({ client_id: clientId }); close(); }}
+                  />
                 </PopoverField>
               )}
             />
@@ -1789,6 +1787,63 @@ function PopoverField({ label, children }: { label: string; children: React.Reac
     <div className="space-y-1.5">
       <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       {children}
+    </div>
+  );
+}
+
+function ClientPicker({
+  clients,
+  value,
+  onChange,
+}: {
+  clients: Client[];
+  value: string | null;
+  onChange: (clientId: string | null) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const filteredClients = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR");
+    return term ? clients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term)) : clients;
+  }, [clients, search]);
+  const visibleClients = filteredClients.slice(0, 5);
+
+  return (
+    <div className="space-y-2">
+      <Input
+        autoFocus
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Pesquisar cliente..."
+        className="h-8 text-xs"
+      />
+      <div className="space-y-1">
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className={cn(
+            "flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted",
+            !value && "bg-muted font-medium",
+          )}
+        >
+          Nenhum
+        </button>
+        {visibleClients.map((client) => (
+          <button
+            key={client.id}
+            type="button"
+            onClick={() => onChange(client.id)}
+            className={cn(
+              "flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted",
+              value === client.id && "bg-muted font-medium",
+            )}
+          >
+            <span className="mr-2 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: client.color ?? "#94a3b8" }} />
+            <span className="truncate">{client.name}</span>
+          </button>
+        ))}
+        {filteredClients.length === 0 && <p className="px-2 py-2 text-xs text-muted-foreground">Nenhum cliente encontrado.</p>}
+      </div>
+      {filteredClients.length > 5 && <p className="text-[10px] text-muted-foreground">Exibindo os 5 primeiros resultados. Refine a pesquisa para encontrar outro cliente.</p>}
     </div>
   );
 }

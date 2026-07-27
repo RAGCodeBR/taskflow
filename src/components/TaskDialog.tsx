@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [priority, setPriority] = useState<Task["priority"]>("medium");
   const [columnId, setColumnId] = useState<string>("");
   const [clientId, setClientId] = useState<string>("");
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>([]);
   const [collaboratorPickerOpen, setCollaboratorPickerOpen] = useState(false);
@@ -89,9 +91,17 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [recurrenceOffsets, setRecurrenceOffsets] = useState<Record<number, number>>({
     0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
   });
+  const filteredClients = useMemo(() => {
+    const term = clientSearch.trim().toLocaleLowerCase("pt-BR");
+    const allClients = clients ?? [];
+    return term ? allClients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term)) : allClients;
+  }, [clients, clientSearch]);
+  const selectedClient = clients?.find((client) => client.id === clientId);
 
   useEffect(() => {
     if (!open) return;
+    setClientPickerOpen(false);
+    setClientSearch("");
     if (task) {
       setTitle(task.title);
       setDescription(task.description ?? "");
@@ -637,13 +647,34 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Cliente</Label>
-              <Select value={clientId || "none"} onValueChange={(v) => setClientId(v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {clients?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between font-normal">
+                    <span className="truncate">{selectedClient?.name ?? "Nenhum"}</span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
+                  <Input
+                    autoFocus
+                    value={clientSearch}
+                    onChange={(event) => setClientSearch(event.target.value)}
+                    placeholder="Pesquisar cliente..."
+                    className="mb-2 h-8 text-xs"
+                  />
+                  <div className="space-y-1">
+                    <button type="button" onClick={() => { setClientId(""); setClientPickerOpen(false); }} className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${!clientId ? "bg-muted font-medium" : ""}`}>Nenhum</button>
+                    {filteredClients.slice(0, 5).map((client) => (
+                      <button key={client.id} type="button" onClick={() => { setClientId(client.id); setClientPickerOpen(false); }} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${clientId === client.id ? "bg-muted font-medium" : ""}`}>
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: client.color ?? "#94a3b8" }} />
+                        <span className="truncate">{client.name}</span>
+                      </button>
+                    ))}
+                    {filteredClients.length === 0 && <p className="px-2 py-2 text-xs text-muted-foreground">Nenhum cliente encontrado.</p>}
+                  </div>
+                  {filteredClients.length > 5 && <p className="mt-2 text-[10px] text-muted-foreground">Exibindo os 5 primeiros resultados. Refine a pesquisa para encontrar outro cliente.</p>}
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Responsável</Label>

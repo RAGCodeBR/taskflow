@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   useTasks,
-  useColumns,
   useClients,
   useProfiles,
   useSubtasks,
@@ -41,7 +40,6 @@ function ListPage() {
   const { data: collaborators = [] } = useTaskCollaborators();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { data: columns = [] } = useColumns();
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
@@ -96,7 +94,11 @@ function ListPage() {
       collaboratorTaskIds,
       subtaskAssigneeTaskIdsByUser,
     });
-    return r.filter((task) => task.status !== "done" && !task.completed_at).sort((a, b) => {
+    return r.filter((task) =>
+      filters.status === "completed"
+        ? task.status === "done" || !!task.completed_at
+        : task.status !== "done" && !task.completed_at,
+    ).sort((a, b) => {
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
@@ -169,7 +171,7 @@ function ListPage() {
             ) : list.map((t) => {
               const client = clients.find((c) => c.id === t.client_id);
               const assignee = profiles.find((p) => p.id === t.assignee_id);
-              const statusColumn = columns.find((column) => column.id === t.column_id);
+              const taskStatus = statuses.find((status) => status.id === t.status_id);
               const overdue = t.due_date && isPast(new Date(t.due_date)) && t.status !== "done";
               const taskCollaborators = collaborators.filter((collaborator) => collaborator.task_id === t.id).map((collaborator) => profiles.find((profile) => profile.id === collaborator.collaborator_id)).filter(Boolean);
 
@@ -207,9 +209,9 @@ function ListPage() {
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="border-r px-2 py-2">
-                    {statusColumn ? (
-                      <Badge variant="outline" className="max-w-full truncate" style={{ borderColor: statusColumn.color || undefined, color: statusColumn.color || undefined }}>
-                        {statusColumn.name}
+                    {taskStatus ? (
+                      <Badge variant="outline" className="max-w-full truncate" style={{ borderColor: taskStatus.color, color: taskStatus.color }}>
+                        {taskStatus.name}
                       </Badge>
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>

@@ -92,6 +92,16 @@ export interface ClientDepartmentEmployee {
   avatar_path: string | null;
   created_at: string;
 }
+export interface ClientSystemAccess {
+  id: string;
+  client_id: string;
+  title: string;
+  login: string;
+  password: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
 export interface Profile {
   id: string;
   full_name: string | null;

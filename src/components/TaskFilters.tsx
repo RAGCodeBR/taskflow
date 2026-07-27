@@ -20,11 +20,12 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import { useClients, useColumns, useProfiles } from "@/hooks/use-data";
+import { useClients, useProfiles, useTaskStatuses } from "@/hooks/use-data";
 
 import { dateFilterLabels, matchDateFilter, type DateFilter } from "@/lib/task-utils";
 
 export type TaskScope = "all" | "mine" | "created";
+const COMPLETED_STATUS_FILTER = "completed";
 
 interface Filters {
   scope?: TaskScope;
@@ -52,7 +53,7 @@ const DATE_OPTIONS: DateFilter[] = [
 export function TaskFilters({ filters, onChange, children }: { filters: Filters; onChange: (f: Filters) => void; children?: ReactNode }) {
   const { data: clients } = useClients();
   const { data: profiles } = useProfiles();
-  const { data: columns = [] } = useColumns();
+  const { data: statuses = [] } = useTaskStatuses();
   const [clientsOpen, setClientsOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -240,7 +241,7 @@ export function TaskFilters({ filters, onChange, children }: { filters: Filters;
               <SelectItem value="urgent">Urgente</SelectItem>
             </SelectContent>
           </Select>
-          {/* Status (Kanban column) */}
+          {/* Status */}
           <Select
             value={filters.status ?? "all"}
             onValueChange={(v) => onChange({ ...filters, status: v === "all" ? undefined : v })}
@@ -250,9 +251,10 @@ export function TaskFilters({ filters, onChange, children }: { filters: Filters;
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos status</SelectItem>
-              {columns.map((column) => (
-                <SelectItem key={column.id} value={column.id}>{column.name}</SelectItem>
+              {statuses.filter((status) => !status.is_completed).map((status) => (
+                <SelectItem key={status.id} value={status.id}>{status.name}</SelectItem>
               ))}
+              <SelectItem value={COMPLETED_STATUS_FILTER}>Concluídos</SelectItem>
             </SelectContent>
           </Select>      {activeCount > 0 && (
         <Button size="sm" variant="ghost" className="h-7 ml-auto text-muted-foreground" onClick={clearAll}>
@@ -306,6 +308,7 @@ export function applyTaskFilters<
     assignee_id: string | null;
     priority: string | null;
     column_id: string | null;
+    status_id: string | null;
     created_by?: string | null;
     due_date: string | null;
     status: string | null;
@@ -343,7 +346,8 @@ export function applyTaskFilters<
       if (t.assignee_id !== f.assignee && !assigneeSubtasks?.has(t.id)) return false;
     }
     if (f.priority && t.priority !== f.priority) return false;
-    if (f.status && t.column_id !== f.status) return false;
+    if (f.status === COMPLETED_STATUS_FILTER && t.status !== "done" && !t.completed_at) return false;
+    if (f.status && f.status !== COMPLETED_STATUS_FILTER && t.status_id !== f.status) return false;
     return true;
   });
 }

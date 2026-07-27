@@ -375,6 +375,47 @@ export type Database = {
           },
         ]
       }
+      client_system_accesses: {
+        Row: {
+          id: string
+          client_id: string
+          title: string
+          login: string
+          password: string
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          title: string
+          login: string
+          password: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          title?: string
+          login?: string
+          password?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_system_accesses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comment_attachments: {
         Row: {
           comment_id: string
