@@ -25,7 +25,7 @@ import {
 import { NotificationBell } from "@/components/NotificationBell";
 import { AssignmentPopup } from "@/components/AssignmentPopup";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import taskflowLogo from "@/assets/taskflow-logo.png";
+import businessMentoringLogo from "@/assets/la-business-mentoring.png";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 function useTheme() {
@@ -98,14 +98,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         style={{ background: "var(--gradient-sidebar)" }}
       >
         <div
-          className={`flex items-center gap-2 py-5 ${sidebarOpen ? "px-5" : "px-2 justify-center"}`}
+          className={`flex ${sidebarOpen ? "flex-col items-center gap-3 py-4 px-5" : "items-center justify-center py-5 px-2"}`}
         >
           <div
-            className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black ${sidebarOpen ? "h-9 w-9" : "h-9 w-9"}`}
+            className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 ${sidebarOpen ? "h-16 w-40 p-1" : "h-9 w-9 p-0.5"}`}
           >
-            <img src={taskflowLogo} alt="TaskFlow" className="h-full w-full object-contain" />
+            <img
+              src={businessMentoringLogo}
+              alt="TaskFlow"
+              className="h-full w-full object-contain"
+            />
           </div>
-          {sidebarOpen && <span className="text-lg font-semibold">TaskFlow</span>}
+          {sidebarOpen && <span className="text-lg font-semibold leading-none">TaskFlow</span>}
         </div>
 
         <div className={`flex ${sidebarOpen ? "justify-end px-3" : "justify-center"} mb-2`}>
@@ -214,11 +218,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             style={{ background: "var(--gradient-sidebar)" }}
           >
             <div className="flex items-center justify-between px-5 py-4">
-              <div className="flex items-center gap-2">
-                <div className="flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black h-9 w-9">
-                  <img src={taskflowLogo} alt="TaskFlow" className="h-full w-full object-contain" />
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 p-1">
+                  <img
+                    src={businessMentoringLogo}
+                    alt="TaskFlow"
+                    className="h-full w-full object-contain"
+                  />
                 </div>
-                <span className="text-lg font-semibold">TaskFlow</span>
+                <span className="text-lg font-semibold leading-none">TaskFlow</span>
               </div>
               <Button size="icon" variant="ghost" onClick={() => setSidebarOpen(false)}>
                 <PanelLeft className="h-5 w-5" />
