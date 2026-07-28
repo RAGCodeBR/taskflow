@@ -259,9 +259,26 @@ export function RichTextView({
   className?: string;
   onClick?: (e: React.MouseEvent) => void;
 }) {
-  const looksLikeHtml = /<\/?(p|h[1-6]|ul|ol|li|strong|em|u|code|blockquote|a|br|s|hr)\b/i.test(html);
+  // Some descriptions were persisted with the HTML escaped more than once
+  // (for example, `&amp;lt;p&amp;gt;...`). Decode up to three levels, but only when
+  // that value represents one of the tags supported by the editor.
+  const hasEncodedHtmlTag = /&(?:amp;)*lt;\/?(p|h[1-6]|ul|ol|li|strong|em|u|code|blockquote|a|br|s|hr|mark)\b/i.test(html);
+  let renderedHtml = html;
+  if (hasEncodedHtmlTag) {
+    for (let depth = 0; depth < 3; depth += 1) {
+      const decoded = renderedHtml
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&amp;/gi, "&");
+      if (decoded === renderedHtml) break;
+      renderedHtml = decoded;
+    }
+  }
+  const looksLikeHtml = /<\/?(p|h[1-6]|ul|ol|li|strong|em|u|code|blockquote|a|br|s|hr|mark)\b/i.test(renderedHtml);
   if (!looksLikeHtml) {
-    const formattedHtml = html
+    const formattedHtml = renderedHtml
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -286,7 +303,7 @@ export function RichTextView({
         "tiptap prose prose-sm dark:prose-invert max-w-none text-xs leading-snug [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_h2]:text-sm [&_h3]:text-xs [&_a]:underline [&_a]:text-primary [&_u]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1",
         className,
       )}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: renderedHtml }}
     />
   );
 }

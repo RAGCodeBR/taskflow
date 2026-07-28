@@ -1241,40 +1241,18 @@ export function TaskCard({
             {isVisible("description") ? (
               <div style={{ order: orderOf("description") }}>
                 {descEditing ? (
-                  <>
-                    <Textarea
+                  <div className="mb-2" onPointerDown={stop} onClick={stop}>
+                    <RichTextEditor
                       value={descDraft}
                       autoFocus
-                      ref={(el) => {
-                        descTextareaRef.current = el;
-                        if (el) {
-                          el.style.height = "auto";
-                          el.style.height = `${el.scrollHeight}px`;
-                        }
-                      }}
-                      onChange={(e) => {
-                        setDescDraft(e.target.value);
-                        const el = e.currentTarget;
-                        el.style.height = "auto";
-                        el.style.height = `${el.scrollHeight}px`;
-                      }}
-                      onBlur={() => void saveDesc()}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          void saveDesc();
-                        }
-                        if (e.key === "Escape") {
-                          setDescDraft(task.description ?? "");
-                          setDescEditing(false);
-                        }
-                      }}
-                      onPointerDown={stop}
-                      onClick={stop}
+                      minHeight={72}
                       placeholder="Observações..."
-                      className="mb-2 min-h-[40px] resize-none overflow-hidden whitespace-pre-wrap border-none bg-transparent p-0 text-sm leading-snug text-foreground shadow-none focus-visible:ring-0 md:text-sm"
+                      className="text-sm leading-snug md:text-sm"
+                      onChange={setDescDraft}
+                      onBlur={() => void saveDesc()}
+                      onSubmit={() => void saveDesc()}
                     />
-                  </>
+                  </div>
                 ) : task.description ? (
                   <div className="mb-2">
                     <div

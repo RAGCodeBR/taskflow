@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/use-auth";
-import { useAssignableProfiles, useClients, useColumns, useProfiles, type Task } from "@/hooks/use-data";
+import { useAssignableProfiles, useClients, useColumns, useProfiles, useTaskStatuses, type Task } from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -100,6 +100,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const { data: clients } = useClients();
   const { data: profiles } = useProfiles();
   const { data: assignableProfiles = [] } = useAssignableProfiles();
+  const { data: statuses = [] } = useTaskStatuses();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -257,10 +258,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     );
   };
 
-  const buildPayload = () => ({
+  const buildPayload = () => {
+    const matchingStatus = statuses.find((item) => status === "done" ? item.is_completed : !item.is_completed);
+    return {
     title: title.trim() || "Sem título",
     description: description || null,
     status,
+    status_id: matchingStatus?.id ?? task?.status_id ?? null,
     priority,
     column_id: columnId || null,
     client_id: clientId || null,
@@ -268,7 +272,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     due_date: deadlineToIso(dueDate),
     due_time: dueDate ? dueTime || null : null,
     completed_at: status === "done" ? new Date().toISOString() : null,
-  });
+    };
+  };
 
   // React can retain the previous user while Supabase refreshes or clears an
   // expired token. Database writes must use the live session so they are sent

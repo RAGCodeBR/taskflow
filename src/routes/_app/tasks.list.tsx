@@ -171,7 +171,8 @@ function ListPage() {
             ) : list.map((t) => {
               const client = clients.find((c) => c.id === t.client_id);
               const assignee = profiles.find((p) => p.id === t.assignee_id);
-              const taskStatus = statuses.find((status) => status.id === t.status_id);
+              const taskStatus = statuses.find((status) => status.id === t.status_id)
+                ?? statuses.find((status) => t.status === "done" ? status.is_completed : !status.is_completed);
               const overdue = t.due_date && isPast(new Date(t.due_date)) && t.status !== "done";
               const taskCollaborators = collaborators.filter((collaborator) => collaborator.task_id === t.id).map((collaborator) => profiles.find((profile) => profile.id === collaborator.collaborator_id)).filter(Boolean);
 
