@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useTasks, useClients, useProfiles, useColumns } from "@/hooks/use-data";
+import { useTasks, useClients, useAssignableProfiles, useColumns } from "@/hooks/use-data";
 import { DateFilterBar } from "@/components/DateFilterBar";
 import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
 import { Card } from "@/components/ui/card";
@@ -34,7 +34,9 @@ function Dashboard() {
   const { profile, user, isAdmin } = useAuth();
   const { data: tasks = [] } = useTasks();
   const { data: clients = [] } = useClients();
-  const { data: profiles = [] } = useProfiles();
+  // The chart only includes users eligible to receive tasks (admins and collaborators).
+  // The database query excludes client accounts, including future ones.
+  const { data: assignableProfiles = [] } = useAssignableProfiles();
   useColumns();
   const [filter, setFilter] = useState<DateFilter>("all");
 
@@ -57,11 +59,11 @@ function Dashboard() {
     value: tasks.filter(t => t.client_id === c.id).length,
     color: c.color || "#1e3a8a",
   })).filter(c => c.value > 0), [clients, tasks]);
-  const byUser = useMemo(() => profiles.map(p => ({
+  const byUser = useMemo(() => assignableProfiles.map(p => ({
     name: (p.full_name || p.email || "?").slice(0, 12),
     feitas: tasks.filter(t => t.assignee_id === p.id && t.status === "done").length,
     pendentes: tasks.filter(t => t.assignee_id === p.id && t.status !== "done").length,
-  })), [profiles, tasks]);
+  })), [assignableProfiles, tasks]);
 
 
   // Member dashboard — only own pending/overdue tasks

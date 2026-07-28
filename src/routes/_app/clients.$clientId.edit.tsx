@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, ChevronDown, ImageUp, LoaderCircle, NotebookPen, Pencil, Plus, Save, Trash2, Users } from "lucide-react";
+import { ArrowLeft, Building2, ChevronDown, Download, ExternalLink, ImageUp, LoaderCircle, NotebookPen, Paperclip, Pencil, Plus, Save, Trash2, Users } from "lucide-react";
 import { DndContext, PointerSensor, closestCenter, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -17,6 +17,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NotesWorkspace } from "@/routes/_app/notes";
+import { FileDropZone } from "@/components/FileDropZone";
+import { useAuth } from "@/hooks/use-auth";
+import { toJpeg } from "html-to-image";
 
 export const Route = createFileRoute("/_app/clients/$clientId/edit")({
   component: EditClientPage,
@@ -110,13 +113,20 @@ function EditClientPage() {
   const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
   const [employeeFormDepartmentId, setEmployeeFormDepartmentId] = useState<string | null>(null);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+  const [employeePersonType, setEmployeePersonType] = useState<"individual" | "company">("individual");
   const [employeeName, setEmployeeName] = useState("");
+  const [employeeDocument, setEmployeeDocument] = useState("");
   const [employeeCbo, setEmployeeCbo] = useState("");
   const [employeeRole, setEmployeeRole] = useState("");
   const [employeeSalary, setEmployeeSalary] = useState("");
+  const [employeeSalaryExtrafolha, setEmployeeSalaryExtrafolha] = useState("");
   const [employeeActivities, setEmployeeActivities] = useState("");
   const [employeeAvatarFile, setEmployeeAvatarFile] = useState<File | null>(null);
   const [employeeAvatarPreview, setEmployeeAvatarPreview] = useState<string | null>(null);
+  const [isEmployeeAvatarDragging, setIsEmployeeAvatarDragging] = useState(false);
+  const employeeAvatarInputRef = useRef<HTMLInputElement>(null);
+  const employeeCardRef = useRef<HTMLDivElement>(null);
+  const [isDownloadingEmployeeCard, setIsDownloadingEmployeeCard] = useState(false);
   const [employeeAvatarUrls, setEmployeeAvatarUrls] = useState<Record<string, string>>({});
   const [selectedEmployee, setSelectedEmployee] = useState<ClientDepartmentEmployee | null>(null);
   const [employeeDialogPosition, setEmployeeDialogPosition] = useState({ x: 0, y: 0 });
@@ -133,6 +143,7 @@ function EditClientPage() {
   const [branchAddress, setBranchAddress] = useState("");
   const [branchPhone, setBranchPhone] = useState("");
   const [branchEmail, setBranchEmail] = useState("");
+  const [branchNotes, setBranchNotes] = useState("");
   const [activeTab, setActiveTab] = useState("client");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -281,6 +292,12 @@ function EditClientPage() {
     toast.success(editingDepartmentId ? "Departamento atualizado" : "Departamento cadastrado");
   };
 
+  const resetDepartmentForm = () => {
+    setDepartmentFormOpen(false);
+    setEditingDepartmentId(null);
+    setDepartmentName("");
+  };
+
   const startDepartmentEdit = (department: ClientDepartment) => {
     setEditingDepartmentId(department.id);
     setDepartmentName(department.name);
@@ -320,12 +337,50 @@ function EditClientPage() {
   const resetEmployeeForm = () => {
     setEmployeeFormDepartmentId(null);
     setEditingEmployeeId(null);
+    setEmployeePersonType("individual");
     setEmployeeName("");
+    setEmployeeDocument("");
     setEmployeeCbo("");
     setEmployeeRole("");
     setEmployeeSalary("");
+    setEmployeeSalaryExtrafolha("");
     setEmployeeActivities("");
     setEmployeeAvatarFile(null);
+    setIsEmployeeAvatarDragging(false);
+    if (employeeAvatarInputRef.current) employeeAvatarInputRef.current.value = "";
+  };
+
+  const setEmployeeAvatar = (file: File | null | undefined) => {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      toast.error("Selecione uma imagem PNG, JPG ou WebP.");
+      return;
+    }
+    setEmployeeAvatarFile(file);
+  };
+
+  const clearSelectedEmployeeAvatar = () => {
+    setEmployeeAvatarFile(null);
+    if (employeeAvatarInputRef.current) employeeAvatarInputRef.current.value = "";
+  };
+
+  const removeSavedEmployeeAvatar = async () => {
+    if (!editingEmployeeId) return;
+    const employee = employees.find((item) => item.id === editingEmployeeId);
+    if (!employee?.avatar_path) return;
+
+    const { error } = await supabase
+      .from("client_department_employees")
+      .update({ avatar_path: null })
+      .eq("id", employee.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const { error: storageError } = await supabase.storage.from("task-attachments").remove([employee.avatar_path]);
+    if (storageError) toast.error(`Foto desvinculada, mas não foi possível excluir o arquivo: ${storageError.message}`);
+    await queryClient.invalidateQueries({ queryKey: ["client-department-employees", clientId] });
+    toast.success("Foto do funcionário removida");
   };
 
   const saveEmployee = async () => {
@@ -335,10 +390,13 @@ function EditClientPage() {
     }
     const employeeData = {
       department_id: employeeFormDepartmentId,
+      person_type: employeePersonType,
       full_name: employeeName.trim(),
+      document: employeeDocument.trim() || null,
       cbo: employeeCbo.trim() || null,
       role: employeeRole.trim() || null,
       salary: parseSalary(employeeSalary),
+      salary_extrafolha: parseSalary(employeeSalaryExtrafolha),
       activities: employeeActivities.trim() || null,
     };
     const { data: savedEmployee, error } = editingEmployeeId
@@ -372,10 +430,13 @@ function EditClientPage() {
   const startEmployeeEdit = (employee: ClientDepartmentEmployee) => {
     setEmployeeFormDepartmentId(employee.department_id);
     setEditingEmployeeId(employee.id);
+    setEmployeePersonType(employee.person_type ?? "individual");
     setEmployeeName(employee.full_name);
+    setEmployeeDocument(employee.document ?? "");
     setEmployeeCbo(employee.cbo ?? "");
     setEmployeeRole(employee.role ?? "");
     setEmployeeSalary(employee.salary === null ? "" : formatSalary(employee.salary));
+    setEmployeeSalaryExtrafolha(employee.salary_extrafolha == null ? "" : formatSalary(employee.salary_extrafolha));
     setEmployeeActivities(employee.activities ?? "");
     setEmployeeAvatarFile(null);
   };
@@ -452,11 +513,12 @@ function EditClientPage() {
     setBranchAddress("");
     setBranchPhone("");
     setBranchEmail("");
+    setBranchNotes("");
   };
 
   const saveBranch = async () => {
     if (!branchName.trim()) {
-      toast.error("Informe o nome da filial.");
+      toast.error("Informe o nome da unidade.");
       return;
     }
     const payload = {
@@ -465,6 +527,7 @@ function EditClientPage() {
       address: branchAddress.trim() || null,
       phone: branchPhone.trim() || null,
       email: branchEmail.trim() || null,
+      notes: branchNotes.trim() || null,
     };
     const { error } = editingBranchId
       ? await (supabase.from("client_branches" as any) as any).update(payload).eq("id", editingBranchId)
@@ -476,7 +539,7 @@ function EditClientPage() {
     await queryClient.invalidateQueries({ queryKey: ["client-branches", clientId] });
     const wasEditing = !!editingBranchId;
     resetBranchForm();
-    toast.success(wasEditing ? "Filial atualizada" : "Filial cadastrada");
+    toast.success(wasEditing ? "Unidade atualizada" : "Unidade cadastrada");
   };
 
   const startBranchEdit = (branch: ClientBranch) => {
@@ -486,18 +549,19 @@ function EditClientPage() {
     setBranchAddress(branch.address ?? "");
     setBranchPhone(branch.phone ?? "");
     setBranchEmail(branch.email ?? "");
+    setBranchNotes(branch.notes ?? "");
     setBranchFormOpen(true);
   };
 
   const deleteBranch = async (branch: ClientBranch) => {
-    if (!confirm(`Excluir a filial "${branch.name}"?`)) return;
+    if (!confirm(`Excluir a unidade "${branch.name}"?`)) return;
     const { error } = await (supabase.from("client_branches" as any) as any).delete().eq("id", branch.id);
     if (error) {
       toast.error(error.message);
       return;
     }
     await queryClient.invalidateQueries({ queryKey: ["client-branches", clientId] });
-    toast.success("Filial excluída");
+    toast.success("Unidade excluída");
   };
 
   const startEmployeeDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -516,6 +580,29 @@ function EditClientPage() {
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onEnd);
+  };
+
+  const downloadEmployeeCard = async () => {
+    if (!selectedEmployee || !employeeCardRef.current) return;
+    setIsDownloadingEmployeeCard(true);
+    try {
+      const url = await toJpeg(employeeCardRef.current, {
+        quality: 0.95,
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+        style: { border: "2px solid #d8e0ea", borderRadius: "12px" },
+      });
+      const link = document.createElement("a");
+      const safeName = selectedEmployee.full_name.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "") || "funcionario";
+      link.href = url;
+      link.download = `cartao-${safeName}.jpeg`;
+      link.click();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível baixar o cartão.");
+    } finally {
+      setIsDownloadingEmployeeCard(false);
+    }
   };
 
   if (isLoading) {
@@ -557,10 +644,11 @@ function EditClientPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="client">Dados do cliente</TabsTrigger>
-            <TabsTrigger value="branches">Outras filiais</TabsTrigger>
+            <TabsTrigger value="branches">Outras unidades</TabsTrigger>
             <TabsTrigger value="departments">Departamentos</TabsTrigger>
             <TabsTrigger value="system">Sistemas</TabsTrigger>
             <TabsTrigger value="notes">Anotações</TabsTrigger>
+            <TabsTrigger value="attachments">Anexos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="client" className="mt-6">
@@ -693,30 +781,31 @@ function EditClientPage() {
           <TabsContent value="branches" className="mt-6 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="font-semibold">Outras filiais</h2>
+                <h2 className="font-semibold">Outras unidades</h2>
                 <p className="text-sm text-muted-foreground">
                   Cadastre as demais unidades vinculadas a este cliente.
                 </p>
               </div>
               <Button onClick={() => { resetBranchForm(); setBranchFormOpen(true); }}>
                 <Plus className="mr-2 h-4 w-4" />
-                Cadastrar filial
+                Cadastrar unidade
               </Button>
             </div>
 
             {branchFormOpen && (
               <div className="space-y-4 rounded-lg border p-4">
-                <h3 className="font-medium">{editingBranchId ? "Editar filial" : "Nova filial"}</h3>
+                <h3 className="font-medium">{editingBranchId ? "Editar unidade" : "Nova unidade"}</h3>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Nome da filial"><Input value={branchName} onChange={(event) => setBranchName(event.target.value)} /></Field>
+                  <Field label="Nome da unidade"><Input value={branchName} onChange={(event) => setBranchName(event.target.value)} /></Field>
                   <Field label="CNPJ"><Input value={branchCnpj} onChange={(event) => setBranchCnpj(event.target.value)} /></Field>
                   <Field label="Telefone"><Input value={branchPhone} onChange={(event) => setBranchPhone(event.target.value)} /></Field>
                   <Field label="E-mail"><Input type="email" value={branchEmail} onChange={(event) => setBranchEmail(event.target.value)} /></Field>
                 </div>
                 <Field label="Endereço"><Textarea value={branchAddress} onChange={(event) => setBranchAddress(event.target.value)} /></Field>
+                <Field label="Observações"><Textarea value={branchNotes} onChange={(event) => setBranchNotes(event.target.value)} placeholder="Informações adicionais sobre esta unidade" /></Field>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={resetBranchForm}>Cancelar</Button>
-                  <Button onClick={saveBranch}>Salvar filial</Button>
+                  <Button onClick={saveBranch}>Salvar unidade</Button>
                 </div>
               </div>
             )}
@@ -730,14 +819,15 @@ function EditClientPage() {
                       {[branch.cnpj && `CNPJ: ${branch.cnpj}`, branch.phone, branch.email].filter(Boolean).join(" · ") || "Sem contatos cadastrados"}
                     </p>
                     {branch.address && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{branch.address}</p>}
+                    {branch.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{branch.notes}</p>}
                   </div>
                   <div className="flex shrink-0 gap-1">
-                    <Button size="icon" variant="ghost" title="Editar filial" onClick={() => startBranchEdit(branch)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" title="Excluir filial" onClick={() => deleteBranch(branch)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    <Button size="icon" variant="ghost" title="Editar unidade" onClick={() => startBranchEdit(branch)}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" title="Excluir unidade" onClick={() => deleteBranch(branch)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </div>
                 </div>
               ))}
-              {branches.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma filial cadastrada.</p>}
+              {branches.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma unidade cadastrada.</p>}
             </div>
           </TabsContent>
 
@@ -749,7 +839,7 @@ function EditClientPage() {
                   Cadastre e organize os departamentos deste cliente.
                 </p>
               </div>
-              <Button onClick={() => { setEditingDepartmentId(null); setDepartmentName(""); setDepartmentFormOpen((open) => !open); }}>
+              <Button onClick={() => { resetDepartmentForm(); setDepartmentFormOpen(true); }}>
                 <Plus className="mr-2 h-4 w-4" />
                 Cadastrar departamento
               </Button>
@@ -764,7 +854,7 @@ function EditClientPage() {
                   />
                 </Field>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setDepartmentFormOpen(false)}>
+                  <Button variant="outline" onClick={resetDepartmentForm}>
                     Cancelar
                   </Button>
                   <Button onClick={saveDepartment}>Salvar departamento</Button>
@@ -796,22 +886,58 @@ function EditClientPage() {
 
                     {employeeFormDepartmentId === department.id && (
                       <div className="mt-4 space-y-4 rounded-lg border bg-muted/20 p-4">
-                        <h3 className="font-medium">{editingEmployeeId ? "Editar funcionário" : "Novo funcionário"}</h3>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <h3 className="font-medium">{editingEmployeeId ? "Editar funcionário" : "Novo funcionário"}</h3>
+                          <div className="inline-flex rounded-md border p-0.5">
+                            <Button type="button" size="sm" variant={employeePersonType === "individual" ? "default" : "ghost"} className="h-7" onClick={() => setEmployeePersonType("individual")}>Pessoa Física</Button>
+                            <Button type="button" size="sm" variant={employeePersonType === "company" ? "default" : "ghost"} className="h-7" onClick={() => setEmployeePersonType("company")}>Pessoa Jurídica</Button>
+                          </div>
+                        </div>
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <Field label="Nome Completo"><Input value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} /></Field>
+                          <Field label={employeePersonType === "individual" ? "Nome Completo" : "Razão Social"}><Input value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} /></Field>
+                          <Field label={employeePersonType === "individual" ? "CPF" : "CNPJ"}><Input value={employeeDocument} onChange={(event) => setEmployeeDocument(event.target.value)} /></Field>
                           <Field label="CBO"><Input value={employeeCbo} onChange={(event) => setEmployeeCbo(event.target.value)} /></Field>
                           <Field label="Função"><Input value={employeeRole} onChange={(event) => setEmployeeRole(event.target.value)} /></Field>
-                          <Field label="Salário"><Input inputMode="decimal" placeholder="0,00" value={employeeSalary} onChange={(event) => setEmployeeSalary(event.target.value)} onBlur={() => setEmployeeSalary((value) => value ? formatSalary(value) : "")} /></Field>
+                          <Field label="Salário Bruto"><Input inputMode="decimal" placeholder="0,00" value={employeeSalary} onChange={(event) => setEmployeeSalary(event.target.value)} onBlur={() => setEmployeeSalary((value) => value ? formatSalary(value) : "")} /></Field>
+                          <Field label="Salário Extrafolha"><Input inputMode="decimal" placeholder="0,00" value={employeeSalaryExtrafolha} onChange={(event) => setEmployeeSalaryExtrafolha(event.target.value)} onBlur={() => setEmployeeSalaryExtrafolha((value) => value ? formatSalary(value) : "")} /></Field>
                         </div>
-                        <Field label="Atividades"><Textarea value={employeeActivities} onChange={(event) => setEmployeeActivities(event.target.value)} placeholder="Descreva livremente as atividades do funcionário." /></Field>
+                        <Field label="Observações"><Textarea value={employeeActivities} onChange={(event) => setEmployeeActivities(event.target.value)} placeholder="Descreva livremente quaisquer observações." /></Field>
                         <div className="space-y-2">
                           <Label>Foto do funcionário</Label>
-                          <label htmlFor="employee-avatar" className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-3 transition-colors hover:bg-primary/10">
+                          <label
+                            htmlFor="employee-avatar"
+                            className={`flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3 transition-colors ${
+                              isEmployeeAvatarDragging
+                                ? "border-primary bg-primary/15"
+                                : "border-primary/50 bg-primary/5 hover:bg-primary/10"
+                            }`}
+                            onDragEnter={(event) => { event.preventDefault(); setIsEmployeeAvatarDragging(true); }}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDragLeave={(event) => { event.preventDefault(); setIsEmployeeAvatarDragging(false); }}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              setIsEmployeeAvatarDragging(false);
+                              setEmployeeAvatar(event.dataTransfer.files?.[0]);
+                            }}
+                          >
                             <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground"><ImageUp className="h-4 w-4" /></span>
-                            <span><span className="block text-sm font-medium">Selecionar foto do funcionário</span><span className="block text-xs text-muted-foreground">PNG, JPG ou WebP</span></span>
+                            <span><span className="block text-sm font-medium">{isEmployeeAvatarDragging ? "Solte a foto aqui" : "Selecionar ou arrastar foto do funcionário"}</span><span className="block text-xs text-muted-foreground">PNG, JPG ou WebP</span></span>
                           </label>
-                          <Input id="employee-avatar" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => setEmployeeAvatarFile(event.target.files?.[0] ?? null)} />
-                          {employeeAvatarFile && employeeAvatarPreview && <div className="mt-2 flex items-center gap-2 rounded-md border p-2"><img src={employeeAvatarPreview} alt="Prévia" className="h-9 w-9 rounded-full object-cover" /><span className="truncate text-sm">{employeeAvatarFile.name}</span></div>}
+                          <Input ref={employeeAvatarInputRef} id="employee-avatar" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => setEmployeeAvatar(event.target.files?.[0])} />
+                          {employeeAvatarFile && employeeAvatarPreview && (
+                            <div className="mt-2 flex items-center gap-2 rounded-md border p-2">
+                              <img src={employeeAvatarPreview} alt="Prévia" className="h-9 w-9 rounded-full object-cover" />
+                              <span className="min-w-0 flex-1 truncate text-sm">{employeeAvatarFile.name}</span>
+                              <Button type="button" size="sm" variant="ghost" onClick={clearSelectedEmployeeAvatar}>Remover</Button>
+                            </div>
+                          )}
+                          {!employeeAvatarFile && editingEmployeeId && employeeAvatarUrls[editingEmployeeId] && (
+                            <div className="mt-2 flex items-center gap-2 rounded-md border p-2">
+                              <img src={employeeAvatarUrls[editingEmployeeId]} alt="Foto atual" className="h-9 w-9 rounded-full object-cover" />
+                              <span className="min-w-0 flex-1 truncate text-sm">Foto atual salva</span>
+                              <Button type="button" size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => void removeSavedEmployeeAvatar()}>Remover foto</Button>
+                            </div>
+                          )}
                         </div>
                         <div className="flex justify-end gap-2"><Button variant="outline" onClick={resetEmployeeForm}>Cancelar</Button><Button onClick={saveEmployee}>Salvar funcionário</Button></div>
                       </div>
@@ -822,7 +948,11 @@ function EditClientPage() {
                         <div key={employee.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
                           <button type="button" className="flex min-w-0 flex-1 items-start gap-3 text-left" onClick={() => { setEmployeeDialogPosition({ x: 0, y: 0 }); setSelectedEmployee(employee); }}>
                             {employeeAvatarUrls[employee.id] && <img src={employeeAvatarUrls[employee.id]} alt={`Foto de ${employee.full_name}`} className="h-10 w-10 shrink-0 rounded-full object-cover" />}
-                            <div className="min-w-0"><p className="font-medium">{employee.full_name}</p><p className="text-sm text-muted-foreground">{employee.role || "Sem função cadastrada"}</p></div>
+                            <div className="min-w-0">
+                              <p className="font-medium">{employee.full_name}</p>
+                              <p className="text-sm text-muted-foreground">{employee.role || "Sem função cadastrada"}</p>
+                              <p className="text-xs text-muted-foreground">{employee.person_type === "company" ? "Pessoa Jurídica" : "Pessoa Física"}</p>
+                            </div>
                           </button>
                           <div className="flex shrink-0 items-center justify-end gap-1"><Button className="h-9" size="sm" variant="outline" onClick={() => { setEmployeeDialogPosition({ x: 0, y: 0 }); setSelectedEmployee(employee); }}>Ver dados</Button><Button className="h-9 w-9" size="icon" variant="ghost" title="Editar informações" onClick={() => startEmployeeEdit(employee)}><Pencil className="h-4 w-4" /></Button><Button className="h-9 w-9" size="icon" variant="ghost" title="Excluir funcionário" onClick={() => deleteEmployee(employee)}><Trash2 className="h-4 w-4 text-destructive" /></Button></div>
                         </div>
@@ -897,6 +1027,9 @@ function EditClientPage() {
             </div>
             <NotesWorkspace fixedClientId={clientId} embedded />
           </TabsContent>
+          <TabsContent value="attachments" className="mt-6">
+            <AttachmentsManager clientId={clientId} />
+          </TabsContent>
         </Tabs>
       </Card>
       <Dialog open={!!selectedEmployee} onOpenChange={(open) => !open && setSelectedEmployee(null)}>
@@ -916,9 +1049,16 @@ function EditClientPage() {
               >
                 <DialogTitle>Dados do funcionário</DialogTitle>
               </DialogHeader>
+              <div className="flex justify-end">
+                <Button type="button" size="sm" variant="outline" onClick={() => void downloadEmployeeCard()} disabled={isDownloadingEmployeeCard}>
+                  <Download className="mr-2 h-4 w-4" />
+                  {isDownloadingEmployeeCard ? "Gerando..." : "Baixar JPEG"}
+                </Button>
+              </div>
               <div className="overflow-hidden rounded-xl border-2 border-primary/20 bg-card shadow-sm">
-                <div className="h-2 bg-gradient-to-r from-emerald-600 via-yellow-400 to-blue-700" />
-                <div className="grid gap-5 p-5 sm:grid-cols-[110px_1fr]">
+                <div id="employee-card-export" ref={employeeCardRef} className="overflow-hidden bg-card">
+                  <div className="h-2 bg-gradient-to-r from-emerald-600 via-yellow-400 to-blue-700" />
+                  <div className="grid gap-5 p-5 sm:grid-cols-[110px_1fr]">
                   <div className="order-first">
                     <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Foto salva</p>
                     {employeeAvatarUrls[selectedEmployee.id] ? (
@@ -933,12 +1073,19 @@ function EditClientPage() {
                       <p className="text-lg font-semibold">{selectedEmployee.full_name}</p>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
+                      <Detail label="Tipo de pessoa" value={selectedEmployee.person_type === "company" ? "Pessoa Jurídica" : "Pessoa Física"} />
+                      <Detail label={selectedEmployee.person_type === "company" ? "CNPJ" : "CPF"} value={selectedEmployee.document} />
                       <Detail label="CBO" value={selectedEmployee.cbo} />
                       <Detail label="Função" value={selectedEmployee.role} />
-                      <Detail label="Salário" value={selectedEmployee.salary === null ? null : formatSalary(selectedEmployee.salary)} />
+                      <Detail label="Salário Bruto" value={selectedEmployee.salary === null ? null : formatSalary(selectedEmployee.salary)} />
+                      <Detail label="Salário Extrafolha" value={selectedEmployee.salary_extrafolha == null ? null : formatSalary(selectedEmployee.salary_extrafolha)} />
                     </div>
-                    <Detail label="Atividades" value={selectedEmployee.activities} multiline />
+                    <Detail label="Observações" value={selectedEmployee.activities} multiline />
                   </div>
+                  </div>
+                </div>
+                <div className="border-t p-5">
+                  <AttachmentsManager clientId={clientId} employeeId={selectedEmployee.id} />
                 </div>
               </div>
             </>
@@ -946,6 +1093,136 @@ function EditClientPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+type ManagedAttachment = {
+  id: string;
+  title: string | null;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+};
+
+function AttachmentsManager({ clientId, employeeId }: { clientId: string; employeeId?: string }) {
+  const { user } = useAuth();
+  const [files, setFiles] = useState<ManagedAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const table = employeeId ? "client_department_employee_attachments" : "client_files";
+  const foreignKey = employeeId ? "employee_id" : "client_id";
+  const referenceId = employeeId ?? clientId;
+
+  const load = async () => {
+    const { data, error } = await (supabase.from(table) as any)
+      .select("*")
+      .eq(foreignKey, referenceId)
+      .order("created_at", { ascending: false });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setFiles((data ?? []) as ManagedAttachment[]);
+  };
+
+  useEffect(() => { void load(); }, [referenceId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const upload = async (fileList: FileList | null) => {
+    if (!fileList?.length || !user) return;
+    setUploading(true);
+    for (const file of Array.from(fileList)) {
+      const safeName = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_");
+      const path = employeeId
+        ? `clients/${clientId}/employees/${employeeId}/files/${Date.now()}_${safeName}`
+        : `clients/${clientId}/files/${Date.now()}_${safeName}`;
+      const { error: uploadError } = await supabase.storage.from("task-attachments").upload(path, file, { contentType: file.type || "application/octet-stream" });
+      if (uploadError) {
+        toast.error(uploadError.message);
+        continue;
+      }
+      const payload = employeeId
+        ? { employee_id: employeeId, title: file.name, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id }
+        : { client_id: clientId, title: file.name, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id, position: files.length };
+      const { error: insertError } = await (supabase.from(table) as any).insert(payload);
+      if (insertError) {
+        await supabase.storage.from("task-attachments").remove([path]);
+        toast.error(insertError.message);
+      }
+    }
+    setUploading(false);
+    void load();
+  };
+
+  const open = async (file: ManagedAttachment) => {
+    const { data, error } = await supabase.storage.from("task-attachments").createSignedUrl(file.storage_path, 3600);
+    if (error || !data?.signedUrl) {
+      toast.error(error?.message ?? "Não foi possível abrir o arquivo.");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const remove = async (file: ManagedAttachment) => {
+    if (!confirm(`Excluir o anexo "${file.file_name}"?`)) return;
+    const { error } = await (supabase.from(table) as any).delete().eq("id", file.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await supabase.storage.from("task-attachments").remove([file.storage_path]);
+    void load();
+  };
+
+  const saveTitle = async (file: ManagedAttachment, title: string) => {
+    const { error } = await (supabase.from(table) as any).update({ title: title.trim() || file.file_name }).eq("id", file.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setFiles((current) => current.map((item) => item.id === file.id ? { ...item, title: title.trim() || file.file_name } : item));
+  };
+
+  const title = employeeId ? "Anexos do funcionário" : "Anexos do cliente";
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 font-semibold"><Paperclip className="h-4 w-4" /> {title}</h2>
+          <p className="text-sm text-muted-foreground">Adicione documentos, imagens e outros arquivos.</p>
+        </div>
+        <span className="text-sm text-muted-foreground">{files.length} arquivo(s)</span>
+      </div>
+      <FileDropZone onFiles={(dropped) => void upload(dropped)} disabled={uploading} className="rounded-lg border border-dashed p-4">
+        <label className="flex cursor-pointer items-center justify-between gap-3">
+          <span className="text-sm text-muted-foreground">Arraste arquivos aqui ou selecione do computador.</span>
+          <span className="rounded-md border bg-background px-3 py-1.5 text-sm">{uploading ? "Enviando..." : "Adicionar arquivos"}</span>
+          <input type="file" multiple className="hidden" onChange={(event) => { void upload(event.target.files); event.currentTarget.value = ""; }} disabled={uploading} />
+        </label>
+      </FileDropZone>
+      {files.length === 0 ? (
+        <p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhum anexo adicionado.</p>
+      ) : (
+        <ul className="space-y-2">
+          {files.map((file) => (
+            <li key={file.id} className="flex items-center gap-3 rounded-lg border p-3">
+              <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <Input
+                  defaultValue={file.title || file.file_name}
+                  onBlur={(event) => void saveTitle(file, event.target.value)}
+                  placeholder="Título do anexo"
+                  className="h-8"
+                />
+                <p className="mt-1 truncate text-xs text-muted-foreground" title={file.file_name}>{file.file_name}</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => void open(file)}><ExternalLink className="mr-1 h-3.5 w-3.5" /> Abrir</Button>
+              <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => void remove(file)} title="Excluir anexo"><Trash2 className="h-4 w-4" /></Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

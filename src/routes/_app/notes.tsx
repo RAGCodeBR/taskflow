@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useClients } from "@/hooks/use-data";
+import { useClients, useProfiles } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -42,6 +42,7 @@ interface ClientNote {
   updated_at: string;
   note_date: string;
   task_id: string | null;
+  created_by: string | null;
 }
 
 interface NoteAttachment {
@@ -276,14 +277,16 @@ export function NotesWorkspace({
   fixedClientId?: string;
   embedded?: boolean;
 }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: clients = [] } = useClients();
+  const { data: profiles = [] } = useProfiles();
 
   const [clientId, setClientId] = useState<string | null>(fixedClientId ?? null);
   const [notes, setNotes] = useState<ClientNote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [createdBy, setCreatedBy] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>(() => {
     if (typeof window === "undefined") return "manual";
     return (localStorage.getItem("notes_sort_mode") as SortMode) || "manual";
@@ -381,14 +384,25 @@ export function NotesWorkspace({
     return arr;
   }, [notes, sortMode]);
 
+  const authorNameById = useMemo(
+    () => new Map(profiles.map((profile) => [profile.id, profile.full_name || "Usuário sem nome"])),
+    [profiles],
+  );
+  const noteAuthors = useMemo(
+    () => [...new Set(notes.map((note) => note.created_by).filter((id): id is string => !!id))]
+      .map((id) => ({ id, name: authorNameById.get(id) ?? "Usuário removido" }))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    [authorNameById, notes],
+  );
+
   const filteredNotes = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return sortedNotes;
-    return sortedNotes.filter((n) =>
-      n.title.toLowerCase().includes(q) ||
-      (n.content ?? "").toLowerCase().includes(q),
-    );
-  }, [sortedNotes, search]);
+    return sortedNotes.filter((note) => {
+      const matchesAuthor = createdBy === "all" || note.created_by === createdBy;
+      const matchesSearch = !q || note.title.toLowerCase().includes(q) || (note.content ?? "").toLowerCase().includes(q);
+      return matchesAuthor && matchesSearch;
+    });
+  }, [createdBy, sortedNotes, search]);
 
   const move = async (id: string, dir: -1 | 1) => {
     const ordered = [...sortedNotes];
@@ -404,7 +418,6 @@ export function NotesWorkspace({
   };
 
   const selected = useMemo(() => notes.find((n) => n.id === selectedId) ?? null, [notes, selectedId]);
-
   return (
     <div className={embedded ? "flex min-h-[720px] flex-col" : "flex h-[calc(100vh-0px)] flex-col"}>
       <header className="border-b bg-background p-4">
@@ -456,6 +469,20 @@ export function NotesWorkspace({
                 </SelectContent>
               </Select>
             </div>
+            {isAdmin && (
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0 text-[11px] text-muted-foreground">Criado por:</span>
+                <Select value={createdBy} onValueChange={setCreatedBy}>
+                  <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os usuários</SelectItem>
+                    {noteAuthors.map((author) => (
+                      <SelectItem key={author.id} value={author.id}>{author.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {loading ? (
@@ -510,6 +537,11 @@ export function NotesWorkspace({
                             __html: (n.content_html || n.content || "").replace(/<[^>]+>/g, " "),
                           }}
                         />
+                        {isAdmin && (
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            Criada por: {n.created_by ? (authorNameById.get(n.created_by) ?? "Usuário removido") : "Não identificado"}
+                          </p>
+                        )}
                       </button>
                     </li>
                   );

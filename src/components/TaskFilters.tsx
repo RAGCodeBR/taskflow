@@ -20,7 +20,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import { useClients, useProfiles, useTaskStatuses } from "@/hooks/use-data";
+import { useAssignableProfiles, useClients, useTaskStatuses } from "@/hooks/use-data";
 
 import { dateFilterLabels, matchDateFilter, type DateFilter } from "@/lib/task-utils";
 
@@ -52,7 +52,10 @@ const DATE_OPTIONS: DateFilter[] = [
 
 export function TaskFilters({ filters, onChange, children }: { filters: Filters; onChange: (f: Filters) => void; children?: ReactNode }) {
   const { data: clients } = useClients();
-  const { data: profiles } = useProfiles();
+  // The assignee filter must only expose users who can receive tasks.
+  // This query is role-based in the database (admin and collaborator only),
+  // so future client accounts are excluded automatically as well.
+  const { data: assignableProfiles } = useAssignableProfiles();
   const { data: statuses = [] } = useTaskStatuses();
   const [clientsOpen, setClientsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -217,7 +220,7 @@ export function TaskFilters({ filters, onChange, children }: { filters: Filters;
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos responsáveis</SelectItem>
-              {profiles?.map((p) => (
+              {assignableProfiles?.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.full_name || p.email}
                 </SelectItem>

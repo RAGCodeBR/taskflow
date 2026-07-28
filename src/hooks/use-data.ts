@@ -84,10 +84,13 @@ export interface ClientDepartment {
 export interface ClientDepartmentEmployee {
   id: string;
   department_id: string;
+  person_type: "individual" | "company";
   full_name: string;
+  document: string | null;
   cbo: string | null;
   role: string | null;
   salary: number | null;
+  salary_extrafolha: number | null;
   activities: string | null;
   avatar_path: string | null;
   created_at: string;
@@ -110,6 +113,7 @@ export interface ClientBranch {
   address: string | null;
   phone: string | null;
   email: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }

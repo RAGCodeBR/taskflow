@@ -335,10 +335,13 @@ export type Database = {
         Row: {
           id: string
           department_id: string
+          person_type: string
           full_name: string
+          document: string | null
           cbo: string | null
           role: string | null
           salary: number | null
+          salary_extrafolha: number | null
           activities: string | null
           avatar_path: string | null
           created_at: string
@@ -346,10 +349,13 @@ export type Database = {
         Insert: {
           id?: string
           department_id: string
+          person_type?: string
           full_name: string
+          document?: string | null
           cbo?: string | null
           role?: string | null
           salary?: number | null
+          salary_extrafolha?: number | null
           activities?: string | null
           avatar_path?: string | null
           created_at?: string
@@ -357,10 +363,13 @@ export type Database = {
         Update: {
           id?: string
           department_id?: string
+          person_type?: string
           full_name?: string
+          document?: string | null
           cbo?: string | null
           role?: string | null
           salary?: number | null
+          salary_extrafolha?: number | null
           activities?: string | null
           avatar_path?: string | null
           created_at?: string
