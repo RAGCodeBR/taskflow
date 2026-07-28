@@ -408,10 +408,18 @@ function KanbanPage() {
     return m;
   }, [userTaskOrder]);
   const [filters, setFilters] = useState<TaskFilterValue>({});
+  const didApplyDefaultAssignee = useRef(false);
   const [sort, setSort] = useState<{ field: SortField; direction: SortDirection }>({
     field: "position",
     direction: "asc",
   });
+
+  useEffect(() => {
+    if (!user?.id || didApplyDefaultAssignee.current) return;
+    setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
+    didApplyDefaultAssignee.current = true;
+  }, [user?.id]);
+
   const [sort2, setSort2] = useState<{ field: SortField | "none"; direction: SortDirection }>({
     field: "none",
     direction: "asc",
@@ -1179,10 +1187,6 @@ function KanbanPage() {
       <header className="shrink-0 border-b bg-background px-3 py-2">
         <div className="flex items-center justify-end gap-2">
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => void exportPdf()} disabled={exportingPdf}>
-              <FileDown className="mr-2 h-4 w-4" />
-              {exportingPdf ? "Gerando…" : "Exportar PDF"}
-            </Button>
             <Button variant="outline" onClick={() => setFilesOpen(true)}>
               <FolderOpen className="mr-2 h-4 w-4" />
               Arquivos Cliente

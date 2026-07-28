@@ -1109,6 +1109,7 @@ type ManagedAttachment = {
 function AttachmentsManager({ clientId, employeeId }: { clientId: string; employeeId?: string }) {
   const { user } = useAuth();
   const [files, setFiles] = useState<ManagedAttachment[]>([]);
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const table = employeeId ? "client_department_employee_attachments" : "client_files";
   const foreignKey = employeeId ? "employee_id" : "client_id";
@@ -1127,6 +1128,28 @@ function AttachmentsManager({ clientId, employeeId }: { clientId: string; employ
   };
 
   useEffect(() => { void load(); }, [referenceId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false;
+    const imageFiles = files.filter((file) => file.mime_type?.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      setThumbnails({});
+      return;
+    }
+    void Promise.all(
+      imageFiles.map(async (file) => {
+        const { data } = await supabase.storage
+          .from("task-attachments")
+          .createSignedUrl(file.storage_path, 3600);
+        return [file.id, data?.signedUrl ?? ""] as const;
+      }),
+    ).then((entries) => {
+      if (!cancelled) setThumbnails(Object.fromEntries(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [files]);
 
   const upload = async (fileList: FileList | null) => {
     if (!fileList?.length || !user) return;
@@ -1206,7 +1229,18 @@ function AttachmentsManager({ clientId, employeeId }: { clientId: string; employ
         <ul className="space-y-2">
           {files.map((file) => (
             <li key={file.id} className="flex items-center gap-3 rounded-lg border p-3">
-              <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <button
+                type="button"
+                onClick={() => void open(file)}
+                className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted text-muted-foreground hover:bg-muted/70"
+                title={`Abrir ${file.file_name}`}
+              >
+                {thumbnails[file.id] ? (
+                  <img src={thumbnails[file.id]} alt={file.title || file.file_name} className="h-full w-full object-cover" />
+                ) : (
+                  <Paperclip className="h-4 w-4" />
+                )}
+              </button>
               <div className="min-w-0 flex-1">
                 <Input
                   defaultValue={file.title || file.file_name}

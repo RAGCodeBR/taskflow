@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, Plus } from "lucide-react";
@@ -47,8 +47,15 @@ function ListPage() {
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
     search.mine ? { scope: "mine" } : {},
   );
+  const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
+
+  useEffect(() => {
+    if (!user?.id || didApplyDefaultAssignee.current) return;
+    setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
+    didApplyDefaultAssignee.current = true;
+  }, [user?.id]);
 
   // Auto-open a task when arriving with ?task=<id>
   useEffect(() => {

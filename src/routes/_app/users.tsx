@@ -228,6 +228,14 @@ function UsersPage() {
   const { isAdmin, user, loading } = useAuth();
   const qc = useQueryClient();
   const { data: profiles = [] } = useProfiles();
+  const { data: profileEmails = [] } = useQuery({
+    queryKey: ["admin_profile_emails"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_get_profile_emails");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(defaults);
@@ -318,13 +326,20 @@ function UsersPage() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível excluir o acesso."),
   });
+  const profilesWithEmails = useMemo(
+    () => {
+      const emailsById = new Map(profileEmails.map((item) => [item.id, item.email]));
+      return profiles.map((profile) => ({ ...profile, email: emailsById.get(profile.id) ?? null }));
+    },
+    [profiles, profileEmails],
+  );
   const activeProfiles = useMemo(
-    () => profiles.filter((p) => (p as any).is_active !== false),
-    [profiles],
+    () => profilesWithEmails.filter((p) => (p as any).is_active !== false),
+    [profilesWithEmails],
   );
   const inactiveProfiles = useMemo(
-    () => profiles.filter((p) => (p as any).is_active === false),
-    [profiles],
+    () => profilesWithEmails.filter((p) => (p as any).is_active === false),
+    [profilesWithEmails],
   );
   const openEdit = (id: string) => {
     const profile = profiles.find((item) => item.id === id);
@@ -452,6 +467,7 @@ function UsersPage() {
             {inactiveProfiles.map((p: any) => (
               <Card key={p.id} className="border-dashed p-4 opacity-75">
                 <p className="font-medium">{p.full_name || p.email}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">{p.email}</p>
                 <Button
                   size="sm"
                   className="mt-3 w-full"

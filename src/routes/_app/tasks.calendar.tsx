@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addMonths,
   eachDayOfInterval,
@@ -32,8 +32,15 @@ function CalendarPage() {
   const { user } = useAuth();
   const [cursor, setCursor] = useState(new Date());
   const [filters, setFilters] = useState<TaskFilterValue>({});
+  const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
+
+  useEffect(() => {
+    if (!user?.id || didApplyDefaultAssignee.current) return;
+    setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
+    didApplyDefaultAssignee.current = true;
+  }, [user?.id]);
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 });

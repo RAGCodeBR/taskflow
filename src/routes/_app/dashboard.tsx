@@ -45,25 +45,25 @@ function Dashboard() {
   // Hooks MUST run unconditionally for both admin and member views.
   const filtered = useMemo(() => tasks.filter(t => matchDateFilter(t, filter)), [tasks, filter]);
   const stats = useMemo(() => {
-    const total = tasks.length;
-    const done = tasks.filter(t => t.status === "done").length;
+    const total = filtered.length;
+    const done = filtered.filter(t => t.status === "done").length;
     const pending = total - done;
-    const overdue = tasks.filter(t => matchDateFilter(t, "overdue")).length;
-    const today = tasks.filter(t => matchDateFilter(t, "today")).length;
-    const week = tasks.filter(t => matchDateFilter(t, "this_week")).length;
-    const month = tasks.filter(t => matchDateFilter(t, "this_month")).length;
+    const overdue = filtered.filter(t => matchDateFilter(t, "overdue")).length;
+    const today = filtered.filter(t => matchDateFilter(t, "today")).length;
+    const week = filtered.filter(t => matchDateFilter(t, "this_week")).length;
+    const month = filtered.filter(t => matchDateFilter(t, "this_month")).length;
     return { total, done, pending, overdue, today, week, month };
-  }, [tasks]);
+  }, [filtered]);
   const byClient = useMemo(() => clients.map(c => ({
     name: c.name,
-    value: tasks.filter(t => t.client_id === c.id).length,
+    value: filtered.filter(t => t.client_id === c.id).length,
     color: c.color || "#1e3a8a",
-  })).filter(c => c.value > 0), [clients, tasks]);
+  })).filter(c => c.value > 0), [clients, filtered]);
   const byUser = useMemo(() => assignableProfiles.map(p => ({
     name: (p.full_name || p.email || "?").slice(0, 12),
-    feitas: tasks.filter(t => t.assignee_id === p.id && t.status === "done").length,
-    pendentes: tasks.filter(t => t.assignee_id === p.id && t.status !== "done").length,
-  })), [assignableProfiles, tasks]);
+    feitas: filtered.filter(t => t.assignee_id === p.id && t.status === "done").length,
+    pendentes: filtered.filter(t => t.assignee_id === p.id && t.status !== "done").length,
+  })), [assignableProfiles, filtered]);
 
 
   // Member dashboard — only own pending/overdue tasks
