@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   useTasks,
   useClients,
+  useColumns,
   useProfiles,
   useSubtasks,
   useTaskStatuses,
@@ -34,6 +35,7 @@ export const Route = createFileRoute("/_app/tasks/list")({
 function ListPage() {
   const { data: tasks = [] } = useTasks();
   const { data: clients = [] } = useClients();
+  const { data: columns = [] } = useColumns();
   const { data: profiles = [] } = useProfiles();
   const { data: subtasks = [] } = useSubtasks();
   const { data: statuses = [] } = useTaskStatuses();
@@ -171,8 +173,25 @@ function ListPage() {
             ) : list.map((t) => {
               const client = clients.find((c) => c.id === t.client_id);
               const assignee = profiles.find((p) => p.id === t.assignee_id);
-              const taskStatus = statuses.find((status) => status.id === t.status_id)
-                ?? statuses.find((status) => t.status === "done" ? status.is_completed : !status.is_completed);
+              const isCompleted = t.status === "done" || !!t.completed_at;
+              const currentColumn = columns.find((column) => column.id === t.column_id);
+              const completedStatus = statuses.find((status) => status.is_completed);
+              const storedStatus = statuses.find((status) => status.id === t.status_id);
+              // The Kanban card's current state is its column. Only completed
+              // tasks use the dedicated completion status instead of the column.
+              const displayStatus = isCompleted
+                ? {
+                    name: completedStatus?.name ?? "Concluída",
+                    color: completedStatus?.color ?? "#22c55e",
+                  }
+                : currentColumn
+                  ? { name: currentColumn.name, color: currentColumn.color || "#64748b" }
+                  : storedStatus
+                    ? {
+                        name: storedStatus.name,
+                        color: storedStatus.color,
+                      }
+                    : null;
               const overdue = t.due_date && isPast(new Date(t.due_date)) && t.status !== "done";
               const taskCollaborators = collaborators.filter((collaborator) => collaborator.task_id === t.id).map((collaborator) => profiles.find((profile) => profile.id === collaborator.collaborator_id)).filter(Boolean);
 
@@ -210,9 +229,9 @@ function ListPage() {
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="border-r px-2 py-2">
-                    {taskStatus ? (
-                      <Badge variant="outline" className="max-w-full truncate" style={{ borderColor: taskStatus.color, color: taskStatus.color }}>
-                        {taskStatus.name}
+                    {displayStatus ? (
+                      <Badge variant="outline" className="max-w-full truncate" style={{ borderColor: displayStatus.color, color: displayStatus.color }}>
+                        {displayStatus.name}
                       </Badge>
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>

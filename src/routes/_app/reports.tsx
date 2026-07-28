@@ -113,7 +113,12 @@ function ReportsPage() {
     const active = p.is_active !== false;
     return statusFilter === "all" || (statusFilter === "active" ? active : !active);
   };
-  const visibleProfiles = profiles.filter(matchesStatus);
+  // Client accounts can access the portal, but are never collaborators and
+  // therefore must not be included in user report filters, charts or tables.
+  const clientUserIds = new Set(
+    roles.filter((role) => role.role === "client").map((role) => role.user_id),
+  );
+  const visibleProfiles = profiles.filter(matchesStatus).filter((profile) => !clientUserIds.has(profile.id));
   const visibleIds = new Set(visibleProfiles.map((p) => p.id));
 
   const filteredTasks = tasks
