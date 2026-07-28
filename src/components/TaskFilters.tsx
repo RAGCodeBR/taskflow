@@ -20,12 +20,13 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import { useAssignableProfiles, useClients, useTaskStatuses } from "@/hooks/use-data";
+import { useAssignableProfiles, useClients, useColumns } from "@/hooks/use-data";
 
 import { dateFilterLabels, matchDateFilter, type DateFilter } from "@/lib/task-utils";
 
 export type TaskScope = "all" | "mine" | "created";
 const COMPLETED_STATUS_FILTER = "completed";
+const COLUMN_STATUS_PREFIX = "column:";
 
 interface Filters {
   scope?: TaskScope;
@@ -56,7 +57,7 @@ export function TaskFilters({ filters, onChange, children }: { filters: Filters;
   // This query is role-based in the database (admin and collaborator only),
   // so future client accounts are excluded automatically as well.
   const { data: assignableProfiles } = useAssignableProfiles();
-  const { data: statuses = [] } = useTaskStatuses();
+  const { data: columns = [] } = useColumns();
   const [clientsOpen, setClientsOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -254,8 +255,8 @@ export function TaskFilters({ filters, onChange, children }: { filters: Filters;
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos status</SelectItem>
-              {statuses.filter((status) => !status.is_completed).map((status) => (
-                <SelectItem key={status.id} value={status.id}>{status.name}</SelectItem>
+              {columns.map((column) => (
+                <SelectItem key={column.id} value={`${COLUMN_STATUS_PREFIX}${column.id}`}>{column.name}</SelectItem>
               ))}
               <SelectItem value={COMPLETED_STATUS_FILTER}>Concluídos</SelectItem>
             </SelectContent>
@@ -350,7 +351,13 @@ export function applyTaskFilters<
     }
     if (f.priority && t.priority !== f.priority) return false;
     if (f.status === COMPLETED_STATUS_FILTER && t.status !== "done" && !t.completed_at) return false;
-    if (f.status && f.status !== COMPLETED_STATUS_FILTER && t.status_id !== f.status) return false;
+    if (f.status?.startsWith(COLUMN_STATUS_PREFIX)) {
+      const columnId = f.status.slice(COLUMN_STATUS_PREFIX.length);
+      if (t.column_id !== columnId || t.status === "done" || !!t.completed_at) return false;
+    } else if (f.status && f.status !== COMPLETED_STATUS_FILTER && t.status_id !== f.status) {
+      // Keeps legacy saved filter values functional while the selector now uses Kanban columns.
+      return false;
+    }
     return true;
   });
 }

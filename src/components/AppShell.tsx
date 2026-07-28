@@ -20,6 +20,7 @@ import {
   CalendarCog,
   CircleDollarSign,
   ChevronDown,
+  MessageSquareText,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AssignmentPopup } from "@/components/AssignmentPopup";
@@ -48,6 +49,7 @@ const allNav: readonly NavItem[] = [
   { to: "/import-ata", label: "Importar Ata", icon: FileUp },
   { to: "/clients", label: "Clientes", icon: Building2 },
   { to: "/reports", label: "Relatórios", icon: BarChart3 },
+  { to: "/mural", label: "Mural", icon: MessageSquareText },
   { to: "/portal", label: "Portal do Cliente", icon: PanelsTopLeft },
   { to: "/users", label: "Usuários", icon: Users, adminOnly: true },
   { to: "/trash", label: "Lixeira", icon: Trash2 },
@@ -63,6 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       "/import-ata": "import_ata",
       "/clients": "clients",
       "/reports": "reports",
+      "/mural": "dashboard",
       "/portal": "portal",
       "/users": "users",
       "/trash": "trash",

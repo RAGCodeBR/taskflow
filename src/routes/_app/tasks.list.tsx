@@ -96,11 +96,7 @@ function ListPage() {
       collaboratorTaskIds,
       subtaskAssigneeTaskIdsByUser,
     });
-    return r.filter((task) =>
-      filters.status === "completed"
-        ? task.status === "done" || !!task.completed_at
-        : task.status !== "done" && !task.completed_at,
-    ).sort((a, b) => {
+    return r.sort((a, b) => {
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;

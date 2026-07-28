@@ -1002,7 +1002,7 @@ export function TaskCard({
       <div
         {...dragHandleProps}
         className={cn(
-          "group relative flex min-h-[460px] w-full cursor-grab touch-none flex-col overflow-visible rounded-lg border bg-card shadow-sm transition hover:border-primary/40 hover:shadow active:cursor-grabbing",
+          "group relative flex min-h-[420px] w-full cursor-grab touch-none flex-col overflow-visible rounded-lg border bg-card shadow-sm transition hover:border-primary/40 hover:shadow active:cursor-grabbing",
         )}
       >
         {/* Client color strip at top */}
@@ -1020,7 +1020,7 @@ export function TaskCard({
         ) : null}
 
         <div className="min-h-0 flex-1 overflow-visible p-2">
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-0.5">
             {/* Tags — multiple, click chip to manage */}
             {isVisible("tags") ? (
               <div className="mb-2 -mx-1" style={{ order: orderOf("tags") }}>
@@ -1288,7 +1288,20 @@ export function TaskCard({
                       </button>
                     ) : null}
                   </div>
-                ) : null}
+                ) : (
+                  <button
+                    type="button"
+                    onPointerDown={stop}
+                    onClick={(e) => {
+                      stop(e);
+                      setDescEditing(true);
+                    }}
+                    className="mb-2 mt-1 flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
+                  >
+                    <AlignLeft className="h-3 w-3" />
+                    <span>Adicionar observação</span>
+                  </button>
+                )}
               </div>
             ) : null}
 
@@ -1544,7 +1557,7 @@ export function TaskCard({
                             setAddingSubtask(true);
                             setSubtasksOpen(true);
                           }}
-                          className="mb-2 flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
+                          className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
                         >
                           <Plus className="h-3 w-3" />
                           <span>Adicionar subtarefa</span>
@@ -1556,12 +1569,14 @@ export function TaskCard({
               : null}
 
             {/* Attachment thumbnails grid */}
-            {isVisible("attachments") && attachments.length > 0 ? (
+            {isVisible("attachments") ? (
               <div
-                className="mb-2 grid grid-cols-3 gap-1"
+                className=""
                 style={{ order: orderOf("attachments") }}
               >
-                {attachments.slice(0, 6).map((a) => {
+                {attachments.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-1">
+                    {attachments.slice(0, 6).map((a) => {
                   const isLink = a.mime_type === LINK_MIME;
                   const isImage = !isLink && a.mime_type?.startsWith("image/");
                   return (
@@ -1620,20 +1635,52 @@ export function TaskCard({
                       </button>
                     </div>
                   );
-                })}
-                {attachments.length > 6 ? (
+                    })}
+                    {attachments.length > 6 ? (
+                      <button
+                        type="button"
+                        onPointerDown={stop}
+                        onClick={(e) => {
+                          stop(e);
+                          onEdit?.();
+                        }}
+                        className="flex aspect-square items-center justify-center rounded border bg-muted text-[10px] font-medium text-muted-foreground hover:bg-muted/60"
+                      >
+                        +{attachments.length - 6}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <FileDropZone
+                  onFiles={(files) => {
+                    const file = files.item(0);
+                    if (file) void uploadFile(file);
+                  }}
+                  className="w-full"
+                >
                   <button
                     type="button"
                     onPointerDown={stop}
                     onClick={(e) => {
                       stop(e);
-                      onEdit?.();
+                      fileRef.current?.click();
                     }}
-                    className="flex aspect-square items-center justify-center rounded border bg-muted text-[10px] font-medium text-muted-foreground hover:bg-muted/60"
+                    className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
                   >
-                    +{attachments.length - 6}
+                    <Upload className="h-3 w-3" />
+                    <span>Adicionar arquivo</span>
                   </button>
-                ) : null}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    hidden
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadFile(f);
+                      e.target.value = "";
+                    }}
+                  />
+                </FileDropZone>
               </div>
             ) : null}
 
@@ -1693,12 +1740,13 @@ export function TaskCard({
               </div>
             ) : null}
 
-            <Collapsible
-              open={collaboratorsOpen}
-              onOpenChange={setCollaboratorsOpen}
-              className="rounded-md border"
-              style={{ order: orderOf("priority") + 1 }}
-            >
+            {isVisible("meta") ? (
+              <Collapsible
+                open={collaboratorsOpen}
+                onOpenChange={setCollaboratorsOpen}
+                className="rounded-md border"
+                style={{ order: orderOf("meta") }}
+              >
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
@@ -1749,7 +1797,8 @@ export function TaskCard({
                     })}
                 </div>
               </CollapsibleContent>
-            </Collapsible>
+              </Collapsible>
+            ) : null}
 
             {/* Prazo — bloco próprio */}
             {isVisible("due") ? (
@@ -1845,7 +1894,8 @@ export function TaskCard({
               </div>
             ) : null}
 
-            <div className="mt-1 space-y-0.5" style={{ order: orderOf("meta") }}>
+            {isVisible("meta") ? (
+              <div className="space-y-0" style={{ order: orderOf("meta") }}>
               <div className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-muted-foreground">
                 <UserIcon className="h-3 w-3 shrink-0" />
                 <span className="truncate">
@@ -1861,11 +1911,12 @@ export function TaskCard({
                   </span>
                 </div>
               ) : null}
-            </div>
+              </div>
+            ) : null}
 
             {/* Meta rows (empty fields) */}
             {isVisible("meta") ? (
-              <div className="mt-1 space-y-0.5" style={{ order: orderOf("meta") }}>
+              <div className="space-y-0" style={{ order: orderOf("meta") }}>
                 <CompactRow
                   icon={<UserIcon className="h-3 w-3" />}
                   empty={!assignee}
@@ -1919,84 +1970,6 @@ export function TaskCard({
                   />
                 ) : null}
 
-                {!dueLabel ? (
-                  <CompactRow
-                    icon={<CalendarIcon className="h-3 w-3" />}
-                    empty
-                    label="Adicionar prazo"
-                    render={(close) => (
-                      <DueDateEditor
-                        task={task}
-                        onChange={(v) => {
-                          openDueChange(v);
-                          close();
-                        }}
-                      />
-                    )}
-                  />
-                ) : null}
-
-                {!task.description ? (
-                  <button
-                    type="button"
-                    onPointerDown={stop}
-                    onClick={(e) => {
-                      stop(e);
-                      setDescEditing(true);
-                    }}
-                    className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
-                  >
-                    <AlignLeft className="h-3 w-3" />
-                    <span>Adicionar observação</span>
-                  </button>
-                ) : null}
-
-                {subtasks.filter((s) => !s.comment_id).length === 0 && !addingSubtask ? (
-                  <button
-                    type="button"
-                    onPointerDown={stop}
-                    onClick={(e) => {
-                      stop(e);
-                      setAddingSubtask(true);
-                    }}
-                    className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
-                  >
-                    <ListChecks className="h-3 w-3" />
-                    <span>Adicionar subtarefa</span>
-                  </button>
-                ) : null}
-
-                {/* Upload button */}
-                <FileDropZone
-                  onFiles={(files) => {
-                    const file = files.item(0);
-                    if (file) void uploadFile(file);
-                  }}
-                  className="w-full"
-                >
-                <button
-                  type="button"
-                  onPointerDown={stop}
-                  onClick={(e) => {
-                    stop(e);
-                    fileRef.current?.click();
-                  }}
-                  className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
-                >
-                  <Upload className="h-3 w-3" />
-                  <span>Adicionar arquivo</span>
-                </button>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  hidden
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void uploadFile(f);
-                    e.target.value = "";
-                  }}
-                />
-                </FileDropZone>
               </div>
             ) : null}
           </div>

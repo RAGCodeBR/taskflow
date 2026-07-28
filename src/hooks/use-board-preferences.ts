@@ -5,7 +5,6 @@ import { useAuth } from "@/hooks/use-auth";
 export const ALL_FIELDS = [
   "tags",
   "description",
-  "comments",
   "subtasks",
   "attachments",
   "interruptions",
@@ -19,7 +18,6 @@ export type CardField = (typeof ALL_FIELDS)[number];
 export const FIELD_LABELS: Record<CardField, string> = {
   tags: "Etiquetas",
   description: "Descrição",
-  comments: "Observações (seções dobráveis)",
   subtasks: "Subtarefas",
   attachments: "Arquivos externos",
   interruptions: "Interrupções",
@@ -32,7 +30,6 @@ export const FIELD_LABELS: Record<CardField, string> = {
 const DEFAULT_ORDER: CardField[] = [
   "tags",
   "description",
-  "comments",
   "subtasks",
   "attachments",
   "interruptions",
