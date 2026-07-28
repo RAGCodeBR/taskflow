@@ -335,7 +335,7 @@ function SortableColumn({
 
 function KanbanPage() {
   const qc = useQueryClient();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isCollaborator } = useAuth();
   const { data: tasks = [] } = useTasks();
   const { data: rawColumns = [] } = useColumns();
   const { data: userColOrder = [] } = useUserColumnOrder();
@@ -415,10 +415,17 @@ function KanbanPage() {
   });
 
   useEffect(() => {
-    if (!user?.id || didApplyDefaultAssignee.current) return;
+    if (!user?.id) return;
+    if (isCollaborator) {
+      setFilters((current) =>
+        current.assignee ? { ...current, assignee: undefined } : current,
+      );
+      return;
+    }
+    if (didApplyDefaultAssignee.current) return;
     setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
     didApplyDefaultAssignee.current = true;
-  }, [user?.id]);
+  }, [user?.id, isCollaborator]);
 
   const [sort2, setSort2] = useState<{ field: SortField | "none"; direction: SortDirection }>({
     field: "none",
@@ -492,6 +499,7 @@ function KanbanPage() {
       subtaskAssigneeTaskIds,
       collaboratorTaskIds,
       subtaskAssigneeTaskIdsByUser,
+      restrictToCurrentUserParticipation: isCollaborator,
     });
     all.sort((a, b) => {
       let cmp = 0;
@@ -555,6 +563,7 @@ function KanbanPage() {
     subtaskAssigneeTaskIds,
     collaboratorTaskIds,
     subtaskAssigneeTaskIdsByUser,
+    isCollaborator,
   ]);
 
   const sensors = useSensors(
@@ -569,6 +578,7 @@ function KanbanPage() {
       subtaskAssigneeTaskIds,
       collaboratorTaskIds,
       subtaskAssigneeTaskIdsByUser,
+      restrictToCurrentUserParticipation: isCollaborator,
     });
     return r;
   }, [
@@ -578,6 +588,7 @@ function KanbanPage() {
     subtaskAssigneeTaskIds,
     collaboratorTaskIds,
     subtaskAssigneeTaskIdsByUser,
+    isCollaborator,
   ]);
 
   const sortedTasks = useMemo(() => {
@@ -1183,7 +1194,7 @@ function KanbanPage() {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-3rem)] min-h-0 flex-col md:h-[calc(100dvh-49px)]">
+    <div className="flex min-h-full flex-col">
       <header className="shrink-0 border-b bg-background px-3 py-2">
         <div className="flex items-center justify-end gap-2">
           <div className="flex flex-wrap gap-2">
@@ -1213,7 +1224,7 @@ function KanbanPage() {
           </div>
         </div>
         <div className="mt-2 space-y-1">
-          <TaskFilters filters={filters} onChange={setFilters}>
+          <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator}>
             <div className="flex items-center justify-end gap-2">
               <Button
                 size="sm"
@@ -1640,8 +1651,8 @@ function KanbanScrollArea({
   }, [orientation]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div ref={mainRef} className="kanban-scroll min-h-0 flex-1 overflow-auto p-4">
+    <div className="flex flex-1 flex-col">
+      <div ref={mainRef} className="kanban-scroll flex-1 overflow-x-auto overflow-y-visible p-4">
         {children}
       </div>
     </div>

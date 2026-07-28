@@ -51,7 +51,17 @@ const DATE_OPTIONS: DateFilter[] = [
   "completed",
 ];
 
-export function TaskFilters({ filters, onChange, children }: { filters: Filters; onChange: (f: Filters) => void; children?: ReactNode }) {
+export function TaskFilters({
+  filters,
+  onChange,
+  children,
+  hideAssignee = false,
+}: {
+  filters: Filters;
+  onChange: (f: Filters) => void;
+  children?: ReactNode;
+  hideAssignee?: boolean;
+}) {
   const { data: clients } = useClients();
   // The assignee filter must only expose users who can receive tasks.
   // This query is role-based in the database (admin and collaborator only),
@@ -101,7 +111,7 @@ export function TaskFilters({ filters, onChange, children }: { filters: Filters;
     scope !== "all",
     dateVal !== "all",
     selectedClients.length > 0,
-    !!filters.assignee,
+    !hideAssignee && !!filters.assignee,
     !!filters.priority,
     !!filters.status,
   ].filter(Boolean).length;
@@ -114,9 +124,9 @@ export function TaskFilters({ filters, onChange, children }: { filters: Filters;
           {/* Scope segmented */}
           <div>
             <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
-              <ScopeBtn active={scope === "all"} onClick={() => onChange({ ...filters, scope: undefined })} icon={<Users className="h-3.5 w-3.5" />}>Todas</ScopeBtn>
-              <ScopeBtn active={scope === "mine"} onClick={() => onChange({ ...filters, scope: "mine" })} icon={<UserCheck className="h-3.5 w-3.5" />}>Atribuídas a mim</ScopeBtn>
-              <ScopeBtn active={scope === "created"} onClick={() => onChange({ ...filters, scope: "created" })} icon={<PenSquare className="h-3.5 w-3.5" />}>Criadas por mim</ScopeBtn>
+              <ScopeBtn active={scope === "all"} onClick={() => onChange({ ...filters, scope: undefined, assignee: undefined })} icon={<Users className="h-3.5 w-3.5" />}>Todas</ScopeBtn>
+              <ScopeBtn active={scope === "mine"} onClick={() => onChange({ ...filters, scope: "mine", assignee: undefined })} icon={<UserCheck className="h-3.5 w-3.5" />}>Atribuídas a mim</ScopeBtn>
+              <ScopeBtn active={scope === "created"} onClick={() => onChange({ ...filters, scope: "created", assignee: undefined })} icon={<PenSquare className="h-3.5 w-3.5" />}>Criadas por mim</ScopeBtn>
             </div>
           </div>
 
@@ -211,23 +221,24 @@ export function TaskFilters({ filters, onChange, children }: { filters: Filters;
             </PopoverContent>
           </Popover>
 
-          {/* Assignee */}
-          <Select
-            value={filters.assignee ?? "all"}
-            onValueChange={(v) => onChange({ ...filters, assignee: v === "all" ? undefined : v })}
-          >
-            <SelectTrigger className="h-7 w-48">
-              <SelectValue placeholder="Responsável" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos responsáveis</SelectItem>
-              {assignableProfiles?.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.full_name || p.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!hideAssignee && (
+            <Select
+              value={filters.assignee ?? "all"}
+              onValueChange={(v) => onChange({ ...filters, assignee: v === "all" ? undefined : v })}
+            >
+              <SelectTrigger className="h-7 w-48">
+                <SelectValue placeholder="Responsável" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos responsáveis</SelectItem>
+                {assignableProfiles?.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.full_name || p.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {/* Priority */}
           <Select
@@ -326,6 +337,7 @@ export function applyTaskFilters<
     subtaskAssigneeTaskIds?: Set<string> | null;
     collaboratorTaskIds?: Set<string> | null;
     subtaskAssigneeTaskIdsByUser?: Map<string, Set<string>> | null;
+    restrictToCurrentUserParticipation?: boolean;
   },
 ) {
   const clientIds = f.clients && f.clients.length > 0 ? f.clients : f.client ? [f.client] : null;
@@ -333,13 +345,21 @@ export function applyTaskFilters<
   const subIds = opts?.subtaskAssigneeTaskIds ?? null;
   const collaboratorIds = opts?.collaboratorTaskIds ?? null;
   return tasks.filter((t) => {
+    if (opts?.restrictToCurrentUserParticipation) {
+      if (!uid) return false;
+      const participatesInTask =
+        t.assignee_id === uid ||
+        !!subIds?.has(t.id) ||
+        !!collaboratorIds?.has(t.id);
+      if (!participatesInTask) return false;
+    }
     if (f.scope === "mine") {
       if (!uid) return false;
-      const mine =
+      const participatesInTask =
         t.assignee_id === uid ||
-        (subIds ? subIds.has(t.id) : false) ||
-        (collaboratorIds ? collaboratorIds.has(t.id) : false);
-      if (!mine) return false;
+        !!subIds?.has(t.id) ||
+        !!collaboratorIds?.has(t.id);
+      if (!participatesInTask) return false;
     }
     if (f.scope === "created" && (!uid || t.created_by !== uid)) return false;
 
@@ -347,7 +367,10 @@ export function applyTaskFilters<
     if (clientIds && (!t.client_id || !clientIds.includes(t.client_id))) return false;
     if (f.assignee) {
       const assigneeSubtasks = opts?.subtaskAssigneeTaskIdsByUser?.get(f.assignee);
-      if (t.assignee_id !== f.assignee && !assigneeSubtasks?.has(t.id)) return false;
+      // When filtering by the logged-in user, include tasks in which that user
+      // participates as a collaborator as well as direct/subtask assignments.
+      const isCurrentUserCollaborator = f.assignee === uid && collaboratorIds?.has(t.id);
+      if (t.assignee_id !== f.assignee && !assigneeSubtasks?.has(t.id) && !isCurrentUserCollaborator) return false;
     }
     if (f.priority && t.priority !== f.priority) return false;
     if (f.status === COMPLETED_STATUS_FILTER && t.status !== "done" && !t.completed_at) return false;

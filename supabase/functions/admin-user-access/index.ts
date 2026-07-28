@@ -9,17 +9,29 @@ const corsHeaders = {
 const allAdminPermissions = [
   "dashboard",
   "tasks",
-  "notes",
   "import_ata",
   "clients",
   "reports",
-  "portal",
-  "calendar",
+  "mural",
+  "portal_entregas",
+  "portal_financeiro",
   "users",
   "trash",
   "settings",
 ];
-const clientPermissions = ["portal"];
+const clientPermissions = ["portal_entregas", "portal_financeiro"];
+const validPermissions = new Set([
+  "dashboard",
+  "tasks",
+  "import_ata",
+  "clients",
+  "reports",
+  "mural",
+  "portal_entregas",
+  "portal_financeiro",
+  "trash",
+  "settings",
+]);
 
 function response(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -81,7 +93,8 @@ Deno.serve(async (request) => {
           ? allAdminPermissions
           : Array.isArray(data.permissions)
             ? data.permissions.filter(
-                (permission): permission is string => typeof permission === "string",
+                (permission): permission is string =>
+                  typeof permission === "string" && validPermissions.has(permission),
               )
             : role === "client"
               ? clientPermissions

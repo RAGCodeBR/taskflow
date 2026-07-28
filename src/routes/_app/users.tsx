@@ -35,13 +35,13 @@ export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 
 const ACCESS_OPTIONS = [
   ["dashboard", "Dashboard"],
-  ["tasks", "Tarefas"],
-  ["notes", "Anotações"],
+  ["tasks", "Minhas tarefas"],
   ["import_ata", "Importar ata"],
   ["clients", "Clientes"],
   ["reports", "Relatórios"],
-  ["portal", "Portal do cliente"],
-  ["calendar", "Calendário"],
+  ["mural", "Mural"],
+  ["portal_entregas", "Calendário de entregas"],
+  ["portal_financeiro", "Financeiro"],
   ["trash", "Lixeira"],
   ["settings", "Personalizar"],
 ] as const;
@@ -62,12 +62,12 @@ const defaults: FormState = {
   permissions: [
     "dashboard",
     "tasks",
-    "notes",
     "import_ata",
     "clients",
     "reports",
-    "portal",
-    "calendar",
+    "mural",
+    "portal_entregas",
+    "portal_financeiro",
     "trash",
     "settings",
   ],
@@ -138,7 +138,10 @@ function AccessForm({
             onChange({
               ...value,
               role: e.target.value as Role,
-              permissions: e.target.value === "client" ? ["portal"] : value.permissions,
+              permissions:
+                e.target.value === "client"
+                  ? ["portal_entregas", "portal_financeiro"]
+                  : value.permissions,
             })
           }
         >

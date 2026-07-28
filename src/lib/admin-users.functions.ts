@@ -38,7 +38,7 @@ export const createUserAccess = createServerFn({ method: "POST" })
 
     const { error: permissionsError } = await supabaseAdmin.from("user_permissions").upsert({
       user_id: created.user.id,
-      permissions: data.role === "admin" ? ["dashboard", "tasks", "notes", "import_ata", "clients", "reports", "portal", "calendar", "users", "trash", "settings"] : data.role === "client" ? ["portal"] : data.permissions,
+      permissions: data.role === "admin" ? ["dashboard", "tasks", "import_ata", "clients", "reports", "mural", "portal_entregas", "portal_financeiro", "users", "trash", "settings"] : data.role === "client" ? ["portal_entregas", "portal_financeiro"] : data.permissions,
       updated_by: callerId,
     });
     if (permissionsError) throw new Error(permissionsError.message);
@@ -61,7 +61,7 @@ export const updateUserAccess = createServerFn({ method: "POST" })
     if (roleError) throw new Error(roleError.message);
     const { error: insertRoleError } = await supabaseAdmin.from("user_roles").insert({ user_id: data.userId, role: data.role });
     if (insertRoleError) throw new Error(insertRoleError.message);
-    const { error: permissionsError } = await supabaseAdmin.from("user_permissions").upsert({ user_id: data.userId, permissions: data.role === "admin" ? ["dashboard", "tasks", "notes", "import_ata", "clients", "reports", "portal", "calendar", "users", "trash", "settings"] : data.role === "client" ? ["portal"] : data.permissions, updated_by: callerId });
+    const { error: permissionsError } = await supabaseAdmin.from("user_permissions").upsert({ user_id: data.userId, permissions: data.role === "admin" ? ["dashboard", "tasks", "import_ata", "clients", "reports", "mural", "portal_entregas", "portal_financeiro", "users", "trash", "settings"] : data.role === "client" ? ["portal_entregas", "portal_financeiro"] : data.permissions, updated_by: callerId });
     if (permissionsError) throw new Error(permissionsError.message);
     if (data.role === "client" && data.clientId) {
       const { error: linkError } = await (supabaseAdmin.from("client_user_links" as any) as any).upsert({ user_id: data.userId, client_id: data.clientId });

@@ -58,6 +58,8 @@ const allNav: readonly NavItem[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile, user, signOut, isAdmin, hasPermission } = useAuth();
+  const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
+  const canAccessFinance = hasPermission("portal_financeiro") || hasPermission("portal");
   const nav = useMemo(() => {
     const accessByPath: Record<string, string> = {
       "/dashboard": "dashboard",
@@ -65,16 +67,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       "/import-ata": "import_ata",
       "/clients": "clients",
       "/reports": "reports",
-      "/mural": "dashboard",
-      "/portal": "portal",
+      "/mural": "mural",
       "/users": "users",
       "/trash": "trash",
       "/settings": "settings",
     };
-    return allNav.filter(
-      (item) => (!item.adminOnly || isAdmin) && hasPermission(accessByPath[item.to]),
-    );
-  }, [isAdmin, hasPermission]);
+    return allNav.filter((item) => {
+      if (item.to === "/portal") return canAccessDeliveries || canAccessFinance;
+      return (!item.adminOnly || isAdmin) && hasPermission(accessByPath[item.to]);
+    });
+  }, [canAccessDeliveries, canAccessFinance, isAdmin, hasPermission]);
 
   const { theme, toggle } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -90,9 +92,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const initials = (profile?.full_name || user?.email || "?").slice(0, 2).toUpperCase();
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-dvh overflow-hidden bg-background">
       <aside
-        className={`hidden shrink-0 flex-col text-sidebar-foreground transition-all duration-300 md:flex ${
+        className={`hidden h-dvh shrink-0 flex-col text-sidebar-foreground transition-all duration-300 md:flex ${
           sidebarOpen ? "w-56" : "w-16 items-center"
         }`}
         style={{ background: "var(--gradient-sidebar)" }}
@@ -124,7 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
           {nav.map((n) => {
             if (n.to === "/portal")
               return (
@@ -132,6 +134,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={n.to}
                   expanded={sidebarOpen}
                   active={pathname.startsWith("/portal/")}
+                  canAccessDeliveries={canAccessDeliveries}
+                  canAccessFinance={canAccessFinance}
                 />
               );
             const Active = pathname === n.to || pathname.startsWith(n.to + "/");
@@ -240,15 +244,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                       key={n.to}
                       expanded
                       active={pathname.startsWith("/portal/")}
+                      canAccessDeliveries={canAccessDeliveries}
+                      canAccessFinance={canAccessFinance}
                       onNavigate={() => setSidebarOpen(false)}
-                    />
-                  );
-                if (n.to === "/portal")
-                  return (
-                    <PortalNavGroup
-                      key={n.to}
-                      expanded={sidebarOpen}
-                      active={pathname.startsWith("/portal/")}
                     />
                   );
                 const Active = pathname === n.to || pathname.startsWith(n.to + "/");
@@ -312,7 +310,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main className="flex-1 overflow-x-hidden md:pt-0 pt-12">
+      <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:pt-0 pt-12">
         <div className="hidden md:flex sticky top-0 z-30 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
           <NotificationBell />
         </div>
@@ -326,10 +324,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 function PortalNavGroup({
   expanded,
   active,
+  canAccessDeliveries,
+  canAccessFinance,
   onNavigate,
 }: {
   expanded: boolean;
   active: boolean;
+  canAccessDeliveries: boolean;
+  canAccessFinance: boolean;
   onNavigate?: () => void;
 }) {
   if (!expanded)
@@ -351,22 +353,26 @@ function PortalNavGroup({
         <ChevronDown className="h-4 w-4" />
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1 pl-4">
-        <Link
-          to="/portal/entregas"
-          onClick={onNavigate}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-        >
-          <CalendarCog className="h-4 w-4" />
-          Calendário de Entregas
-        </Link>
-        <Link
-          to="/portal/financeiro"
-          onClick={onNavigate}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-        >
-          <CircleDollarSign className="h-4 w-4" />
-          Financeiro
-        </Link>
+        {canAccessDeliveries && (
+          <Link
+            to="/portal/entregas"
+            onClick={onNavigate}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+          >
+            <CalendarCog className="h-4 w-4" />
+            Calendário de Entregas
+          </Link>
+        )}
+        {canAccessFinance && (
+          <Link
+            to="/portal/financeiro"
+            onClick={onNavigate}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+          >
+            <CircleDollarSign className="h-4 w-4" />
+            Financeiro
+          </Link>
+        )}
       </CollapsibleContent>
     </Collapsible>
   );

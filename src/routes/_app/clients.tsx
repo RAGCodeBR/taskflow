@@ -156,10 +156,10 @@ export function ClientsIndexPage() {
                     <img
                       src={avatarUrls[c.id]}
                       alt={`Logo de ${c.name}`}
-                      className="h-10 w-10 rounded-lg object-cover"
+                      className="block h-14 w-14 shrink-0 rounded-lg border bg-muted object-contain p-0.5"
                     />
                   ) : (
-                    <div className="h-10 w-10 rounded-lg" style={{ background: c.color || "#1e3a8a" }} />
+                    <div className="h-14 w-14 shrink-0 rounded-lg" style={{ background: c.color || "#1e3a8a" }} />
                   )}
                   <div>
                     <h3 className="font-semibold">{c.name}</h3>

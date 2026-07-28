@@ -29,7 +29,7 @@ function CalendarPage() {
   const { data: clients = [] } = useClients();
   const { data: subtasks = [] } = useSubtasks();
   const { data: collaborators = [] } = useTaskCollaborators();
-  const { user } = useAuth();
+  const { user, isCollaborator } = useAuth();
   const [cursor, setCursor] = useState(new Date());
   const [filters, setFilters] = useState<TaskFilterValue>({});
   const didApplyDefaultAssignee = useRef(false);
@@ -37,10 +37,17 @@ function CalendarPage() {
   const [edit, setEdit] = useState<Task | null>(null);
 
   useEffect(() => {
-    if (!user?.id || didApplyDefaultAssignee.current) return;
+    if (!user?.id) return;
+    if (isCollaborator) {
+      setFilters((current) =>
+        current.assignee ? { ...current, assignee: undefined } : current,
+      );
+      return;
+    }
+    if (didApplyDefaultAssignee.current) return;
     setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
     didApplyDefaultAssignee.current = true;
-  }, [user?.id]);
+  }, [user?.id, isCollaborator]);
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 });
@@ -79,8 +86,9 @@ function CalendarPage() {
         subtaskAssigneeTaskIds,
         collaboratorTaskIds,
         subtaskAssigneeTaskIdsByUser,
+        restrictToCurrentUserParticipation: isCollaborator,
       }),
-    [tasks, filters, user?.id, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser],
+    [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser],
   );
 
   const subtaskDueDatesByTask = useMemo(() => {
@@ -131,7 +139,7 @@ function CalendarPage() {
           </Button>
         </div>
       </header>
-      <TaskFilters filters={filters} onChange={setFilters} />
+      <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator} />
 
       <div className="overflow-hidden rounded-lg border bg-card">
         <div className="grid grid-cols-7 border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">

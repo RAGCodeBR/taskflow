@@ -41,7 +41,7 @@ function ListPage() {
   const { data: statuses = [] } = useTaskStatuses();
   const { data: collaborators = [] } = useTaskCollaborators();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isCollaborator } = useAuth();
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
@@ -52,10 +52,17 @@ function ListPage() {
   const [edit, setEdit] = useState<Task | null>(null);
 
   useEffect(() => {
-    if (!user?.id || didApplyDefaultAssignee.current) return;
+    if (!user?.id) return;
+    if (isCollaborator) {
+      setFilters((current) =>
+        current.assignee ? { ...current, assignee: undefined } : current,
+      );
+      return;
+    }
+    if (didApplyDefaultAssignee.current) return;
     setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
     didApplyDefaultAssignee.current = true;
-  }, [user?.id]);
+  }, [user?.id, isCollaborator]);
 
   // Auto-open a task when arriving with ?task=<id>
   useEffect(() => {
@@ -102,6 +109,7 @@ function ListPage() {
       subtaskAssigneeTaskIds,
       collaboratorTaskIds,
       subtaskAssigneeTaskIdsByUser,
+      restrictToCurrentUserParticipation: isCollaborator,
     });
     return r.sort((a, b) => {
       if (!a.due_date && !b.due_date) return 0;
@@ -109,7 +117,7 @@ function ListPage() {
       if (!b.due_date) return -1;
       return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
     });
-  }, [tasks, filters, user?.id, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser]);
+  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser]);
 
   const completeTask = async (taskId: string) => {
     const completedStatus = statuses.find((status) => status.is_completed);
@@ -150,7 +158,7 @@ function ListPage() {
           Nova tarefa
         </Button>
       </header>
-      <TaskFilters filters={filters} onChange={setFilters} />
+      <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator} />
 
       <div className="overflow-hidden rounded-lg border bg-card">
         <table className="w-full table-fixed border-collapse text-xs">

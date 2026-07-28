@@ -685,7 +685,7 @@ function EditClientPage() {
                       <img
                         src={avatarPreview}
                         alt="Prévia do logo selecionado"
-                        className="h-10 w-10 rounded object-cover"
+                        className="block h-14 w-14 shrink-0 rounded border bg-muted object-contain p-0.5"
                       />
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Imagem selecionada</p>

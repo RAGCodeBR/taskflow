@@ -28,11 +28,16 @@ function AppLayout() {
     ["/settings", "settings"],
   ];
   const clientCanAccessCurrentRoute =
-    pathname.startsWith("/portal/") ||
+    (pathname.startsWith("/portal/entregas") &&
+      (hasPermission("portal_entregas") || hasPermission("portal"))) ||
+    (pathname.startsWith("/portal/financeiro") &&
+      (hasPermission("portal_financeiro") || hasPermission("portal"))) ||
     clientRoutePermissions.some(
       ([path, permission]) => pathname.startsWith(path) && hasPermission(permission),
     );
-  if (isClient && !clientCanAccessCurrentRoute) return <Navigate to="/portal/entregas" replace />;
+  if (isClient && !clientCanAccessCurrentRoute) {
+    return <Navigate to={hasPermission("portal_financeiro") ? "/portal/financeiro" : "/portal/entregas"} replace />;
+  }
   return (
     <AppShell>
       <Outlet />
