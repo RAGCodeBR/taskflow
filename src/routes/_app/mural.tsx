@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, GripVertical, ImageIcon, Paperclip, Pencil, Pin, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useProfiles } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,6 +65,7 @@ function colorClass(color: string) {
 
 function MuralPage() {
   const { user, isAdmin } = useAuth();
+  const { data: profiles = [] } = useProfiles();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -379,6 +381,8 @@ function MuralPage() {
           {orderedPosts.map((post) => {
             const canEdit = isAdmin || post.created_by === user?.id;
             const postAttachments = attachments.filter((attachment) => attachment.post_id === post.id);
+            const authorName =
+              profiles.find((profile) => profile.id === post.created_by)?.full_name ?? "Usuário";
             return (
               <article
                 key={post.id}
@@ -433,8 +437,15 @@ function MuralPage() {
                     </div>
                   ))}
                 </div>
-                {post.tag && <span className="mt-4 inline-flex rounded bg-background/65 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">{post.tag}</span>}
                 {!post.image_url && !post.content && post.checklist.length === 0 && <ImageIcon className="mt-8 h-5 w-5 opacity-25" />}
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  {post.tag ? (
+                    <span className="inline-flex rounded bg-background/65 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                      {post.tag}
+                    </span>
+                  ) : <span />}
+                  <p className="text-right text-[10px] font-medium text-foreground/60">Por {authorName}</p>
+                </div>
               </article>
             );
           })}

@@ -732,7 +732,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-            <div className="space-y-2">
+            <div className="order-1 space-y-2">
               <Label className="text-xs">Prioridade</Label>
               <Select
                 value={priority ?? "none"}
@@ -750,7 +750,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="order-6 space-y-2">
               <Label className="text-xs">
                 Prazo {!task ? <span className="text-destructive">*</span> : null}
               </Label>
@@ -796,7 +796,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </div>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="order-5 space-y-2">
               <Label className="text-xs">Colaboradores</Label>
               <Popover open={collaboratorPickerOpen} onOpenChange={setCollaboratorPickerOpen}>
                 <PopoverTrigger asChild>
@@ -840,10 +840,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </PopoverContent>
               </Popover>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="space-y-2">
+            <div className="order-2 space-y-2">
               <Label className="text-xs">Status</Label>
               <Select
                 value={columnId || "none"}
@@ -862,7 +859,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="order-3 space-y-2">
               <Label className="text-xs">Cliente</Label>
               <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen}>
                 <PopoverTrigger asChild>
@@ -925,7 +922,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </PopoverContent>
               </Popover>
             </div>
-            <div className="space-y-2">
+            <div className="order-4 space-y-2">
               <Label className="text-xs">Responsável</Label>
               <Select
                 value={assigneeId || "none"}
