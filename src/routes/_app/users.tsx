@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import {
   Archive,
+  ChevronDown,
   Plus,
   ShieldCheck,
   Trash2,
@@ -30,6 +31,7 @@ import {
   UserCheck,
   UserX,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 
@@ -344,6 +346,24 @@ function UsersPage() {
     () => profilesWithEmails.filter((p) => (p as any).is_active === false),
     [profilesWithEmails],
   );
+  const activeProfilesByRole = useMemo(() => {
+    const byRole: Record<Role, any[]> = { admin: [], collaborator: [], client: [] };
+    for (const profile of activeProfiles) {
+      const role =
+        (roles.find((item: { user_id: string; role: Role }) => item.user_id === profile.id)?.role ??
+          "collaborator") as Role;
+      byRole[role].push(profile);
+    }
+    return (Object.keys(byRole) as Role[]).map((role) => ({
+      role,
+      label: roleLabel[role],
+      profiles: byRole[role].sort((a, b) =>
+        (a.full_name || a.email || "").localeCompare(b.full_name || b.email || "", "pt-BR", {
+          sensitivity: "base",
+        }),
+      ),
+    }));
+  }, [activeProfiles, roles]);
   const openEdit = (id: string) => {
     const profile = profiles.find((item) => item.id === id);
     const role = (roles.find((r: { user_id: string; role: string }) => r.user_id === id)?.role ??
@@ -453,13 +473,32 @@ function UsersPage() {
           </DialogContent>
         </Dialog>
       </header>
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
-          Ativos ({activeProfiles.length})
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {activeProfiles.map(renderProfile)}
-        </div>
+      <div className="space-y-3">
+        {activeProfilesByRole.map(({ role, label, profiles: roleProfiles }) => (
+          <Collapsible key={role} defaultOpen={false}>
+            <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-lg border bg-card px-4 py-3 text-left transition hover:bg-muted/50">
+              {role === "admin" ? (
+                <ShieldCheck className="h-4 w-4 text-primary" />
+              ) : (
+                <UserIcon className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className="flex-1 font-semibold">{label}</span>
+              <Badge variant="secondary">{roleProfiles.length}</Badge>
+              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              {roleProfiles.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {roleProfiles.map(renderProfile)}
+                </div>
+              ) : (
+                <p className="rounded-lg border border-dashed px-4 py-5 text-sm text-muted-foreground">
+                  Nenhum usuário nesta categoria.
+                </p>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+        ))}
       </div>
       {inactiveProfiles.length > 0 && (
         <div>
