@@ -274,7 +274,11 @@ export function useProfiles() {
         "id, full_name, avatar_url, is_active",
       );
       if (error) throw error;
-      return (data ?? []) as Profile[];
+      return [...((data ?? []) as Profile[])].sort((a, b) =>
+        (a.full_name ?? "").localeCompare(b.full_name ?? "", "pt-BR", {
+          sensitivity: "base",
+        }),
+      );
     },
   });
 }
@@ -301,7 +305,11 @@ export function useAssignableProfiles() {
     queryFn: async () => {
       const { data, error } = await (supabase.rpc("list_task_assignees") as any);
       if (error) throw error;
-      return (data ?? []) as Profile[];
+      return [...((data ?? []) as Profile[])].sort((a, b) =>
+        (a.full_name ?? "").localeCompare(b.full_name ?? "", "pt-BR", {
+          sensitivity: "base",
+        }),
+      );
     },
   });
 }

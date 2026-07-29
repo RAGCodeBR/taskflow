@@ -135,6 +135,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [saving, setSaving] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const canDeleteTask = !!currentTaskId && (!!isAdmin || !task || task.created_by === user?.id);
+  // A participant can update a task, but only its creator, responsible person
+  // or an administrator may change the list of other participants.
+  const canManageCollaborators =
+    !task || !!isAdmin || task.created_by === user?.id || task.assignee_id === user?.id;
   const canDeleteSubtask = (subtask: Subtask) =>
     !!isAdmin || subtask.assignee_id !== user?.id || task?.created_by === user?.id;
 
@@ -235,6 +239,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
 
   const syncCollaborators = async (taskId: string) => {
+    if (!canManageCollaborators) return;
     const { error: deleteError } = await (supabase.from("task_collaborators") as any)
       .delete()
       .eq("task_id", taskId);
@@ -795,7 +800,16 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
               <Label className="text-xs">Colaboradores</Label>
               <Popover open={collaboratorPickerOpen} onOpenChange={setCollaboratorPickerOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between font-normal">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between font-normal"
+                    disabled={!canManageCollaborators}
+                    title={
+                      canManageCollaborators
+                        ? undefined
+                        : "Somente o criador ou responsável pode alterar colaboradores"
+                    }
+                  >
                     <span className="truncate">
                       {collaboratorIds.length === 0
                         ? "Selecionar nomes"
