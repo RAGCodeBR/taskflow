@@ -296,6 +296,13 @@ export function NotesWorkspace({
     if (typeof window !== "undefined") localStorage.setItem("notes_sort_mode", sortMode);
   }, [sortMode]);
 
+  // Administrators begin by seeing their own notes. They can explicitly choose
+  // "Todos os usuários" whenever they need the team-wide view.
+  useEffect(() => {
+    if (!user?.id) return;
+    setCreatedBy((current) => (current === "all" ? user.id : current));
+  }, [user?.id]);
+
   useEffect(() => {
     if (fixedClientId) {
       setClientId(fixedClientId);
@@ -394,6 +401,16 @@ export function NotesWorkspace({
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
     [authorNameById, notes],
   );
+  const selectableNoteAuthors = useMemo(() => {
+    if (!user?.id || noteAuthors.some((author) => author.id === user.id)) return noteAuthors;
+    return [
+      {
+        id: user.id,
+        name: authorNameById.get(user.id) ?? "Meu usuário",
+      },
+      ...noteAuthors,
+    ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [authorNameById, noteAuthors, user?.id]);
 
   const filteredNotes = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -476,7 +493,7 @@ export function NotesWorkspace({
                   <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os usuários</SelectItem>
-                    {noteAuthors.map((author) => (
+                    {selectableNoteAuthors.map((author) => (
                       <SelectItem key={author.id} value={author.id}>{author.name}</SelectItem>
                     ))}
                   </SelectContent>
