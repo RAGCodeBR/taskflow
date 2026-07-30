@@ -41,30 +41,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = async (uid: string) => {
     // Profiles live in public.profiles, keyed by the Supabase auth user id.
     // The trigger in the migrations creates this row when a new user signs up.
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url, theme_preferences")
-      .eq("id", uid)
-      .maybeSingle();
-    const { data: authUser } = await supabase.auth.getUser();
-    setProfile(prof ? ({ ...prof, email: authUser.user?.email ?? null } as Profile) : null);
+    // Load independent access records together.  Previously the layout was
+    // released as soon as the session was restored, while this sequence was
+    // still running.  During that interval `permissions` was empty and the
+    // entire sidebar was filtered out for client accounts.
+    const [profileResult, authResult, rolesResult, linkResult, permissionsResult] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, theme_preferences")
+        .eq("id", uid)
+        .maybeSingle(),
+      supabase.auth.getUser(),
+      supabase.from("user_roles").select("role").eq("user_id", uid),
+      (supabase.from("client_user_links" as any) as any)
+        .select("client_id")
+        .eq("user_id", uid)
+        .maybeSingle(),
+      (supabase.from("user_permissions") as any)
+        .select("permissions")
+        .eq("user_id", uid)
+        .maybeSingle(),
+    ]);
+    const prof = profileResult.data;
+    const roles = rolesResult.data;
+    const link = linkResult.data;
+    const access = permissionsResult.data;
+    setProfile(prof ? ({ ...prof, email: authResult.data.user?.email ?? null } as Profile) : null);
     // Admin-only pages are controlled by public.user_roles, not by hardcoded emails.
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", uid);
     const admin = !!roles?.some((r: { role: string }) => r.role === "admin");
     const collaborator = !!roles?.some((r: { role: string }) => r.role === "collaborator");
     const client = !!roles?.some((r: { role: string }) => r.role === "client");
     setIsAdmin(admin);
     setIsCollaborator(collaborator);
     setIsClient(client);
-    const { data: link } = await (supabase.from("client_user_links" as any) as any)
-      .select("client_id")
-      .eq("user_id", uid)
-      .maybeSingle();
     setClientId(link?.client_id ?? null);
-    const { data: access } = await (supabase.from("user_permissions") as any)
-      .select("permissions")
-      .eq("user_id", uid)
-      .maybeSingle();
     setPermissions(
       admin
         ? [
@@ -80,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             "trash",
             "settings",
           ]
-        : (access?.permissions ?? []),
+        : Array.isArray(access?.permissions) ? access.permissions : [],
     );
   };
 
@@ -91,7 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        setTimeout(() => loadProfile(s.user.id), 0);
+        setLoading(true);
+        setTimeout(() => {
+          void loadProfile(s.user.id).finally(() => setLoading(false));
+        }, 0);
       } else {
         setProfile(null);
         setIsAdmin(false);
@@ -102,10 +115,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
     // Initial page load: restore any saved session from localStorage.
-    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
+    supabase.auth.getSession().then(async ({ data }: { data: { session: Session | null } }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
-      if (data.session?.user) loadProfile(data.session.user.id);
+      if (data.session?.user) {
+        await loadProfile(data.session.user.id);
+      }
       setLoading(false);
     });
     return () => sub.subscription.unsubscribe();

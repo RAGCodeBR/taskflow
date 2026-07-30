@@ -898,7 +898,7 @@ function EditClientPage() {
                           <Field label={employeePersonType === "individual" ? "CPF" : "CNPJ"}><Input value={employeeDocument} onChange={(event) => setEmployeeDocument(event.target.value)} /></Field>
                           <Field label="CBO"><Input value={employeeCbo} onChange={(event) => setEmployeeCbo(event.target.value)} /></Field>
                           <Field label="Função"><Input value={employeeRole} onChange={(event) => setEmployeeRole(event.target.value)} /></Field>
-                          <Field label="Salário Bruto"><Input inputMode="decimal" placeholder="0,00" value={employeeSalary} onChange={(event) => setEmployeeSalary(event.target.value)} onBlur={() => setEmployeeSalary((value) => value ? formatSalary(value) : "")} /></Field>
+                          <Field label="Folha de pagamento"><Input inputMode="decimal" placeholder="0,00" value={employeeSalary} onChange={(event) => setEmployeeSalary(event.target.value)} onBlur={() => setEmployeeSalary((value) => value ? formatSalary(value) : "")} /></Field>
                           <Field label="Salário Extrafolha"><Input inputMode="decimal" placeholder="0,00" value={employeeSalaryExtrafolha} onChange={(event) => setEmployeeSalaryExtrafolha(event.target.value)} onBlur={() => setEmployeeSalaryExtrafolha((value) => value ? formatSalary(value) : "")} /></Field>
                         </div>
                         <Field label="Observações"><Textarea value={employeeActivities} onChange={(event) => setEmployeeActivities(event.target.value)} placeholder="Descreva livremente quaisquer observações." /></Field>
