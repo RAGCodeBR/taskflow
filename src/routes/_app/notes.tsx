@@ -285,6 +285,7 @@ export function NotesWorkspace({
   const [notes, setNotes] = useState<ClientNote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const autoCreatedFor = useRef<string | null>(null);
   const [search, setSearch] = useState("");
   const [createdBy, setCreatedBy] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>(() => {
@@ -420,6 +421,30 @@ export function NotesWorkspace({
       return matchesAuthor && matchesSearch;
     });
   }, [createdBy, sortedNotes, search]);
+
+  // The editor must follow the visible list. Without this, loading a client's
+  // shared notes selected the first note in the database even when the author
+  // filter showed an empty list for the current administrator.
+  useEffect(() => {
+    if (loading) return;
+    if (selectedId && filteredNotes.some((note) => note.id === selectedId)) return;
+    setSelectedId(filteredNotes[0]?.id ?? null);
+  }, [filteredNotes, loading, selectedId]);
+
+  // A user's first visit to a client's notes starts with their own blank note,
+  // rather than opening another person's note. The ref prevents recreating it
+  // if the user intentionally deletes that note during the same visit.
+  useEffect(() => {
+    const hasOwnNote = notes.some((note) => note.created_by === user?.id);
+    if (!clientId || !user?.id || loading || createdBy !== user.id || hasOwnNote) return;
+    const key = `${clientId}:${user.id}`;
+    if (autoCreatedFor.current === key) return;
+    autoCreatedFor.current = key;
+    void addNote();
+    // `addNote` intentionally is not a dependency: its identity changes as
+    // the note list changes, whereas this action must run at most once per client visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, createdBy, loading, notes, user?.id]);
 
   const move = async (id: string, dir: -1 | 1) => {
     const ordered = [...sortedNotes];

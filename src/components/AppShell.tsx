@@ -27,6 +27,7 @@ import { AssignmentPopup } from "@/components/AssignmentPopup";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import businessMentoringLogo from "@/assets/la-business-mentoring.png";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useMuralUnreadCount } from "@/hooks/use-mural-unread";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -58,6 +59,7 @@ const allNav: readonly NavItem[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile, user, signOut, isAdmin, hasPermission } = useAuth();
+  const muralUnreadCount = useMuralUnreadCount();
   const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
   const canAccessFinance = hasPermission("portal_financeiro") || hasPermission("portal");
   const nav = useMemo(() => {
@@ -155,6 +157,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 {sidebarOpen && <span className="truncate">{n.label}</span>}
+                {n.to === "/mural" && muralUnreadCount > 0 && (
+                  <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {muralUnreadCount > 99 ? "99+" : muralUnreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -264,6 +271,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                   >
                     <Icon className="h-4 w-4" />
                     {n.label}
+                    {n.to === "/mural" && muralUnreadCount > 0 && (
+                      <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                        {muralUnreadCount > 99 ? "99+" : muralUnreadCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, Plus } from "lucide-react";
@@ -111,13 +111,29 @@ function ListPage() {
       subtaskAssigneeTaskIdsByUser,
       restrictToCurrentUserParticipation: isCollaborator,
     });
-    return r.sort((a, b) => {
+    // Keep the list grouped in the same order as the Kanban statuses. Tasks
+    // inside each group still follow the nearest due date, which preserves the
+    // useful daily prioritisation of the previous list view.
+    const columnPosition = new Map(columns.map((column) => [column.id, column.position]));
+    const statusPosition = new Map(statuses.map((status) => [status.id, status.position]));
+    const lastOpenStatusPosition = Math.max(
+      -1,
+      ...columns.map((column) => column.position),
+      ...statuses.filter((status) => !status.is_completed).map((status) => status.position),
+    );
+    const statusRank = (task: Task) => {
+      if (task.status === "done" || task.completed_at) return lastOpenStatusPosition + 1;
+      return columnPosition.get(task.column_id ?? "") ?? statusPosition.get(task.status_id ?? "") ?? lastOpenStatusPosition + 2;
+    };
+    return [...r].sort((a, b) => {
+      const rankDifference = statusRank(a) - statusRank(b);
+      if (rankDifference !== 0) return rankDifference;
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
       return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
     });
-  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser]);
+  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, columns, statuses]);
 
   const completeTask = async (taskId: string) => {
     const completedStatus = statuses.find((status) => status.is_completed);
@@ -181,10 +197,14 @@ function ListPage() {
                   Nenhuma tarefa
                 </td>
               </tr>
-            ) : list.map((t) => {
+            ) : list.map((t, index) => {
               const client = clients.find((c) => c.id === t.client_id);
               const assignee = profiles.find((p) => p.id === t.assignee_id);
               const isCompleted = t.status === "done" || !!t.completed_at;
+              const previousTask = list[index - 1];
+              const startsCompletedSection =
+                isCompleted &&
+                (!previousTask || (previousTask.status !== "done" && !previousTask.completed_at));
               const currentColumn = columns.find((column) => column.id === t.column_id);
               const completedStatus = statuses.find((status) => status.is_completed);
               const storedStatus = statuses.find((status) => status.id === t.status_id);
@@ -207,9 +227,23 @@ function ListPage() {
               const taskCollaborators = collaborators.filter((collaborator) => collaborator.task_id === t.id).map((collaborator) => profiles.find((profile) => profile.id === collaborator.collaborator_id)).filter(Boolean);
 
               return (
+                <Fragment key={t.id}>
+                {startsCompletedSection && (
+                  <tr aria-label="Tarefas concluídas">
+                    <td colSpan={8} className="px-2 py-2">
+                      <div className="flex items-center gap-3 border-t border-dashed border-muted-foreground/45 pt-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Tarefas concluídas
+                        </span>
+                        <span className="h-px flex-1 border-t border-dashed border-muted-foreground/30" />
+                      </div>
+                    </td>
+                  </tr>
+                )}
                 <tr
-                  key={t.id}
-                  className="cursor-pointer border-t hover:bg-muted/30"
+                  className={`cursor-pointer border-t transition-colors hover:bg-muted/30 ${
+                    isCompleted ? "opacity-60 grayscale-[0.2]" : ""
+                  }`}
                   onClick={() => {
                     setEdit(t);
                     setOpen(true);
@@ -281,6 +315,7 @@ function ListPage() {
                     </Button>
                   </td>
                 </tr>
+                </Fragment>
               );
             })}
           </tbody>

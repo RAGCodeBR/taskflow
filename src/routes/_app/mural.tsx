@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, GripVertical, ImageIcon, Paperclip, Pencil, Pin, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { markMuralAsRead, muralUnreadKey } from "@/hooks/use-mural-unread";
 
 export const Route = createFileRoute("/_app/mural")({
   component: MuralPage,
@@ -74,6 +75,7 @@ function MuralPage() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [localOrder, setLocalOrder] = useState<string[]>([]);
   const [uploadingPostId, setUploadingPostId] = useState<string | null>(null);
+  const hasMarkedCurrentVisitRead = useRef(false);
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ["mural_posts"],
     queryFn: async () => {
@@ -108,6 +110,20 @@ function MuralPage() {
       return (data ?? []) as MuralAttachment[];
     },
   });
+
+  useEffect(() => {
+    if (!user || isLoading || hasMarkedCurrentVisitRead.current) return;
+    hasMarkedCurrentVisitRead.current = true;
+    const unreadPostIds = posts
+      .filter((post) => post.created_by !== user.id)
+      .map((post) => post.id);
+    void markMuralAsRead(user.id, unreadPostIds)
+      .then(() => qc.invalidateQueries({ queryKey: muralUnreadKey(user.id) }))
+      .catch((error: Error) => {
+        hasMarkedCurrentVisitRead.current = false;
+        toast.error(`Não foi possível atualizar a leitura do mural: ${error.message}`);
+      });
+  }, [isLoading, posts, qc, user?.id]);
 
   const savePost = useMutation({
     mutationFn: async () => {
