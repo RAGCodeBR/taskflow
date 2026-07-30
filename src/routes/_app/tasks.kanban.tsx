@@ -1648,7 +1648,7 @@ function KanbanScrollArea({
       ) {
         return; // deixa o navegador rolar a coluna
       }
-      if (e.deltaY !== 0 && e.deltaX === 0) {
+      if (e.shiftKey && e.deltaY !== 0 && e.deltaX === 0) {
         e.preventDefault();
         el.scrollLeft += e.deltaY;
       }

@@ -163,6 +163,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       : allClients;
   }, [clients, clientSearch]);
   const selectedClient = clients?.find((client) => client.id === clientId);
+  const taskCreator = useMemo(
+    () => profiles?.find((profile) => profile.id === task?.created_by) ?? null,
+    [profiles, task?.created_by],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -940,6 +944,14 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   ))}
                 </SelectContent>
               </Select>
+              {task && (
+                <div className="pt-1">
+                  <Label className="text-xs text-muted-foreground">Criada por</Label>
+                  <p className="mt-1 text-sm font-medium">
+                    {taskCreator?.full_name || taskCreator?.email || "Usuário não identificado"}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
