@@ -92,6 +92,15 @@ interface Attachment {
   size_bytes: number | null;
 }
 const LINK_MIME = "text/uri-list";
+const storageSafeFileName = (fileName: string) => {
+  const safeName = fileName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return safeName || "arquivo";
+};
 
 export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props) {
   const qc = useQueryClient();
@@ -590,7 +599,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (!user) return;
     const tid = currentTaskId ?? (await ensureTask());
     if (!tid) return;
-    const path = `${tid}/subtasks/${st.id}/${Date.now()}-${file.name}`;
+    const path = `${tid}/subtasks/${st.id}/${Date.now()}-${storageSafeFileName(file.name)}`;
     const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
     if (upErr) return toast.error(upErr.message);
     const { data, error } = await (supabase.from("subtask_attachments") as any)
@@ -668,7 +677,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (!user) return;
     const tid = await ensureTask();
     if (!tid) return;
-    const path = `${tid}/${Date.now()}-${file.name}`;
+    const path = `${tid}/${Date.now()}-${storageSafeFileName(file.name)}`;
     const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
     if (upErr) return toast.error(upErr.message);
     const { data, error } = await supabase
