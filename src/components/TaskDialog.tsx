@@ -146,7 +146,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
 
   // Recurrence (only used on create)
   const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
-  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
   const [recurrenceEnd, setRecurrenceEnd] = useState<string>("");
   const [recurrenceOffsets, setRecurrenceOffsets] = useState<Record<number, number>>({
     0: 0,
@@ -214,7 +214,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setNewSubtaskDue("");
       setNewSubtaskAssignee("");
       setRecurrenceEnabled(false);
-      setRecurrenceDays([1, 2, 3, 4, 5]);
+      setRecurrenceDays([]);
       setRecurrenceEnd("");
       setRecurrenceOffsets({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 });
     }
