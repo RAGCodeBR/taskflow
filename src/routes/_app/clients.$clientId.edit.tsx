@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, ChevronDown, Download, ExternalLink, ImageUp, LoaderCircle, NotebookPen, Paperclip, Pencil, Plus, Save, Trash2, Users } from "lucide-react";
+import { ArrowLeft, Building2, ChevronDown, Download, ExternalLink, Eye, EyeOff, ImageUp, LoaderCircle, NotebookPen, Paperclip, Pencil, Plus, Save, Trash2, Users } from "lucide-react";
 import { DndContext, PointerSensor, closestCenter, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -138,6 +138,7 @@ function EditClientPage() {
   const [systemAccessLogin, setSystemAccessLogin] = useState("");
   const [systemAccessPassword, setSystemAccessPassword] = useState("");
   const [systemAccessNotes, setSystemAccessNotes] = useState("");
+  const [visibleSystemAccessPasswordId, setVisibleSystemAccessPasswordId] = useState<string | null>(null);
   const [branchFormOpen, setBranchFormOpen] = useState(false);
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [branchName, setBranchName] = useState("");
@@ -1008,6 +1009,19 @@ function EditClientPage() {
                   <div className="min-w-0">
                     <p className="font-medium">{access.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">Login: {access.login}</p>
+                    <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                      <span>Senha: {visibleSystemAccessPasswordId === access.id ? access.password : "••••••••"}</span>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        title={visibleSystemAccessPasswordId === access.id ? "Ocultar senha" : "Visualizar senha"}
+                        onClick={() => setVisibleSystemAccessPasswordId((current) => current === access.id ? null : access.id)}
+                      >
+                        {visibleSystemAccessPasswordId === access.id ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </Button>
+                    </div>
                     {access.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{access.notes}</p>}
                   </div>
                   <div className="flex shrink-0 gap-1">
