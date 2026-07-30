@@ -38,7 +38,6 @@ export const generateClientReport = createServerFn({ method: "POST" })
       { data: notes },
       { data: profiles },
       { data: dueChanges },
-      { data: interruptions },
     ] = await Promise.all([
       taskIds.length
         ? supabase
@@ -59,13 +58,6 @@ export const generateClientReport = createServerFn({ method: "POST" })
         ? supabase
             .from("task_due_date_changes")
             .select("task_id, old_due_date, new_due_date, reason, created_at")
-            .in("task_id", taskIds)
-            .order("created_at")
-        : Promise.resolve({ data: [] as any[] }),
-      taskIds.length
-        ? supabase
-            .from("task_interruptions")
-            .select("task_id, reason, created_at")
             .in("task_id", taskIds)
             .order("created_at")
         : Promise.resolve({ data: [] as any[] }),
@@ -154,9 +146,6 @@ export const generateClientReport = createServerFn({ method: "POST" })
               para: c.new_due_date,
               motivo: c.reason ?? null,
             })),
-          interrupcoes: (interruptions ?? [])
-            .filter((i: any) => i.task_id === t.id)
-            .map((i: any) => ({ motivo: i.reason, quando: i.created_at })),
         };
       }),
     };
@@ -168,13 +157,12 @@ DIRETRIZES:
 - Use <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <table>, <thead>, <tbody>, <tr>, <th>, <td>.
 - Estruture em seções:
   1) <h2>Resumo executivo</h2> (3-6 linhas com o essencial)
-  2) <h2>Indicadores</h2> (tabela com totais, concluídas, pendentes, atrasadas, subtarefas concluídas, interrupções, mudanças de prazo)
+  2) <h2>Indicadores</h2> (tabela com totais, concluídas, pendentes, atrasadas, subtarefas concluídas e mudanças de prazo)
   3) <h2>Entregas por período</h2> (agrupe por mês/ano em ordem cronológica, use as datas de conclusão de tarefas E de subtarefas — cada subtarefa concluída é uma entrega pontual; cite o título da subtarefa e a seção/tarefa pai quando útil)
   4) <h2>Detalhamento por tarefa</h2> (para cada tarefa relevante: contexto, seções (observações), subtarefas concluídas com data, subtarefas pendentes, prazos e mudanças de prazo — se um motivo foi registrado em uma mudança de prazo de tarefa OU de subtarefa, cite-o textualmente)
   5) <h2>Trabalho em andamento</h2> (tarefas/subtarefas não concluídas, com contexto e riscos aparentes)
   6) <h2>Mudanças de prazo</h2> (resuma o padrão; destaque justificativas registradas — inclua tanto as de tarefa quanto as de subtarefa)
-  7) <h2>Interrupções</h2> (se houver — liste os motivos registrados)
-  8) <h2>Insights e recomendações</h2> (3-6 bullets acionáveis)
+  7) <h2>Insights e recomendações</h2> (3-6 bullets acionáveis)
 - Seja específico: cite nomes de tarefas e subtarefas quando útil, mas SEM listar tudo cru — sintetize.
 - Não invente dados. Se um campo estiver vazio, ignore.
 - Use tom profissional, direto, sem jargão desnecessário.

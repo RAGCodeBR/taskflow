@@ -39,6 +39,7 @@ import {
   Columns,
   PanelTop,
   PanelsTopLeft,
+  ChevronDown,
 } from "lucide-react";
 import {
   Select,
@@ -174,7 +175,7 @@ function compareByField(
   }
 }
 
-function CompletedColumn({ taskIds, count, children, orientation, minimal }: any) {
+function CompletedColumn({ taskIds, count, children, orientation, minimal, open, onOpenChange }: any) {
   const { setNodeRef, isOver } = useDroppable({
     id: `drop:${COMPLETED_COL_ID}`,
     data: { type: "column-drop", colId: COMPLETED_COL_ID },
@@ -182,18 +183,19 @@ function CompletedColumn({ taskIds, count, children, orientation, minimal }: any
   const isH = orientation === "horizontal";
   return (
     <div className={isH ? (minimal ? "flex w-[clamp(15rem,18vw,19rem)] shrink-0 flex-col" : "flex w-72 shrink-0 flex-col") : "flex w-full flex-col"}>
-      <div className="mb-2 flex items-center gap-1.5 px-1">
+      <button type="button" onClick={onOpenChange} className="mb-2 flex w-full items-center gap-1.5 rounded px-1 text-left hover:bg-muted/50">
         <span className="h-3 w-3 rounded-full bg-emerald-500 dark:bg-emerald-400 dark:ring-2 dark:ring-emerald-200/40 dark:shadow-[0_0_12px_rgba(74,222,128,0.7)]" />
         <h3 className="font-semibold">Concluídas</h3>
         <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-400/25 dark:text-emerald-100 dark:ring-1 dark:ring-emerald-200/45 dark:shadow-[0_0_10px_rgba(74,222,128,0.32)]">
           {count}
         </span>
-        {!isH && (
+        {!isH && open && (
           <span className="ml-2 text-xs text-muted-foreground">
             Arraste tarefas aqui para concluir
           </span>
         )}
-      </div>
+        <ChevronDown className={`ml-auto h-4 w-4 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
       <SortableContext
         items={taskIds}
         strategy={isH ? verticalListSortingStrategy : horizontalListSortingStrategy}
@@ -201,11 +203,13 @@ function CompletedColumn({ taskIds, count, children, orientation, minimal }: any
         <div
           ref={setNodeRef}
           className={`rounded-lg border-2 border-solid p-2 transition ${
-            isH ? "flex flex-col gap-2" : "flex flex-nowrap items-start gap-2 overflow-x-auto pb-2"
+            open
+              ? (isH ? "flex flex-col gap-2" : "flex flex-nowrap items-start gap-2 overflow-x-auto pb-2")
+              : "flex items-center justify-center"
           } ${isOver ? "border-emerald-500 bg-emerald-500/10" : "border-emerald-500/30 bg-emerald-500/5"}`}
-          style={{ minHeight: isH ? 200 : 120 }}
+          style={{ minHeight: open ? (isH ? 200 : 120) : 42 }}
         >
-          {children}
+          {open ? children : <span className="text-xs font-medium text-muted-foreground">Arraste aqui para concluir</span>}
         </div>
       </SortableContext>
     </div>
@@ -445,6 +449,7 @@ function KanbanPage() {
     start: "",
     end: "",
   });
+  const [completedOpen, setCompletedOpen] = useState(false);
   const [columnEditor, setColumnEditor] = useState<{
     open: boolean;
     id: string | null;
@@ -1437,6 +1442,8 @@ function KanbanPage() {
                 count={completedTasks.length}
                 orientation={orientation}
                 minimal={minimalCards}
+                open={completedOpen}
+                onOpenChange={() => setCompletedOpen((current) => !current)}
                 taskIds={completedTasks.map((t) => t.id)}
               >
                 {completedTasks.length === 0 ? (

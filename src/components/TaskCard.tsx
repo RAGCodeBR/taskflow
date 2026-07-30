@@ -68,7 +68,6 @@ import {
   type TaskTag,
 } from "@/hooks/use-data";
 import { useBoardPreferences, type CardField } from "@/hooks/use-board-preferences";
-import { InterruptionsBlock } from "@/components/InterruptionsBlock";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -221,7 +220,6 @@ export function TaskCard({
   const { data: prefs } = useBoardPreferences();
   const hiddenFields = prefs?.hidden_fields ?? [];
   const fieldOrder = prefs?.field_order ?? [];
-  const interruptionColor = prefs?.interruption_color ?? "#ef4444";
   const isVisible = (f: CardField) => !hiddenFields.includes(f);
   const orderOf = (f: CardField) => {
     const idx = fieldOrder.indexOf(f);
@@ -1681,13 +1679,6 @@ export function TaskCard({
                     }}
                   />
                 </FileDropZone>
-              </div>
-            ) : null}
-
-            {/* Interruptions */}
-            {isVisible("interruptions") ? (
-              <div style={{ order: orderOf("interruptions") }}>
-                <InterruptionsBlock task={task} color={interruptionColor} />
               </div>
             ) : null}
 

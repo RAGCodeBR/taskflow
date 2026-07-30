@@ -76,7 +76,6 @@ export function CardFieldsPopover() {
 
   const order = prefs?.field_order ?? [...ALL_FIELDS];
   const hidden = prefs?.hidden_fields ?? [];
-  const color = prefs?.interruption_color ?? "#ef4444";
 
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
@@ -139,28 +138,6 @@ export function CardFieldsPopover() {
           </SortableContext>
         </DndContext>
 
-        <div className="mt-4 border-t pt-3">
-          <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Cor das interrupções
-          </span>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={color}
-              onChange={(e) => update.mutate({ interruption_color: e.target.value })}
-              className="h-8 w-12 cursor-pointer rounded border bg-transparent"
-            />
-            <input
-              type="text"
-              value={color}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (/^#[0-9a-fA-F]{0,6}$/.test(v)) update.mutate({ interruption_color: v });
-              }}
-              className="h-8 flex-1 rounded border bg-background px-2 text-xs"
-            />
-          </div>
-        </div>
       </PopoverContent>
     </Popover>
   );

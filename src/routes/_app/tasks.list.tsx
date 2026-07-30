@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -49,6 +49,7 @@ function ListPage() {
   );
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
+  const [completedOpen, setCompletedOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
 
   useEffect(() => {
@@ -231,15 +232,15 @@ function ListPage() {
                 {startsCompletedSection && (
                   <tr aria-label="Tarefas concluídas">
                     <td colSpan={8} className="px-2 py-2">
-                      <div className="flex items-center gap-3 border-t border-dashed border-muted-foreground/45 pt-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          Tarefas concluídas
-                        </span>
+                      <button type="button" onClick={() => setCompletedOpen((current) => !current)} className="flex w-full items-center gap-3 border-t border-dashed border-muted-foreground/45 pt-2 text-left">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tarefas concluídas</span>
                         <span className="h-px flex-1 border-t border-dashed border-muted-foreground/30" />
-                      </div>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${completedOpen ? "" : "-rotate-90"}`} />
+                      </button>
                     </td>
                   </tr>
                 )}
+                {isCompleted && !completedOpen ? null :
                 <tr
                   className={`cursor-pointer border-t transition-colors hover:bg-muted/30 ${
                     isCompleted ? "opacity-60 grayscale-[0.2]" : ""
@@ -315,6 +316,7 @@ function ListPage() {
                     </Button>
                   </td>
                 </tr>
+                }
                 </Fragment>
               );
             })}

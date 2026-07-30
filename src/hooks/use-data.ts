@@ -29,7 +29,6 @@ export interface Task {
   completed_at: string | null;
   created_by: string | null;
   tag_id: string | null;
-  interruptions: number;
   deleted_at: string | null;
   deleted_by: string | null;
   created_at: string;

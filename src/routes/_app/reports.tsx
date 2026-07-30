@@ -33,7 +33,6 @@ import {
   ListTodo,
   AlertTriangle,
   Clock,
-  Zap,
   ShieldCheck,
   User as UserIcon,
   ListChecks,
@@ -79,16 +78,6 @@ function ReportsPage() {
   const { data: profiles = [] } = useProfiles();
   const { data: clients = [] } = useClients();
   useTaskStatuses();
-  const { data: interruptions = [] } = useQuery({
-    queryKey: ["task_interruptions_all"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("task_interruptions")
-        .select("id, task_id, user_id, reason, created_at");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
   const { data: subtasks = [] } = useQuery({
     queryKey: ["subtasks_all"],
     queryFn: async () => {
@@ -155,8 +144,6 @@ function ReportsPage() {
     done: filteredTasks.filter((t) => t.status === "done").length,
     pending: filteredTasks.filter((t) => t.status !== "done").length,
     overdue: filteredTasks.filter((t) => matchDateFilter(t, "overdue")).length,
-    interruptions: interruptions.filter((i) => userFilter === "all" || i.user_id === userFilter)
-      .length,
     subtasks: sumSubtasks(filteredTasks),
   };
 
@@ -166,7 +153,6 @@ function ReportsPage() {
       .filter((t) => matchDateFilter(t, filter));
     const done = userTasks.filter((t) => t.status === "done");
     const overdue = userTasks.filter((t) => matchDateFilter(t, "overdue"));
-    const userInter = interruptions.filter((i) => i.user_id === p.id);
     const onTime = done.filter(
       (t) =>
         t.due_date && t.completed_at && !isAfter(parseISO(t.completed_at), parseISO(t.due_date)),
@@ -183,7 +169,6 @@ function ReportsPage() {
       done: done.length,
       pending: userTasks.length - done.length,
       overdue: overdue.length,
-      interruptions: userInter.length,
       onTime,
       onTimeRate: done.length ? Math.round((onTime / done.length) * 100) : 0,
       subtasksDone: sub.done,
@@ -215,7 +200,6 @@ function ReportsPage() {
           done: unassignedTasks.filter((t) => t.status === "done").length,
           pending: unassignedTasks.filter((t) => t.status !== "done").length,
           overdue: unassignedTasks.filter((t) => matchDateFilter(t, "overdue")).length,
-          interruptions: 0,
           onTime: 0,
           onTimeRate: 0,
         }
@@ -265,7 +249,6 @@ function ReportsPage() {
         <Kpi label="Concluídas" value={totals.done} icon={CheckCircle2} color="#059669" />
         <Kpi label="Pendentes" value={totals.pending} icon={Clock} color="#f59e0b" />
         <Kpi label="Atrasadas" value={totals.overdue} icon={AlertTriangle} color="#dc2626" />
-        <Kpi label="Interrupções" value={totals.interruptions} icon={Zap} color="#a855f7" />
         <Kpi
           label="Subtarefas"
           value={`${totals.subtasks.done}/${totals.subtasks.total}`}
@@ -288,7 +271,6 @@ function ReportsPage() {
                 <Bar dataKey="done" name="Concluídas" stackId="a" fill="#059669" />
                 <Bar dataKey="pending" name="Pendentes" stackId="a" fill="#f59e0b" />
                 <Bar dataKey="overdue" name="Atrasadas" fill="#dc2626" />
-                <Bar dataKey="interruptions" name="Interrupções" fill="#a855f7" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -370,7 +352,6 @@ function UserTable({
                 <th className="py-2 text-center">Concluídas</th>
                 <th className="py-2 text-center">Pendentes</th>
                 <th className="py-2 text-center">Atrasadas</th>
-                <th className="py-2 text-center">Interrupções</th>
                 <th className="py-2 text-center">Subtarefas</th>
                 <th className="py-2 text-center">No prazo</th>
                 <th className="py-2 text-center">% prazo</th>
@@ -397,7 +378,6 @@ function UserTable({
                     <td className="py-2 text-center text-emerald-600">{r.done}</td>
                     <td className="py-2 text-center text-amber-600">{r.pending}</td>
                     <td className="py-2 text-center text-red-600">{r.overdue}</td>
-                    <td className="py-2 text-center text-purple-600">{r.interruptions}</td>
                     <td className="py-2 text-center text-sky-600">
                       {r.subtasksTotal ? `${r.subtasksDone}/${r.subtasksTotal} (${subPct}%)` : "—"}
                     </td>

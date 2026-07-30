@@ -20,6 +20,8 @@ import { NotesWorkspace } from "@/routes/_app/notes";
 import { FileDropZone } from "@/components/FileDropZone";
 import { useAuth } from "@/hooks/use-auth";
 import { toJpeg } from "html-to-image";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export const Route = createFileRoute("/_app/clients/$clientId/edit")({
   component: EditClientPage,
@@ -1084,9 +1086,12 @@ function EditClientPage() {
                   </div>
                   </div>
                 </div>
-                <div className="border-t p-5">
-                  <AttachmentsManager clientId={clientId} employeeId={selectedEmployee.id} />
-                </div>
+                <EmployeeDetailSection title="Anexos do funcionário" icon={<Paperclip className="h-4 w-4" />}>
+                  <AttachmentsManager clientId={clientId} employeeId={selectedEmployee.id} hideHeader />
+                </EmployeeDetailSection>
+                <EmployeeDetailSection title="Anotações do funcionário" icon={<NotebookPen className="h-4 w-4" />}>
+                  <EmployeeNotesManager employeeId={selectedEmployee.id} />
+                </EmployeeDetailSection>
               </div>
             </>
           )}
@@ -1106,7 +1111,132 @@ type ManagedAttachment = {
   created_at: string;
 };
 
-function AttachmentsManager({ clientId, employeeId }: { clientId: string; employeeId?: string }) {
+function EmployeeDetailSection({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+  return (
+    <Collapsible className="border-t">
+      <CollapsibleTrigger className="group flex w-full items-center gap-2 px-5 py-4 text-left hover:bg-muted/30">
+        {icon}
+        <span className="flex-1 font-semibold">{title}</span>
+        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-5 pb-5">{children}</CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+type EmployeeNote = { id: string; content: string; created_at: string };
+
+function EmployeeNotesManager({ employeeId }: { employeeId: string }) {
+  const { user } = useAuth();
+  const [notes, setNotes] = useState<EmployeeNote[]>([]);
+  const [content, setContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const [savingEditId, setSavingEditId] = useState<string | null>(null);
+
+  const load = async () => {
+    const { data, error } = await (supabase.from("client_department_employee_notes") as any)
+      .select("id, content, created_at")
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: false });
+    if (error) return toast.error(error.message);
+    setNotes((data ?? []) as EmployeeNote[]);
+  };
+
+  useEffect(() => { void load(); }, [employeeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const add = async () => {
+    if (!user || !content.trim()) return;
+    setSaving(true);
+    const { data, error } = await (supabase.from("client_department_employee_notes") as any)
+      .insert({ employee_id: employeeId, content: content.trim(), created_by: user.id })
+      .select("id, content, created_at")
+      .single();
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    setNotes((current) => [data as EmployeeNote, ...current]);
+    setContent("");
+  };
+
+  const remove = async (id: string) => {
+    const { error } = await (supabase.from("client_department_employee_notes") as any).delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    setNotes((current) => current.filter((note) => note.id !== id));
+  };
+
+  const saveEdit = async (id: string) => {
+    const nextContent = editingContent.trim();
+    if (!nextContent) return;
+    setSavingEditId(id);
+    const { error } = await (supabase.from("client_department_employee_notes") as any)
+      .update({ content: nextContent })
+      .eq("id", id);
+    setSavingEditId(null);
+    if (error) return toast.error(error.message);
+    setNotes((current) => current.map((note) => note.id === id ? { ...note, content: nextContent } : note));
+    setEditingId(null);
+    setEditingContent("");
+  };
+
+  return (
+    <div className="space-y-3">
+      <Textarea
+        value={content}
+        onChange={(event) => setContent(event.target.value)}
+        placeholder="Registre uma anotação sobre este funcionário..."
+        className="min-h-24"
+      />
+      <div className="flex justify-end">
+        <Button type="button" size="sm" disabled={saving || !content.trim()} onClick={() => void add()}>
+          <Plus className="mr-1 h-4 w-4" /> {saving ? "Salvando..." : "Adicionar anotação"}
+        </Button>
+      </div>
+      {notes.length === 0 ? (
+        <p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhuma anotação adicionada.</p>
+      ) : (
+        <ul className="space-y-2">
+          {notes.map((note) => (
+            <li key={note.id} className="flex gap-3 rounded-lg border p-3">
+              <div className="min-w-0 flex-1">
+                {editingId === note.id ? (
+                  <div className="space-y-2">
+                    <Textarea value={editingContent} onChange={(event) => setEditingContent(event.target.value)} className="min-h-20" />
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => { setEditingId(null); setEditingContent(""); }}>
+                        Cancelar
+                      </Button>
+                      <Button type="button" size="sm" disabled={savingEditId === note.id || !editingContent.trim()} onClick={() => void saveEdit(note.id)}>
+                        <Save className="mr-1 h-3.5 w-3.5" /> {savingEditId === note.id ? "Salvando..." : "Salvar"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap text-sm">{note.content}</p>
+                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Criada em {format(new Date(note.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </p>
+              </div>
+              {editingId !== note.id && (
+                <div className="flex shrink-0 items-start gap-1">
+                  <Button type="button" size="icon" variant="ghost" onClick={() => { setEditingId(note.id); setEditingContent(note.content); }} title="Editar anotação">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => void remove(note.id)} title="Excluir anotação">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clientId: string; employeeId?: string; hideHeader?: boolean }) {
   const { user } = useAuth();
   const [files, setFiles] = useState<ManagedAttachment[]>([]);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -1209,13 +1339,15 @@ function AttachmentsManager({ clientId, employeeId }: { clientId: string; employ
   const title = employeeId ? "Anexos do funcionário" : "Anexos do cliente";
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 font-semibold"><Paperclip className="h-4 w-4" /> {title}</h2>
-          <p className="text-sm text-muted-foreground">Adicione documentos, imagens e outros arquivos.</p>
+      {!hideHeader && (
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold"><Paperclip className="h-4 w-4" /> {title}</h2>
+            <p className="text-sm text-muted-foreground">Adicione documentos, imagens e outros arquivos.</p>
+          </div>
+          <span className="text-sm text-muted-foreground">{files.length} arquivo(s)</span>
         </div>
-        <span className="text-sm text-muted-foreground">{files.length} arquivo(s)</span>
-      </div>
+      )}
       <FileDropZone onFiles={(dropped) => void upload(dropped)} disabled={uploading} className="rounded-lg border border-dashed p-4">
         <label className="flex cursor-pointer items-center justify-between gap-3">
           <span className="text-sm text-muted-foreground">Arraste arquivos aqui ou selecione do computador.</span>
