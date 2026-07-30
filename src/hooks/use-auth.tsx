@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [clientId, setClientId] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const loadedUserIdRef = useRef<string | null>(null);
 
   const loadProfile = async (uid: string) => {
     // Profiles live in public.profiles, keyed by the Supabase auth user id.
@@ -101,11 +102,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        setLoading(true);
-        setTimeout(() => {
-          void loadProfile(s.user.id).finally(() => setLoading(false));
-        }, 0);
+        // Supabase may emit a session event again when the browser returns to
+        // a tab. Reloading the authenticated layout then would discard open
+        // task forms and unsaved input, so only load on an actual user change.
+        if (loadedUserIdRef.current !== s.user.id) {
+          loadedUserIdRef.current = s.user.id;
+          setLoading(true);
+          setTimeout(() => {
+            void loadProfile(s.user.id).finally(() => setLoading(false));
+          }, 0);
+        }
       } else {
+        loadedUserIdRef.current = null;
         setProfile(null);
         setIsAdmin(false);
         setIsCollaborator(false);
@@ -119,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       if (data.session?.user) {
+        loadedUserIdRef.current = data.session.user.id;
         await loadProfile(data.session.user.id);
       }
       setLoading(false);
@@ -129,11 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    // An administrator can change a person's access while that person is
-    // already signed in. Refresh when the browser returns to this tab and
-    // subscribe for an immediate update when Realtime is enabled.
+    // Access changes are delivered in real time. Avoid refreshing on browser
+    // focus so returning to a tab never interrupts a form being edited.
     const refreshAccess = () => void loadProfile(user.id);
-    window.addEventListener("focus", refreshAccess);
     const channel = supabase
       .channel(`user-access-${user.id}`)
       .on(
@@ -154,7 +161,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .subscribe();
 
     return () => {
-      window.removeEventListener("focus", refreshAccess);
       void supabase.removeChannel(channel);
     };
   }, [user?.id]);

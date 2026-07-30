@@ -24,7 +24,8 @@ const PALETTE = [
 
 export function TagManagerDialog({ open, onOpenChange }: Props) {
   const qc = useQueryClient();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isCollaborator } = useAuth();
+  const canManageTags = isAdmin || isCollaborator;
   const { data: tags = [] } = useTaskTags();
   const [name, setName] = useState("");
   const [color, setColor] = useState(PALETTE[0]);
@@ -80,12 +81,12 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="space-y-3">
-          {!isAdmin && (
+          {!canManageTags && (
             <p className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
               Apenas administradores podem criar, editar, reordenar ou excluir tags. Estas tags são globais.
             </p>
           )}
-          {isAdmin && (
+          {canManageTags && (
             <div className="rounded-md border p-3">
               <div className="mb-2 text-xs font-medium text-muted-foreground">Nova tag</div>
               <div className="flex gap-2">
@@ -115,18 +116,18 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
             </div>
           )}
 
-          {isAdmin && (
+          {canManageTags && (
             <p className="text-[11px] text-muted-foreground">Arraste pelo ícone <GripVertical className="inline h-3 w-3 -mt-0.5" /> para reordenar.</p>
           )}
 
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={isAdmin ? onDragEnd : () => {}}>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={canManageTags ? onDragEnd : () => {}}>
             <SortableContext items={tags.map((t) => t.id)} strategy={verticalListSortingStrategy}>
               <div className="max-h-80 space-y-2 overflow-y-auto">
                 {tags.length === 0 && (
                   <p className="text-center text-xs text-muted-foreground py-4">Nenhuma tag ainda</p>
                 )}
                 {tags.map((tag) => (
-                  <TagRow key={tag.id} tag={tag} onUpdate={update} onDelete={remove} canManage={isAdmin} />
+                  <TagRow key={tag.id} tag={tag} onUpdate={update} onDelete={remove} canManage={canManageTags} />
                 ))}
               </div>
             </SortableContext>
