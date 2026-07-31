@@ -407,7 +407,7 @@ function MuralPage() {
                 onDragEnd={() => setDraggingId(null)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => movePost(post.id)}
-                className={`group mb-4 break-inside-avoid overflow-hidden rounded-md p-4 shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md ${draggingId === post.id ? "opacity-45" : ""} ${colorClass(post.color)}`}
+                className={`group mb-4 break-inside-avoid overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${draggingId === post.id ? "opacity-45" : ""} ${colorClass(post.color)}`}
               >
                 {post.image_url && (
                   <img src={post.image_url} alt="" className="-mx-4 -mt-4 mb-4 h-36 w-[calc(100%+2rem)] object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
