@@ -119,16 +119,6 @@ function AccessForm({
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label>Senha provisória</Label>
-            <Input
-              type="password"
-              minLength={6}
-              value={value.password}
-              onChange={(e) => onChange({ ...value, password: e.target.value })}
-              required
-            />
-          </div>
         </>
       )}
       <div className="space-y-2">
@@ -268,13 +258,21 @@ function UsersPage() {
       body: { action, data },
     });
     if (error) {
-      const details = await error.context
-        ?.clone()
-        .json()
-        .catch(() => null);
-      throw new Error(details?.error ?? error.message);
+      const details = await error.context?.clone().json().catch(() => null);
+      const message = details?.error ?? error.message;
+      throw new Error(
+        typeof message === "string"
+          ? message
+          : "Não foi possível processar a solicitação. Verifique a configuração de convites.",
+      );
     }
-    if (result?.error) throw new Error(result.error);
+    if (result?.error) {
+      throw new Error(
+        typeof result.error === "string"
+          ? result.error
+          : "Não foi possível processar a solicitação. Verifique a configuração de convites.",
+      );
+    }
     return result;
   };
   const refresh = () => {
@@ -289,7 +287,7 @@ function UsersPage() {
       refresh();
       setCreateOpen(false);
       setForm(defaults);
-      toast.success("Acesso criado com sucesso.");
+      toast.success("Convite enviado com sucesso.");
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao criar acesso"),
   });
@@ -461,13 +459,13 @@ function UsersPage() {
             <DialogHeader>
               <DialogTitle>Criar acesso</DialogTitle>
               <DialogDescription>
-                O login e a senha abaixo dão acesso ao sistema conforme as permissões escolhidas.
+                O usuário receberá um convite por e-mail para criar a própria senha e ativar o acesso.
               </DialogDescription>
             </DialogHeader>
             <AccessForm value={form} onChange={setForm} includeCredentials />
             <DialogFooter>
               <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
-                {createMutation.isPending ? "Criando…" : "Criar acesso"}
+                {createMutation.isPending ? "Enviando…" : "Enviar convite"}
               </Button>
             </DialogFooter>
           </DialogContent>

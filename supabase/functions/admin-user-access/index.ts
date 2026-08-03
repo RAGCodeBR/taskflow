@@ -105,17 +105,36 @@ Deno.serve(async (request) => {
         return response({ error: "Informe o nome completo." }, 400);
       if (typeof data.email !== "string" || !/^\S+@\S+\.\S+$/.test(data.email))
         return response({ error: "Informe um e-mail válido." }, 400);
-      if (typeof data.password !== "string" || data.password.length < 6)
-        return response({ error: "A senha provisória deve ter ao menos 6 caracteres." }, 400);
-
-      const { data: created, error: createError } = await admin.auth.admin.createUser({
-        email: data.email.trim().toLowerCase(),
-        password: data.password,
-        email_confirm: true,
-        user_metadata: { full_name: data.fullName.trim(), role },
+      const invitedEmail = data.email.trim().toLowerCase();
+      const { error: allowInvitationError } = await admin.from("access_invitations").upsert({
+        email: invitedEmail,
+        invited_by: authData.user.id,
+        expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
       });
+      if (allowInvitationError) throw allowInvitationError;
+      const redirectTo = Deno.env.get("INVITE_REDIRECT_URL");
+      const { data: created, error: createError } = await admin.auth.admin.inviteUserByEmail(
+        invitedEmail,
+        {
+          ...(redirectTo ? { redirectTo } : {}),
+          data: { full_name: data.fullName.trim() },
+        },
+      );
       if (createError || !created.user)
-        throw createError ?? new Error("Não foi possível criar o usuário.");
+        throw createError ?? new Error("Não foi possível enviar o convite.");
+
+      // The database trigger creates every invited account as a collaborator
+      // first. Replace that temporary role with the category selected by the
+      // administrator; roles must never come from browser-controlled metadata.
+      const { error: removeRoleError } = await admin
+        .from("user_roles")
+        .delete()
+        .eq("user_id", created.user.id);
+      if (removeRoleError) throw removeRoleError;
+      const { error: addRoleError } = await admin
+        .from("user_roles")
+        .insert({ user_id: created.user.id, role });
+      if (addRoleError) throw addRoleError;
 
       const { error: permissionsError } = await admin.from("user_permissions").upsert({
         user_id: created.user.id,
@@ -194,9 +213,16 @@ Deno.serve(async (request) => {
     return response({ error: "Ação inválida." }, 400);
   } catch (error) {
     console.error(error);
-    return response(
-      { error: error instanceof Error ? error.message : "Não foi possível salvar o acesso." },
-      400,
-    );
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Não foi possível salvar o acesso.";
+    // Returning a JSON payload with a successful transport status lets the
+    // browser show the provider's real message instead of Supabase's empty
+    // FunctionsHttpError object. The `error` field is still handled as a
+    // failed operation by the caller.
+    return response({ error: message });
   }
 });
