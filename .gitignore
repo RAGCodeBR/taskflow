@@ -37,4 +37,3 @@ work-*.sql
 *.sw?
 
 .vercel
-.env*
