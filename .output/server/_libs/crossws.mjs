@@ -1,2 +1,0 @@
-
-import "cloudflare:workers";

@@ -1,1 +1,0 @@
-import{u as s,j as e,N as a}from"./index-DqjOKhvY.js";function o(){const{user:t,loading:r}=s();return r?e.jsx("div",{className:"grid min-h-screen place-items-center text-sm text-muted-foreground",children:"Carregando…"}):e.jsx(a,{to:t?"/dashboard":"/auth",replace:!0})}export{o as component};
