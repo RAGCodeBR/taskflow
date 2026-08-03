@@ -89,6 +89,7 @@ import { CardFieldsPopover } from "@/components/CardFieldsPopover";
 import { useBoardPreferences, useUpdateBoardPreferences } from "@/hooks/use-board-preferences";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
 
 export const Route = createFileRoute("/_app/tasks/kanban")({
   component: KanbanPage,
@@ -395,6 +396,27 @@ function KanbanPage() {
     return map;
   }, [allSubtasks]);
 
+  const [filters, setFilters] = useState<TaskFilterValue>({});
+
+  const subtaskDateFilterTaskIds = useMemo(() => {
+    const dateFilter = filters.date;
+    if (!dateFilter || dateFilter === "all") return new Set<string>();
+    return new Set(
+      (allSubtasks as any[])
+        .filter((subtask) =>
+          matchDateFilter(
+            {
+              due_date: subtask.due_date,
+              status: subtask.done ? "done" : null,
+              completed_at: subtask.completed_at,
+            },
+            dateFilter as DateFilter,
+          ),
+        )
+        .map((subtask) => subtask.task_id),
+    );
+  }, [allSubtasks, filters.date]);
+
   // Apply per-user column ordering (fallback to global position)
   const columns = useMemo(() => {
     const ord = new Map(userColOrder.map((u) => [u.column_id, u.position]));
@@ -411,7 +433,6 @@ function KanbanPage() {
     userTaskOrder.forEach((u) => m.set(u.task_id, u.position));
     return m;
   }, [userTaskOrder]);
-  const [filters, setFilters] = useState<TaskFilterValue>({});
   const didApplyDefaultAssignee = useRef(false);
   const [sort, setSort] = useState<{ field: SortField; direction: SortDirection }>({
     field: "position",
@@ -504,6 +525,7 @@ function KanbanPage() {
       subtaskAssigneeTaskIds,
       collaboratorTaskIds,
       subtaskAssigneeTaskIdsByUser,
+      subtaskDateFilterTaskIds,
       restrictToCurrentUserParticipation: isCollaborator,
     });
     all.sort((a, b) => {
@@ -568,6 +590,7 @@ function KanbanPage() {
     subtaskAssigneeTaskIds,
     collaboratorTaskIds,
     subtaskAssigneeTaskIdsByUser,
+    subtaskDateFilterTaskIds,
     isCollaborator,
   ]);
 
@@ -583,6 +606,7 @@ function KanbanPage() {
       subtaskAssigneeTaskIds,
       collaboratorTaskIds,
       subtaskAssigneeTaskIdsByUser,
+      subtaskDateFilterTaskIds,
       restrictToCurrentUserParticipation: isCollaborator,
     });
     return r;
@@ -593,6 +617,7 @@ function KanbanPage() {
     subtaskAssigneeTaskIds,
     collaboratorTaskIds,
     subtaskAssigneeTaskIdsByUser,
+    subtaskDateFilterTaskIds,
     isCollaborator,
   ]);
 

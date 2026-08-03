@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { TaskDialog } from "@/components/TaskDialog";
 import { priorityColors, priorityLabels } from "@/lib/task-utils";
+import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -99,6 +100,25 @@ function ListPage() {
     return map;
   }, [subtasks]);
 
+  const subtaskDateFilterTaskIds = useMemo(() => {
+    const dateFilter = filters.date;
+    if (!dateFilter || dateFilter === "all") return new Set<string>();
+    return new Set(
+      (subtasks as any[])
+        .filter((subtask) =>
+          matchDateFilter(
+            {
+              due_date: subtask.due_date,
+              status: subtask.done ? "done" : null,
+              completed_at: subtask.completed_at,
+            },
+            dateFilter as DateFilter,
+          ),
+        )
+        .map((subtask) => subtask.task_id),
+    );
+  }, [subtasks, filters.date]);
+
   const collaboratorTaskIds = useMemo(
     () => new Set(collaborators.filter((collaborator) => collaborator.collaborator_id === user?.id).map((collaborator) => collaborator.task_id)),
     [collaborators, user?.id],
@@ -110,6 +130,7 @@ function ListPage() {
       subtaskAssigneeTaskIds,
       collaboratorTaskIds,
       subtaskAssigneeTaskIdsByUser,
+      subtaskDateFilterTaskIds,
       restrictToCurrentUserParticipation: isCollaborator,
     });
     // Keep the list grouped in the same order as the Kanban statuses. Tasks
@@ -134,7 +155,7 @@ function ListPage() {
       if (!b.due_date) return -1;
       return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
     });
-  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, columns, statuses]);
+  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, columns, statuses]);
 
   const completeTask = async (taskId: string) => {
     const completedStatus = statuses.find((status) => status.is_completed);

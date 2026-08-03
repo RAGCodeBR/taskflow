@@ -40,7 +40,6 @@ interface Filters {
 
 const DATE_OPTIONS: DateFilter[] = [
   "all",
-  "today",
   "due_today",
   "tomorrow",
   "this_week",
@@ -337,6 +336,8 @@ export function applyTaskFilters<
     subtaskAssigneeTaskIds?: Set<string> | null;
     collaboratorTaskIds?: Set<string> | null;
     subtaskAssigneeTaskIdsByUser?: Map<string, Set<string>> | null;
+    /** Parent tasks that have a subtask matching the active due-date filter. */
+    subtaskDateFilterTaskIds?: Set<string> | null;
     restrictToCurrentUserParticipation?: boolean;
   },
 ) {
@@ -363,7 +364,17 @@ export function applyTaskFilters<
     }
     if (f.scope === "created" && (!uid || t.created_by !== uid)) return false;
 
-    if (f.date && f.date !== "all" && !matchDateFilter(t, f.date)) return false;
+    if (f.date && f.date !== "all" && !matchDateFilter(t, f.date)) {
+      const supportsSubtaskDueDates = [
+        "today",
+        "due_today",
+        "tomorrow",
+        "this_week",
+        "this_month",
+        "overdue",
+      ].includes(f.date);
+      if (!supportsSubtaskDueDates || !opts?.subtaskDateFilterTaskIds?.has(t.id)) return false;
+    }
     if (clientIds && (!t.client_id || !clientIds.includes(t.client_id))) return false;
     if (f.assignee) {
       const assigneeSubtasks = opts?.subtaskAssigneeTaskIdsByUser?.get(f.assignee);
