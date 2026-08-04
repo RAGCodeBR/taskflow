@@ -18,13 +18,17 @@ const items: { value: DateFilter; icon: typeof Clock }[] = [
 export function DateFilterBar({
   value,
   onChange,
+  hideToday = false,
 }: {
   value: DateFilter;
   onChange: (v: DateFilter) => void;
+  hideToday?: boolean;
 }) {
+  const visibleItems = hideToday ? items.filter((it) => it.value !== "today") : items;
+
   return (
     <div className="flex flex-wrap gap-2">
-      {items.map((it) => {
+      {visibleItems.map((it) => {
         const Icon = it.icon;
         const active = value === it.value;
         return (

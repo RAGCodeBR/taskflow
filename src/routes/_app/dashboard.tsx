@@ -132,7 +132,7 @@ function Dashboard() {
         <p className="text-muted-foreground">Visão geral da produtividade da equipe</p>
       </header>
 
-      <DateFilterBar value={filter} onChange={setFilter} />
+      <DateFilterBar value={filter} onChange={setFilter} hideToday />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Total de tarefas" value={stats.total} icon={ListTodo} color="#2563eb" />
