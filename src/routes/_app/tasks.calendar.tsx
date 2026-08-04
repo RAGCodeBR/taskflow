@@ -59,14 +59,14 @@ function CalendarPage() {
     const s = new Set<string>();
     if (!user?.id) return s;
     for (const st of subtasks as any[])
-      if (st.assignee_id === user.id && st.task_id) s.add(st.task_id);
+      if (st.assignee_id === user.id && !st.done && st.task_id) s.add(st.task_id);
     return s;
   }, [subtasks, user?.id]);
 
   const subtaskAssigneeTaskIdsByUser = useMemo(() => {
     const map = new Map<string, Set<string>>();
     for (const st of subtasks as any[]) {
-      if (!st.assignee_id || !st.task_id) continue;
+      if (!st.assignee_id || st.done || !st.task_id) continue;
       const set = map.get(st.assignee_id) ?? new Set<string>();
       set.add(st.task_id);
       map.set(st.assignee_id, set);

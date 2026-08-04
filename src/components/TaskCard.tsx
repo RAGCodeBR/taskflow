@@ -706,7 +706,15 @@ export function TaskCard({
     setSubtasks((c) =>
       c.map((x) => (x.id === s.id ? { ...x, done: nextDone, completed_at: nextCompleted } : x)),
     );
-    await supabase.from("subtasks").update({ done: nextDone }).eq("id", s.id);
+    const { error } = await supabase.from("subtasks").update({ done: nextDone }).eq("id", s.id);
+    if (error) {
+      setSubtasks((c) =>
+        c.map((x) => (x.id === s.id ? { ...x, done: s.done, completed_at: s.completed_at } : x)),
+      );
+      toast.error(error.message);
+      return;
+    }
+    void qc.invalidateQueries({ queryKey: ["subtasks"] });
   };
 
   const deleteSubtask = async (id: string) => {
