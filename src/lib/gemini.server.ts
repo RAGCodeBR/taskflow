@@ -41,7 +41,12 @@ function loadEnvFile() {
 
 function getApiKey() {
   loadEnvFile();
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  return process.env.GEMINI_API_KEY;
+}
+
+function getModel() {
+  loadEnvFile();
+  return process.env.GEMINI_MODEL || "gemini-3.5-flash";
 }
 
 export async function generateGeminiContent({
@@ -62,14 +67,25 @@ export async function generateGeminiContent({
     return { inlineData: part.inlineData };
   });
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
-    contents: [{ role: "user", parts: contents }],
-    config: {
-      systemInstruction,
-      responseMimeType,
-    },
-  });
+  let response;
+  try {
+    response = await ai.models.generateContent({
+      model: getModel(),
+      contents: [{ role: "user", parts: contents }],
+      config: {
+        systemInstruction,
+        responseMimeType,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/\b429\b|RESOURCE_EXHAUSTED|quota exceeded/i.test(message)) {
+      throw new Error(
+        "A cota do Gemini foi atingida. Verifique o plano e os limites do projeto no Google AI Studio.",
+      );
+    }
+    throw error;
+  }
 
   const text =
     typeof response?.text === "string"

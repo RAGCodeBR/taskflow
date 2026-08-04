@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sparkles, Upload, FileText, Loader2, Trash2, Plus, CheckCircle2, NotebookPen, FileSignature } from "lucide-react";
 import { toast } from "sonner";
-import { parseAtaWithGemini, type ExtractedTask } from "@/lib/import-ata.functions";
+import { createTasksFromAta, parseAtaWithGemini, type ExtractedTask } from "@/lib/import-ata.functions";
 import { formatAtaWithGemini } from "@/lib/format-ata.functions";
 import { FileDropZone } from "@/components/FileDropZone";
 
@@ -33,6 +33,7 @@ function ImportAtaPage() {
   const { data: statuses = [] } = useTaskStatuses();
   const runParse = useServerFn(parseAtaWithGemini);
   const runFormat = useServerFn(formatAtaWithGemini);
+  const runCreateTasks = useServerFn(createTasksFromAta);
 
   const [tab, setTab] = useState<"pdf" | "text">("pdf");
   const [file, setFile] = useState<File | null>(null);
@@ -199,19 +200,9 @@ function ImportAtaPage() {
         assignee_id: r.assignee_id,
         client_id: r.client_id,
         tag_id: r.tag_id,
-        created_by: user.id,
       }));
-      const { data, error } = await supabase.from("tasks").insert(payload).select("id");
-      if (error) throw error;
-      // task_tag_links
-      const links = picked
-        .map((r, i) => ({ task: data?.[i], tagId: r.tag_id }))
-        .filter((x) => x.task && x.tagId)
-        .map((x) => ({ task_id: x.task!.id, tag_id: x.tagId! }));
-      if (links.length) {
-        await supabase.from("task_tag_links").insert(links);
-      }
-      toast.success(`${picked.length} tarefa(s) criada(s) no Kanban`);
+      const result = await runCreateTasks({ data: { tasks: payload } });
+      toast.success(`${result.created} tarefa(s) criada(s) no Kanban`);
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["task_tag_links"] });
       setRows([]);

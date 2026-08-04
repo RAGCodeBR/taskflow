@@ -29,6 +29,25 @@ export interface ExtractedTask {
   priority: "low" | "medium" | "high" | "urgent";
 }
 
+const CreateTasksSchema = z.object({
+  tasks: z
+    .array(
+      z.object({
+        title: z.string().trim().min(1).max(200),
+        description: z.string().nullable(),
+        status: z.literal("todo"),
+        status_id: z.string().uuid().nullable(),
+        priority: z.enum(["low", "medium", "high", "urgent"]),
+        due_date: z.string().datetime().nullable(),
+        assignee_id: z.string().uuid().nullable(),
+        client_id: z.string().uuid().nullable(),
+        tag_id: z.string().uuid().nullable(),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+
 function norm(s: string) {
   return s
     .normalize("NFD")
@@ -147,4 +166,34 @@ SAÍDA: Apenas JSON válido, sem markdown, sem \`\`\`. Formato:
     });
 
     return { tasks: out };
+  });
+
+/**
+ * Creates extracted tasks through the trusted server client. The browser stays
+ * authenticated, while the database write is not affected by browser RLS.
+ */
+export const createTasksFromAta = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => CreateTasksSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    const userId = (context as { userId?: string | null }).userId;
+    if (!userId) throw new Error("Sessão expirada. Entre novamente para criar tarefas.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const payload = data.tasks.map(({ tag_id, ...task }) => ({ ...task, created_by: userId }));
+    const { data: created, error: createError } = await supabaseAdmin
+      .from("tasks")
+      .insert(payload)
+      .select("id");
+    if (createError) throw new Error(createError.message);
+
+    const tagLinks = data.tasks
+      .map((task, index) => ({ task_id: created?.[index]?.id, tag_id: task.tag_id }))
+      .filter((link): link is { task_id: string; tag_id: string } => !!link.task_id && !!link.tag_id);
+    if (tagLinks.length) {
+      const { error: linksError } = await supabaseAdmin.from("task_tag_links").insert(tagLinks);
+      if (linksError) throw new Error(linksError.message);
+    }
+
+    return { created: created?.length ?? 0 };
   });

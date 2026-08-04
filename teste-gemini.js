@@ -1,16 +1,18 @@
-import { generateGeminiContent } from './src/lib/gemini.server.ts';
+import { generateGeminiContent } from "./src/lib/gemini.server.ts";
 
-async function testarGemini() {
+async function testGemini() {
   try {
-    const resposta = await generateGeminiContent({
-      systemInstruction: 'Responda em uma frase curta confirmando se está funcionando.',
-      parts: [{ text: 'Olá, Gemini. Responda apenas com: funcionando.' }],
+    const response = await generateGeminiContent({
+      systemInstruction: "Responda somente com a palavra solicitado.",
+      parts: [{ text: "Responda: solicitado" }],
     });
 
-    console.log('Resposta da IA:', resposta);
+    console.log("[Gemini] Conexão confirmada.");
+    console.log(`[Gemini] Resposta: ${response}`);
   } catch (error) {
-    console.error('Erro ao chamar a API:', error);
+    console.error("[Gemini] Teste falhou:", error instanceof Error ? error.message : error);
+    process.exitCode = 1;
   }
 }
 
-testarGemini();
+testGemini();

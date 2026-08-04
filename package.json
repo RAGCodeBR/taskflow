@@ -15,7 +15,8 @@
     "preview": "vite preview",
     "docs:codigo": "node scripts/generate-code-explanations.mjs",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:gemini": "node teste-gemini.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
