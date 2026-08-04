@@ -198,7 +198,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setPriority("medium");
       setColumnId(defaultColumnId ?? "");
       setClientId("");
-      setAssigneeId("");
+      setAssigneeId(user?.id ?? "");
       setCollaboratorIds([]);
       setDueDate("");
       setDueTime("");
@@ -218,7 +218,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setRecurrenceEnd("");
       setRecurrenceOffsets({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 });
     }
-  }, [open, task, defaultColumnId]);
+  }, [open, task, defaultColumnId, user?.id]);
 
   const loadRelated = async (taskId: string) => {
     const [s, c, a] = await Promise.all([
