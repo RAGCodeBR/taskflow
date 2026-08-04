@@ -25,6 +25,13 @@ work-*.sql
 # Vercel build output
 .vercel/
 
+# Local environment and secrets
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -37,4 +44,3 @@ work-*.sql
 *.sw?
 
 .vercel
-.env*
