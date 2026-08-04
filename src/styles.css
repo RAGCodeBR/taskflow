@@ -171,5 +171,15 @@
 .tiptap code { background: color-mix(in oklab, var(--muted) 80%, transparent); padding: 0 0.25rem; border-radius: 3px; font-size: 0.85em; }
 .tiptap a { color: var(--primary); text-decoration: underline; }
 .tiptap mark, .prose mark { color: inherit; padding: 0 0.1em; border-radius: 2px; }
+.dark .tiptap mark,
+.dark .prose mark {
+  /* Os marca-textos têm fundos claros; não herdar o texto claro do tema escuro. */
+  color: oklch(0.2 0.04 264) !important;
+  font-weight: 500;
+}
+.dark .tiptap mark::selection,
+.dark .prose mark::selection {
+  color: oklch(0.2 0.04 264) !important;
+}
 .tiptap-wrapper, .tiptap-wrapper * { cursor: text; }
 .tiptap-wrapper button { cursor: pointer; }
