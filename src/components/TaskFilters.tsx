@@ -350,9 +350,8 @@ export function applyTaskFilters<
       if (!uid) return false;
       const participatesInTask =
         t.assignee_id === uid ||
-        // A collaborator must retain access to an unassigned task they created.
-        // Assigned tasks created by someone else stay limited to their responsible user.
-        (t.assignee_id === null && t.created_by === uid) ||
+        // Creators keep their own tasks visible, with or without an assignee.
+        t.created_by === uid ||
         !!subIds?.has(t.id) ||
         !!collaboratorIds?.has(t.id);
       if (!participatesInTask) return false;
@@ -361,6 +360,7 @@ export function applyTaskFilters<
       if (!uid) return false;
       const participatesInTask =
         t.assignee_id === uid ||
+        t.created_by === uid ||
         !!subIds?.has(t.id) ||
         !!collaboratorIds?.has(t.id);
       if (!participatesInTask) return false;
@@ -382,9 +382,17 @@ export function applyTaskFilters<
     if (f.assignee) {
       const assigneeSubtasks = opts?.subtaskAssigneeTaskIdsByUser?.get(f.assignee);
       // When filtering by the logged-in user, include tasks in which that user
-      // participates as a collaborator as well as direct/subtask assignments.
+      // participates as a creator/collaborator as well as direct/subtask assignments.
       const isCurrentUserCollaborator = f.assignee === uid && collaboratorIds?.has(t.id);
-      if (t.assignee_id !== f.assignee && !assigneeSubtasks?.has(t.id) && !isCurrentUserCollaborator) return false;
+      const isCurrentUserCreator = f.assignee === uid && t.created_by === uid;
+      if (
+        t.assignee_id !== f.assignee &&
+        !assigneeSubtasks?.has(t.id) &&
+        !isCurrentUserCollaborator &&
+        !isCurrentUserCreator
+      ) {
+        return false;
+      }
     }
     if (f.priority && t.priority !== f.priority) return false;
     if (f.status === COMPLETED_STATUS_FILTER && t.status !== "done" && !t.completed_at) return false;
