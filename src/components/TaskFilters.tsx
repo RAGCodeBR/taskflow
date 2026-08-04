@@ -350,6 +350,9 @@ export function applyTaskFilters<
       if (!uid) return false;
       const participatesInTask =
         t.assignee_id === uid ||
+        // A collaborator must retain access to an unassigned task they created.
+        // Assigned tasks created by someone else stay limited to their responsible user.
+        (t.assignee_id === null && t.created_by === uid) ||
         !!subIds?.has(t.id) ||
         !!collaboratorIds?.has(t.id);
       if (!participatesInTask) return false;
