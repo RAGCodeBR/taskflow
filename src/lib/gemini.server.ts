@@ -68,23 +68,37 @@ export async function generateGeminiContent({
   });
 
   let response;
-  try {
-    response = await ai.models.generateContent({
-      model: getModel(),
-      contents: [{ role: "user", parts: contents }],
-      config: {
-        systemInstruction,
-        responseMimeType,
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/\b429\b|RESOURCE_EXHAUSTED|quota exceeded/i.test(message)) {
-      throw new Error(
-        "A cota do Gemini foi atingida. Verifique o plano e os limites do projeto no Google AI Studio.",
-      );
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      response = await ai.models.generateContent({
+        model: getModel(),
+        contents: [{ role: "user", parts: contents }],
+        config: {
+          systemInstruction,
+          responseMimeType,
+        },
+      });
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/\b429\b|RESOURCE_EXHAUSTED|quota exceeded/i.test(message)) {
+        throw new Error(
+          "A cota do Gemini foi atingida. Verifique o plano e os limites do projeto no Google AI Studio.",
+        );
+      }
+
+      const isTemporaryOverload = /\b503\b|UNAVAILABLE|high demand|try again later|temporar/i.test(message);
+      if (isTemporaryOverload && attempt < maxAttempts) {
+        // Backoff curto: o Gemini normalmente libera capacidade em poucos segundos.
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1_500));
+        continue;
+      }
+      if (isTemporaryOverload) {
+        throw new Error("O Gemini está temporariamente sobrecarregado. Aguarde alguns segundos e tente novamente.");
+      }
+      throw error;
     }
-    throw error;
   }
 
   const text =

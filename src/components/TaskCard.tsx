@@ -164,7 +164,7 @@ export function TaskCard({
   minimal = false,
 }: Props) {
   const qc = useQueryClient();
-  const { user, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const descTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -391,6 +391,11 @@ export function TaskCard({
     () => profiles.find((p) => p.id === task.created_by),
     [profiles, task.created_by],
   );
+  const creatorName =
+    creator?.full_name ||
+    creator?.email ||
+    (task.created_by === user?.id ? profile?.full_name || user.email : null) ||
+    "Usuário não identificado";
   const assigner = useMemo(
     () => profiles.find((p) => p.id === task.assigned_by),
     [profiles, task.assigned_by],
@@ -1898,7 +1903,7 @@ export function TaskCard({
               <div className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-muted-foreground">
                 <UserIcon className="h-3 w-3 shrink-0" />
                 <span className="truncate">
-                  Criada por: {creator?.full_name || creator?.email || "Usuário não identificado"}
+                  Criada por: {creatorName}
                 </span>
               </div>
               {task.assignee_id && task.assigned_by ? (

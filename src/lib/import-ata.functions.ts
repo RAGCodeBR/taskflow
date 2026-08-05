@@ -35,10 +35,11 @@ const CreateTasksSchema = z.object({
       z.object({
         title: z.string().trim().min(1).max(200),
         description: z.string().nullable(),
-        status: z.literal("todo"),
+        status: z.enum(["todo", "done"]),
         status_id: z.string().uuid().nullable(),
+        column_id: z.string().uuid().nullable(),
         priority: z.enum(["low", "medium", "high", "urgent"]),
-        due_date: z.string().datetime().nullable(),
+        due_date: z.string().datetime(),
         assignee_id: z.string().uuid().nullable(),
         client_id: z.string().uuid().nullable(),
         tag_id: z.string().uuid().nullable(),
@@ -176,11 +177,13 @@ export const createTasksFromAta = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => CreateTasksSchema.parse(data))
   .handler(async ({ data, context }) => {
-    const userId = (context as { userId?: string | null }).userId;
+    const authContext = context as { userId?: string | null; supabase?: any };
+    const userId = authContext.userId;
     if (!userId) throw new Error("Sessão expirada. Entre novamente para criar tarefas.");
-
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const payload = data.tasks.map(({ tag_id, ...task }) => ({ ...task, created_by: userId }));
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // The server client bypasses task RLS; the database trigger preserves this
+    // authenticated user ID when there is no browser auth context.
     const { data: created, error: createError } = await supabaseAdmin
       .from("tasks")
       .insert(payload)

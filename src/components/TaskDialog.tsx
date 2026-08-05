@@ -97,7 +97,7 @@ const storageObjectName = () =>
 
 export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props) {
   const qc = useQueryClient();
-  const { user, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const { data: cols } = useColumns();
   const { data: clients } = useClients();
   const { data: profiles } = useProfiles();
@@ -169,6 +169,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     () => profiles?.find((profile) => profile.id === task?.created_by) ?? null,
     [profiles, task?.created_by],
   );
+  const taskCreatorName =
+    taskCreator?.full_name ||
+    taskCreator?.email ||
+    (task?.created_by === user?.id ? profile?.full_name || user.email : null) ||
+    "Usuário não identificado";
 
   useEffect(() => {
     if (!open) return;
@@ -950,7 +955,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 <div className="pt-1">
                   <Label className="text-xs text-muted-foreground">Criada por</Label>
                   <p className="mt-1 text-sm font-medium">
-                    {taskCreator?.full_name || taskCreator?.email || "Usuário não identificado"}
+                    {taskCreatorName}
                   </p>
                 </div>
               )}
