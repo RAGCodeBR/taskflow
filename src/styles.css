@@ -147,6 +147,15 @@
 .scrollbar-thin::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--muted-foreground) 30%, transparent); border-radius: 999px; }
 
 .kanban-scroll { scrollbar-width: thin; }
+.kanban-top-scroll {
+  height: 18px;
+  scrollbar-width: thin;
+}
+.kanban-top-scroll::-webkit-scrollbar { height: 8px; }
+.kanban-top-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--muted-foreground) 45%, transparent);
+  border-radius: 999px;
+}
 .task-overdue { box-shadow: inset 3px 0 0 var(--destructive); }
 .task-due-soon { box-shadow: inset 3px 0 0 var(--warning); }
 

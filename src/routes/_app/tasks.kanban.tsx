@@ -1224,7 +1224,7 @@ function KanbanPage() {
   };
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <header className="shrink-0 border-b bg-background px-3 py-2">
         <div className="flex items-center justify-end gap-2">
           <div className="flex flex-wrap gap-2">
@@ -1655,6 +1655,42 @@ function KanbanScrollArea({
   children: React.ReactNode;
 }) {
   const mainRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const topScrollContentRef = useRef<HTMLDivElement>(null);
+
+  // A barra nativa do navegador sempre fica no rodapé do elemento rolável.
+  // Esta área auxiliar, acima do quadro, mantém uma barra superior sincronizada.
+  useEffect(() => {
+    const main = mainRef.current;
+    const topScroll = topScrollRef.current;
+    const topScrollContent = topScrollContentRef.current;
+    if (!main || !topScroll || !topScrollContent || orientation !== "horizontal") return;
+
+    const updateTopScrollbar = () => {
+      topScrollContent.style.width = `${main.scrollWidth}px`;
+      topScroll.scrollLeft = main.scrollLeft;
+    };
+    const syncFromMain = () => {
+      topScroll.scrollLeft = main.scrollLeft;
+    };
+    const syncFromTop = () => {
+      main.scrollLeft = topScroll.scrollLeft;
+    };
+
+    updateTopScrollbar();
+    main.addEventListener("scroll", syncFromMain);
+    topScroll.addEventListener("scroll", syncFromTop);
+
+    const resizeObserver = new ResizeObserver(updateTopScrollbar);
+    resizeObserver.observe(main);
+    if (main.firstElementChild) resizeObserver.observe(main.firstElementChild);
+
+    return () => {
+      main.removeEventListener("scroll", syncFromMain);
+      topScroll.removeEventListener("scroll", syncFromTop);
+      resizeObserver.disconnect();
+    };
+  }, [orientation]);
 
   // Wheel vertical → scroll horizontal quando estiver no modo horizontal
   useEffect(() => {
@@ -1683,8 +1719,17 @@ function KanbanScrollArea({
   }, [orientation]);
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div ref={mainRef} className="kanban-scroll flex-1 overflow-x-auto overflow-y-visible p-4">
+    <div className="flex min-h-0 flex-1 flex-col">
+      {orientation === "horizontal" && (
+        <div
+          ref={topScrollRef}
+          className="kanban-top-scroll shrink-0 overflow-x-scroll overflow-y-hidden"
+          aria-label="Rolagem horizontal do Kanban"
+        >
+          <div ref={topScrollContentRef} className="h-px" />
+        </div>
+      )}
+      <div ref={mainRef} className="kanban-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
         {children}
       </div>
     </div>
