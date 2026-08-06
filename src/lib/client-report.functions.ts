@@ -113,12 +113,16 @@ export const generateClientReport = createServerFn({ method: "POST" })
         .replace(/\s+/g, " ")
         .trim();
 
-    const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("id", assigneeIds);
+    // `profiles` is intentionally not readable directly by every authenticated user.
+    // This security-definer function exposes only active users eligible for assignment.
+    const { data: assignableProfiles, error: profilesError } =
+      await supabase.rpc("list_task_assignees");
     if (profilesError) throw profilesError;
-    const profileById = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+    const profileById = new Map(
+      (assignableProfiles ?? [])
+        .filter((profile: any) => assigneeIds.includes(profile.id))
+        .map((profile: any) => [profile.id, profile]),
+    );
     const today = new Date().toISOString().slice(0, 10);
     const isDone = (task: any) => task.status === "done" || Boolean(task.completed_at);
 
