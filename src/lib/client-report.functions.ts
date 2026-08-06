@@ -288,12 +288,14 @@ ${responsavel.tarefas.length ? responsavel.tarefas.map(taskDetailHtml).join("") 
   )
   .join("")}`;
 
-    const prompt = `Produza um Relatório de Atividades em HTML (PT-BR), escrito em primeira pessoa como prestação de contas de cada consultor para o cliente "${client.name}".
+    const createPrompt = (
+      responsavel: any,
+    ) => `Produza um Relatório de Atividades em HTML (PT-BR), escrito em primeira pessoa como prestação de contas do consultor "${responsavel.nome}" para o cliente "${client.name}".
 
 DIRETRIZES:
 - Devolva APENAS HTML (sem markdown, sem \`\`\`).
 - Use somente <h2>, <h3>, <p>, <ul>, <li>, <strong> e <table>.
-- Para CADA responsável, crie um bloco separado: <h2>Relatório de Atividades — NOME</h2>.
+- Este pedido contém dados de UM único consultor. Crie exatamente um bloco: <h2>Relatório de Atividades — ${responsavel.nome}</h2>.
 - Abra com <p><strong>Período:</strong> ...</p>, usando o intervalo de datas que puder ser obtido dos registros. Não invente data quando ela não existir.
 - Em seguida, escreva de 3 a 5 parágrafos narrativos, claros e específicos, no estilo: "Durante o período, realizei...". O texto deve explicar o que o consultor fez, para qual sistema/cliente, e por que a atividade é relevante.
 - Agrupe tarefas relacionadas no mesmo parágrafo quando fizer sentido (por exemplo: importação, integração Sicoob, ajustes de identidade). Cite títulos e datas importantes naturalmente no texto.
@@ -305,20 +307,30 @@ DIRETRIZES:
 - Não invente dados, datas, causas, entregas ou conclusões.
 
 DADOS (JSON):
-${JSON.stringify(payload)}`;
+${JSON.stringify({ client: payload.client, responsavel })}`;
 
-    const geminiRaw = await generateGeminiContent({
-      systemInstruction:
-        "Escreva relatórios de atividades profissionais, naturais e específicos em HTML limpo. Não invente fatos.",
-      parts: [{ text: prompt }],
-      responseMimeType: "text/plain",
-      maxOutputTokens: 3500,
-    });
-    const geminiHtml = geminiRaw
-      .replace(/^```html\s*/i, "")
-      .replace(/```\s*$/i, "")
-      .trim();
-    const html = geminiHtml.length >= 400 ? geminiHtml : fallbackHtml;
+    const individualFallback = (
+      responsavel: any,
+    ) => `<h2>Relatório de Atividades — ${escapeHtml(responsavel.nome)}</h2>
+<p>${responsavel.total} tarefa(s) registradas para este cliente: ${responsavel.concluidas} concluída(s), ${responsavel.pendentes} pendente(s) e ${responsavel.atrasadas} atrasada(s).</p>
+${responsavel.tarefas.length ? responsavel.tarefas.map(taskDetailHtml).join("") : "<p>Nenhuma tarefa atribuída a este consultor.</p>"}`;
+    const reports = await Promise.all(
+      payload.responsaveis.map(async (responsavel: any) => {
+        const geminiRaw = await generateGeminiContent({
+          systemInstruction:
+            "Escreva relatórios de atividades profissionais, naturais e específicos em HTML limpo. Não invente fatos.",
+          parts: [{ text: createPrompt(responsavel) }],
+          responseMimeType: "text/plain",
+          maxOutputTokens: 3000,
+        });
+        const html = geminiRaw
+          .replace(/^```html\s*/i, "")
+          .replace(/```\s*$/i, "")
+          .trim();
+        return html.length >= 400 ? html : individualFallback(responsavel);
+      }),
+    );
+    const html = reports.join("");
     return {
       html,
       stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending },
