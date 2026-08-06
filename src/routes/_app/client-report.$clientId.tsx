@@ -74,7 +74,18 @@ function ClientReportPage() {
     }
     setLoading(true);
     try {
-      const r = await generate({ data: { clientId, assigneeIds } });
+      const r = await generate({
+        data: {
+          clientId,
+          assigneeIds,
+          assigneeNames: Object.fromEntries(
+            selectedAssignees.map((profile) => [
+              profile.id,
+              profile.full_name || profile.email || "Colaborador selecionado",
+            ]),
+          ),
+        },
+      });
       setHtml(r.html);
       setStats(r.stats);
     } catch (e) {

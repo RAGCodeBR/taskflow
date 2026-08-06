@@ -4,20 +4,36 @@ import { generateGeminiContent } from "@/lib/gemini.server";
 
 export const generateClientReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { clientId: string; assigneeIds?: string[] }) => {
-    if (!input?.clientId || typeof input.clientId !== "string")
-      throw new Error("clientId requerido");
-    if (
-      input.assigneeIds !== undefined &&
-      (!Array.isArray(input.assigneeIds) ||
-        input.assigneeIds.some((id) => typeof id !== "string" || !id))
-    )
-      throw new Error("Responsável inválido");
-    return {
-      clientId: input.clientId,
-      assigneeIds: [...new Set(input.assigneeIds ?? [])].slice(0, 20),
-    };
-  })
+  .inputValidator(
+    (input: {
+      clientId: string;
+      assigneeIds?: string[];
+      assigneeNames?: Record<string, string>;
+    }) => {
+      if (!input?.clientId || typeof input.clientId !== "string")
+        throw new Error("clientId requerido");
+      if (
+        input.assigneeIds !== undefined &&
+        (!Array.isArray(input.assigneeIds) ||
+          input.assigneeIds.some((id) => typeof id !== "string" || !id))
+      )
+        throw new Error("Responsável inválido");
+      if (
+        input.assigneeNames !== undefined &&
+        (typeof input.assigneeNames !== "object" || Array.isArray(input.assigneeNames))
+      )
+        throw new Error("Nomes dos responsáveis inválidos");
+      return {
+        clientId: input.clientId,
+        assigneeIds: [...new Set(input.assigneeIds ?? [])].slice(0, 20),
+        assigneeNames: Object.fromEntries(
+          Object.entries(input.assigneeNames ?? {})
+            .filter(([id, name]) => typeof id === "string" && typeof name === "string")
+            .map(([id, name]) => [id, name.trim().slice(0, 160)]),
+        ),
+      };
+    },
+  )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     if (!context.userId) throw new Error("Usuário não autenticado");
@@ -113,16 +129,6 @@ export const generateClientReport = createServerFn({ method: "POST" })
         .replace(/\s+/g, " ")
         .trim();
 
-    // `profiles` is intentionally not readable directly by every authenticated user.
-    // This security-definer function exposes only active users eligible for assignment.
-    const { data: assignableProfiles, error: profilesError } =
-      await supabase.rpc("list_task_assignees");
-    if (profilesError) throw profilesError;
-    const profileById = new Map(
-      (assignableProfiles ?? [])
-        .filter((profile: any) => assigneeIds.includes(profile.id))
-        .map((profile: any) => [profile.id, profile]),
-    );
     const today = new Date().toISOString().slice(0, 10);
     const isDone = (task: any) => task.status === "done" || Boolean(task.completed_at);
 
@@ -134,10 +140,11 @@ export const generateClientReport = createServerFn({ method: "POST" })
       overdue: (tasks ?? []).filter((t: any) => !isDone(t) && t.due_date && t.due_date < today)
         .length,
       responsaveis: assigneeIds.map((assigneeId) => {
-        const profile = profileById.get(assigneeId);
         const assignedTasks = (tasks ?? []).filter((task: any) => task.assignee_id === assigneeId);
         return {
-          nome: profile?.full_name || profile?.email || "Colaborador sem nome",
+          // Names are presentation-only and come from the permitted assignee picker.
+          // Authorization remains based exclusively on the verified ids above.
+          nome: data.assigneeNames[assigneeId] || "Colaborador selecionado",
           total: assignedTasks.length,
           concluidas: assignedTasks.filter(isDone).length,
           pendentes: assignedTasks.filter((task: any) => !isDone(task)).length,
