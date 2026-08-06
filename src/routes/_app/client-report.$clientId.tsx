@@ -63,6 +63,19 @@ function ClientReportPage() {
     setStats(null);
   };
 
+  const selectAllAssignees = () => {
+    setSelectedAssigneeIds(assignableProfiles.map((profile) => profile.id));
+    setHtml("");
+    setStats(null);
+  };
+
+  const selectOnlyCurrentUser = () => {
+    if (!user?.id) return;
+    setSelectedAssigneeIds([user.id]);
+    setHtml("");
+    setStats(null);
+  };
+
   const selectedLabel = selectedAssignees
     .map((profile) => profile.full_name || profile.email || "Usuário sem nome")
     .join(", ");
@@ -148,7 +161,29 @@ function ClientReportPage() {
       <Card className="p-4">
         {isAdmin ? (
           <div className="max-w-xl space-y-2">
-            <p className="text-sm font-medium">Responsáveis</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">Responsáveis</p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={selectAllAssignees}
+                  disabled={!assignableProfiles.length || selectedAssignees.length === assignableProfiles.length}
+                >
+                  Selecionar todos
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={selectOnlyCurrentUser}
+                  disabled={selectedAssignees.length === 1 && selectedAssignees[0]?.id === user?.id}
+                >
+                  Somente eu
+                </Button>
+              </div>
+            </div>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full justify-between font-normal">
