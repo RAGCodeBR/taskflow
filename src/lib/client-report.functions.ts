@@ -288,58 +288,37 @@ ${responsavel.tarefas.length ? responsavel.tarefas.map(taskDetailHtml).join("") 
   )
   .join("")}`;
 
-    // A fixed task-by-task format keeps the report auditable and prevents the AI
-    // from condensing separate tasks into an ambiguous executive summary.
-    return {
-      html: fallbackHtml,
-      stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending },
-    };
-
-    const prompt = `Você é um consultor sênior de operações. Produza um RELATÓRIO CONSULTIVO, detalhado e profissional em HTML (PT-BR) sobre as tarefas do cliente "${client.name}", agrupadas por responsável.
+    const prompt = `Produza um Relatório de Atividades em HTML (PT-BR), escrito em primeira pessoa como prestação de contas de cada consultor para o cliente "${client.name}".
 
 DIRETRIZES:
 - Devolva APENAS HTML (sem markdown, sem \`\`\`).
-- Use <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <table>, <thead>, <tbody>, <tr>, <th>, <td>.
-- Comece por <h2>Visão geral</h2> com uma leitura consolidada e uma tabela de indicadores gerais.
-- Para CADA responsável, crie <h2>Relatório — NOME</h2>, uma tabela de indicadores individuais e analise TODAS as suas tarefas. Não misture os responsáveis.
-- Para cada tarefa, use <h3>NOME DA TAREFA</h3> e cubra claramente, usando subtítulos em <p><strong>…</strong></p> e listas quando necessário:
-  * Situação e prazo: status, prioridade, prazo, conclusão e se está atrasada; só diga que há atraso quando o campo atrasada for verdadeiro.
-  * O que foi feito: entregas e subtarefas concluídas, com base estrita nos dados.
-  * Conclusões: o que efetivamente foi concluído ou validado. Se não houver conclusão registrada, diga isso de forma objetiva.
-  * Pendências e encaminhamentos: tarefas/subtarefas abertas e o que precisa ocorrer para avançar, sem sugerir ações genéricas.
-  * Leitura consultiva: risco, dependência ou impacto apenas quando estiver fundamentado em prazo, pendência, descrição, seções ou mudanças de prazo.
-  * Mudanças de prazo: registre alterações e motivos existentes; se não houver, não invente justificativas.
-- Quando um responsável não tiver tarefas, informe isso em seu bloco.
-- Este é um relatório por tarefa: não faça apenas um resumo e não omita tarefas por parecerem menos relevantes.
-- A entrega só é válida se houver exatamente um bloco <h3> para CADA tarefa presente nos dados. Cada bloco precisa ter no mínimo 6 parágrafos/seções: Contexto, Situação e prazo, O que foi feito, Conclusões, Pendências e encaminhamentos, Leitura consultiva e Mudanças de prazo.
-- Não resuma blocos de tarefas diferentes no mesmo parágrafo. Priorize completude sobre concisão.
-- Não inclua uma seção genérica de "Insights e recomendações" ao final.
-- Não invente dados, datas, causas, entregas ou conclusões. Se um campo estiver vazio, diga somente o que os dados permitem.
-- Use tom consultivo, preciso e direto, sem jargão desnecessário.
+- Use somente <h2>, <h3>, <p>, <ul>, <li>, <strong> e <table>.
+- Para CADA responsável, crie um bloco separado: <h2>Relatório de Atividades — NOME</h2>.
+- Abra com <p><strong>Período:</strong> ...</p>, usando o intervalo de datas que puder ser obtido dos registros. Não invente data quando ela não existir.
+- Em seguida, escreva de 3 a 5 parágrafos narrativos, claros e específicos, no estilo: "Durante o período, realizei...". O texto deve explicar o que o consultor fez, para qual sistema/cliente, e por que a atividade é relevante.
+- Agrupe tarefas relacionadas no mesmo parágrafo quando fizer sentido (por exemplo: importação, integração Sicoob, ajustes de identidade). Cite títulos e datas importantes naturalmente no texto.
+- Inclua subtarefas concluídas como entregas concretas, não como uma lista técnica solta.
+- Depois do texto, use <h3>Pendências em aberto</h3> com uma lista apenas das tarefas ou subtarefas que ainda não foram concluídas. Se não houver, diga que não há pendências registradas.
+- Use <h3>Mudanças de prazo</h3> e liste somente alterações registradas, com data anterior, nova data e motivo quando houver. Se não houver, diga isso uma única vez.
+- Feche com um parágrafo curto de síntese: o que ficou concluído e o que permanece em acompanhamento.
+- Não faça seção de insights genéricos, não repita status técnicos e não gere uma ficha por tarefa. A prioridade é uma narrativa profissional, fácil de ler e fiel às atividades registradas.
+- Não invente dados, datas, causas, entregas ou conclusões.
 
 DADOS (JSON):
 ${JSON.stringify(payload)}`;
 
     const geminiRaw = await generateGeminiContent({
       systemInstruction:
-        "Produza relatórios consultivos detalhados em HTML limpo, sem inventar dados.",
+        "Escreva relatórios de atividades profissionais, naturais e específicos em HTML limpo. Não invente fatos.",
       parts: [{ text: prompt }],
       responseMimeType: "text/plain",
-      maxOutputTokens: 5000,
+      maxOutputTokens: 3500,
     });
     const geminiHtml = geminiRaw
       .replace(/^```html\s*/i, "")
       .replace(/```\s*$/i, "")
       .trim();
-    const expectedTaskCount = payload.responsaveis.reduce(
-      (total: number, responsavel: any) => total + responsavel.tarefas.length,
-      0,
-    );
-    const generatedTaskCount = (geminiHtml.match(/<h3\b/gi) ?? []).length;
-    const html =
-      generatedTaskCount >= expectedTaskCount && geminiHtml.length >= expectedTaskCount * 700
-        ? geminiHtml
-        : fallbackHtml;
+    const html = geminiHtml.length >= 400 ? geminiHtml : fallbackHtml;
     return {
       html,
       stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending },
