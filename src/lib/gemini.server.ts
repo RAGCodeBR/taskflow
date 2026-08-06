@@ -9,6 +9,7 @@ type GenerateGeminiInput = {
   systemInstruction: string;
   parts: GeminiPart[];
   responseMimeType?: "text/plain" | "application/json";
+  maxOutputTokens?: number;
 };
 
 function loadEnvFile() {
@@ -53,6 +54,7 @@ export async function generateGeminiContent({
   systemInstruction,
   parts,
   responseMimeType = "text/plain",
+  maxOutputTokens,
 }: GenerateGeminiInput) {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -77,6 +79,7 @@ export async function generateGeminiContent({
         config: {
           systemInstruction,
           responseMimeType,
+          ...(maxOutputTokens ? { maxOutputTokens } : {}),
         },
       });
       break;
