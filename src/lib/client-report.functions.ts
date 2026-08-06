@@ -225,87 +225,75 @@ export const generateClientReport = createServerFn({ method: "POST" })
       const [year, month, day] = value.slice(0, 10).split("-");
       return year && month && day ? `${day}/${month}/${year}` : value;
     };
+    const list = (items: string[], empty: string) =>
+      items.length
+        ? `<ul>${items.map((item) => `<li>${item}</li>`).join("")}</ul>`
+        : `<p>${empty}</p>`;
     const taskDetailHtml = (task: any) => {
       const subtasks = [
         ...task.subtarefas_raiz,
         ...task.secoes.flatMap((section: any) => section.subtarefas),
       ];
-      const completedSubtasks = subtasks.filter((subtask: any) => subtask.feita);
-      const pendingSubtasks = subtasks.filter((subtask: any) => !subtask.feita);
-      const notes = task.secoes.filter((section: any) => section.corpo || section.titulo);
+      const completed = subtasks.filter((subtask: any) => subtask.feita);
+      const pending = subtasks.filter((subtask: any) => !subtask.feita);
       const deadlineChanges = [
         ...task.mudancas_prazo,
         ...subtasks.flatMap((subtask: any) => subtask.mudancas_prazo),
       ];
-      const completedItems = completedSubtasks.length
-        ? `<ul>${completedSubtasks
-            .map(
-              (subtask: any) =>
-                `<li>${escapeHtml(subtask.titulo)}${subtask.concluida_em ? ` — concluída em ${formatDate(subtask.concluida_em)}` : ""}</li>`,
-            )
-            .join("")}</ul>`
-        : "<p>Não há subtarefas concluídas registradas para esta tarefa.</p>";
-      const pendingItems = pendingSubtasks.length
-        ? `<ul>${pendingSubtasks
-            .map(
-              (subtask: any) =>
-                `<li>${escapeHtml(subtask.titulo)}${subtask.prazo ? ` — prazo ${formatDate(subtask.prazo)}` : ""}</li>`,
-            )
-            .join("")}</ul>`
-        : task.status === "done" || task.concluida_em
-          ? "<p>Não há pendências registradas nas subtarefas.</p>"
-          : "<p>A tarefa segue aberta; não há subtarefas pendentes detalhadas no registro.</p>";
-      const context = task.descricao
-        ? `<p>${escapeHtml(task.descricao)}</p>`
-        : "<p>Não há descrição registrada para contextualizar esta tarefa.</p>";
-      const notesHtml = notes.length
-        ? `<ul>${notes
-            .map(
-              (section: any) =>
-                `<li><strong>${escapeHtml(section.titulo || "Registro de acompanhamento")}</strong>${section.corpo ? `: ${escapeHtml(section.corpo)}` : ""}</li>`,
-            )
-            .join("")}</ul>`
-        : "<p>Não há apontamentos complementares registrados.</p>";
-      const changeHtml = deadlineChanges.length
-        ? `<ul>${deadlineChanges
-            .map(
-              (change: any) =>
-                `<li>${formatDate(change.de)} → ${formatDate(change.para)}${change.motivo ? `: ${escapeHtml(change.motivo)}` : ""}</li>`,
-            )
-            .join("")}</ul>`
-        : "<p>Não houve alteração de prazo registrada.</p>";
-      const consultiveReading = task.atrasada
-        ? "A tarefa está em atraso; a pendência merece priorização e acompanhamento até a conclusão."
-        : pendingSubtasks.length
-          ? "Há etapas em aberto registradas. O avanço depende da conclusão dessas pendências."
-          : task.status === "done" || task.concluida_em
-            ? "O registro indica encerramento da tarefa, sem pendências de subtarefas identificadas."
-            : "A tarefa permanece aberta. Como não há detalhamento adicional, o próximo avanço depende de atualização no próprio registro.";
-      const conclusion =
-        task.status === "done" || task.concluida_em
-          ? `A tarefa está registrada como concluída${task.concluida_em ? ` em ${formatDate(task.concluida_em)}` : ""}.`
-          : "Não há conclusão registrada para esta tarefa até o momento.";
-
+      const doneItems = [
+        ...(task.status === "done" || task.concluida_em
+          ? [`Tarefa concluída${task.concluida_em ? ` em ${formatDate(task.concluida_em)}` : ""}.`]
+          : []),
+        ...completed.map(
+          (subtask: any) =>
+            `${escapeHtml(subtask.titulo)}${subtask.concluida_em ? ` (${formatDate(subtask.concluida_em)})` : ""}`,
+        ),
+        ...task.secoes
+          .filter((section: any) => section.corpo)
+          .map(
+            (section: any) =>
+              `${escapeHtml(section.titulo || "Registro")}: ${escapeHtml(section.corpo)}`,
+          ),
+      ];
+      const pendingItems = [
+        ...(task.status === "done" || task.concluida_em
+          ? []
+          : ["Conclusão da tarefa ainda não registrada."]),
+        ...pending.map(
+          (subtask: any) =>
+            `${escapeHtml(subtask.titulo)}${subtask.prazo ? ` — prazo ${formatDate(subtask.prazo)}` : ""}`,
+        ),
+      ];
       return `<h3>${escapeHtml(task.titulo)}</h3>
-<p><strong>Contexto:</strong></p>${context}
-<p><strong>Situação e prazo:</strong> ${escapeHtml(task.status || "não informado")}; prioridade ${escapeHtml(task.prioridade || "não informada")}; prazo ${formatDate(task.prazo)}${task.concluida_em ? `; conclusão em ${formatDate(task.concluida_em)}` : ""}${task.atrasada ? "; em atraso" : ""}.</p>
-<p><strong>O que foi feito:</strong></p>${completedItems}
-<p><strong>Registros de acompanhamento:</strong></p>${notesHtml}
-<p><strong>Conclusões:</strong> ${conclusion}</p>
-<p><strong>Pendências e encaminhamentos:</strong></p>${pendingItems}
-<p><strong>Leitura consultiva:</strong> ${consultiveReading}</p>
-<p><strong>Mudanças de prazo:</strong></p>${changeHtml}`;
+<table><tbody><tr><th>Status</th><td>${escapeHtml(task.status || "Não informado")}${task.atrasada ? " — Em atraso" : ""}</td><th>Prazo</th><td>${formatDate(task.prazo)}</td></tr><tr><th>Prioridade</th><td>${escapeHtml(task.prioridade || "Não informada")}</td><th>Conclusão</th><td>${formatDate(task.concluida_em)}</td></tr></tbody></table>
+${task.descricao ? `<p><strong>Escopo:</strong> ${escapeHtml(task.descricao)}</p>` : ""}
+<p><strong>O que foi feito</strong></p>${list(doneItems, "Nenhuma entrega registrada.")}
+<p><strong>Pendências</strong></p>${list(pendingItems, "Nenhuma pendência registrada.")}
+<p><strong>Mudanças de prazo</strong></p>${list(
+        deadlineChanges.map(
+          (change: any) =>
+            `${formatDate(change.de)} → ${formatDate(change.para)}${change.motivo ? `: ${escapeHtml(change.motivo)}` : ""}`,
+        ),
+        "Nenhuma mudança de prazo registrada.",
+      )}`;
     };
     const fallbackHtml = `<h2>Visão geral</h2>
 <p>Este relatório consolida ${payload.total_tasks} tarefa(s) do cliente ${escapeHtml(client.name)}: ${payload.done} concluída(s), ${payload.pending} pendente(s) e ${payload.overdue} em atraso.</p>
 <table><thead><tr><th>Total</th><th>Concluídas</th><th>Pendentes</th><th>Atrasadas</th></tr></thead><tbody><tr><td>${payload.total_tasks}</td><td>${payload.done}</td><td>${payload.pending}</td><td>${payload.overdue}</td></tr></tbody></table>
 ${payload.responsaveis
   .map(
-    (responsavel: any) => `<h2>Relatório — ${escapeHtml(responsavel.nome)}</h2>
-<table><thead><tr><th>Total</th><th>Concluídas</th><th>Pendentes</th><th>Atrasadas</th></tr></thead><tbody><tr><td>${responsavel.total}</td><td>${responsavel.concluidas}</td><td>${responsavel.pendentes}</td><td>${responsavel.atrasadas}</td></tr></tbody></table>
-${responsavel.tarefas.length ? responsavel.tarefas.map(taskDetailHtml).join("") : "<p>Não há tarefas atribuídas a este responsável para este cliente.</p>"}`,
+    (responsavel: any) => `<h2>Consultor — ${escapeHtml(responsavel.nome)}</h2>
+<p>${responsavel.total} tarefa(s): ${responsavel.concluidas} concluída(s), ${responsavel.pendentes} pendente(s) e ${responsavel.atrasadas} atrasada(s).</p>
+${responsavel.tarefas.length ? responsavel.tarefas.map(taskDetailHtml).join("") : "<p>Nenhuma tarefa atribuída a este consultor.</p>"}`,
   )
   .join("")}`;
+
+    // A fixed task-by-task format keeps the report auditable and prevents the AI
+    // from condensing separate tasks into an ambiguous executive summary.
+    return {
+      html: fallbackHtml,
+      stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending },
+    };
 
     const prompt = `Você é um consultor sênior de operações. Produza um RELATÓRIO CONSULTIVO, detalhado e profissional em HTML (PT-BR) sobre as tarefas do cliente "${client.name}", agrupadas por responsável.
 
