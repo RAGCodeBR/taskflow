@@ -1261,7 +1261,6 @@ export function TaskCard({
                       className="text-sm leading-snug md:text-sm"
                       onChange={setDescDraft}
                       onBlur={() => void saveDesc()}
-                      onSubmit={() => void saveDesc()}
                     />
                   </div>
                 ) : task.description ? (
@@ -1402,9 +1401,8 @@ export function TaskCard({
                                             value={subtaskDraft}
                                             onChange={setSubtaskDraft}
                                             onBlur={() => void saveSubtaskTitle()}
-                                            onSubmit={() => void saveSubtaskTitle()}
                                             autoFocus
-                                            placeholder="Escreva… (Enter para salvar)"
+                                            placeholder="Escreva…"
                                             minHeight={40}
                                           />
                                         </div>

@@ -985,7 +985,7 @@ function KanbanPage() {
         .eq("task_id", task.id);
       if (subs && subs.length > 0) {
         await supabase.from("subtasks").insert(
-          subs.map((s) => ({
+          subs.map((s: { title: string; done: boolean; position: number }) => ({
             task_id: newTaskId,
             title: s.title,
             done: s.done,
@@ -1002,7 +1002,7 @@ function KanbanPage() {
       if (coms && coms.length > 0) {
         await supabase
           .from("comments")
-          .insert(coms.map((c) => ({ task_id: newTaskId, body: c.body, author_id: c.author_id })));
+          .insert(coms.map((c: { body: string; author_id: string | null }) => ({ task_id: newTaskId, body: c.body, author_id: c.author_id })));
       }
 
       // 4. Copiar tags
@@ -1013,7 +1013,7 @@ function KanbanPage() {
       if (tagLinks && tagLinks.length > 0) {
         await supabase
           .from("task_tag_links")
-          .insert(tagLinks.map((t) => ({ task_id: newTaskId, tag_id: t.tag_id })));
+          .insert(tagLinks.map((t: { tag_id: string }) => ({ task_id: newTaskId, tag_id: t.tag_id })));
       }
 
       // 5. Copiar anexos (arquivos no storage também)

@@ -177,8 +177,7 @@ export const createTasksFromAta = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => CreateTasksSchema.parse(data))
   .handler(async ({ data, context }) => {
-    const authContext = context as { userId?: string | null; supabase?: any };
-    const userId = authContext.userId;
+    const userId = context?.userId;
     if (!userId) throw new Error("Sessão expirada. Entre novamente para criar tarefas.");
     const payload = data.tasks.map(({ tag_id, ...task }) => ({ ...task, created_by: userId }));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

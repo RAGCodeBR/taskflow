@@ -16,7 +16,13 @@ function createFallbackSupabaseAuthClient() {
   } as any;
 }
 
-export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(
+type AuthContext = {
+  supabase: any;
+  userId: string | null;
+  claims: any;
+};
+
+export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server<AuthContext>(
   async ({ next }) => {
     
     const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -24,7 +30,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
 
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       console.warn('[Supabase] Missing credentials. Bypassing auth middleware for local development.');
-      return next({
+      return next<AuthContext>({
         context: {
           supabase: createFallbackSupabaseAuthClient(),
           userId: null,
@@ -80,7 +86,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: No user ID found in token');
     }
 
-    return next({
+    return next<AuthContext>({
       context: {
         supabase,
         userId: data.claims.sub,

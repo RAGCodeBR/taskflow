@@ -105,7 +105,7 @@ function ReportsPage() {
   // Client accounts can access the portal, but are never collaborators and
   // therefore must not be included in user report filters, charts or tables.
   const clientUserIds = new Set(
-    roles.filter((role) => role.role === "client").map((role) => role.user_id),
+    roles.filter((role: { role: string }) => role.role === "client").map((role: { user_id: string }) => role.user_id),
   );
   const visibleProfiles = profiles.filter(matchesStatus).filter((profile) => !clientUserIds.has(profile.id));
   const visibleIds = new Set(visibleProfiles.map((p) => p.id));
@@ -129,7 +129,7 @@ function ReportsPage() {
   const sumSubtasks = (taskList: any[]) => {
     let total = 0,
       done = 0;
-    taskList.forEach((t) => {
+    taskList.forEach((t: { id: string }) => {
       const s = subtasksByTask.get(t.id);
       if (s) {
         total += s.total;
@@ -157,7 +157,7 @@ function ReportsPage() {
       (t) =>
         t.due_date && t.completed_at && !isAfter(parseISO(t.completed_at), parseISO(t.due_date)),
     ).length;
-    const isAdminRole = roles.some((r) => r.user_id === p.id && r.role === "admin");
+    const isAdminRole = roles.some((r: { user_id: string; role: string }) => r.user_id === p.id && r.role === "admin");
     const sub = sumSubtasks(userTasks);
     return {
       id: p.id,

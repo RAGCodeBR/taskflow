@@ -88,7 +88,7 @@ export const generateClientReport = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false });
     if (tErr) throw tErr;
 
-    const taskIds = (tasks ?? []).map((t) => t.id);
+    const taskIds = (tasks ?? []).map((t: { id: string }) => t.id);
     const [{ data: subs }, { data: notes }, { data: dueChanges }] = await Promise.all([
       taskIds.length
         ? supabase

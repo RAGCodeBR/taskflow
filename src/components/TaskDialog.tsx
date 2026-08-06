@@ -172,7 +172,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const taskCreatorName =
     taskCreator?.full_name ||
     taskCreator?.email ||
-    (task?.created_by === user?.id ? profile?.full_name || user.email : null) ||
+    (task?.created_by === user?.id ? profile?.full_name || user?.email : null) ||
     "Usuário não identificado";
 
   useEffect(() => {

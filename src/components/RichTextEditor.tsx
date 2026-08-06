@@ -53,7 +53,6 @@ interface Props {
   value: string;
   onChange: (html: string) => void;
   onBlur?: () => void;
-  onSubmit?: () => void;
   autoFocus?: boolean;
   placeholder?: string;
   className?: string;
@@ -186,7 +185,6 @@ export function RichTextEditor({
   value,
   onChange,
   onBlur,
-  onSubmit,
   autoFocus,
   placeholder,
   className,
@@ -208,14 +206,6 @@ export function RichTextEditor({
           className,
         ),
         style: `min-height:${minHeight}px;`,
-      },
-      handleKeyDown: (_view, event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          onSubmit?.();
-          return true;
-        }
-        return false;
       },
     },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),

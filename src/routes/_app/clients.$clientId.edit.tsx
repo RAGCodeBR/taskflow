@@ -208,6 +208,10 @@ function EditClientPage() {
   }, [employees]);
 
   const save = async () => {
+    if (!client) {
+      toast.error("Cliente nÃ£o encontrado.");
+      return;
+    }
     const name = tradeName.trim() || legalName.trim() || client?.name;
     if (!name) {
       toast.error("Preencha o Nome fantasia ou a Razão social.");
@@ -1438,10 +1442,10 @@ function parseSalary(value: string) {
   return Number.isFinite(salary) ? salary : null;
 }
 
-function formatSalary(value: string | number) {
+function formatSalary(value: string | number): string {
   const salary = typeof value === "number" ? value : parseSalary(value);
   return salary === null
-    ? value
+    ? String(value)
     : new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(salary);
 }
 

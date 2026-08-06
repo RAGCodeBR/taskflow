@@ -331,7 +331,7 @@ function UsersPage() {
   });
   const profilesWithEmails = useMemo(
     () => {
-      const emailsById = new Map(profileEmails.map((item) => [item.id, item.email]));
+      const emailsById = new Map(profileEmails.map((item: { id: string; email: string | null }) => [item.id, item.email]));
       return profiles.map((profile) => ({ ...profile, email: emailsById.get(profile.id) ?? null }));
     },
     [profiles, profileEmails],
