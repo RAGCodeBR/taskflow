@@ -213,6 +213,100 @@ export const generateClientReport = createServerFn({ method: "POST" })
       }),
     };
 
+    const escapeHtml = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    const formatDate = (value: string | null | undefined) => {
+      if (!value) return "não registrado";
+      const [year, month, day] = value.slice(0, 10).split("-");
+      return year && month && day ? `${day}/${month}/${year}` : value;
+    };
+    const taskDetailHtml = (task: any) => {
+      const subtasks = [
+        ...task.subtarefas_raiz,
+        ...task.secoes.flatMap((section: any) => section.subtarefas),
+      ];
+      const completedSubtasks = subtasks.filter((subtask: any) => subtask.feita);
+      const pendingSubtasks = subtasks.filter((subtask: any) => !subtask.feita);
+      const notes = task.secoes.filter((section: any) => section.corpo || section.titulo);
+      const deadlineChanges = [
+        ...task.mudancas_prazo,
+        ...subtasks.flatMap((subtask: any) => subtask.mudancas_prazo),
+      ];
+      const completedItems = completedSubtasks.length
+        ? `<ul>${completedSubtasks
+            .map(
+              (subtask: any) =>
+                `<li>${escapeHtml(subtask.titulo)}${subtask.concluida_em ? ` — concluída em ${formatDate(subtask.concluida_em)}` : ""}</li>`,
+            )
+            .join("")}</ul>`
+        : "<p>Não há subtarefas concluídas registradas para esta tarefa.</p>";
+      const pendingItems = pendingSubtasks.length
+        ? `<ul>${pendingSubtasks
+            .map(
+              (subtask: any) =>
+                `<li>${escapeHtml(subtask.titulo)}${subtask.prazo ? ` — prazo ${formatDate(subtask.prazo)}` : ""}</li>`,
+            )
+            .join("")}</ul>`
+        : task.status === "done" || task.concluida_em
+          ? "<p>Não há pendências registradas nas subtarefas.</p>"
+          : "<p>A tarefa segue aberta; não há subtarefas pendentes detalhadas no registro.</p>";
+      const context = task.descricao
+        ? `<p>${escapeHtml(task.descricao)}</p>`
+        : "<p>Não há descrição registrada para contextualizar esta tarefa.</p>";
+      const notesHtml = notes.length
+        ? `<ul>${notes
+            .map(
+              (section: any) =>
+                `<li><strong>${escapeHtml(section.titulo || "Registro de acompanhamento")}</strong>${section.corpo ? `: ${escapeHtml(section.corpo)}` : ""}</li>`,
+            )
+            .join("")}</ul>`
+        : "<p>Não há apontamentos complementares registrados.</p>";
+      const changeHtml = deadlineChanges.length
+        ? `<ul>${deadlineChanges
+            .map(
+              (change: any) =>
+                `<li>${formatDate(change.de)} → ${formatDate(change.para)}${change.motivo ? `: ${escapeHtml(change.motivo)}` : ""}</li>`,
+            )
+            .join("")}</ul>`
+        : "<p>Não houve alteração de prazo registrada.</p>";
+      const consultiveReading = task.atrasada
+        ? "A tarefa está em atraso; a pendência merece priorização e acompanhamento até a conclusão."
+        : pendingSubtasks.length
+          ? "Há etapas em aberto registradas. O avanço depende da conclusão dessas pendências."
+          : task.status === "done" || task.concluida_em
+            ? "O registro indica encerramento da tarefa, sem pendências de subtarefas identificadas."
+            : "A tarefa permanece aberta. Como não há detalhamento adicional, o próximo avanço depende de atualização no próprio registro.";
+      const conclusion =
+        task.status === "done" || task.concluida_em
+          ? `A tarefa está registrada como concluída${task.concluida_em ? ` em ${formatDate(task.concluida_em)}` : ""}.`
+          : "Não há conclusão registrada para esta tarefa até o momento.";
+
+      return `<h3>${escapeHtml(task.titulo)}</h3>
+<p><strong>Contexto:</strong></p>${context}
+<p><strong>Situação e prazo:</strong> ${escapeHtml(task.status || "não informado")}; prioridade ${escapeHtml(task.prioridade || "não informada")}; prazo ${formatDate(task.prazo)}${task.concluida_em ? `; conclusão em ${formatDate(task.concluida_em)}` : ""}${task.atrasada ? "; em atraso" : ""}.</p>
+<p><strong>O que foi feito:</strong></p>${completedItems}
+<p><strong>Registros de acompanhamento:</strong></p>${notesHtml}
+<p><strong>Conclusões:</strong> ${conclusion}</p>
+<p><strong>Pendências e encaminhamentos:</strong></p>${pendingItems}
+<p><strong>Leitura consultiva:</strong> ${consultiveReading}</p>
+<p><strong>Mudanças de prazo:</strong></p>${changeHtml}`;
+    };
+    const fallbackHtml = `<h2>Visão geral</h2>
+<p>Este relatório consolida ${payload.total_tasks} tarefa(s) do cliente ${escapeHtml(client.name)}: ${payload.done} concluída(s), ${payload.pending} pendente(s) e ${payload.overdue} em atraso.</p>
+<table><thead><tr><th>Total</th><th>Concluídas</th><th>Pendentes</th><th>Atrasadas</th></tr></thead><tbody><tr><td>${payload.total_tasks}</td><td>${payload.done}</td><td>${payload.pending}</td><td>${payload.overdue}</td></tr></tbody></table>
+${payload.responsaveis
+  .map(
+    (responsavel: any) => `<h2>Relatório — ${escapeHtml(responsavel.nome)}</h2>
+<table><thead><tr><th>Total</th><th>Concluídas</th><th>Pendentes</th><th>Atrasadas</th></tr></thead><tbody><tr><td>${responsavel.total}</td><td>${responsavel.concluidas}</td><td>${responsavel.pendentes}</td><td>${responsavel.atrasadas}</td></tr></tbody></table>
+${responsavel.tarefas.length ? responsavel.tarefas.map(taskDetailHtml).join("") : "<p>Não há tarefas atribuídas a este responsável para este cliente.</p>"}`,
+  )
+  .join("")}`;
+
     const prompt = `Você é um consultor sênior de operações. Produza um RELATÓRIO CONSULTIVO, detalhado e profissional em HTML (PT-BR) sobre as tarefas do cliente "${client.name}", agrupadas por responsável.
 
 DIRETRIZES:
@@ -229,6 +323,8 @@ DIRETRIZES:
   * Mudanças de prazo: registre alterações e motivos existentes; se não houver, não invente justificativas.
 - Quando um responsável não tiver tarefas, informe isso em seu bloco.
 - Este é um relatório por tarefa: não faça apenas um resumo e não omita tarefas por parecerem menos relevantes.
+- A entrega só é válida se houver exatamente um bloco <h3> para CADA tarefa presente nos dados. Cada bloco precisa ter no mínimo 6 parágrafos/seções: Contexto, Situação e prazo, O que foi feito, Conclusões, Pendências e encaminhamentos, Leitura consultiva e Mudanças de prazo.
+- Não resuma blocos de tarefas diferentes no mesmo parágrafo. Priorize completude sobre concisão.
 - Não inclua uma seção genérica de "Insights e recomendações" ao final.
 - Não invente dados, datas, causas, entregas ou conclusões. Se um campo estiver vazio, diga somente o que os dados permitem.
 - Use tom consultivo, preciso e direto, sem jargão desnecessário.
@@ -247,8 +343,17 @@ ${JSON.stringify(payload)}`;
       .replace(/^```html\s*/i, "")
       .replace(/```\s*$/i, "")
       .trim();
+    const expectedTaskCount = payload.responsaveis.reduce(
+      (total: number, responsavel: any) => total + responsavel.tarefas.length,
+      0,
+    );
+    const generatedTaskCount = (geminiHtml.match(/<h3\b/gi) ?? []).length;
+    const html =
+      generatedTaskCount >= expectedTaskCount && geminiHtml.length >= expectedTaskCount * 700
+        ? geminiHtml
+        : fallbackHtml;
     return {
-      html: geminiHtml,
+      html,
       stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending },
     };
   });
