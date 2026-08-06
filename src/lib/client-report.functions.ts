@@ -4,12 +4,19 @@ import { generateGeminiContent } from "@/lib/gemini.server";
 
 export const generateClientReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { clientId: string; assigneeId?: string }) => {
+  .inputValidator((input: { clientId: string; assigneeIds?: string[] }) => {
     if (!input?.clientId || typeof input.clientId !== "string")
       throw new Error("clientId requerido");
-    if (input.assigneeId !== undefined && typeof input.assigneeId !== "string")
+    if (
+      input.assigneeIds !== undefined &&
+      (!Array.isArray(input.assigneeIds) ||
+        input.assigneeIds.some((id) => typeof id !== "string" || !id))
+    )
       throw new Error("Responsável inválido");
-    return { clientId: input.clientId, assigneeId: input.assigneeId };
+    return {
+      clientId: input.clientId,
+      assigneeIds: [...new Set(input.assigneeIds ?? [])].slice(0, 20),
+    };
   })
   .handler(async ({ data, context }) => {
     const { supabase } = context;
@@ -23,18 +30,27 @@ export const generateClientReport = createServerFn({ method: "POST" })
 
     const isAdmin = callerRoles?.some((item: { role: string }) => item.role === "admin") ?? false;
     // A collaborator can never broaden this query through a manually crafted request.
-    const assigneeId = isAdmin ? data.assigneeId || context.userId : context.userId;
+    const assigneeIds = isAdmin
+      ? data.assigneeIds.length
+        ? data.assigneeIds
+        : [context.userId]
+      : [context.userId];
 
-    if (isAdmin && data.assigneeId && data.assigneeId !== context.userId) {
+    if (isAdmin) {
       const { data: targetRoles, error: targetRoleError } = await supabase
         .from("user_roles")
-        .select("role")
-        .eq("user_id", assigneeId);
+        .select("user_id, role")
+        .in("user_id", assigneeIds);
       if (targetRoleError) throw targetRoleError;
-      const isEligible = targetRoles?.some(
-        (item: { role: string }) => item.role === "admin" || item.role === "collaborator",
+      const eligibleIds = new Set(
+        targetRoles
+          ?.filter(
+            (item: { role: string }) => item.role === "admin" || item.role === "collaborator",
+          )
+          .map((item: { user_id: string }) => item.user_id),
       );
-      if (!isEligible) throw new Error("Selecione um administrador ou colaborador válido.");
+      if (assigneeIds.some((id) => !eligibleIds.has(id)))
+        throw new Error("Selecione apenas administradores ou colaboradores válidos.");
     }
 
     const { data: client, error: cErr } = await supabase
@@ -51,17 +67,13 @@ export const generateClientReport = createServerFn({ method: "POST" })
         "id, title, description, status, priority, due_date, completed_at, created_at, updated_at, assignee_id",
       )
       .eq("client_id", data.clientId)
-      .eq("assignee_id", assigneeId)
+      .in("assignee_id", assigneeIds)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (tErr) throw tErr;
 
     const taskIds = (tasks ?? []).map((t) => t.id);
-    const [
-      { data: subs },
-      { data: notes },
-      { data: dueChanges },
-    ] = await Promise.all([
+    const [{ data: subs }, { data: notes }, { data: dueChanges }] = await Promise.all([
       taskIds.length
         ? supabase
             .from("subtasks")
@@ -101,97 +113,124 @@ export const generateClientReport = createServerFn({ method: "POST" })
         .replace(/\s+/g, " ")
         .trim();
 
-    // Keep the request focused on one person's work. This keeps the report scoped
-    // correctly and materially reduces the prompt size sent to Gemini.
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", assigneeIds);
+    if (profilesError) throw profilesError;
+    const profileById = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+    const today = new Date().toISOString().slice(0, 10);
+    const isDone = (task: any) => task.status === "done" || Boolean(task.completed_at);
+
     const payload = {
       client: { name: client.name, description: client.description ?? "" },
       total_tasks: tasks?.length ?? 0,
-      done: (tasks ?? []).filter((t: any) => t.status === "done" || t.completed_at).length,
-      pending: (tasks ?? []).filter((t: any) => t.status !== "done" && !t.completed_at).length,
-      tasks: (tasks ?? []).map((t: any) => {
-        const taskSubs = (subs ?? []).filter((s: any) => s.task_id === t.id);
-        const taskNotes = (notes ?? []).filter((n: any) => n.task_id === t.id);
-        const secoes = taskNotes.map((n: any) => ({
-          titulo: n.title ?? "",
-          corpo: stripHtml(n.body).slice(0, 600),
-          criada_em: n.created_at,
-          subtarefas: taskSubs
-            .filter((s: any) => s.comment_id === n.id)
-            .map((s: any) => ({
-              titulo: stripHtml(s.title),
-              feita: s.done,
-              concluida_em: s.completed_at,
-              prazo: s.due_date,
-              mudancas_prazo: (subDueChanges ?? [])
-                .filter((c: any) => c.subtask_id === s.id)
+      done: (tasks ?? []).filter(isDone).length,
+      pending: (tasks ?? []).filter((t: any) => !isDone(t)).length,
+      overdue: (tasks ?? []).filter((t: any) => !isDone(t) && t.due_date && t.due_date < today)
+        .length,
+      responsaveis: assigneeIds.map((assigneeId) => {
+        const profile = profileById.get(assigneeId);
+        const assignedTasks = (tasks ?? []).filter((task: any) => task.assignee_id === assigneeId);
+        return {
+          nome: profile?.full_name || profile?.email || "Colaborador sem nome",
+          total: assignedTasks.length,
+          concluidas: assignedTasks.filter(isDone).length,
+          pendentes: assignedTasks.filter((task: any) => !isDone(task)).length,
+          atrasadas: assignedTasks.filter(
+            (task: any) => !isDone(task) && task.due_date && task.due_date < today,
+          ).length,
+          tarefas: assignedTasks.map((t: any) => {
+            const taskSubs = (subs ?? []).filter((s: any) => s.task_id === t.id);
+            const taskNotes = (notes ?? []).filter((n: any) => n.task_id === t.id);
+            const secoes = taskNotes.map((n: any) => ({
+              titulo: n.title ?? "",
+              corpo: stripHtml(n.body).slice(0, 600),
+              criada_em: n.created_at,
+              subtarefas: taskSubs
+                .filter((s: any) => s.comment_id === n.id)
+                .map((s: any) => ({
+                  titulo: stripHtml(s.title),
+                  feita: s.done,
+                  concluida_em: s.completed_at,
+                  prazo: s.due_date,
+                  mudancas_prazo: (subDueChanges ?? [])
+                    .filter((c: any) => c.subtask_id === s.id)
+                    .map((c: any) => ({
+                      de: c.old_due_date,
+                      para: c.new_due_date,
+                      motivo: c.reason ?? null,
+                    })),
+                })),
+            }));
+            const subtarefasRaiz = taskSubs
+              .filter((s: any) => !s.comment_id)
+              .map((s: any) => ({
+                titulo: stripHtml(s.title),
+                feita: s.done,
+                concluida_em: s.completed_at,
+                prazo: s.due_date,
+                mudancas_prazo: (subDueChanges ?? [])
+                  .filter((c: any) => c.subtask_id === s.id)
+                  .map((c: any) => ({
+                    de: c.old_due_date,
+                    para: c.new_due_date,
+                    motivo: c.reason ?? null,
+                  })),
+              }));
+            return {
+              titulo: t.title,
+              descricao: stripHtml(t.description).slice(0, 1000),
+              status: t.status,
+              prioridade: t.priority,
+              prazo: t.due_date,
+              concluida_em: t.completed_at,
+              atrasada: !isDone(t) && Boolean(t.due_date && t.due_date < today),
+              criada_em: t.created_at,
+              secoes,
+              subtarefas_raiz: subtarefasRaiz,
+              mudancas_prazo: (dueChanges ?? [])
+                .filter((c: any) => c.task_id === t.id)
                 .map((c: any) => ({
                   de: c.old_due_date,
                   para: c.new_due_date,
                   motivo: c.reason ?? null,
                 })),
-            })),
-        }));
-        const subtarefasRaiz = taskSubs
-          .filter((s: any) => !s.comment_id)
-          .map((s: any) => ({
-            titulo: stripHtml(s.title),
-            feita: s.done,
-            concluida_em: s.completed_at,
-            prazo: s.due_date,
-            mudancas_prazo: (subDueChanges ?? [])
-              .filter((c: any) => c.subtask_id === s.id)
-              .map((c: any) => ({
-                de: c.old_due_date,
-                para: c.new_due_date,
-                motivo: c.reason ?? null,
-              })),
-          }));
-        return {
-          titulo: t.title,
-          descricao: stripHtml(t.description).slice(0, 400),
-          status: t.status,
-          prioridade: t.priority,
-          prazo: t.due_date,
-          concluida_em: t.completed_at,
-          criada_em: t.created_at,
-          secoes,
-          subtarefas_raiz: subtarefasRaiz,
-          mudancas_prazo: (dueChanges ?? [])
-            .filter((c: any) => c.task_id === t.id)
-            .map((c: any) => ({
-              de: c.old_due_date,
-              para: c.new_due_date,
-              motivo: c.reason ?? null,
-            })),
+            };
+          }),
         };
       }),
     };
 
-    const prompt = `Você é um analista sênior. Produza um RELATÓRIO INTELIGENTE, objetivo e profissional em HTML (PT-BR) sobre as tarefas atribuídas a uma única pessoa para o cliente "${client.name}".
+    const prompt = `Você é um consultor sênior de operações. Produza um RELATÓRIO CONSULTIVO, detalhado e profissional em HTML (PT-BR) sobre as tarefas do cliente "${client.name}", agrupadas por responsável.
 
 DIRETRIZES:
 - Devolva APENAS HTML (sem markdown, sem \`\`\`).
 - Use <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <table>, <thead>, <tbody>, <tr>, <th>, <td>.
-- Estruture em seções:
-  1) <h2>Resumo executivo</h2> (2-4 linhas com o essencial)
-  2) <h2>Indicadores</h2> (tabela com totais, concluídas, pendentes, atrasadas, subtarefas concluídas e mudanças de prazo)
-  3) <h2>Entregas por período</h2> (agrupe por mês/ano em ordem cronológica, use as datas de conclusão de tarefas E de subtarefas — cada subtarefa concluída é uma entrega pontual; cite o título da subtarefa e a seção/tarefa pai quando útil)
-  4) <h2>Detalhamento por tarefa</h2> (somente as tarefas mais relevantes: contexto, subtarefas concluídas e pendentes, prazos e mudanças de prazo)
-  5) <h2>Trabalho em andamento</h2> (tarefas/subtarefas não concluídas, com contexto e riscos aparentes)
-  6) <h2>Mudanças de prazo</h2> (resuma o padrão; destaque justificativas registradas — inclua tanto as de tarefa quanto as de subtarefa)
-  7) Não inclua uma seção de insights, recomendações ou próximos passos.
-- Seja específico, mas conciso: cite nomes quando útil e não liste os dados cruamente.
-- Não invente dados. Se um campo estiver vazio, ignore.
-- Use tom profissional, direto, sem jargão desnecessário.
+- Comece por <h2>Visão geral</h2> com uma leitura consolidada e uma tabela de indicadores gerais.
+- Para CADA responsável, crie <h2>Relatório — NOME</h2>, uma tabela de indicadores individuais e analise TODAS as suas tarefas. Não misture os responsáveis.
+- Para cada tarefa, use <h3>NOME DA TAREFA</h3> e cubra claramente, usando subtítulos em <p><strong>…</strong></p> e listas quando necessário:
+  * Situação e prazo: status, prioridade, prazo, conclusão e se está atrasada; só diga que há atraso quando o campo atrasada for verdadeiro.
+  * O que foi feito: entregas e subtarefas concluídas, com base estrita nos dados.
+  * Conclusões: o que efetivamente foi concluído ou validado. Se não houver conclusão registrada, diga isso de forma objetiva.
+  * Pendências e encaminhamentos: tarefas/subtarefas abertas e o que precisa ocorrer para avançar, sem sugerir ações genéricas.
+  * Leitura consultiva: risco, dependência ou impacto apenas quando estiver fundamentado em prazo, pendência, descrição, seções ou mudanças de prazo.
+  * Mudanças de prazo: registre alterações e motivos existentes; se não houver, não invente justificativas.
+- Quando um responsável não tiver tarefas, informe isso em seu bloco.
+- Este é um relatório por tarefa: não faça apenas um resumo e não omita tarefas por parecerem menos relevantes.
+- Não inclua uma seção genérica de "Insights e recomendações" ao final.
+- Não invente dados, datas, causas, entregas ou conclusões. Se um campo estiver vazio, diga somente o que os dados permitem.
+- Use tom consultivo, preciso e direto, sem jargão desnecessário.
 
 DADOS (JSON):
 ${JSON.stringify(payload)}`;
 
     const geminiRaw = await generateGeminiContent({
-      systemInstruction: "Produza relatórios executivos em HTML limpo, sem inventar dados.",
+      systemInstruction:
+        "Produza relatórios consultivos detalhados em HTML limpo, sem inventar dados.",
       parts: [{ text: prompt }],
       responseMimeType: "text/plain",
-      maxOutputTokens: 1800,
+      maxOutputTokens: 5000,
     });
     const geminiHtml = geminiRaw
       .replace(/^```html\s*/i, "")
