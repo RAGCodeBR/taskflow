@@ -4,15 +4,38 @@ import { generateGeminiContent } from "@/lib/gemini.server";
 
 export const generateClientReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { clientId: string }) => {
+  .inputValidator((input: { clientId: string; assigneeId?: string }) => {
     if (!input?.clientId || typeof input.clientId !== "string")
       throw new Error("clientId requerido");
-    return { clientId: input.clientId };
+    if (input.assigneeId !== undefined && typeof input.assigneeId !== "string")
+      throw new Error("Responsável inválido");
+    return { clientId: input.clientId, assigneeId: input.assigneeId };
   })
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    // Kept only while the legacy block below is retained as unreachable code.
-    const apiKey = process.env.LOVABLE_API_KEY ?? "";
+    if (!context.userId) throw new Error("Usuário não autenticado");
+
+    const { data: callerRoles, error: callerRoleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    if (callerRoleError) throw callerRoleError;
+
+    const isAdmin = callerRoles?.some((item: { role: string }) => item.role === "admin") ?? false;
+    // A collaborator can never broaden this query through a manually crafted request.
+    const assigneeId = isAdmin ? data.assigneeId || context.userId : context.userId;
+
+    if (isAdmin && data.assigneeId && data.assigneeId !== context.userId) {
+      const { data: targetRoles, error: targetRoleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", assigneeId);
+      if (targetRoleError) throw targetRoleError;
+      const isEligible = targetRoles?.some(
+        (item: { role: string }) => item.role === "admin" || item.role === "collaborator",
+      );
+      if (!isEligible) throw new Error("Selecione um administrador ou colaborador válido.");
+    }
 
     const { data: client, error: cErr } = await supabase
       .from("clients")
@@ -28,6 +51,7 @@ export const generateClientReport = createServerFn({ method: "POST" })
         "id, title, description, status, priority, due_date, completed_at, created_at, updated_at, assignee_id",
       )
       .eq("client_id", data.clientId)
+      .eq("assignee_id", assigneeId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (tErr) throw tErr;
@@ -36,7 +60,6 @@ export const generateClientReport = createServerFn({ method: "POST" })
     const [
       { data: subs },
       { data: notes },
-      { data: profiles },
       { data: dueChanges },
     ] = await Promise.all([
       taskIds.length
@@ -53,7 +76,6 @@ export const generateClientReport = createServerFn({ method: "POST" })
             .in("task_id", taskIds)
             .order("position")
         : Promise.resolve({ data: [] as any[] }),
-      supabase.from("profiles").select("id, full_name, email"),
       taskIds.length
         ? supabase
             .from("task_due_date_changes")
@@ -72,9 +94,6 @@ export const generateClientReport = createServerFn({ method: "POST" })
           .order("created_at")
       : { data: [] as any[] };
 
-    const profileById = new Map(
-      (profiles ?? []).map((p: any) => [p.id, p.full_name || p.email || "?"]),
-    );
     const stripHtml = (s: string | null | undefined) =>
       (s ?? "")
         .replace(/<[^>]+>/g, " ")
@@ -82,9 +101,8 @@ export const generateClientReport = createServerFn({ method: "POST" })
         .replace(/\s+/g, " ")
         .trim();
 
-    const subById = new Map((subs ?? []).map((s: any) => [s.id, s]));
-
-    // Payload compacto pra IA
+    // Keep the request focused on one person's work. This keeps the report scoped
+    // correctly and materially reduces the prompt size sent to Gemini.
     const payload = {
       client: { name: client.name, description: client.description ?? "" },
       total_tasks: tasks?.length ?? 0,
@@ -130,13 +148,12 @@ export const generateClientReport = createServerFn({ method: "POST" })
           }));
         return {
           titulo: t.title,
-          descricao: stripHtml(t.description).slice(0, 800),
+          descricao: stripHtml(t.description).slice(0, 400),
           status: t.status,
           prioridade: t.priority,
           prazo: t.due_date,
           concluida_em: t.completed_at,
           criada_em: t.created_at,
-          responsavel: t.assignee_id ? profileById.get(t.assignee_id) : null,
           secoes,
           subtarefas_raiz: subtarefasRaiz,
           mudancas_prazo: (dueChanges ?? [])
@@ -150,20 +167,20 @@ export const generateClientReport = createServerFn({ method: "POST" })
       }),
     };
 
-    const prompt = `Você é um analista sênior. Produza um RELATÓRIO INTELIGENTE em HTML profissional (PT-BR) sobre tudo que foi feito para o cliente "${client.name}".
+    const prompt = `Você é um analista sênior. Produza um RELATÓRIO INTELIGENTE, objetivo e profissional em HTML (PT-BR) sobre as tarefas atribuídas a uma única pessoa para o cliente "${client.name}".
 
 DIRETRIZES:
 - Devolva APENAS HTML (sem markdown, sem \`\`\`).
 - Use <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <table>, <thead>, <tbody>, <tr>, <th>, <td>.
 - Estruture em seções:
-  1) <h2>Resumo executivo</h2> (3-6 linhas com o essencial)
+  1) <h2>Resumo executivo</h2> (2-4 linhas com o essencial)
   2) <h2>Indicadores</h2> (tabela com totais, concluídas, pendentes, atrasadas, subtarefas concluídas e mudanças de prazo)
   3) <h2>Entregas por período</h2> (agrupe por mês/ano em ordem cronológica, use as datas de conclusão de tarefas E de subtarefas — cada subtarefa concluída é uma entrega pontual; cite o título da subtarefa e a seção/tarefa pai quando útil)
-  4) <h2>Detalhamento por tarefa</h2> (para cada tarefa relevante: contexto, seções (observações), subtarefas concluídas com data, subtarefas pendentes, prazos e mudanças de prazo — se um motivo foi registrado em uma mudança de prazo de tarefa OU de subtarefa, cite-o textualmente)
+  4) <h2>Detalhamento por tarefa</h2> (somente as tarefas mais relevantes: contexto, subtarefas concluídas e pendentes, prazos e mudanças de prazo)
   5) <h2>Trabalho em andamento</h2> (tarefas/subtarefas não concluídas, com contexto e riscos aparentes)
   6) <h2>Mudanças de prazo</h2> (resuma o padrão; destaque justificativas registradas — inclua tanto as de tarefa quanto as de subtarefa)
-  7) <h2>Insights e recomendações</h2> (3-6 bullets acionáveis)
-- Seja específico: cite nomes de tarefas e subtarefas quando útil, mas SEM listar tudo cru — sintetize.
+  7) Não inclua uma seção de insights, recomendações ou próximos passos.
+- Seja específico, mas conciso: cite nomes quando útil e não liste os dados cruamente.
 - Não invente dados. Se um campo estiver vazio, ignore.
 - Use tom profissional, direto, sem jargão desnecessário.
 
@@ -174,6 +191,7 @@ ${JSON.stringify(payload)}`;
       systemInstruction: "Produza relatórios executivos em HTML limpo, sem inventar dados.",
       parts: [{ text: prompt }],
       responseMimeType: "text/plain",
+      maxOutputTokens: 1800,
     });
     const geminiHtml = geminiRaw
       .replace(/^```html\s*/i, "")
@@ -181,39 +199,6 @@ ${JSON.stringify(payload)}`;
       .trim();
     return {
       html: geminiHtml,
-      stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending },
-    };
-
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages: [
-          {
-            role: "system",
-            content: "Você produz relatórios executivos em HTML limpo, sem inventar dados.",
-          },
-          { role: "user", content: prompt },
-        ],
-      }),
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      if (res.status === 429)
-        throw new Error("Limite de requisições atingido. Tente novamente em instantes.");
-      if (res.status === 402)
-        throw new Error("Créditos de IA esgotados. Adicione créditos no workspace.");
-      throw new Error(`AI: ${res.status} ${t.slice(0, 200)}`);
-    }
-    const json = await res.json();
-    const raw: string = json?.choices?.[0]?.message?.content ?? "";
-    const html = raw
-      .replace(/^```html\s*/i, "")
-      .replace(/```\s*$/i, "")
-      .trim();
-    return {
-      html,
       stats: { total: payload.total_tasks, done: payload.done, pending: payload.pending },
     };
   });
