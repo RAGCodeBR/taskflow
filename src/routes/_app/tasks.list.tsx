@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -52,6 +52,7 @@ function ListPage() {
   const [open, setOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
+  const [dueDateSortDirection, setDueDateSortDirection] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
     if (!user?.id) return;
@@ -134,8 +135,7 @@ function ListPage() {
       restrictToCurrentUserParticipation: isCollaborator,
     });
     // Keep the list grouped in the same order as the Kanban statuses. Tasks
-    // inside each group still follow the nearest due date, which preserves the
-    // useful daily prioritisation of the previous list view.
+    // inside each group follow the selected due-date order.
     const columnPosition = new Map(columns.map((column) => [column.id, column.position]));
     const statusPosition = new Map(statuses.map((status) => [status.id, status.position]));
     const lastOpenStatusPosition = Math.max(
@@ -153,9 +153,10 @@ function ListPage() {
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
-      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      const dueDateDifference = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      return dueDateSortDirection === "asc" ? dueDateDifference : -dueDateDifference;
     });
-  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, columns, statuses]);
+  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, columns, statuses, dueDateSortDirection]);
 
   const completeTask = async (taskId: string) => {
     const completedStatus = statuses.find((status) => status.is_completed);
@@ -212,7 +213,24 @@ function ListPage() {
               <th className="w-[12%] border-r px-2 py-2">Colaboradores</th>
               <th className="w-[10%] border-r px-2 py-2">Status</th>
               <th className="w-[10%] border-r px-2 py-2">Prioridade</th>
-              <th className="w-[10%] border-r px-2 py-2">Prazo</th>
+              <th className="w-[10%] border-r px-2 py-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-1 transition-colors hover:text-foreground"
+                  onClick={() =>
+                    setDueDateSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+                  }
+                  title={`Ordenar prazos em ordem ${dueDateSortDirection === "asc" ? "decrescente" : "crescente"}`}
+                  aria-label={`Ordenar prazos em ordem ${dueDateSortDirection === "asc" ? "decrescente" : "crescente"}`}
+                >
+                  Prazo
+                  {dueDateSortDirection === "asc" ? (
+                    <ArrowUp className="h-3 w-3" aria-hidden="true" />
+                  ) : (
+                    <ArrowDown className="h-3 w-3" aria-hidden="true" />
+                  )}
+                </button>
+              </th>
               <th className="w-[5%] px-1 py-2 text-center">Concluir</th>
             </tr>
           </thead>
