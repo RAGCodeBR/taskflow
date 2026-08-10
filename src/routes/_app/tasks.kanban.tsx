@@ -89,7 +89,7 @@ import { CardFieldsPopover } from "@/components/CardFieldsPopover";
 import { useBoardPreferences, useUpdateBoardPreferences } from "@/hooks/use-board-preferences";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
+import { matchDateFilter, normalizeTasksWithOpenSubtasks, type DateFilter } from "@/lib/task-utils";
 
 export const Route = createFileRoute("/_app/tasks/kanban")({
   component: KanbanPage,
@@ -480,6 +480,17 @@ function KanbanPage() {
 
   const completedStatus = useMemo(() => statuses.find((s) => s.is_completed) ?? null, [statuses]);
   const fallbackStatus = useMemo(() => statuses.find((s) => !s.is_completed) ?? null, [statuses]);
+  const openSubtaskTaskIds = useMemo(
+    () => new Set(allSubtasks.filter((subtask) => !subtask.done).map((subtask) => subtask.task_id)),
+    [allSubtasks],
+  );
+  // Keep legacy parent tasks with pending subtasks in the active board. The
+  // calendar already exposes their pending dates, so hiding their parent card
+  // in Kanban made the two views disagree.
+  const taskView = useMemo(
+    () => normalizeTasksWithOpenSubtasks(tasks, openSubtaskTaskIds, fallbackStatus?.id),
+    [tasks, openSubtaskTaskIds, fallbackStatus?.id],
+  );
 
   const { data: tagLinks = [] } = useTaskTagLinks();
 
@@ -509,7 +520,7 @@ function KanbanPage() {
     const endToday = new Date();
     endToday.setHours(23, 59, 59, 999);
     const hasRange = !!(completedRange.start || completedRange.end);
-    let all = tasks.filter((t) => {
+    let all = taskView.filter((t) => {
       if (t.status !== "done" && !t.completed_at) return false;
       const ref = t.completed_at ? new Date(t.completed_at) : new Date(t.updated_at);
       if (hasRange) {
@@ -579,7 +590,7 @@ function KanbanPage() {
     });
     return all;
   }, [
-    tasks,
+    taskView,
     filters,
     sort,
     sort2,
@@ -600,7 +611,7 @@ function KanbanPage() {
   );
 
   const filtered = useMemo(() => {
-    let r = tasks.filter((t) => t.status !== "done" && !t.completed_at);
+    let r = taskView.filter((t) => t.status !== "done" && !t.completed_at);
     r = applyTaskFilters(r, filters, {
       userId: user?.id ?? null,
       subtaskAssigneeTaskIds,
@@ -611,7 +622,7 @@ function KanbanPage() {
     });
     return r;
   }, [
-    tasks,
+    taskView,
     filters,
     user?.id,
     subtaskAssigneeTaskIds,
@@ -802,7 +813,7 @@ function KanbanPage() {
     const overData = e.over.data.current as any;
     const overId = e.over.id as string;
 
-    const task = tasks.find((t) => t.id === taskId);
+    const task = taskView.find((t) => t.id === taskId);
     if (!task) return;
 
     let targetCol: string | null = null;
@@ -830,6 +841,10 @@ function KanbanPage() {
     // Drop into the "Concluídas" lane
     if (targetCol === COMPLETED_COL_ID) {
       if (wasCompleted) return;
+      if (openSubtaskTaskIds.has(task.id)) {
+        toast.error("Conclua todas as subtarefas antes de concluir a tarefa.");
+        return;
+      }
       const patch: Partial<Task> = {
         status: "done",
         completed_at: new Date().toISOString(),
@@ -896,9 +911,18 @@ function KanbanPage() {
 
     // Persist: column change is GLOBAL; ordering is PER-USER
     if (sourceCol !== targetCol) {
+      const persistedTask = tasks.find((item) => item.id === taskId);
+      const reopenParent =
+        openSubtaskTaskIds.has(taskId) &&
+        (persistedTask?.status === "done" || !!persistedTask?.completed_at);
       const { error } = await supabase
         .from("tasks")
-        .update({ column_id: targetCol })
+        .update({
+          column_id: targetCol,
+          ...(reopenParent
+            ? { status: "todo", completed_at: null, status_id: fallbackStatus?.id ?? null }
+            : {}),
+        })
         .eq("id", taskId);
       if (error) toast.error(error.message);
     }

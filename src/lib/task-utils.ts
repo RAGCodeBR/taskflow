@@ -37,9 +37,31 @@ export const dateFilterLabels: Record<DateFilter, string> = {
 };
 
 export interface TaskLike {
+  id?: string;
   due_date: string | null;
   status: string | null;
   completed_at: string | null;
+}
+
+/**
+ * A parent task cannot be considered concluded while it still has an open
+ * subtask.  This also repairs the display of legacy records that were marked
+ * as done before every subtask was completed.
+ */
+export function normalizeTasksWithOpenSubtasks<
+  T extends TaskLike & { id: string; status_id?: string | null },
+>(tasks: T[], openSubtaskTaskIds: Set<string>, openStatusId?: string | null): T[] {
+  return tasks.map((task) => {
+    const markedDone = task.status === "done" || !!task.completed_at;
+    if (!markedDone || !openSubtaskTaskIds.has(task.id)) return task;
+
+    return {
+      ...task,
+      status: "todo",
+      completed_at: null,
+      ...("status_id" in task ? { status_id: openStatusId ?? null } : {}),
+    } as T;
+  });
 }
 
 export function matchDateFilter(task: TaskLike, filter: DateFilter): boolean {
