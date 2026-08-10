@@ -15,10 +15,19 @@ import {
 import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useTasks, useClients, useSubtasks, useTaskCollaborators, type Task } from "@/hooks/use-data";
+import {
+  useTasks,
+  useClients,
+  useColumns,
+  useSubtasks,
+  useTaskCollaborators,
+  useTaskStatuses,
+  type Task,
+} from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { TaskDialog } from "@/components/TaskDialog";
+import { normalizeTasksWithOpenSubtasks } from "@/lib/task-utils";
 
 export const Route = createFileRoute("/_app/tasks/calendar")({
   component: CalendarPage,
@@ -27,7 +36,9 @@ export const Route = createFileRoute("/_app/tasks/calendar")({
 function CalendarPage() {
   const { data: tasks = [] } = useTasks();
   const { data: clients = [] } = useClients();
+  const { data: columns = [] } = useColumns();
   const { data: subtasks = [] } = useSubtasks();
+  const { data: statuses = [] } = useTaskStatuses();
   const { data: collaborators = [] } = useTaskCollaborators();
   const { user, isCollaborator } = useAuth();
   const [cursor, setCursor] = useState(new Date());
@@ -79,28 +90,54 @@ function CalendarPage() {
     [collaborators, user?.id],
   );
 
+  const openSubtaskTaskIds = useMemo(
+    () => new Set(subtasks.filter((subtask) => !subtask.done).map((subtask) => subtask.task_id)),
+    [subtasks],
+  );
+  const openStatusId = useMemo(
+    () => statuses.find((status) => !status.is_completed)?.id ?? null,
+    [statuses],
+  );
+  const taskView = useMemo(
+    () => normalizeTasksWithOpenSubtasks(tasks, openSubtaskTaskIds, openStatusId),
+    [tasks, openSubtaskTaskIds, openStatusId],
+  );
+
   const visible = useMemo(
     () =>
-      applyTaskFilters(tasks, filters, {
+      applyTaskFilters(taskView, filters, {
         userId: user?.id ?? null,
         subtaskAssigneeTaskIds,
         collaboratorTaskIds,
         subtaskAssigneeTaskIdsByUser,
         restrictToCurrentUserParticipation: isCollaborator,
       }),
-    [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser],
+    [taskView, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser],
   );
 
   const subtaskDueDatesByTask = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const st of subtasks) {
-      if (!st.task_id || !st.due_date) continue;
+      if (!st.task_id || !st.due_date || st.done) continue;
       const list = map.get(st.task_id) ?? [];
       list.push(st.due_date);
       map.set(st.task_id, list);
     }
     return map;
   }, [subtasks]);
+
+  const stageNameByTaskId = useMemo(() => {
+    const columnsById = new Map(columns.map((column) => [column.id, column]));
+    const statusesById = new Map(statuses.map((status) => [status.id, status]));
+    return new Map(
+      taskView.map((task) => [
+        task.id,
+        columnsById.get(task.column_id ?? "")?.name ||
+          statusesById.get(task.status_id ?? "")?.name ||
+          "A fazer",
+      ]),
+    );
+  }, [columns, statuses, taskView]);
 
   const dayTasks = (day: Date) =>
     visible.filter((t) => {
@@ -180,7 +217,9 @@ function CalendarPage() {
                           color: client?.color || t.color || "#1e3a8a",
                         }}
                       >
-                        {t.due_time ? `${t.due_time.slice(0, 5)} · ${t.title}` : t.title}
+                        {`${stageNameByTaskId.get(t.id) ?? "A fazer"} · ${
+                          t.due_time ? `${t.due_time.slice(0, 5)} · ` : ""
+                        }${t.title}`}
                       </button>
                     );
                   })}

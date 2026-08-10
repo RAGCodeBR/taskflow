@@ -164,6 +164,10 @@ function ListPage() {
       toast.error("Cadastre um status marcado como concluído.");
       return;
     }
+    if (subtasks.some((subtask) => subtask.task_id === taskId && !subtask.done)) {
+      toast.error("Conclua todas as subtarefas antes de concluir a tarefa.");
+      return;
+    }
 
     const { error } = await supabase
       .from("tasks")

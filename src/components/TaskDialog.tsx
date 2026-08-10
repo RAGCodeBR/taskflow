@@ -406,6 +406,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       toast.error("Título é obrigatório");
       return;
     }
+    if (status === "done" && subtasks.some((subtask) => !subtask.done)) {
+      toast.error("Conclua todas as subtarefas antes de concluir a tarefa.");
+      return;
+    }
     const authenticated = await getAuthenticatedUser();
     if (!authenticated) return;
     const existingTaskId = currentTaskIdRef.current ?? currentTaskId;
