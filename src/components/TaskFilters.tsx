@@ -350,17 +350,17 @@ export function applyTaskFilters<
       if (!uid) return false;
       const participatesInTask =
         t.assignee_id === uid ||
-        // Creators keep their own tasks visible, with or without an assignee.
-        t.created_by === uid ||
         !!subIds?.has(t.id) ||
-        !!collaboratorIds?.has(t.id);
+        !!collaboratorIds?.has(t.id) ||
+        // Creating a task for another person is not participation. Keep it
+        // available only through the explicit "Criadas por mim" filter.
+        (f.scope === "created" && t.created_by === uid);
       if (!participatesInTask) return false;
     }
     if (f.scope === "mine") {
       if (!uid) return false;
       const participatesInTask =
         t.assignee_id === uid ||
-        t.created_by === uid ||
         !!subIds?.has(t.id) ||
         !!collaboratorIds?.has(t.id);
       if (!participatesInTask) return false;
@@ -381,15 +381,14 @@ export function applyTaskFilters<
     if (clientIds && (!t.client_id || !clientIds.includes(t.client_id))) return false;
     if (f.assignee) {
       const assigneeSubtasks = opts?.subtaskAssigneeTaskIdsByUser?.get(f.assignee);
-      // When filtering by the logged-in user, include tasks in which that user
-      // participates as a creator/collaborator as well as direct/subtask assignments.
+      // When filtering by the logged-in user, include direct assignments,
+      // collaborations and subtasks. Merely creating a task for another
+      // person does not make it part of that user's personal workload.
       const isCurrentUserCollaborator = f.assignee === uid && collaboratorIds?.has(t.id);
-      const isCurrentUserCreator = f.assignee === uid && t.created_by === uid;
       if (
         t.assignee_id !== f.assignee &&
         !assigneeSubtasks?.has(t.id) &&
-        !isCurrentUserCollaborator &&
-        !isCurrentUserCreator
+        !isCurrentUserCollaborator
       ) {
         return false;
       }
