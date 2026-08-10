@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -50,7 +50,6 @@ function ListPage() {
   );
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
-  const [completedOpen, setCompletedOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
   const [dueDateSortDirection, setDueDateSortDirection] = useState<"asc" | "desc">("asc");
 
@@ -134,29 +133,25 @@ function ListPage() {
       subtaskDateFilterTaskIds,
       restrictToCurrentUserParticipation: isCollaborator,
     });
-    // Keep the list grouped in the same order as the Kanban statuses. Tasks
-    // inside each group follow the selected due-date order.
-    const columnPosition = new Map(columns.map((column) => [column.id, column.position]));
-    const statusPosition = new Map(statuses.map((status) => [status.id, status.position]));
-    const lastOpenStatusPosition = Math.max(
-      -1,
-      ...columns.map((column) => column.position),
-      ...statuses.filter((status) => !status.is_completed).map((status) => status.position),
-    );
-    const statusRank = (task: Task) => {
-      if (task.status === "done" || task.completed_at) return lastOpenStatusPosition + 1;
-      return columnPosition.get(task.column_id ?? "") ?? statusPosition.get(task.status_id ?? "") ?? lastOpenStatusPosition + 2;
+    const getDueTimestamp = (task: Task) => {
+      if (!task.due_date) return null;
+      const dueDate = new Date(task.due_date);
+      if (!task.due_time) return dueDate.getTime();
+
+      const [hours, minutes] = task.due_time.split(":").map(Number);
+      dueDate.setHours(hours, minutes, 0, 0);
+      return dueDate.getTime();
     };
     return [...r].sort((a, b) => {
-      const rankDifference = statusRank(a) - statusRank(b);
-      if (rankDifference !== 0) return rankDifference;
-      if (!a.due_date && !b.due_date) return 0;
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      const dueDateDifference = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      const aDueTimestamp = getDueTimestamp(a);
+      const bDueTimestamp = getDueTimestamp(b);
+      if (aDueTimestamp === null && bDueTimestamp === null) return 0;
+      if (aDueTimestamp === null) return 1;
+      if (bDueTimestamp === null) return -1;
+      const dueDateDifference = aDueTimestamp - bDueTimestamp;
       return dueDateSortDirection === "asc" ? dueDateDifference : -dueDateDifference;
     });
-  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, columns, statuses, dueDateSortDirection]);
+  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, dueDateSortDirection]);
 
   const completeTask = async (taskId: string) => {
     const completedStatus = statuses.find((status) => status.is_completed);
@@ -241,14 +236,10 @@ function ListPage() {
                   Nenhuma tarefa
                 </td>
               </tr>
-            ) : list.map((t, index) => {
+            ) : list.map((t) => {
               const client = clients.find((c) => c.id === t.client_id);
               const assignee = profiles.find((p) => p.id === t.assignee_id);
               const isCompleted = t.status === "done" || !!t.completed_at;
-              const previousTask = list[index - 1];
-              const startsCompletedSection =
-                isCompleted &&
-                (!previousTask || (previousTask.status !== "done" && !previousTask.completed_at));
               const currentColumn = columns.find((column) => column.id === t.column_id);
               const completedStatus = statuses.find((status) => status.is_completed);
               const storedStatus = statuses.find((status) => status.id === t.status_id);
@@ -271,20 +262,8 @@ function ListPage() {
               const taskCollaborators = collaborators.filter((collaborator) => collaborator.task_id === t.id).map((collaborator) => profiles.find((profile) => profile.id === collaborator.collaborator_id)).filter(Boolean);
 
               return (
-                <Fragment key={t.id}>
-                {startsCompletedSection && (
-                  <tr aria-label="Tarefas concluídas">
-                    <td colSpan={8} className="px-2 py-2">
-                      <button type="button" onClick={() => setCompletedOpen((current) => !current)} className="flex w-full items-center gap-3 border-t border-dashed border-muted-foreground/45 pt-2 text-left">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tarefas concluídas</span>
-                        <span className="h-px flex-1 border-t border-dashed border-muted-foreground/30" />
-                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${completedOpen ? "" : "-rotate-90"}`} />
-                      </button>
-                    </td>
-                  </tr>
-                )}
-                {isCompleted && !completedOpen ? null :
                 <tr
+                  key={t.id}
                   className={`cursor-pointer border-t transition-colors hover:bg-muted/30 ${
                     isCompleted ? "opacity-60 grayscale-[0.2]" : ""
                   }`}
@@ -359,8 +338,6 @@ function ListPage() {
                     </Button>
                   </td>
                 </tr>
-                }
-                </Fragment>
               );
             })}
           </tbody>
