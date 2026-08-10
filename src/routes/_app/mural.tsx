@@ -38,6 +38,9 @@ type MuralPost = {
   created_by: string;
   created_at: string;
   completed_at: string | null;
+  is_pinned: boolean;
+  card_size: CardSize;
+  text_style: TextStyle;
 };
 type MuralAttachment = {
   id: string;
@@ -60,7 +63,6 @@ const COLORS = [
 
 type CardSize = "compact" | "normal" | "large";
 type TextStyle = "clean" | "handwritten" | "editorial" | "typewriter";
-type PostPresentation = { isPinned?: boolean; cardSize?: CardSize; textStyle?: TextStyle };
 
 const CARD_SIZES: { value: CardSize; label: string }[] = [
   { value: "compact", label: "Compacto" },
@@ -100,7 +102,6 @@ function MuralPage() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [localOrder, setLocalOrder] = useState<string[]>([]);
-  const [presentationByPostId, setPresentationByPostId] = useState<Record<string, PostPresentation>>({});
   const [uploadingPostId, setUploadingPostId] = useState<string | null>(null);
   const hasMarkedCurrentVisitRead = useRef(false);
   const { data: posts = [], isLoading } = useQuery({
@@ -113,6 +114,9 @@ function MuralPage() {
       return (data ?? []).map((post: any) => ({
         ...post,
         checklist: Array.isArray(post.checklist) ? post.checklist : [],
+        is_pinned: !!post.is_pinned,
+        card_size: post.card_size ?? "normal",
+        text_style: post.text_style ?? "clean",
       })) as MuralPost[];
     },
   });
@@ -152,23 +156,6 @@ function MuralPage() {
       });
   }, [isLoading, posts, qc, user?.id]);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    try {
-      setPresentationByPostId(JSON.parse(localStorage.getItem(`mural_presentation_${user.id}`) ?? "{}"));
-    } catch {
-      setPresentationByPostId({});
-    }
-  }, [user?.id]);
-
-  const savePresentation = (postId: string, patch: PostPresentation) => {
-    setPresentationByPostId((current) => {
-      const next = { ...current, [postId]: { ...current[postId], ...patch } };
-      if (user?.id) localStorage.setItem(`mural_presentation_${user.id}`, JSON.stringify(next));
-      return next;
-    });
-  };
-
   const savePost = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Sua sessão expirou. Entre novamente.");
@@ -188,6 +175,8 @@ function MuralPage() {
         image_url: form.imageUrl.trim() || null,
         color: form.color,
         checklist,
+        card_size: form.cardSize,
+        text_style: form.textStyle,
       };
       const { data, error } = editingPost
         ? await (supabase.from("mural_posts") as any).update(payload).eq("id", editingPost.id).select().single()
@@ -196,7 +185,6 @@ function MuralPage() {
       return data as MuralPost;
     },
     onSuccess: (savedPost) => {
-      savePresentation(savedPost.id, { cardSize: form.cardSize, textStyle: form.textStyle });
       qc.invalidateQueries({ queryKey: ["mural_posts"] });
       setOpen(false);
       setForm(emptyForm);
@@ -241,6 +229,14 @@ function MuralPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["mural_posts"] }),
     onError: (error: Error) => toast.error(error.message),
   });
+  const updatePostPresentation = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: Partial<Pick<MuralPost, "is_pinned" | "card_size">> }) => {
+      const { error } = await (supabase.from("mural_posts") as any).update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["mural_posts"] }),
+    onError: (error: Error) => toast.error(error.message),
+  });
   const saveOrder = useMutation({
     mutationFn: async (postIds: string[]) => {
       if (!user) return;
@@ -262,12 +258,6 @@ function MuralPage() {
     const positions = new Map(storedOrders.map((order) => [order.post_id, order.position]));
     const order = localOrder.length > 0 ? new Map(localOrder.map((id, index) => [id, index])) : positions;
     return posts
-      .map((post) => ({
-        ...post,
-        is_pinned: presentationByPostId[post.id]?.isPinned ?? false,
-        card_size: presentationByPostId[post.id]?.cardSize ?? "normal" as CardSize,
-        text_style: presentationByPostId[post.id]?.textStyle ?? "clean" as TextStyle,
-      }))
       .filter((post) => (showCompleted ? !!post.completed_at : !post.completed_at))
       .sort((a, b) => {
         if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
@@ -278,7 +268,7 @@ function MuralPage() {
         if (bPosition !== undefined) return 1;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [posts, storedOrders, localOrder, presentationByPostId, showCompleted]);
+  }, [posts, storedOrders, localOrder, showCompleted]);
   const openNewPost = () => {
     setEditingPost(null);
     setForm(emptyForm);
@@ -497,10 +487,10 @@ function MuralPage() {
                   <h2 className={`min-w-0 flex-1 font-bold leading-snug ${post.card_size === "large" ? "text-xl" : "text-base"}`}>{post.title}</h2>
                   <GripVertical className="h-4 w-4 shrink-0 cursor-grab opacity-45" aria-label="Arraste para mover" />
                   {canEdit && <div className="-mr-2 -mt-2 flex opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => savePresentation(post.id, { isPinned: !post.is_pinned })} title={post.is_pinned ? "Desafixar do topo" : "Fixar no topo"}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updatePostPresentation.mutate({ id: post.id, patch: { is_pinned: !post.is_pinned } })} title={post.is_pinned ? "Desafixar do topo" : "Fixar no topo"}>
                       {post.is_pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => savePresentation(post.id, { cardSize: post.card_size === "large" ? "normal" : "large" })} title={post.card_size === "large" ? "Voltar ao tamanho normal" : "Destacar e ampliar"}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updatePostPresentation.mutate({ id: post.id, patch: { card_size: post.card_size === "large" ? "normal" : "large" } })} title={post.card_size === "large" ? "Voltar ao tamanho normal" : "Destacar e ampliar"}>
                       {post.card_size === "large" ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPostCompleted.mutate({ id: post.id, completed: !post.completed_at })} title={post.completed_at ? "Reabrir post-it" : "Concluir post-it"}>
