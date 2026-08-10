@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Download, GripVertical, ImageIcon, Paperclip, Pencil, Pin, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
+import { Check, Download, GripVertical, ImageIcon, Maximize2, Minimize2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfiles } from "@/hooks/use-data";
@@ -58,10 +58,36 @@ const COLORS = [
   { value: "stone", label: "Cinza", card: "bg-stone-200/85 dark:bg-stone-800" },
 ] as const;
 
-const emptyForm = { title: "", content: "", tag: "", imageUrl: "", checklist: "", color: "sky" };
+type CardSize = "compact" | "normal" | "large";
+type TextStyle = "clean" | "handwritten" | "editorial" | "typewriter";
+type PostPresentation = { isPinned?: boolean; cardSize?: CardSize; textStyle?: TextStyle };
+
+const CARD_SIZES: { value: CardSize; label: string }[] = [
+  { value: "compact", label: "Compacto" },
+  { value: "normal", label: "Normal" },
+  { value: "large", label: "Destaque" },
+];
+
+const TEXT_STYLES: { value: TextStyle; label: string; css: CSSProperties }[] = [
+  { value: "clean", label: "Clássico", css: { fontFamily: "var(--font-sans)" } },
+  { value: "handwritten", label: "Manual", css: { fontFamily: "cursive", letterSpacing: "0.01em" } },
+  { value: "editorial", label: "Elegante", css: { fontFamily: "Georgia, 'Times New Roman', serif" } },
+  { value: "typewriter", label: "Máquina", css: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.92em" } },
+];
+
+const QUICK_EMOJIS = ["📌", "✨", "💡", "🚀", "✅", "⚠️", "🎉", "❤️"];
+
+const emptyForm = {
+  title: "", content: "", tag: "", imageUrl: "", checklist: "", color: "sky",
+  cardSize: "normal" as CardSize, textStyle: "clean" as TextStyle,
+};
 
 function colorClass(color: string) {
   return COLORS.find((item) => item.value === color)?.card ?? COLORS[0].card;
+}
+
+function textStyleCss(style: TextStyle | null | undefined) {
+  return TEXT_STYLES.find((item) => item.value === style)?.css ?? TEXT_STYLES[0].css;
 }
 
 function MuralPage() {
@@ -74,6 +100,7 @@ function MuralPage() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [localOrder, setLocalOrder] = useState<string[]>([]);
+  const [presentationByPostId, setPresentationByPostId] = useState<Record<string, PostPresentation>>({});
   const [uploadingPostId, setUploadingPostId] = useState<string | null>(null);
   const hasMarkedCurrentVisitRead = useRef(false);
   const { data: posts = [], isLoading } = useQuery({
@@ -125,6 +152,23 @@ function MuralPage() {
       });
   }, [isLoading, posts, qc, user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      setPresentationByPostId(JSON.parse(localStorage.getItem(`mural_presentation_${user.id}`) ?? "{}"));
+    } catch {
+      setPresentationByPostId({});
+    }
+  }, [user?.id]);
+
+  const savePresentation = (postId: string, patch: PostPresentation) => {
+    setPresentationByPostId((current) => {
+      const next = { ...current, [postId]: { ...current[postId], ...patch } };
+      if (user?.id) localStorage.setItem(`mural_presentation_${user.id}`, JSON.stringify(next));
+      return next;
+    });
+  };
+
   const savePost = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Sua sessão expirou. Entre novamente.");
@@ -145,12 +189,14 @@ function MuralPage() {
         color: form.color,
         checklist,
       };
-      const { error } = editingPost
-        ? await (supabase.from("mural_posts") as any).update(payload).eq("id", editingPost.id)
-        : await (supabase.from("mural_posts") as any).insert({ ...payload, created_by: user.id });
+      const { data, error } = editingPost
+        ? await (supabase.from("mural_posts") as any).update(payload).eq("id", editingPost.id).select().single()
+        : await (supabase.from("mural_posts") as any).insert({ ...payload, created_by: user.id }).select().single();
       if (error) throw error;
+      return data as MuralPost;
     },
-    onSuccess: () => {
+    onSuccess: (savedPost) => {
+      savePresentation(savedPost.id, { cardSize: form.cardSize, textStyle: form.textStyle });
       qc.invalidateQueries({ queryKey: ["mural_posts"] });
       setOpen(false);
       setForm(emptyForm);
@@ -216,8 +262,15 @@ function MuralPage() {
     const positions = new Map(storedOrders.map((order) => [order.post_id, order.position]));
     const order = localOrder.length > 0 ? new Map(localOrder.map((id, index) => [id, index])) : positions;
     return posts
+      .map((post) => ({
+        ...post,
+        is_pinned: presentationByPostId[post.id]?.isPinned ?? false,
+        card_size: presentationByPostId[post.id]?.cardSize ?? "normal" as CardSize,
+        text_style: presentationByPostId[post.id]?.textStyle ?? "clean" as TextStyle,
+      }))
       .filter((post) => (showCompleted ? !!post.completed_at : !post.completed_at))
       .sort((a, b) => {
+        if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
         const aPosition = order.get(a.id);
         const bPosition = order.get(b.id);
         if (aPosition !== undefined && bPosition !== undefined) return aPosition - bPosition;
@@ -225,7 +278,7 @@ function MuralPage() {
         if (bPosition !== undefined) return 1;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [posts, storedOrders, localOrder, showCompleted]);
+  }, [posts, storedOrders, localOrder, presentationByPostId, showCompleted]);
   const openNewPost = () => {
     setEditingPost(null);
     setForm(emptyForm);
@@ -240,6 +293,8 @@ function MuralPage() {
       imageUrl: post.image_url ?? "",
       checklist: post.checklist.map((item) => item.text).join("\n"),
       color: post.color,
+      cardSize: post.card_size ?? "normal",
+      textStyle: post.text_style ?? "clean",
     });
     setOpen(true);
   };
@@ -326,7 +381,7 @@ function MuralPage() {
             <h1 className="text-2xl font-bold tracking-tight">Mural</h1>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Ideias, lembretes e comunicados compartilhados pela equipe. {postCountLabel}.
+            Ideias, lembretes e comunicados compartilhados pela equipe. Arraste para reorganizar, fixe o que importa e destaque seus recados. {postCountLabel}.
           </p>
         </div>
         <div className="flex gap-2">
@@ -349,6 +404,13 @@ function MuralPage() {
               <div className="space-y-2">
                 <Label>Mensagem</Label>
                 <Textarea value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} placeholder="Escreva um recado para a equipe" />
+                <div className="flex flex-wrap gap-1.5" aria-label="Adicionar emoji à mensagem">
+                  {QUICK_EMOJIS.map((emoji) => (
+                    <Button key={emoji} type="button" variant="outline" size="sm" className="h-7 min-w-7 px-1.5 text-sm" onClick={() => setForm((current) => ({ ...current, content: `${current.content}${current.content ? " " : ""}${emoji}` }))}>
+                      {emoji}
+                    </Button>
+                  ))}
+                </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -359,6 +421,24 @@ function MuralPage() {
                   <Label>Cor</Label>
                   <select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.color} onChange={(event) => setForm({ ...form, color: event.target.value })}>
                     {COLORS.map((color) => <option key={color.value} value={color.value}>{color.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Tamanho no mural</Label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {CARD_SIZES.map((size) => (
+                      <Button key={size.value} type="button" size="sm" variant={form.cardSize === size.value ? "default" : "outline"} className="px-1 text-xs" onClick={() => setForm({ ...form, cardSize: size.value })}>
+                        {size.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Estilo de escrita</Label>
+                  <select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.textStyle} onChange={(event) => setForm({ ...form, textStyle: event.target.value as TextStyle })}>
+                    {TEXT_STYLES.map((style) => <option key={style.value} value={style.value}>{style.label}</option>)}
                   </select>
                 </div>
               </div>
@@ -393,7 +473,7 @@ function MuralPage() {
           </div>
         </div>
       ) : (
-        <div className="columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {orderedPosts.map((post) => {
             const canEdit = isAdmin || post.created_by === user?.id;
             const postAttachments = attachments.filter((attachment) => attachment.post_id === post.id);
@@ -407,15 +487,22 @@ function MuralPage() {
                 onDragEnd={() => setDraggingId(null)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => movePost(post.id)}
-                className={`group mb-4 break-inside-avoid overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${draggingId === post.id ? "opacity-45" : ""} ${colorClass(post.color)}`}
+                className={`group relative overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${post.card_size === "large" ? "sm:col-span-2 sm:p-6" : post.card_size === "compact" ? "p-3" : ""} ${draggingId === post.id ? "opacity-45" : ""} ${colorClass(post.color)}`}
+                style={textStyleCss(post.text_style)}
               >
                 {post.image_url && (
                   <img src={post.image_url} alt="" className="-mx-4 -mt-4 mb-4 h-36 w-[calc(100%+2rem)] object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
                 )}
                 <div className="flex items-start gap-2">
-                  <h2 className="min-w-0 flex-1 text-base font-bold leading-snug">{post.title}</h2>
+                  <h2 className={`min-w-0 flex-1 font-bold leading-snug ${post.card_size === "large" ? "text-xl" : "text-base"}`}>{post.title}</h2>
                   <GripVertical className="h-4 w-4 shrink-0 cursor-grab opacity-45" aria-label="Arraste para mover" />
                   {canEdit && <div className="-mr-2 -mt-2 flex opacity-0 transition-opacity group-hover:opacity-100">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => savePresentation(post.id, { isPinned: !post.is_pinned })} title={post.is_pinned ? "Desafixar do topo" : "Fixar no topo"}>
+                      {post.is_pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => savePresentation(post.id, { cardSize: post.card_size === "large" ? "normal" : "large" })} title={post.card_size === "large" ? "Voltar ao tamanho normal" : "Destacar e ampliar"}>
+                      {post.card_size === "large" ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPostCompleted.mutate({ id: post.id, completed: !post.completed_at })} title={post.completed_at ? "Reabrir post-it" : "Concluir post-it"}>
                       {post.completed_at ? <RotateCcw className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
                     </Button>
@@ -423,7 +510,8 @@ function MuralPage() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removePost.mutate(post.id)} title="Remover post-it"><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>}
                 </div>
-                {post.content && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">{post.content}</p>}
+                {post.is_pinned && <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-background/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide"><Pin className="h-3 w-3" /> Fixado no topo</span>}
+                {post.content && <p className={`whitespace-pre-wrap leading-relaxed text-foreground/85 ${post.is_pinned ? "mt-2" : "mt-3"} ${post.card_size === "large" ? "text-base" : "text-sm"}`}>{post.content}</p>}
                 {post.checklist.length > 0 && (
                   <div className="mt-4 space-y-2">
                     {post.checklist.map((item, index) => (
