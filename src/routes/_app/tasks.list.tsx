@@ -134,29 +134,34 @@ function ListPage() {
       subtaskDateFilterTaskIds,
       restrictToCurrentUserParticipation: isCollaborator,
     });
-    // Keep the list grouped in the same order as the Kanban statuses. Tasks
-    // inside each group follow the selected due-date order.
-    const columnPosition = new Map(columns.map((column) => [column.id, column.position]));
-    const statusPosition = new Map(statuses.map((status) => [status.id, status.position]));
-    const lastOpenStatusPosition = Math.max(
-      -1,
-      ...columns.map((column) => column.position),
-      ...statuses.filter((status) => !status.is_completed).map((status) => status.position),
-    );
-    const statusRank = (task: Task) => {
-      if (task.status === "done" || task.completed_at) return lastOpenStatusPosition + 1;
-      return columnPosition.get(task.column_id ?? "") ?? statusPosition.get(task.status_id ?? "") ?? lastOpenStatusPosition + 2;
+    const getDueTimestamp = (task: Task) => {
+      if (!task.due_date) return null;
+      const dueDate = new Date(task.due_date);
+      if (!task.due_time) return dueDate.getTime();
+
+      const [hours, minutes] = task.due_time.split(":").map(Number);
+      dueDate.setHours(hours, minutes, 0, 0);
+      return dueDate.getTime();
     };
+
     return [...r].sort((a, b) => {
-      const rankDifference = statusRank(a) - statusRank(b);
-      if (rankDifference !== 0) return rankDifference;
-      if (!a.due_date && !b.due_date) return 0;
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      const dueDateDifference = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      const aIsCompleted = a.status === "done" || !!a.completed_at;
+      const bIsCompleted = b.status === "done" || !!b.completed_at;
+
+      // Keep the completed section and its original order intact.
+      if (aIsCompleted && bIsCompleted) return 0;
+      if (aIsCompleted) return 1;
+      if (bIsCompleted) return -1;
+
+      const aDueTimestamp = getDueTimestamp(a);
+      const bDueTimestamp = getDueTimestamp(b);
+      if (aDueTimestamp === null && bDueTimestamp === null) return 0;
+      if (aDueTimestamp === null) return 1;
+      if (bDueTimestamp === null) return -1;
+      const dueDateDifference = aDueTimestamp - bDueTimestamp;
       return dueDateSortDirection === "asc" ? dueDateDifference : -dueDateDifference;
     });
-  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, columns, statuses, dueDateSortDirection]);
+  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, dueDateSortDirection]);
 
   const completeTask = async (taskId: string) => {
     const completedStatus = statuses.find((status) => status.is_completed);
