@@ -774,12 +774,7 @@ export function TaskCard({
   const updateSubtaskDue = async (s: Subtask, isoOrEmpty: string) => {
     const next = isoOrEmpty ? new Date(isoOrEmpty).toISOString() : null;
     if (next === s.due_date) return;
-    // Se já existia um prazo, pergunta o motivo (opcional)
-    if (s.due_date) {
-      setSubDueReason({ open: true, subtask: s, prev: s.due_date, next, reason: "" });
-      return;
-    }
-    await applySubtaskDue(s, next);
+    setSubDueReason({ open: true, subtask: s, prev: s.due_date, next, reason: "" });
   };
 
   const updateSubtaskAssignee = async (s: Subtask, value: string) => {
@@ -863,6 +858,10 @@ export function TaskCard({
   const completedStatus = useMemo(() => statuses.find((s) => s.is_completed) ?? null, [statuses]);
 
   const completeTask = async () => {
+    if (subtasks.some((subtask) => !subtask.done)) {
+      toast.error("Conclua as subtarefas pendentes antes de concluir esta tarefa.");
+      return;
+    }
     await update({
       status: "done",
       status_id: completedStatus?.id ?? task.status_id,
@@ -884,6 +883,10 @@ export function TaskCard({
   };
 
   const confirmDueChange = async (skipReason = false) => {
+    if (!skipReason && !dueChange.reason.trim()) {
+      toast.error("Informe a justificativa da mudança de prazo.");
+      return;
+    }
     const nextIso = dueChange.pending;
     const oldIso = task.due_date ?? null;
     setDueChange({ open: false, pending: null, pendingTime: null, reason: "" });
@@ -2016,12 +2019,9 @@ export function TaskCard({
               autoFocus
               value={dueChange.reason}
               onChange={(e) => setDueChange((c) => ({ ...c, reason: e.target.value }))}
-              placeholder="Motivo da mudança (opcional)"
+              placeholder="Justificativa obrigatória"
               className="min-h-[80px] text-sm"
             />
-            <p className="text-[10px] text-muted-foreground">
-              Se não justificar, a mudança será registrada sem motivo.
-            </p>
           </div>
           <DialogFooter className="gap-2">
             <Button
@@ -2033,10 +2033,7 @@ export function TaskCard({
             >
               Cancelar
             </Button>
-            <Button variant="outline" size="sm" onClick={() => void confirmDueChange(true)}>
-              Mudar sem justificar
-            </Button>
-            <Button size="sm" onClick={() => void confirmDueChange(false)}>
+            <Button size="sm" disabled={!dueChange.reason.trim()} onClick={() => void confirmDueChange(false)}>
               Salvar
             </Button>
           </DialogFooter>
@@ -2078,7 +2075,7 @@ export function TaskCard({
               autoFocus
               value={subDueReason.reason}
               onChange={(e) => setSubDueReason((c) => ({ ...c, reason: e.target.value }))}
-              placeholder="Motivo (opcional) — se preenchido aparece no relatório do cliente"
+              placeholder="Justificativa obrigatória — aparece no relatório do cliente"
               className="min-h-[80px] text-sm"
             />
           </div>
@@ -2093,25 +2090,14 @@ export function TaskCard({
               Cancelar
             </Button>
             <Button
-              variant="outline"
               size="sm"
-              onClick={async () => {
-                const st = subDueReason.subtask;
-                if (!st) return;
-                const nx = subDueReason.next;
-                setSubDueReason({ open: false, subtask: null, prev: null, next: null, reason: "" });
-                await applySubtaskDue(st, nx);
-              }}
-            >
-              Sem justificativa
-            </Button>
-            <Button
-              size="sm"
+              disabled={!subDueReason.reason.trim()}
               onClick={async () => {
                 const st = subDueReason.subtask;
                 if (!st) return;
                 const nx = subDueReason.next;
                 const r = subDueReason.reason;
+                if (!r.trim()) return;
                 setSubDueReason({ open: false, subtask: null, prev: null, next: null, reason: "" });
                 await applySubtaskDue(st, nx, r);
               }}
