@@ -774,6 +774,10 @@ export function TaskCard({
   const updateSubtaskDue = async (s: Subtask, isoOrEmpty: string) => {
     const next = isoOrEmpty ? new Date(isoOrEmpty).toISOString() : null;
     if (next === s.due_date) return;
+    if (!s.due_date) {
+      await applySubtaskDue(s, next);
+      return;
+    }
     setSubDueReason({ open: true, subtask: s, prev: s.due_date, next, reason: "" });
   };
 
@@ -879,6 +883,10 @@ export function TaskCard({
   }) => {
     const oldIso = task.due_date ?? null;
     if (oldIso === nextIso && (task.due_time ?? null) === dueTime) return;
+    if (!oldIso) {
+      void update({ due_date: nextIso, due_time: dueTime });
+      return;
+    }
     setDueChange({ open: true, pending: nextIso, pendingTime: dueTime, reason: "" });
   };
 

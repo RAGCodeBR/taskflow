@@ -430,14 +430,18 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       if (existingTaskId) {
         const previousDueDate = task?.due_date ?? null;
         const dueDateChanged = hasDueDateChanged(previousDueDate, dueDate);
-        const dueChangeReason = dueDateChanged ? dueDateChangeReason.trim() : null;
-        if (dueDateChanged && !dueChangeReason) {
+        // Definir o primeiro prazo não é uma alteração. A justificativa só é
+        // obrigatória a partir da segunda definição/alteração do prazo.
+        const dueChangeReason = dueDateChanged && previousDueDate
+          ? dueDateChangeReason.trim()
+          : null;
+        if (dueDateChanged && previousDueDate && !dueChangeReason) {
           toast.error("Informe a justificativa para alterar o prazo da tarefa.");
           return;
         }
         const { error } = await supabase.from("tasks").update(payload).eq("id", existingTaskId);
         if (error) throw error;
-        if (dueDateChanged) {
+        if (dueDateChanged && previousDueDate) {
           const { error: historyError } = await supabase.from("task_due_date_changes").insert({
             task_id: existingTaskId,
             user_id: authenticated.user.id,
@@ -566,8 +570,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const next = deadlineToIso(isoOrEmpty);
     const prev = st.due_date;
     if (next === prev) return;
-    const justification = reason?.trim() || window.prompt("Justificativa obrigatória para mudar o prazo da subtarefa:")?.trim();
-    if (!justification) {
+    const justification = prev
+      ? reason?.trim() || window.prompt("Justificativa obrigatória para mudar o prazo da subtarefa:")?.trim()
+      : null;
+    if (prev && !justification) {
       toast.error("Informe a justificativa para alterar o prazo da subtarefa.");
       return;
     }
