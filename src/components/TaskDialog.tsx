@@ -421,8 +421,27 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     try {
       const payload = buildPayload();
       if (existingTaskId) {
+        const previousDueDate = task?.due_date ?? null;
+        const dueDateChanged = previousDueDate !== payload.due_date;
+        const dueChangeReason = dueDateChanged
+          ? window.prompt("Justificativa obrigatória para mudar o prazo da tarefa:")?.trim()
+          : null;
+        if (dueDateChanged && !dueChangeReason) {
+          toast.error("Informe a justificativa para alterar o prazo da tarefa.");
+          return;
+        }
         const { error } = await supabase.from("tasks").update(payload).eq("id", existingTaskId);
         if (error) throw error;
+        if (dueDateChanged) {
+          const { error: historyError } = await supabase.from("task_due_date_changes").insert({
+            task_id: existingTaskId,
+            user_id: authenticated.user.id,
+            old_due_date: previousDueDate,
+            new_due_date: payload.due_date,
+            reason: dueChangeReason,
+          });
+          if (historyError) throw historyError;
+        }
         await syncCollaborators(existingTaskId);
         await supabase
           .from("task_history")
@@ -542,6 +561,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const next = deadlineToIso(isoOrEmpty);
     const prev = st.due_date;
     if (next === prev) return;
+    const justification = reason?.trim() || window.prompt("Justificativa obrigatória para mudar o prazo da subtarefa:")?.trim();
+    if (!justification) {
+      toast.error("Informe a justificativa para alterar o prazo da subtarefa.");
+      return;
+    }
     const { error } = await supabase.from("subtasks").update({ due_date: next }).eq("id", st.id);
     if (error) return toast.error(error.message);
     setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, due_date: next } : s)));
@@ -550,7 +574,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         subtask_id: st.id,
         old_due_date: prev,
         new_due_date: next,
-        reason: reason?.trim() || null,
+        reason: justification,
         user_id: user.id,
       });
       // refresh history if open
