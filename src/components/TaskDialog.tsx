@@ -83,6 +83,10 @@ interface Comment {
 const DEFAULT_DEADLINE_TIME = "12:00";
 const deadlineToIso = (date: string) =>
   date ? new Date(`${date}T${DEFAULT_DEADLINE_TIME}:00`).toISOString() : null;
+const hasDueDateChanged = (previousDueDate: string | null | undefined, nextDueDate: string) =>
+  previousDueDate
+    ? format(new Date(previousDueDate), "yyyy-MM-dd") !== nextDueDate
+    : Boolean(nextDueDate);
 const normalizeDueTime = (time: string | null) => time?.slice(0, 5) ?? "";
 interface Attachment {
   id: string;
@@ -117,6 +121,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [collaboratorPickerOpen, setCollaboratorPickerOpen] = useState(false);
   const [dueDate, setDueDate] = useState<string>("");
   const [dueTime, setDueTime] = useState<string>("");
+  const [dueDateChangeReason, setDueDateChangeReason] = useState("");
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
 
@@ -190,6 +195,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       void loadCollaborators(task.id);
       setDueDate(task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : "");
       setDueTime(normalizeDueTime(task.due_time));
+      setDueDateChangeReason("");
       currentTaskIdRef.current = task.id;
       setCurrentTaskId(task.id);
       setNewSubtask("");
@@ -207,6 +213,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setCollaboratorIds([]);
       setDueDate("");
       setDueTime("");
+      setDueDateChangeReason("");
       currentTaskIdRef.current = null;
       setCurrentTaskId(null);
       setSubtasks([]);
@@ -422,10 +429,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       const payload = buildPayload();
       if (existingTaskId) {
         const previousDueDate = task?.due_date ?? null;
-        const dueDateChanged = previousDueDate !== payload.due_date;
-        const dueChangeReason = dueDateChanged
-          ? window.prompt("Justificativa obrigatória para mudar o prazo da tarefa:")?.trim()
-          : null;
+        const dueDateChanged = hasDueDateChanged(previousDueDate, dueDate);
+        const dueChangeReason = dueDateChanged ? dueDateChangeReason.trim() : null;
         if (dueDateChanged && !dueChangeReason) {
           toast.error("Informe a justificativa para alterar o prazo da tarefa.");
           return;
@@ -834,6 +839,20 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   </span>
                 </div>
               </div>
+              {task && hasDueDateChanged(task.due_date, dueDate) && (
+                <div className="space-y-1">
+                  <Label htmlFor="due-date-change-reason" className="text-xs">
+                    Justificativa da alteração de prazo <span className="text-destructive">*</span>
+                  </Label>
+                  <Textarea
+                    id="due-date-change-reason"
+                    value={dueDateChangeReason}
+                    onChange={(event) => setDueDateChangeReason(event.target.value)}
+                    placeholder="Explique o motivo da alteração"
+                    className="min-h-16 text-xs"
+                  />
+                </div>
+              )}
             </div>
             <div className="order-5 space-y-2">
               <Label className="text-xs">Colaboradores</Label>
