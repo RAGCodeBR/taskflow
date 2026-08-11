@@ -943,7 +943,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     placeholder="Pesquisar cliente..."
                     className="mb-2 h-8 text-xs"
                   />
-                  <div className="space-y-1">
+                  <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
                     <button
                       type="button"
                       onClick={() => {
@@ -954,7 +954,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     >
                       Nenhum
                     </button>
-                    {filteredClients.slice(0, 5).map((client) => (
+                    {filteredClients.map((client) => (
                       <button
                         key={client.id}
                         type="button"
@@ -977,12 +977,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                       </p>
                     )}
                   </div>
-                  {filteredClients.length > 5 && (
-                    <p className="mt-2 text-[10px] text-muted-foreground">
-                      Exibindo os 5 primeiros resultados. Refine a pesquisa para encontrar outro
-                      cliente.
-                    </p>
-                  )}
                 </PopoverContent>
               </Popover>
             </div>

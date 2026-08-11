@@ -2271,8 +2271,6 @@ function ClientPicker({
       ? clients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term))
       : clients;
   }, [clients, search]);
-  const visibleClients = filteredClients.slice(0, 5);
-
   return (
     <div className="space-y-2">
       <Input
@@ -2282,7 +2280,7 @@ function ClientPicker({
         placeholder="Pesquisar cliente..."
         className="h-8 text-xs"
       />
-      <div className="space-y-1">
+      <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
         <button
           type="button"
           onClick={() => onChange(null)}
@@ -2293,7 +2291,7 @@ function ClientPicker({
         >
           Nenhum
         </button>
-        {visibleClients.map((client) => (
+        {filteredClients.map((client) => (
           <button
             key={client.id}
             type="button"
@@ -2314,11 +2312,6 @@ function ClientPicker({
           <p className="px-2 py-2 text-xs text-muted-foreground">Nenhum cliente encontrado.</p>
         )}
       </div>
-      {filteredClients.length > 5 && (
-        <p className="text-[10px] text-muted-foreground">
-          Exibindo os 5 primeiros resultados. Refine a pesquisa para encontrar outro cliente.
-        </p>
-      )}
     </div>
   );
 }
