@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, GripVertical, ImageIcon, Maximize2, Minimize2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, SmilePlus, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +41,8 @@ type MuralPost = {
   is_pinned: boolean;
   card_size: CardSize;
   text_style: TextStyle;
+  canvas_x: number;
+  canvas_y: number;
 };
 type MuralAttachment = {
   id: string;
@@ -86,6 +88,9 @@ const TEXT_STYLES: { value: TextStyle; label: string; css: CSSProperties }[] = [
 
 const QUICK_EMOJIS = ["📌", "✨", "💡", "🚀", "✅", "⚠️", "🎉", "❤️"];
 const REACTION_EMOJIS = ["👍", "❤️", "🎉", "👏", "💡", "👀"];
+const CANVAS_WIDTH = 3200;
+const CANVAS_HEIGHT = 2200;
+const CARD_GAP = 20;
 
 const emptyForm = {
   title: "", content: "", tag: "", imageUrl: "", checklist: "", color: "sky",
@@ -109,9 +114,11 @@ function MuralPage() {
   const [editingPost, setEditingPost] = useState<MuralPost | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [localOrder, setLocalOrder] = useState<string[]>([]);
   const [uploadingPostId, setUploadingPostId] = useState<string | null>(null);
   const hasMarkedCurrentVisitRead = useRef(false);
+  const canvasViewportRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const postRefs = useRef(new Map<string, HTMLElement>());
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ["mural_posts"],
     queryFn: async () => {
@@ -125,18 +132,9 @@ function MuralPage() {
         is_pinned: !!post.is_pinned,
         card_size: post.card_size ?? "normal",
         text_style: post.text_style ?? "clean",
+        canvas_x: post.canvas_x ?? 520,
+        canvas_y: post.canvas_y ?? 180,
       })) as MuralPost[];
-    },
-  });
-  const { data: storedOrders = [] } = useQuery({
-    queryKey: ["mural_post_orders", user?.id],
-    enabled: !!user?.id,
-    queryFn: async () => {
-      const { data, error } = await (supabase.from("mural_post_orders") as any)
-        .select("post_id, position")
-        .order("position");
-      if (error) throw error;
-      return (data ?? []) as { post_id: string; position: number }[];
     },
   });
   const { data: attachments = [] } = useQuery({
@@ -248,23 +246,11 @@ function MuralPage() {
     onError: (error: Error) => toast.error(error.message),
   });
   const updatePostPresentation = useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: Partial<Pick<MuralPost, "is_pinned" | "card_size">> }) => {
+    mutationFn: async ({ id, patch }: { id: string; patch: Partial<Pick<MuralPost, "is_pinned" | "card_size" | "canvas_x" | "canvas_y">> }) => {
       const { error } = await (supabase.from("mural_posts") as any).update(patch).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["mural_posts"] }),
-    onError: (error: Error) => toast.error(error.message),
-  });
-  const saveOrder = useMutation({
-    mutationFn: async (postIds: string[]) => {
-      if (!user) return;
-      const { error } = await (supabase.from("mural_post_orders") as any).upsert(
-        postIds.map((postId, position) => ({ user_id: user.id, post_id: postId, position })),
-        { onConflict: "user_id,post_id" },
-      );
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["mural_post_orders", user?.id] }),
     onError: (error: Error) => toast.error(error.message),
   });
   const toggleReaction = useMutation({
@@ -287,20 +273,13 @@ function MuralPage() {
     [posts.length],
   );
   const orderedPosts = useMemo(() => {
-    const positions = new Map(storedOrders.map((order) => [order.post_id, order.position]));
-    const order = localOrder.length > 0 ? new Map(localOrder.map((id, index) => [id, index])) : positions;
     return posts
       .filter((post) => (showCompleted ? !!post.completed_at : !post.completed_at))
       .sort((a, b) => {
         if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
-        const aPosition = order.get(a.id);
-        const bPosition = order.get(b.id);
-        if (aPosition !== undefined && bPosition !== undefined) return aPosition - bPosition;
-        if (aPosition !== undefined) return -1;
-        if (bPosition !== undefined) return 1;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [posts, storedOrders, localOrder, showCompleted]);
+  }, [posts, showCompleted]);
   const openNewPost = () => {
     setEditingPost(null);
     setForm(emptyForm);
@@ -320,17 +299,49 @@ function MuralPage() {
     });
     setOpen(true);
   };
-  const movePost = (targetId: string) => {
-    if (!draggingId || draggingId === targetId) return;
-    const ids = orderedPosts.map((post) => post.id);
-    const from = ids.indexOf(draggingId);
-    const to = ids.indexOf(targetId);
-    if (from < 0 || to < 0) return;
-    ids.splice(from, 1);
-    ids.splice(to, 0, draggingId);
-    setLocalOrder(ids);
-    saveOrder.mutate(ids);
+  const findOpenCanvasPosition = (post: MuralPost, requestedX: number, requestedY: number) => {
+    const card = postRefs.current.get(post.id);
+    const width = card?.offsetWidth ?? (post.card_size === "large" ? 560 : post.card_size === "compact" ? 256 : 320);
+    const height = card?.offsetHeight ?? (post.card_size === "large" ? 420 : post.card_size === "compact" ? 220 : 300);
+    const maxX = CANVAS_WIDTH - width - CARD_GAP;
+    const maxY = CANVAS_HEIGHT - height - CARD_GAP;
+    const collides = (x: number, y: number) => orderedPosts.some((other) => {
+      if (other.id === post.id) return false;
+      const otherCard = postRefs.current.get(other.id);
+      const otherWidth = otherCard?.offsetWidth ?? (other.card_size === "large" ? 560 : other.card_size === "compact" ? 256 : 320);
+      const otherHeight = otherCard?.offsetHeight ?? (other.card_size === "large" ? 420 : other.card_size === "compact" ? 220 : 300);
+      return x < other.canvas_x + otherWidth + CARD_GAP
+        && x + width + CARD_GAP > other.canvas_x
+        && y < other.canvas_y + otherHeight + CARD_GAP
+        && y + height + CARD_GAP > other.canvas_y;
+    });
+    let x = Math.max(CARD_GAP, Math.min(Math.round(requestedX), maxX));
+    let y = Math.max(CARD_GAP, Math.min(Math.round(requestedY), maxY));
+    for (let attempt = 0; collides(x, y) && attempt < 400; attempt += 1) {
+      x += 32;
+      if (x > maxX) {
+        x = CARD_GAP;
+        y += 32;
+        if (y > maxY) y = CARD_GAP;
+      }
+    }
+    return { x, y };
   };
+  const movePostOnCanvas = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const id = event.dataTransfer.getData("text/plain") || draggingId;
+    const post = orderedPosts.find((item) => item.id === id);
+    const canvas = canvasRef.current;
+    if (!post || !canvas || !(isAdmin || post.created_by === user?.id)) return;
+    const rect = canvas.getBoundingClientRect();
+    const position = findOpenCanvasPosition(post, event.clientX - rect.left - 28, event.clientY - rect.top - 28);
+    updatePostPresentation.mutate({ id: post.id, patch: { canvas_x: position.x, canvas_y: position.y } });
+  };
+
+  useEffect(() => {
+    const viewport = canvasViewportRef.current;
+    if (viewport) viewport.scrollLeft = 420;
+  }, []);
   const uploadFiles = async (post: MuralPost, files: FileList) => {
     if (!user || files.length === 0) return;
     setUploadingPostId(post.id);
@@ -403,7 +414,7 @@ function MuralPage() {
             <h1 className="text-2xl font-bold tracking-tight">Mural</h1>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Ideias, lembretes e comunicados compartilhados pela equipe. O mural tem rolagem livre, cartões independentes e itens fixados sempre à frente. {postCountLabel}.
+            Ideias, lembretes e comunicados compartilhados pela equipe. Arraste seus post-its pelo espaço livre; a tela rola em todas as direções e evita sobreposições. Itens fixados ficam sempre à frente. {postCountLabel}.
           </p>
         </div>
         <div className="flex gap-2">
@@ -495,8 +506,14 @@ function MuralPage() {
           </div>
         </div>
       ) : (
-        <div className="overflow-auto rounded-2xl border border-border/60 bg-muted/20 p-4 shadow-inner">
-          <div className="grid min-h-[42rem] min-w-[58rem] grid-cols-3 content-start items-start gap-4 xl:grid-cols-4">
+        <div ref={canvasViewportRef} className="h-[calc(100dvh-13rem)] min-h-[36rem] overflow-auto rounded-2xl border border-border/60 bg-muted/20 shadow-inner">
+          <div
+            ref={canvasRef}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={movePostOnCanvas}
+            className="relative bg-[linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)] bg-[size:28px_28px]"
+            style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
+          >
           {orderedPosts.map((post) => {
             const canEdit = isAdmin || post.created_by === user?.id;
             const postAttachments = attachments.filter((attachment) => attachment.post_id === post.id);
@@ -506,13 +523,19 @@ function MuralPage() {
             return (
               <article
                 key={post.id}
-                draggable
-                onDragStart={() => setDraggingId(post.id)}
+                ref={(node) => {
+                  if (node) postRefs.current.set(post.id, node);
+                  else postRefs.current.delete(post.id);
+                }}
+                draggable={canEdit}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData("text/plain", post.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  setDraggingId(post.id);
+                }}
                 onDragEnd={() => setDraggingId(null)}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={() => movePost(post.id)}
-                className={`group relative self-start overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${post.card_size === "large" ? "col-span-2 p-6" : post.card_size === "compact" ? "w-64 p-3" : "w-80"} ${post.is_pinned ? "z-10 ring-2 ring-primary/30" : ""} ${draggingId === post.id ? "opacity-45" : ""} ${colorClass(post.color)}`}
-                style={textStyleCss(post.text_style)}
+                className={`group absolute overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${post.card_size === "large" ? "w-[34rem] p-6" : post.card_size === "compact" ? "w-64 p-3" : "w-80"} ${post.is_pinned ? "z-20 ring-2 ring-primary/40" : "z-10"} ${draggingId === post.id ? "opacity-45" : ""} ${colorClass(post.color)}`}
+                style={{ ...textStyleCss(post.text_style), left: post.canvas_x, top: post.canvas_y }}
               >
                 {post.image_url && (
                   <img src={post.image_url} alt="" className="-mx-4 -mt-4 mb-4 h-36 w-[calc(100%+2rem)] object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
@@ -521,7 +544,7 @@ function MuralPage() {
                   <h2 className={`min-w-0 flex-1 font-bold leading-snug ${post.card_size === "large" ? "text-xl" : "text-base"}`}>{post.title}</h2>
                   <GripVertical className="h-4 w-4 shrink-0 cursor-grab opacity-45" aria-label="Arraste para mover" />
                   {canEdit && <div className="-mr-2 -mt-2 flex opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updatePostPresentation.mutate({ id: post.id, patch: { is_pinned: !post.is_pinned } })} title={post.is_pinned ? "Desafixar do topo" : "Fixar no topo"}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updatePostPresentation.mutate({ id: post.id, patch: { is_pinned: !post.is_pinned } })} title={post.is_pinned ? "Desafixar" : "Fixar à frente dos demais"}>
                       {post.is_pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updatePostPresentation.mutate({ id: post.id, patch: { card_size: post.card_size === "large" ? "normal" : "large" } })} title={post.card_size === "large" ? "Voltar ao tamanho normal" : "Destacar e ampliar"}>
@@ -534,7 +557,7 @@ function MuralPage() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removePost.mutate(post.id)} title="Remover post-it"><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>}
                 </div>
-                {post.is_pinned && <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-background/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide"><Pin className="h-3 w-3" /> Fixado no topo</span>}
+                {post.is_pinned && <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-background/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide"><Pin className="h-3 w-3" /> Fixado à frente</span>}
                 {post.content && <p className={`whitespace-pre-wrap leading-relaxed text-foreground/85 ${post.is_pinned ? "mt-2" : "mt-3"} ${post.card_size === "large" ? "text-base" : "text-sm"}`}>{post.content}</p>}
                 {post.checklist.length > 0 && (
                   <div className="mt-4 space-y-2">
