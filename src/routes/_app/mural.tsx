@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Download, GripVertical, ImageIcon, Maximize2, Minimize2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
+import { Check, Download, GripVertical, ImageIcon, Maximize2, Minimize2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, SmilePlus, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfiles } from "@/hooks/use-data";
@@ -50,6 +50,13 @@ type MuralAttachment = {
   mime_type: string | null;
   size_bytes: number | null;
 };
+type MuralReaction = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+};
 
 const COLORS = [
   { value: "sky", label: "Azul", card: "bg-sky-200/85 dark:bg-sky-900/65" },
@@ -78,6 +85,7 @@ const TEXT_STYLES: { value: TextStyle; label: string; css: CSSProperties }[] = [
 ];
 
 const QUICK_EMOJIS = ["📌", "✨", "💡", "🚀", "✅", "⚠️", "🎉", "❤️"];
+const REACTION_EMOJIS = ["👍", "❤️", "🎉", "👏", "💡", "👀"];
 
 const emptyForm = {
   title: "", content: "", tag: "", imageUrl: "", checklist: "", color: "sky",
@@ -139,6 +147,16 @@ function MuralPage() {
         .order("created_at");
       if (error) throw error;
       return (data ?? []) as MuralAttachment[];
+    },
+  });
+  const { data: reactions = [] } = useQuery({
+    queryKey: ["mural_post_reactions"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("mural_post_reactions") as any)
+        .select("id, post_id, user_id, emoji, created_at")
+        .order("created_at");
+      if (error) throw error;
+      return (data ?? []) as MuralReaction[];
     },
   });
 
@@ -247,6 +265,20 @@ function MuralPage() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["mural_post_orders", user?.id] }),
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const toggleReaction = useMutation({
+    mutationFn: async ({ postId, emoji }: { postId: string; emoji: string }) => {
+      if (!user) throw new Error("Sua sessão expirou. Entre novamente.");
+      const current = reactions.find(
+        (reaction) => reaction.post_id === postId && reaction.user_id === user.id && reaction.emoji === emoji,
+      );
+      const { error } = current
+        ? await (supabase.from("mural_post_reactions") as any).delete().eq("id", current.id)
+        : await (supabase.from("mural_post_reactions") as any).insert({ post_id: postId, user_id: user.id, emoji });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["mural_post_reactions"] }),
     onError: (error: Error) => toast.error(error.message),
   });
 
@@ -371,7 +403,7 @@ function MuralPage() {
             <h1 className="text-2xl font-bold tracking-tight">Mural</h1>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Ideias, lembretes e comunicados compartilhados pela equipe. Arraste para reorganizar, fixe o que importa e destaque seus recados. {postCountLabel}.
+            Ideias, lembretes e comunicados compartilhados pela equipe. O mural tem rolagem livre, cartões independentes e itens fixados sempre à frente. {postCountLabel}.
           </p>
         </div>
         <div className="flex gap-2">
@@ -463,10 +495,12 @@ function MuralPage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="overflow-auto rounded-2xl border border-border/60 bg-muted/20 p-4 shadow-inner">
+          <div className="grid min-h-[42rem] min-w-[58rem] grid-cols-3 content-start items-start gap-4 xl:grid-cols-4">
           {orderedPosts.map((post) => {
             const canEdit = isAdmin || post.created_by === user?.id;
             const postAttachments = attachments.filter((attachment) => attachment.post_id === post.id);
+            const postReactions = reactions.filter((reaction) => reaction.post_id === post.id);
             const authorName =
               profiles.find((profile) => profile.id === post.created_by)?.full_name ?? "Usuário";
             return (
@@ -477,7 +511,7 @@ function MuralPage() {
                 onDragEnd={() => setDraggingId(null)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => movePost(post.id)}
-                className={`group relative overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${post.card_size === "large" ? "sm:col-span-2 sm:p-6" : post.card_size === "compact" ? "p-3" : ""} ${draggingId === post.id ? "opacity-45" : ""} ${colorClass(post.color)}`}
+                className={`group relative self-start overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${post.card_size === "large" ? "col-span-2 p-6" : post.card_size === "compact" ? "w-64 p-3" : "w-80"} ${post.is_pinned ? "z-10 ring-2 ring-primary/30" : ""} ${draggingId === post.id ? "opacity-45" : ""} ${colorClass(post.color)}`}
                 style={textStyleCss(post.text_style)}
               >
                 {post.image_url && (
@@ -531,6 +565,36 @@ function MuralPage() {
                     </div>
                   ))}
                 </div>
+                <div className="mt-4 flex flex-wrap items-center gap-1.5 border-t border-foreground/10 pt-3">
+                  <SmilePlus className="mr-0.5 h-3.5 w-3.5 text-foreground/60" aria-hidden="true" />
+                  {REACTION_EMOJIS.map((emoji) => {
+                    const emojiReactions = postReactions.filter((reaction) => reaction.emoji === emoji);
+                    const reactedByCurrentUser = emojiReactions.some((reaction) => reaction.user_id === user?.id);
+                    const names = emojiReactions
+                      .map((reaction) => profiles.find((profile) => profile.id === reaction.user_id)?.full_name ?? "Usuário")
+                      .join(", ");
+                    return (
+                      <Button
+                        key={emoji}
+                        type="button"
+                        variant={reactedByCurrentUser ? "secondary" : "ghost"}
+                        size="sm"
+                        disabled={toggleReaction.isPending}
+                        onClick={() => toggleReaction.mutate({ postId: post.id, emoji })}
+                        title={names ? `${emoji} por ${names}` : `Reagir com ${emoji}`}
+                        className="h-7 min-w-7 gap-1 rounded-full px-1.5 text-xs"
+                      >
+                        <span>{emoji}</span>
+                        {emojiReactions.length > 0 && <span>{emojiReactions.length}</span>}
+                      </Button>
+                    );
+                  })}
+                  {postReactions.length > 0 && (
+                    <p className="basis-full pt-1 text-[10px] text-foreground/65">
+                      {postReactions.map((reaction) => `${profiles.find((profile) => profile.id === reaction.user_id)?.full_name ?? "Usuário"} ${reaction.emoji}`).join(" · ")}
+                    </p>
+                  )}
+                </div>
                 {!post.image_url && !post.content && post.checklist.length === 0 && <ImageIcon className="mt-8 h-5 w-5 opacity-25" />}
                 <div className="mt-4 flex items-center justify-between gap-2">
                   {post.tag ? (
@@ -543,6 +607,7 @@ function MuralPage() {
               </article>
             );
           })}
+          </div>
         </div>
       )}
     </div>
