@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, GripVertical, ImageIcon, Maximize2, Minimize2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, SmilePlus, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -114,11 +114,14 @@ function MuralPage() {
   const [editingPost, setEditingPost] = useState<MuralPost | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [draftPositions, setDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [uploadingPostId, setUploadingPostId] = useState<string | null>(null);
   const hasMarkedCurrentVisitRead = useRef(false);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const postRefs = useRef(new Map<string, HTMLElement>());
+  const activeDragRef = useRef<{ id: string; pointerId: number; offsetX: number; offsetY: number } | null>(null);
+  const draftPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ["mural_posts"],
     queryFn: async () => {
@@ -310,10 +313,11 @@ function MuralPage() {
       const otherCard = postRefs.current.get(other.id);
       const otherWidth = otherCard?.offsetWidth ?? (other.card_size === "large" ? 560 : other.card_size === "compact" ? 256 : 320);
       const otherHeight = otherCard?.offsetHeight ?? (other.card_size === "large" ? 420 : other.card_size === "compact" ? 220 : 300);
-      return x < other.canvas_x + otherWidth + CARD_GAP
-        && x + width + CARD_GAP > other.canvas_x
-        && y < other.canvas_y + otherHeight + CARD_GAP
-        && y + height + CARD_GAP > other.canvas_y;
+      const otherPosition = draftPositionsRef.current[other.id] ?? { x: other.canvas_x, y: other.canvas_y };
+      return x < otherPosition.x + otherWidth + CARD_GAP
+        && x + width + CARD_GAP > otherPosition.x
+        && y < otherPosition.y + otherHeight + CARD_GAP
+        && y + height + CARD_GAP > otherPosition.y;
     });
     let x = Math.max(CARD_GAP, Math.min(Math.round(requestedX), maxX));
     let y = Math.max(CARD_GAP, Math.min(Math.round(requestedY), maxY));
@@ -327,15 +331,43 @@ function MuralPage() {
     }
     return { x, y };
   };
-  const movePostOnCanvas = (event: DragEvent<HTMLDivElement>) => {
+  const setDraftPosition = (id: string, position: { x: number; y: number }) => {
+    draftPositionsRef.current = { ...draftPositionsRef.current, [id]: position };
+    setDraftPositions(draftPositionsRef.current);
+  };
+  const startCanvasDrag = (event: PointerEvent<SVGSVGElement>, post: MuralPost) => {
+    if (!(isAdmin || post.created_by === user?.id) || !canvasRef.current) return;
     event.preventDefault();
-    const id = event.dataTransfer.getData("text/plain") || draggingId;
-    const post = orderedPosts.find((item) => item.id === id);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const rect = canvasRef.current.getBoundingClientRect();
+    const current = draftPositionsRef.current[post.id] ?? { x: post.canvas_x, y: post.canvas_y };
+    activeDragRef.current = {
+      id: post.id,
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left - current.x,
+      offsetY: event.clientY - rect.top - current.y,
+    };
+    setDraggingId(post.id);
+  };
+  const moveCanvasDrag = (event: PointerEvent<SVGSVGElement>) => {
+    const activeDrag = activeDragRef.current;
+    const post = orderedPosts.find((item) => item.id === activeDrag?.id);
     const canvas = canvasRef.current;
-    if (!post || !canvas || !(isAdmin || post.created_by === user?.id)) return;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId || !post || !canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const position = findOpenCanvasPosition(post, event.clientX - rect.left - 28, event.clientY - rect.top - 28);
-    updatePostPresentation.mutate({ id: post.id, patch: { canvas_x: position.x, canvas_y: position.y } });
+    setDraftPosition(post.id, findOpenCanvasPosition(
+      post,
+      event.clientX - rect.left - activeDrag.offsetX,
+      event.clientY - rect.top - activeDrag.offsetY,
+    ));
+  };
+  const finishCanvasDrag = (event: PointerEvent<SVGSVGElement>) => {
+    const activeDrag = activeDragRef.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+    const position = draftPositionsRef.current[activeDrag.id];
+    activeDragRef.current = null;
+    setDraggingId(null);
+    if (position) updatePostPresentation.mutate({ id: activeDrag.id, patch: { canvas_x: position.x, canvas_y: position.y } });
   };
 
   useEffect(() => {
@@ -509,8 +541,6 @@ function MuralPage() {
         <div ref={canvasViewportRef} className="h-[calc(100dvh-13rem)] min-h-[36rem] overflow-auto rounded-2xl border border-border/60 bg-muted/20 shadow-inner">
           <div
             ref={canvasRef}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={movePostOnCanvas}
             className="relative bg-[linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)] bg-[size:28px_28px]"
             style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
           >
@@ -527,22 +557,30 @@ function MuralPage() {
                   if (node) postRefs.current.set(post.id, node);
                   else postRefs.current.delete(post.id);
                 }}
-                draggable={canEdit}
-                onDragStart={(event) => {
-                  event.dataTransfer.setData("text/plain", post.id);
-                  event.dataTransfer.effectAllowed = "move";
-                  setDraggingId(post.id);
+                className={`group absolute overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${post.card_size === "large" ? "w-[34rem] p-6" : post.card_size === "compact" ? "w-64 p-3" : "w-80"} ${post.is_pinned ? "ring-2 ring-primary/40" : ""} ${draggingId === post.id ? "opacity-75 shadow-xl" : ""} ${colorClass(post.color)}`}
+                style={{
+                  ...textStyleCss(post.text_style),
+                  left: draftPositions[post.id]?.x ?? post.canvas_x,
+                  top: draftPositions[post.id]?.y ?? post.canvas_y,
+                  zIndex: post.is_pinned ? 30 : 10,
                 }}
-                onDragEnd={() => setDraggingId(null)}
-                className={`group absolute overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${post.card_size === "large" ? "w-[34rem] p-6" : post.card_size === "compact" ? "w-64 p-3" : "w-80"} ${post.is_pinned ? "z-20 ring-2 ring-primary/40" : "z-10"} ${draggingId === post.id ? "opacity-45" : ""} ${colorClass(post.color)}`}
-                style={{ ...textStyleCss(post.text_style), left: post.canvas_x, top: post.canvas_y }}
               >
                 {post.image_url && (
                   <img src={post.image_url} alt="" className="-mx-4 -mt-4 mb-4 h-36 w-[calc(100%+2rem)] object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
                 )}
                 <div className="flex items-start gap-2">
                   <h2 className={`min-w-0 flex-1 font-bold leading-snug ${post.card_size === "large" ? "text-xl" : "text-base"}`}>{post.title}</h2>
-                  <GripVertical className="h-4 w-4 shrink-0 cursor-grab opacity-45" aria-label="Arraste para mover" />
+                  {canEdit && (
+                    <GripVertical
+                      className="h-5 w-5 shrink-0 touch-none cursor-grab opacity-55 active:cursor-grabbing"
+                      aria-label="Arraste para mover"
+                      title="Arraste para mover no mural"
+                      onPointerDown={(event) => startCanvasDrag(event, post)}
+                      onPointerMove={moveCanvasDrag}
+                      onPointerUp={finishCanvasDrag}
+                      onPointerCancel={finishCanvasDrag}
+                    />
+                  )}
                   {canEdit && <div className="-mr-2 -mt-2 flex opacity-0 transition-opacity group-hover:opacity-100">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updatePostPresentation.mutate({ id: post.id, patch: { is_pinned: !post.is_pinned } })} title={post.is_pinned ? "Desafixar" : "Fixar à frente dos demais"}>
                       {post.is_pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
