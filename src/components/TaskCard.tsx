@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/select";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
+import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
 import { CommentAttachments } from "@/components/CommentAttachments";
@@ -460,6 +461,10 @@ export function TaskCard({
 
   const uploadFile = async (file: File): Promise<boolean> => {
     if (!user) return false;
+    if (isTaskAttachmentTooLarge(file)) {
+      toast.error(`${file.name} ultrapassa o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+      return false;
+    }
     const safe =
       file.name
         .normalize("NFD")
@@ -506,6 +511,11 @@ export function TaskCard({
   const uploadFiles = async (files: FileList) => {
     const selectedFiles = Array.from(files);
     if (!selectedFiles.length || fileUploadProgress) return;
+    const oversizedFiles = selectedFiles.filter(isTaskAttachmentTooLarge);
+    if (oversizedFiles.length) {
+      toast.error(`${oversizedFiles.length} ${oversizedFiles.length === 1 ? "arquivo ultrapassa" : "arquivos ultrapassam"} o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+      return;
+    }
     let uploaded = 0;
     setFileUploadProgress({ current: 0, total: selectedFiles.length });
     try {
@@ -1742,7 +1752,7 @@ export function TaskCard({
                     className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
                   >
                     <Upload className="h-3 w-3" />
-                    <span>{fileUploadProgress ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…` : "Adicionar arquivos"}</span>
+                    <span>{fileUploadProgress ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…` : `Adicionar arquivos (até ${MAX_TASK_ATTACHMENT_LABEL})`}</span>
                   </button>
                   <input
                     ref={fileRef}

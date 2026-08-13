@@ -37,6 +37,7 @@ import {
 import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
+import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { RichTextEditor } from "@/components/RichTextEditor";
 
@@ -713,6 +714,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   // Attachments
   const uploadFile = async (file: File, taskId?: string): Promise<boolean> => {
     if (!user) return false;
+    if (isTaskAttachmentTooLarge(file)) {
+      toast.error(`${file.name} ultrapassa o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+      return false;
+    }
     const tid = taskId ?? (await ensureTask());
     if (!tid) return false;
     const path = `${tid}/${storageObjectName()}`;
@@ -744,6 +749,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const uploadFiles = async (files: FileList) => {
     const selectedFiles = Array.from(files);
     if (!selectedFiles.length || fileUploadProgress) return;
+    const oversizedFiles = selectedFiles.filter(isTaskAttachmentTooLarge);
+    if (oversizedFiles.length) {
+      toast.error(`${oversizedFiles.length} ${oversizedFiles.length === 1 ? "arquivo ultrapassa" : "arquivos ultrapassam"} o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+      return;
+    }
     const taskId = await ensureTask();
     if (!taskId) return;
     let uploaded = 0;
@@ -1495,7 +1505,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   disabled={!!fileUploadProgress}
                 >
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-3 text-sm text-muted-foreground hover:bg-muted/40">
-                  <Paperclip className="h-4 w-4" /> {fileUploadProgress ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…` : "Anexar arquivos"}
+                  <Paperclip className="h-4 w-4" /> {fileUploadProgress ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…` : `Anexar arquivos (até ${MAX_TASK_ATTACHMENT_LABEL} cada)`}
                   <input
                     type="file"
                     multiple
