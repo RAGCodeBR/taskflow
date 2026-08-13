@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { markMuralAsRead, muralUnreadKey } from "@/hooks/use-mural-unread";
+import { muralUnreadKey } from "@/hooks/use-mural-unread";
 
 export const Route = createFileRoute("/_app/mural")({
   component: MuralPage,
@@ -170,21 +170,20 @@ function MuralPage() {
   useEffect(() => {
     if (!user || isLoading || hasMarkedCurrentVisitRead.current) return;
     hasMarkedCurrentVisitRead.current = true;
-    const unreadPostIds = posts
-      .filter((post) => post.created_by !== user.id)
-      .map((post) => post.id);
-    void markMuralAsRead(user.id, unreadPostIds)
-      .then(() => qc.invalidateQueries({ queryKey: muralUnreadKey(user.id) }))
-      .catch((error: Error) => {
+    void (async () => {
+      const { error } = await (supabase.from("notifications") as any)
+        .update({ is_read: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false)
+        .in("type", ["mural_post", "mural_reaction"]);
+      if (error) {
         hasMarkedCurrentVisitRead.current = false;
         toast.error(`Não foi possível atualizar a leitura do mural: ${error.message}`);
-      });
-    void (supabase.from("notifications") as any)
-      .update({ is_read: true })
-      .eq("user_id", user.id)
-      .eq("is_read", false)
-      .in("type", ["mural_post", "mural_reaction"]);
-  }, [isLoading, posts, qc, user?.id]);
+        return;
+      }
+      await qc.invalidateQueries({ queryKey: muralUnreadKey(user.id) });
+    })();
+  }, [isLoading, qc, user?.id]);
 
   const savePost = useMutation({
     mutationFn: async () => {
