@@ -82,6 +82,7 @@ import {
   type KanbanColumn,
 } from "@/hooks/use-data";
 import { TaskCard } from "@/components/TaskCard";
+import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
 import { TaskDialog } from "@/components/TaskDialog";
 import { TagManagerDialog } from "@/components/TagManagerDialog";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
@@ -980,108 +981,7 @@ function KanbanPage() {
     if (!user || !dueDate) return;
     setDuplicatingTask(true);
     try {
-      // 1. Criar nova tarefa
-      // Não use INSERT ... RETURNING: a política SELECT pode bloquear a leitura
-      // da linha recém-criada. Geramos o UUID no cliente e inserimos sem select.
-      const newTaskId = crypto.randomUUID();
-      const { error: taskError } = await supabase.from("tasks").insert({
-        id: newTaskId,
-        title: `${task.title} (cópia)`,
-        description: task.description,
-        status: task.status === "done" ? "todo" : task.status,
-        priority: task.priority,
-        column_id: task.column_id,
-        client_id: task.client_id,
-        assignee_id: task.assignee_id,
-        due_date: new Date(`${dueDate}T12:00:00`).toISOString(),
-        color: task.color,
-        status_id: task.status_id,
-        completed_at: null,
-        created_by: user.id,
-        position: 9999,
-      });
-      if (taskError) throw taskError;
-
-      // 2. Copiar subtarefas
-      const { data: subs } = await supabase
-        .from("subtasks")
-        .select("title, done, position")
-        .eq("task_id", task.id);
-      if (subs && subs.length > 0) {
-        await supabase.from("subtasks").insert(
-          subs.map((s: { title: string; done: boolean; position: number }) => ({
-            task_id: newTaskId,
-            title: s.title,
-            done: s.done,
-            position: s.position,
-          })),
-        );
-      }
-
-      // 3. Copiar comentários
-      const { data: coms } = await supabase
-        .from("comments")
-        .select("body, author_id")
-        .eq("task_id", task.id);
-      if (coms && coms.length > 0) {
-        await supabase
-          .from("comments")
-          .insert(coms.map((c: { body: string; author_id: string | null }) => ({ task_id: newTaskId, body: c.body, author_id: c.author_id })));
-      }
-
-      // 4. Copiar tags
-      const { data: tagLinks } = await supabase
-        .from("task_tag_links")
-        .select("tag_id")
-        .eq("task_id", task.id);
-      if (tagLinks && tagLinks.length > 0) {
-        await supabase
-          .from("task_tag_links")
-          .insert(tagLinks.map((t: { tag_id: string }) => ({ task_id: newTaskId, tag_id: t.tag_id })));
-      }
-
-      // 5. Copiar anexos (arquivos no storage também)
-      const { data: atts } = await supabase
-        .from("attachments")
-        .select("file_name, storage_path, mime_type, size_bytes, uploaded_by")
-        .eq("task_id", task.id);
-      if (atts && atts.length > 0) {
-        for (const a of atts) {
-          if (a.mime_type === "text/uri-list") {
-            // Links não precisam copiar arquivo
-            await supabase.from("attachments").insert({
-              task_id: newTaskId,
-              file_name: a.file_name,
-              storage_path: a.storage_path,
-              mime_type: a.mime_type,
-              size_bytes: a.size_bytes,
-              uploaded_by: a.uploaded_by,
-            });
-          } else {
-            try {
-              const { data: fileData, error: dlErr } = await supabase.storage
-                .from("task-attachments")
-                .download(a.storage_path);
-              if (!dlErr && fileData) {
-                const newPath = `${newTaskId}/${Date.now()}-${a.file_name}`;
-                await supabase.storage.from("task-attachments").upload(newPath, fileData, {
-                  contentType: a.mime_type || "application/octet-stream",
-                });
-                await supabase.from("attachments").insert({
-                  task_id: newTaskId,
-                  file_name: a.file_name,
-                  storage_path: newPath,
-                  mime_type: a.mime_type,
-                  size_bytes: a.size_bytes,
-                  uploaded_by: a.uploaded_by,
-                });
-              }
-            } catch {
-              // ignora erro de arquivo individual
-            }
-          }
-        }
-      }
+      await duplicateTaskWithContents(task, dueDate, user.id);
 
       qc.invalidateQueries({ queryKey: ["tasks"] });
       setDuplicateTaskTarget(null);

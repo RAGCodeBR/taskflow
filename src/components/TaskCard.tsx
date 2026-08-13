@@ -727,6 +727,28 @@ export function TaskCard({
     await supabase.from("subtasks").delete().eq("id", id);
   };
 
+  const duplicateSubtask = async (subtask: Subtask) => {
+    const siblings = subtasks.filter((item) => !item.comment_id);
+    const { data, error } = await supabase
+      .from("subtasks")
+      .insert({
+        task_id: task.id,
+        title: `${subtask.title} (cópia)`,
+        done: false,
+        position: siblings.length,
+        due_date: subtask.due_date,
+        assignee_id: subtask.assignee_id,
+      })
+      .select("id, task_id, title, done, position, comment_id, due_date, completed_at, assignee_id")
+      .single();
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSubtasks((current) => [...current, data as Subtask]);
+    toast.success("Subtarefa duplicada");
+  };
+
   const startEditSubtask = (s: Subtask) => {
     setEditingSubtaskId(s.id);
     setSubtaskDraft(s.title);
@@ -1470,6 +1492,18 @@ export function TaskCard({
                                           className="rounded p-0.5 hover:bg-muted"
                                         >
                                           <Pencil className="h-3 w-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Duplicar subtarefa"
+                                          onPointerDown={stop}
+                                          onClick={(e) => {
+                                            stop(e);
+                                            void duplicateSubtask(s);
+                                          }}
+                                          className="rounded p-0.5 hover:bg-muted"
+                                        >
+                                          <Copy className="h-3 w-3" />
                                         </button>
                                         {canDeleteSubtask(s) && (
                                           <button
