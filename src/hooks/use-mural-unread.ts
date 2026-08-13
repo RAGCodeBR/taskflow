@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
 const muralUnreadKey = (userId?: string) => ["mural_unread", userId] as const;
+const MURAL_NOTIFICATION_TYPES = ["mural_post", "mural_reaction"];
 
 export function useMuralUnreadCount() {
   const { user } = useAuth();
@@ -12,17 +13,13 @@ export function useMuralUnreadCount() {
     queryKey: muralUnreadKey(user?.id),
     enabled: !!user?.id,
     queryFn: async () => {
-      const [{ data: posts, error: postsError }, { data: reads, error: readsError }] = await Promise.all([
-        (supabase.from("mural_posts") as any).select("id, created_by"),
-        (supabase.from("mural_post_reads") as any).select("post_id"),
-      ]);
-      if (postsError) throw postsError;
-      if (readsError) throw readsError;
-      const readPostIds = new Set((reads ?? []).map((read: { post_id: string }) => read.post_id));
-      return (posts ?? []).filter(
-        (post: { id: string; created_by: string }) =>
-          post.created_by !== user!.id && !readPostIds.has(post.id),
-      ).length;
+      const { count, error } = await (supabase.from("notifications") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
+        .eq("is_read", false)
+        .in("type", MURAL_NOTIFICATION_TYPES);
+      if (error) throw error;
+      return count ?? 0;
     },
   });
 
@@ -31,7 +28,7 @@ export function useMuralUnreadCount() {
     const refresh = () => queryClient.invalidateQueries({ queryKey: muralUnreadKey(user.id) });
     const channel = supabase
       .channel(`mural-unread-${user.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "mural_posts" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, refresh)
       .subscribe();
     return () => void supabase.removeChannel(channel);
   }, [queryClient, user?.id]);
