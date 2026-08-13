@@ -118,10 +118,12 @@ function MuralPage() {
   const [editingPost, setEditingPost] = useState<MuralPost | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [frontCardId, setFrontCardId] = useState<string | null>(null);
   const [draftPositions, setDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [uploadingPostId, setUploadingPostId] = useState<string | null>(null);
   const hasMarkedCurrentVisitRead = useRef(false);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
+  const topCanvasScrollRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const postRefs = useRef(new Map<string, HTMLElement>());
   const activeDragRef = useRef<{ id: string; pointerId: number; offsetX: number; offsetY: number } | null>(null);
@@ -177,6 +179,11 @@ function MuralPage() {
         hasMarkedCurrentVisitRead.current = false;
         toast.error(`Não foi possível atualizar a leitura do mural: ${error.message}`);
       });
+    void (supabase.from("notifications") as any)
+      .update({ is_read: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false)
+      .in("type", ["mural_post", "mural_reaction"]);
   }, [isLoading, posts, qc, user?.id]);
 
   const savePost = useMutation({
@@ -215,6 +222,7 @@ function MuralPage() {
     },
     onSuccess: (savedPost) => {
       qc.invalidateQueries({ queryKey: ["mural_posts"] });
+      if (!editingPost) setFrontCardId(savedPost.id);
       setOpen(false);
       setForm(emptyForm);
       setEditingPost(null);
@@ -319,29 +327,10 @@ function MuralPage() {
     const height = card?.offsetHeight ?? fallback.height;
     const maxX = CANVAS_WIDTH - width - CARD_GAP;
     const maxY = CANVAS_HEIGHT - height - CARD_GAP;
-    const collides = (x: number, y: number) => orderedPosts.some((other) => {
-      if (other.id === post.id) return false;
-      const otherCard = postRefs.current.get(other.id);
-      const otherFallback = cardFallbackSize(other.card_size);
-      const otherWidth = otherCard?.offsetWidth ?? otherFallback.width;
-      const otherHeight = otherCard?.offsetHeight ?? otherFallback.height;
-      const otherPosition = draftPositionsRef.current[other.id] ?? { x: other.canvas_x, y: other.canvas_y };
-      return x < otherPosition.x + otherWidth + CARD_GAP
-        && x + width + CARD_GAP > otherPosition.x
-        && y < otherPosition.y + otherHeight + CARD_GAP
-        && y + height + CARD_GAP > otherPosition.y;
-    });
-    let x = Math.max(CARD_GAP, Math.min(Math.round(requestedX), maxX));
-    let y = Math.max(CARD_GAP, Math.min(Math.round(requestedY), maxY));
-    for (let attempt = 0; collides(x, y) && attempt < 400; attempt += 1) {
-      x += 32;
-      if (x > maxX) {
-        x = CARD_GAP;
-        y += 32;
-        if (y > maxY) y = CARD_GAP;
-      }
-    }
-    return { x, y };
+    return {
+      x: Math.max(CARD_GAP, Math.min(Math.round(requestedX), maxX)),
+      y: Math.max(CARD_GAP, Math.min(Math.round(requestedY), maxY)),
+    };
   };
   const findAvailableCanvasPosition = (cardSize: CardSize) => {
     const { width, height } = cardFallbackSize(cardSize);
@@ -350,28 +339,7 @@ function MuralPage() {
     const preferredY = Math.max(CARD_GAP, (viewport?.scrollTop ?? 0) + 48);
     const maxX = CANVAS_WIDTH - width - CARD_GAP;
     const maxY = CANVAS_HEIGHT - height - CARD_GAP;
-    const collides = (x: number, y: number) => orderedPosts.some((other) => {
-      const element = postRefs.current.get(other.id);
-      const fallback = cardFallbackSize(other.card_size);
-      const otherWidth = element?.offsetWidth ?? fallback.width;
-      const otherHeight = element?.offsetHeight ?? fallback.height;
-      const position = draftPositionsRef.current[other.id] ?? { x: other.canvas_x, y: other.canvas_y };
-      return x < position.x + otherWidth + CARD_GAP
-        && x + width + CARD_GAP > position.x
-        && y < position.y + otherHeight + CARD_GAP
-        && y + height + CARD_GAP > position.y;
-    });
-    let x = Math.min(preferredX, maxX);
-    let y = Math.min(preferredY, maxY);
-    for (let attempt = 0; collides(x, y) && attempt < 400; attempt += 1) {
-      x += 36;
-      if (x > maxX) {
-        x = CARD_GAP;
-        y += 36;
-        if (y > maxY) y = CARD_GAP;
-      }
-    }
-    return { x, y };
+    return { x: Math.min(preferredX, maxX), y: Math.min(preferredY, maxY) };
   };
   const setDraftPosition = (id: string, position: { x: number; y: number }) => {
     draftPositionsRef.current = { ...draftPositionsRef.current, [id]: position };
@@ -389,6 +357,7 @@ function MuralPage() {
       offsetX: event.clientX - rect.left - current.x,
       offsetY: event.clientY - rect.top - current.y,
     };
+    setFrontCardId(post.id);
     setDraggingId(post.id);
   };
   const moveCanvasDrag = (event: PointerEvent<SVGSVGElement>) => {
@@ -414,7 +383,9 @@ function MuralPage() {
 
   useEffect(() => {
     const viewport = canvasViewportRef.current;
+    const topScroll = topCanvasScrollRef.current;
     if (viewport) viewport.scrollLeft = 420;
+    if (topScroll) topScroll.scrollLeft = 420;
   }, []);
   const uploadFiles = async (post: MuralPost, files: FileList) => {
     if (!user || files.length === 0) return;
@@ -580,7 +551,30 @@ function MuralPage() {
           </div>
         </div>
       ) : (
-        <div ref={canvasViewportRef} className="h-[calc(100dvh-13rem)] min-h-[36rem] overflow-auto rounded-2xl border border-border/60 bg-muted/20 shadow-inner">
+        <div className="space-y-1.5">
+          <div
+            ref={topCanvasScrollRef}
+            className="h-4 overflow-x-auto overflow-y-hidden rounded-md border border-border/60 bg-muted/30"
+            aria-label="Rolagem horizontal do mural"
+            onScroll={(event) => {
+              const viewport = canvasViewportRef.current;
+              if (viewport && viewport.scrollLeft !== event.currentTarget.scrollLeft) {
+                viewport.scrollLeft = event.currentTarget.scrollLeft;
+              }
+            }}
+          >
+            <div style={{ width: CANVAS_WIDTH, height: 1 }} />
+          </div>
+        <div
+          ref={canvasViewportRef}
+          className="h-[calc(100dvh-15rem)] min-h-[34rem] overflow-auto rounded-2xl border border-border/60 bg-muted/20 shadow-inner"
+          onScroll={(event) => {
+            const topScroll = topCanvasScrollRef.current;
+            if (topScroll && topScroll.scrollLeft !== event.currentTarget.scrollLeft) {
+              topScroll.scrollLeft = event.currentTarget.scrollLeft;
+            }
+          }}
+        >
           <div
             ref={canvasRef}
             className="relative bg-[linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)] bg-[size:28px_28px]"
@@ -604,7 +598,9 @@ function MuralPage() {
                   ...textStyleCss(post.text_style),
                   left: draftPositions[post.id]?.x ?? post.canvas_x,
                   top: draftPositions[post.id]?.y ?? post.canvas_y,
-                  zIndex: post.is_pinned ? 30 : 10,
+                  zIndex: post.is_pinned ? 2_000_000_000 : frontCardId === post.id || draggingId === post.id
+                    ? 1_500_000_000
+                    : new Date(post.created_at).getTime(),
                 }}
               >
                 {post.image_url && (
@@ -711,6 +707,7 @@ function MuralPage() {
             );
           })}
           </div>
+        </div>
         </div>
       )}
     </div>
