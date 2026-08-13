@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,11 +19,14 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { TaskDialog } from "@/components/TaskDialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { priorityColors, priorityLabels } from "@/lib/task-utils";
 import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
 
 export const Route = createFileRoute("/_app/tasks/list")({
   component: ListPage,
@@ -53,6 +56,9 @@ function ListPage() {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
   const [dueDateSortDirection, setDueDateSortDirection] = useState<"asc" | "desc">("asc");
+  const [duplicateTaskTarget, setDuplicateTaskTarget] = useState<Task | null>(null);
+  const [duplicateDueDate, setDuplicateDueDate] = useState("");
+  const [duplicatingTask, setDuplicatingTask] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -124,6 +130,23 @@ function ListPage() {
     () => new Set(collaborators.filter((collaborator) => collaborator.collaborator_id === user?.id).map((collaborator) => collaborator.task_id)),
     [collaborators, user?.id],
   );
+
+  const duplicateTask = async () => {
+    if (!user || !duplicateTaskTarget || !duplicateDueDate) return;
+    setDuplicatingTask(true);
+    try {
+      await duplicateTaskWithContents(duplicateTaskTarget, duplicateDueDate, user.id);
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["subtasks"] });
+      setDuplicateTaskTarget(null);
+      setDuplicateDueDate("");
+      toast.success("Tarefa duplicada");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setDuplicatingTask(false);
+    }
+  };
 
   const list = useMemo(() => {
     const r = applyTaskFilters(tasks, filters, {
@@ -236,7 +259,7 @@ function ListPage() {
                   )}
                 </button>
               </th>
-              <th className="w-[5%] px-1 py-2 text-center">Concluir</th>
+              <th className="w-[5%] px-1 py-2 text-center">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -350,18 +373,32 @@ function ListPage() {
                       : "—"}
                   </td>
                   <td className="px-1 py-2 text-center">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title="Concluir tarefa"
-                      disabled={t.completed_at !== null}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void completeTask(t.id);
-                      }}
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center justify-center gap-0.5">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Duplicar tarefa"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDuplicateTaskTarget(t);
+                          setDuplicateDueDate("");
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Concluir tarefa"
+                        disabled={t.completed_at !== null}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void completeTask(t.id);
+                        }}
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
                 }
@@ -372,6 +409,19 @@ function ListPage() {
         </table>
       </div>
       <TaskDialog open={open} onOpenChange={setOpen} task={edit} />
+      <Dialog open={!!duplicateTaskTarget} onOpenChange={(isOpen) => !isOpen && !duplicatingTask && setDuplicateTaskTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Duplicar tarefa</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Defina o novo prazo para a cópia de “{duplicateTaskTarget?.title}”.</p>
+            <Input type="date" value={duplicateDueDate} onChange={(event) => setDuplicateDueDate(event.target.value)} required />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={duplicatingTask} onClick={() => setDuplicateTaskTarget(null)}>Cancelar</Button>
+            <Button disabled={!duplicateDueDate || duplicatingTask} onClick={() => void duplicateTask()}>{duplicatingTask ? "Duplicando…" : "Duplicar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
