@@ -91,6 +91,10 @@ const REACTION_EMOJIS = ["👍", "❤️", "🎉", "👏", "💡", "👀"];
 const CANVAS_WIDTH = 3200;
 const CANVAS_HEIGHT = 2200;
 const CARD_GAP = 20;
+const cardFallbackSize = (size: CardSize) => ({
+  width: size === "large" ? 560 : size === "compact" ? 256 : 320,
+  height: size === "large" ? 420 : size === "compact" ? 220 : 300,
+});
 
 const emptyForm = {
   title: "", content: "", tag: "", imageUrl: "", checklist: "", color: "sky",
@@ -197,9 +201,15 @@ function MuralPage() {
         card_size: form.cardSize,
         text_style: form.textStyle,
       };
+      const newPostPosition = editingPost ? null : findAvailableCanvasPosition(form.cardSize);
       const { data, error } = editingPost
         ? await (supabase.from("mural_posts") as any).update(payload).eq("id", editingPost.id).select().single()
-        : await (supabase.from("mural_posts") as any).insert({ ...payload, created_by: user.id }).select().single();
+        : await (supabase.from("mural_posts") as any).insert({
+          ...payload,
+          created_by: user.id,
+          canvas_x: newPostPosition?.x,
+          canvas_y: newPostPosition?.y,
+        }).select().single();
       if (error) throw error;
       return data as MuralPost;
     },
@@ -304,15 +314,17 @@ function MuralPage() {
   };
   const findOpenCanvasPosition = (post: MuralPost, requestedX: number, requestedY: number) => {
     const card = postRefs.current.get(post.id);
-    const width = card?.offsetWidth ?? (post.card_size === "large" ? 560 : post.card_size === "compact" ? 256 : 320);
-    const height = card?.offsetHeight ?? (post.card_size === "large" ? 420 : post.card_size === "compact" ? 220 : 300);
+    const fallback = cardFallbackSize(post.card_size);
+    const width = card?.offsetWidth ?? fallback.width;
+    const height = card?.offsetHeight ?? fallback.height;
     const maxX = CANVAS_WIDTH - width - CARD_GAP;
     const maxY = CANVAS_HEIGHT - height - CARD_GAP;
     const collides = (x: number, y: number) => orderedPosts.some((other) => {
       if (other.id === post.id) return false;
       const otherCard = postRefs.current.get(other.id);
-      const otherWidth = otherCard?.offsetWidth ?? (other.card_size === "large" ? 560 : other.card_size === "compact" ? 256 : 320);
-      const otherHeight = otherCard?.offsetHeight ?? (other.card_size === "large" ? 420 : other.card_size === "compact" ? 220 : 300);
+      const otherFallback = cardFallbackSize(other.card_size);
+      const otherWidth = otherCard?.offsetWidth ?? otherFallback.width;
+      const otherHeight = otherCard?.offsetHeight ?? otherFallback.height;
       const otherPosition = draftPositionsRef.current[other.id] ?? { x: other.canvas_x, y: other.canvas_y };
       return x < otherPosition.x + otherWidth + CARD_GAP
         && x + width + CARD_GAP > otherPosition.x
@@ -326,6 +338,36 @@ function MuralPage() {
       if (x > maxX) {
         x = CARD_GAP;
         y += 32;
+        if (y > maxY) y = CARD_GAP;
+      }
+    }
+    return { x, y };
+  };
+  const findAvailableCanvasPosition = (cardSize: CardSize) => {
+    const { width, height } = cardFallbackSize(cardSize);
+    const viewport = canvasViewportRef.current;
+    const preferredX = Math.max(CARD_GAP, (viewport?.scrollLeft ?? 0) + 48);
+    const preferredY = Math.max(CARD_GAP, (viewport?.scrollTop ?? 0) + 48);
+    const maxX = CANVAS_WIDTH - width - CARD_GAP;
+    const maxY = CANVAS_HEIGHT - height - CARD_GAP;
+    const collides = (x: number, y: number) => orderedPosts.some((other) => {
+      const element = postRefs.current.get(other.id);
+      const fallback = cardFallbackSize(other.card_size);
+      const otherWidth = element?.offsetWidth ?? fallback.width;
+      const otherHeight = element?.offsetHeight ?? fallback.height;
+      const position = draftPositionsRef.current[other.id] ?? { x: other.canvas_x, y: other.canvas_y };
+      return x < position.x + otherWidth + CARD_GAP
+        && x + width + CARD_GAP > position.x
+        && y < position.y + otherHeight + CARD_GAP
+        && y + height + CARD_GAP > position.y;
+    });
+    let x = Math.min(preferredX, maxX);
+    let y = Math.min(preferredY, maxY);
+    for (let attempt = 0; collides(x, y) && attempt < 400; attempt += 1) {
+      x += 36;
+      if (x > maxX) {
+        x = CARD_GAP;
+        y += 36;
         if (y > maxY) y = CARD_GAP;
       }
     }
