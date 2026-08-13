@@ -501,6 +501,13 @@ export function TaskCard({
     }
   };
 
+  const uploadFiles = async (files: FileList) => {
+    const selectedFiles = Array.from(files);
+    if (!selectedFiles.length) return;
+    for (const file of selectedFiles) await uploadFile(file);
+    if (selectedFiles.length > 1) toast.success(`${selectedFiles.length} arquivos enviados`);
+  };
+
   const deleteAttachment = async (a: Attachment) => {
     if (a.mime_type !== LINK_MIME) {
       await supabase.storage.from("task-attachments").remove([a.storage_path]);
@@ -1706,10 +1713,7 @@ export function TaskCard({
                   </div>
                 ) : null}
                 <FileDropZone
-                  onFiles={(files) => {
-                    const file = files.item(0);
-                    if (file) void uploadFile(file);
-                  }}
+                  onFiles={uploadFiles}
                   className="w-full"
                 >
                   <button
@@ -1727,10 +1731,11 @@ export function TaskCard({
                   <input
                     ref={fileRef}
                     type="file"
+                    multiple
                     hidden
                     onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void uploadFile(f);
+                      const files = e.target.files;
+                      if (files) void uploadFiles(files);
                       e.target.value = "";
                     }}
                   />

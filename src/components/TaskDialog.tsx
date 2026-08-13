@@ -734,6 +734,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     toast.success("Arquivo enviado");
   };
 
+  const uploadFiles = async (files: FileList) => {
+    const selectedFiles = Array.from(files);
+    if (!selectedFiles.length) return;
+    for (const file of selectedFiles) await uploadFile(file);
+    if (selectedFiles.length > 1) toast.success(`${selectedFiles.length} arquivos enviados`);
+  };
+
   const openAttachment = async (att: Attachment) => {
     if (att.mime_type === LINK_MIME) {
       window.open(att.storage_path, "_blank", "noopener,noreferrer");
@@ -1284,19 +1291,21 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                               </div>
                             ))}
                             <FileDropZone
-                              onFiles={(files) => {
-                                const file = files.item(0);
-                                if (file) void uploadSubFile(s, file);
+                              onFiles={async (files) => {
+                                for (const file of Array.from(files)) await uploadSubFile(s, file);
                               }}
                             >
                               <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed py-1.5 text-[11px] text-muted-foreground hover:bg-muted/40">
                               <Paperclip className="h-3 w-3" /> Anexar arquivo
                               <input
                                 type="file"
+                                multiple
                                 className="hidden"
                                 onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  if (f) void uploadSubFile(s, f);
+                                  const files = e.target.files;
+                                  if (files) void (async () => {
+                                    for (const file of Array.from(files)) await uploadSubFile(s, file);
+                                  })();
                                   e.target.value = "";
                                 }}
                               />
@@ -1460,19 +1469,17 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   </div>
                 ))}
                 <FileDropZone
-                  onFiles={(files) => {
-                    const file = files.item(0);
-                    if (file) void uploadFile(file);
-                  }}
+                  onFiles={uploadFiles}
                 >
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-3 text-sm text-muted-foreground hover:bg-muted/40">
                   <Paperclip className="h-4 w-4" /> Anexar arquivo
                   <input
                     type="file"
+                    multiple
                     className="hidden"
                     onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) uploadFile(f);
+                      const files = e.target.files;
+                      if (files) void uploadFiles(files);
                       e.target.value = "";
                     }}
                   />
