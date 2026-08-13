@@ -20,6 +20,8 @@ interface Notification {
   created_at: string;
 }
 
+const MURAL_NOTIFICATION_TYPES = new Set(["mural_post", "mural_reaction"]);
+
 export function NotificationBell() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -39,7 +41,11 @@ export function NotificationBell() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(30);
-    const next = (data ?? []) as Notification[];
+    // Mural activity has its own per-user badge in the navigation. Keeping it
+    // out of the global bell avoids two independent unread queues for the same event.
+    const next = ((data ?? []) as Notification[]).filter(
+      (notification) => !MURAL_NOTIFICATION_TYPES.has(notification.type),
+    );
     if (next.some((n) => n.type === "assignment" || n.type === "subtask_assignment" || n.type === "collaborator_assignment")) {
       refreshAssignedWork();
     }
@@ -93,10 +99,6 @@ export function NotificationBell() {
   const openNotification = async (n: Notification) => {
     if (!n.is_read) await markRead(n.id);
     setOpen(false);
-    if (n.type === "mural_post" || n.type === "mural_reaction") {
-      navigate({ to: "/mural" });
-      return;
-    }
     if (n.task_id) {
       navigate({ to: "/tasks/list", search: { task: n.task_id, mine: true } as any });
     } else {
