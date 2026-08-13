@@ -168,6 +168,7 @@ export function TaskCard({
   const fileRef = useRef<HTMLInputElement>(null);
   const descTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [fileUploadProgress, setFileUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
@@ -457,8 +458,8 @@ export function TaskCard({
     toast.success("Seção dobrável criada");
   };
 
-  const uploadFile = async (file: File) => {
-    if (!user) return;
+  const uploadFile = async (file: File): Promise<boolean> => {
+    if (!user) return false;
     const safe =
       file.name
         .normalize("NFD")
@@ -472,8 +473,8 @@ export function TaskCard({
       .from("task-attachments")
       .upload(path, file, { contentType, upsert: false });
     if (upErr) {
-      toast.error(upErr.message);
-      return;
+      toast.error(`${file.name}: ${upErr.message}`);
+      return false;
     }
     const { data, error } = await supabase
       .from("attachments")
@@ -488,8 +489,8 @@ export function TaskCard({
       .select()
       .single();
     if (error) {
-      toast.error(error.message);
-      return;
+      toast.error(`${file.name}: ${error.message}`);
+      return false;
     }
     const att = data as Attachment;
     setAttachments((c) => [...c, att]);
@@ -499,13 +500,27 @@ export function TaskCard({
         .createSignedUrl(att.storage_path, 3600);
       if (signed) setThumbs((c) => ({ ...c, [att.id]: signed.signedUrl }));
     }
+    return true;
   };
 
   const uploadFiles = async (files: FileList) => {
     const selectedFiles = Array.from(files);
-    if (!selectedFiles.length) return;
-    for (const file of selectedFiles) await uploadFile(file);
-    if (selectedFiles.length > 1) toast.success(`${selectedFiles.length} arquivos enviados`);
+    if (!selectedFiles.length || fileUploadProgress) return;
+    let uploaded = 0;
+    setFileUploadProgress({ current: 0, total: selectedFiles.length });
+    try {
+      for (const [index, file] of selectedFiles.entries()) {
+        setFileUploadProgress({ current: index + 1, total: selectedFiles.length });
+        if (await uploadFile(file)) uploaded += 1;
+      }
+      if (uploaded === selectedFiles.length) {
+        toast.success(`${uploaded} ${uploaded === 1 ? "arquivo enviado" : "arquivos enviados"}`);
+      } else {
+        toast.error(`${uploaded} de ${selectedFiles.length} arquivos foram enviados. Tente novamente os restantes.`);
+      }
+    } finally {
+      setFileUploadProgress(null);
+    }
   };
 
   const deleteAttachment = async (a: Attachment) => {
@@ -1714,6 +1729,7 @@ export function TaskCard({
                 ) : null}
                 <FileDropZone
                   onFiles={uploadFiles}
+                  disabled={!!fileUploadProgress}
                   className="w-full"
                 >
                   <button
@@ -1726,13 +1742,14 @@ export function TaskCard({
                     className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
                   >
                     <Upload className="h-3 w-3" />
-                    <span>Adicionar arquivo</span>
+                    <span>{fileUploadProgress ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…` : "Adicionar arquivos"}</span>
                   </button>
                   <input
                     ref={fileRef}
                     type="file"
                     multiple
                     hidden
+                    disabled={!!fileUploadProgress}
                     onChange={(e) => {
                       const files = e.target.files;
                       if (files) void uploadFiles(files);

@@ -139,6 +139,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [newCommentTitle, setNewCommentTitle] = useState("");
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [fileUploadProgress, setFileUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const canDeleteTask = !!currentTaskId && (!!isAdmin || !task || task.created_by === user?.id);
@@ -710,13 +711,16 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
 
   // Attachments
-  const uploadFile = async (file: File) => {
-    if (!user) return;
-    const tid = await ensureTask();
-    if (!tid) return;
+  const uploadFile = async (file: File, taskId?: string): Promise<boolean> => {
+    if (!user) return false;
+    const tid = taskId ?? (await ensureTask());
+    if (!tid) return false;
     const path = `${tid}/${storageObjectName()}`;
     const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
-    if (upErr) return toast.error(upErr.message);
+    if (upErr) {
+      toast.error(`${file.name}: ${upErr.message}`);
+      return false;
+    }
     const { data, error } = await supabase
       .from("attachments")
       .insert({
@@ -729,16 +733,34 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       })
       .select()
       .single();
-    if (error) return toast.error(error.message);
-    setAttachments([...attachments, data as Attachment]);
-    toast.success("Arquivo enviado");
+    if (error) {
+      toast.error(`${file.name}: ${error.message}`);
+      return false;
+    }
+    setAttachments((current) => [...current, data as Attachment]);
+    return true;
   };
 
   const uploadFiles = async (files: FileList) => {
     const selectedFiles = Array.from(files);
-    if (!selectedFiles.length) return;
-    for (const file of selectedFiles) await uploadFile(file);
-    if (selectedFiles.length > 1) toast.success(`${selectedFiles.length} arquivos enviados`);
+    if (!selectedFiles.length || fileUploadProgress) return;
+    const taskId = await ensureTask();
+    if (!taskId) return;
+    let uploaded = 0;
+    setFileUploadProgress({ current: 0, total: selectedFiles.length });
+    try {
+      for (const [index, file] of selectedFiles.entries()) {
+        setFileUploadProgress({ current: index + 1, total: selectedFiles.length });
+        if (await uploadFile(file, taskId)) uploaded += 1;
+      }
+      if (uploaded === selectedFiles.length) {
+        toast.success(`${uploaded} ${uploaded === 1 ? "arquivo enviado" : "arquivos enviados"}`);
+      } else {
+        toast.error(`${uploaded} de ${selectedFiles.length} arquivos foram enviados. Tente novamente os restantes.`);
+      }
+    } finally {
+      setFileUploadProgress(null);
+    }
   };
 
   const openAttachment = async (att: Attachment) => {
@@ -1470,13 +1492,15 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 ))}
                 <FileDropZone
                   onFiles={uploadFiles}
+                  disabled={!!fileUploadProgress}
                 >
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-3 text-sm text-muted-foreground hover:bg-muted/40">
-                  <Paperclip className="h-4 w-4" /> Anexar arquivo
+                  <Paperclip className="h-4 w-4" /> {fileUploadProgress ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…` : "Anexar arquivos"}
                   <input
                     type="file"
                     multiple
                     className="hidden"
+                    disabled={!!fileUploadProgress}
                     onChange={(e) => {
                       const files = e.target.files;
                       if (files) void uploadFiles(files);
