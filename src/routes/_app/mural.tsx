@@ -339,7 +339,31 @@ function MuralPage() {
     const preferredY = Math.max(CARD_GAP, (viewport?.scrollTop ?? 0) + 48);
     const maxX = CANVAS_WIDTH - width - CARD_GAP;
     const maxY = CANVAS_HEIGHT - height - CARD_GAP;
-    return { x: Math.min(preferredX, maxX), y: Math.min(preferredY, maxY) };
+    const overlapsExistingCard = (x: number, y: number) => orderedPosts.some((post) => {
+      const element = postRefs.current.get(post.id);
+      const fallback = cardFallbackSize(post.card_size);
+      const otherWidth = element?.offsetWidth ?? fallback.width;
+      const otherHeight = element?.offsetHeight ?? fallback.height;
+      const position = draftPositionsRef.current[post.id] ?? { x: post.canvas_x, y: post.canvas_y };
+      return x < position.x + otherWidth + CARD_GAP
+        && x + width + CARD_GAP > position.x
+        && y < position.y + otherHeight + CARD_GAP
+        && y + height + CARD_GAP > position.y;
+    });
+
+    // Só a criação procura espaço vazio. Depois de criado, o usuário pode
+    // mover livremente e sobrepor cartões sem o mural travar.
+    let x = Math.min(preferredX, maxX);
+    let y = Math.min(preferredY, maxY);
+    for (let attempt = 0; overlapsExistingCard(x, y) && attempt < 600; attempt += 1) {
+      x += 40;
+      if (x > maxX) {
+        x = CARD_GAP;
+        y += 40;
+        if (y > maxY) y = CARD_GAP;
+      }
+    }
+    return { x, y };
   };
   const setDraftPosition = (id: string, position: { x: number; y: number }) => {
     draftPositionsRef.current = { ...draftPositionsRef.current, [id]: position };
