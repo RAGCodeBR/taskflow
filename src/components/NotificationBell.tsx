@@ -93,6 +93,10 @@ export function NotificationBell() {
   const openNotification = async (n: Notification) => {
     if (!n.is_read) await markRead(n.id);
     setOpen(false);
+    if (n.type === "mural_post" || n.type === "mural_reaction") {
+      navigate({ to: "/mural" });
+      return;
+    }
     if (n.task_id) {
       navigate({ to: "/tasks/list", search: { task: n.task_id, mine: true } as any });
     } else {
