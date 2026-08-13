@@ -598,9 +598,12 @@ function MuralPage() {
                   ...textStyleCss(post.text_style),
                   left: draftPositions[post.id]?.x ?? post.canvas_x,
                   top: draftPositions[post.id]?.y ?? post.canvas_y,
-                  zIndex: post.is_pinned ? 2_000_000_000 : frontCardId === post.id || draggingId === post.id
-                    ? 1_500_000_000
-                    : new Date(post.created_at).getTime(),
+                  // Mantemos as camadas abaixo das janelas/modais da aplicação.
+                  // O post-it fixado só fica à frente dos demais cartões, nunca
+                  // à frente de um formulário aberto.
+                  zIndex: post.is_pinned ? 20 : frontCardId === post.id || draggingId === post.id
+                    ? 15
+                    : Math.max(1, orderedPosts.length - orderedPosts.findIndex((item) => item.id === post.id)),
                 }}
               >
                 {post.image_url && (
