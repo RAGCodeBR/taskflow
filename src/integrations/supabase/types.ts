@@ -514,6 +514,39 @@ export type Database = {
           },
         ]
       }
+      comment_mentions: {
+        Row: {
+          comment_id: string
+          mentioned_user_id: string
+          created_at: string
+        }
+        Insert: {
+          comment_id: string
+          mentioned_user_id: string
+          created_at?: string
+        }
+        Update: {
+          comment_id?: string
+          mentioned_user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_mentions_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comment_mentions_mentioned_user_id_fkey"
+            columns: ["mentioned_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kanban_columns: {
         Row: {
           client_id: string | null

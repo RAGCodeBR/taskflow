@@ -17,6 +17,7 @@ import {
   Link2,
   History,
   ListChecks,
+  MessageCircle,
   MoreHorizontal,
   Paperclip,
   Pencil,
@@ -56,6 +57,7 @@ import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attac
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
 import { CommentAttachments } from "@/components/CommentAttachments";
+import { TaskConversationDialog } from "@/components/TaskConversationDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -182,6 +184,7 @@ export function TaskCard({
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [comments, setComments] = useState<CardComment[]>([]);
+  const [conversationOpen, setConversationOpen] = useState(false);
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
@@ -2049,6 +2052,18 @@ export function TaskCard({
                   />
                 ) : null}
 
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    stop(event);
+                    setConversationOpen(true);
+                  }}
+                  className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-[11px] text-primary transition hover:bg-primary/10"
+                >
+                  <MessageCircle className="h-3 w-3" />
+                  <span>Conversa</span>
+                </button>
+
               </div>
             ) : null}
           </div>
@@ -2061,6 +2076,12 @@ export function TaskCard({
           if (!o) setPreviewAttachment(null);
         }}
         attachment={previewAttachment}
+      />
+
+      <TaskConversationDialog
+        open={conversationOpen}
+        onOpenChange={setConversationOpen}
+        task={task}
       />
 
       {/* Diálogo de justificativa ao mudar prazo */}

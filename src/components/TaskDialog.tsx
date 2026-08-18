@@ -38,7 +38,6 @@ import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { RichTextEditor } from "@/components/RichTextEditor";
 
 interface Props {
@@ -100,6 +99,8 @@ const LINK_MIME = "text/uri-list";
 const storageObjectName = () =>
   `arquivo-${Date.now()}-${crypto.randomUUID()}`;
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props) {
   const qc = useQueryClient();
   const { user, profile, isAdmin } = useAuth();
@@ -137,8 +138,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [subAttachments, setSubAttachments] = useState<Record<string, SubtaskAttachment[]>>({});
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
-  const [newCommentTitle, setNewCommentTitle] = useState("");
-  const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [fileUploadProgress, setFileUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -172,6 +171,23 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       : allClients;
   }, [clients, clientSearch]);
   const selectedClient = clients?.find((client) => client.id === clientId);
+  const mentionableProfiles = useMemo(
+    () => (profiles ?? []).filter((candidate) => candidate.is_active !== false),
+    [profiles],
+  );
+  const mentionQuery = useMemo(() => {
+    const match = newComment.match(/(?:^|\s)@([^\n@]*)$/);
+    return match ? match[1].trim().toLocaleLowerCase("pt-BR") : null;
+  }, [newComment]);
+  const mentionCandidates = useMemo(() => {
+    if (mentionQuery === null) return [];
+    return mentionableProfiles
+      .filter((candidate) => {
+        const label = (candidate.full_name || candidate.email || "").toLocaleLowerCase("pt-BR");
+        return label.includes(mentionQuery);
+      })
+      .slice(0, 5);
+  }, [mentionQuery, mentionableProfiles]);
   const taskCreator = useMemo(
     () => profiles?.find((profile) => profile.id === task?.created_by) ?? null,
     [profiles, task?.created_by],
@@ -221,9 +237,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setSubtasks([]);
       setComments([]);
       setAttachments([]);
-      setNewCommentTitle("");
       setNewComment("");
-      setOpenComments({});
       setNewSubtask("");
       setNewSubtaskDue("");
       setNewSubtaskAssignee("");
@@ -244,6 +258,32 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     setComments((c.data ?? []) as Comment[]);
     setAttachments((a.data ?? []) as Attachment[]);
   };
+
+  useEffect(() => {
+    if (!open || !currentTaskId) return;
+    const channel = supabase
+      .channel(`task-comments-${currentTaskId}-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "comments", filter: `task_id=eq.${currentTaskId}` },
+        ({ new: comment }: { new: Record<string, unknown> }) => {
+          setComments((existing) =>
+            existing.some((item) => item.id === comment.id) ? existing : [...existing, comment as unknown as Comment],
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "comments", filter: `task_id=eq.${currentTaskId}` },
+        ({ old: comment }: { old: { id: string } }) =>
+          setComments((existing) => existing.filter((item) => item.id !== comment.id)),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [open, currentTaskId]);
 
   const loadCollaborators = async (taskId: string) => {
     const { data, error } = await (supabase.from("task_collaborators") as any)
@@ -685,24 +725,48 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
 
   // Comments
+  const insertMention = (mentionedProfile: { full_name: string | null; email: string | null }) => {
+    const name = mentionedProfile.full_name || mentionedProfile.email;
+    if (!name) return;
+    setNewComment((current) => current.replace(/(^|\s)@[^\n@]*$/, `$1@${name} `));
+  };
+
+  const mentionedProfileIds = (body: string) =>
+    mentionableProfiles
+      .filter((candidate) => {
+        const name = candidate.full_name || candidate.email;
+        if (!name) return false;
+        return new RegExp(`(^|\\s)@${escapeRegExp(name)}(?=$|[\\s.,!?:;])`, "i").test(body);
+      })
+      .map((candidate) => candidate.id);
+
   const addComment = async () => {
     if (!newComment.trim() || !user) return;
     const tid = await ensureTask();
     if (!tid) return;
+    const body = newComment.trim();
     const { data, error } = await supabase
       .from("comments")
       .insert({
         task_id: tid,
         author_id: user.id,
-        body: newComment,
-        title: newCommentTitle.trim() || null,
+        body,
+        title: null,
       })
       .select()
       .single();
     if (error) return toast.error(error.message);
-    setComments([...comments, data as Comment]);
+    const mentionIds = mentionedProfileIds(body).filter((id) => id !== user.id);
+    if (mentionIds.length) {
+      const { error: mentionError } = await supabase.from("comment_mentions").insert(
+        mentionIds.map((mentionedUserId) => ({ comment_id: data.id, mentioned_user_id: mentionedUserId })),
+      );
+      if (mentionError) toast.error(`Comentário enviado, mas não foi possível notificar as menções: ${mentionError.message}`);
+    }
+    setComments((existing) =>
+      existing.some((comment) => comment.id === data.id) ? existing : [...existing, data as Comment],
+    );
     setNewComment("");
-    setNewCommentTitle("");
   };
 
   const deleteComment = async (id: string) => {
@@ -1145,7 +1209,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
             <Tabs defaultValue="subtasks">
               <TabsList>
                 <TabsTrigger value="subtasks">Subtarefas ({subtasks.length})</TabsTrigger>
-                <TabsTrigger value="comments">Comentários ({comments.length})</TabsTrigger>
+                <TabsTrigger value="comments">Conversa ({comments.length})</TabsTrigger>
                 <TabsTrigger value="files">Arquivos ({attachments.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="subtasks" className="space-y-2">
@@ -1390,72 +1454,77 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </p>
               </TabsContent>
 
-              <TabsContent value="comments" className="space-y-2">
-                <div className="max-h-72 space-y-2 overflow-y-auto">
-                  {comments.map((c) => {
-                    const author = profiles?.find((p) => p.id === c.author_id);
-                    const isOpen = openComments[c.id] ?? false;
-                    const headTitle =
-                      c.title?.trim() || c.body.split("\n")[0].slice(0, 60) || "Anotação";
+              <TabsContent value="comments" className="space-y-3">
+                <div className="max-h-80 space-y-3 overflow-y-auto rounded-md border bg-muted/10 p-3">
+                  {comments.length === 0 && (
+                    <p className="py-6 text-center text-sm text-muted-foreground">
+                      Ainda não há mensagens nesta tarefa.
+                    </p>
+                  )}
+                  {comments.map((comment) => {
+                    const author = profiles?.find((candidate) => candidate.id === comment.author_id);
+                    const authorName = author?.full_name || author?.email || "Usuário";
+                    const isOwnComment = comment.author_id === user?.id;
+                    const mentionNames = mentionableProfiles
+                      .map((candidate) => candidate.full_name || candidate.email)
+                      .filter((name): name is string => Boolean(name));
+                    const mentionParts = mentionNames.length
+                      ? comment.body.split(new RegExp(`(${mentionNames.map((name) => `@${escapeRegExp(name)}`).join("|")})`, "gi"))
+                      : [comment.body];
                     return (
-                      <Collapsible
-                        key={c.id}
-                        open={isOpen}
-                        onOpenChange={(o) => setOpenComments((s) => ({ ...s, [c.id]: o }))}
-                        className="rounded-md border bg-muted/30"
-                      >
-                        <div className="flex items-center gap-1 px-2 py-1.5">
-                          <CollapsibleTrigger asChild>
-                            <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0">
-                              {isOpen ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </CollapsibleTrigger>
-                          <CollapsibleTrigger asChild>
-                            <button className="flex-1 truncate text-left text-sm font-medium">
-                              {headTitle}
-                            </button>
-                          </CollapsibleTrigger>
-                          <span className="shrink-0 text-[10px] text-muted-foreground">
-                            {format(new Date(c.created_at), "dd/MM/yyyy")}
-                          </span>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 shrink-0"
-                            onClick={() => deleteComment(c.id)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        <CollapsibleContent className="border-t px-3 py-2 text-sm">
-                          <div className="mb-1 text-xs text-muted-foreground">
-                            {author?.full_name || author?.email || "Usuário"}
+                      <div key={comment.id} className={`flex gap-2 ${isOwnComment ? "justify-end" : "justify-start"}`}>
+                        {!isOwnComment && (
+                          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                            {authorName.slice(0, 2).toUpperCase()}
                           </div>
-                          <p className="whitespace-pre-wrap">{c.body}</p>
-                        </CollapsibleContent>
-                      </Collapsible>
+                        )}
+                        <div className={`group max-w-[85%] rounded-lg px-3 py-2 text-sm ${isOwnComment ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                          <div className="mb-1 flex items-center gap-2 text-[11px] opacity-75">
+                            <span className="font-medium">{isOwnComment ? "Você" : authorName}</span>
+                            <span>{format(new Date(comment.created_at), "dd/MM HH:mm")}</span>
+                            {(isOwnComment || isAdmin) && (
+                              <button type="button" className="ml-auto opacity-0 transition-opacity group-hover:opacity-100" onClick={() => deleteComment(comment.id)} title="Excluir mensagem">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="whitespace-pre-wrap break-words">
+                            {mentionParts.map((part, index) => part.startsWith("@") ? (
+                              <span key={index} className={isOwnComment ? "font-semibold underline" : "font-semibold text-primary"}>{part}</span>
+                            ) : part)}
+                          </p>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
-                <div className="space-y-2 rounded-md border bg-muted/10 p-2">
-                  <Input
-                    placeholder="Título da anotação (opcional)"
-                    value={newCommentTitle}
-                    onChange={(e) => setNewCommentTitle(e.target.value)}
+                <div className="relative rounded-md border bg-background p-2">
+                  <Textarea
+                    rows={3}
+                    placeholder="Escreva uma mensagem… Use @ para marcar alguém."
+                    value={newComment}
+                    onChange={(event) => setNewComment(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                        event.preventDefault();
+                        void addComment();
+                      }
+                    }}
                   />
-                  <div className="flex gap-2">
-                    <Textarea
-                      rows={2}
-                      placeholder="Escreva a anotação"
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                    />
-                    <Button onClick={addComment} size="icon" className="self-stretch">
-                      <Send className="h-4 w-4" />
+                  {mentionCandidates.length > 0 && (
+                    <div className="absolute bottom-[calc(100%+4px)] left-2 z-10 w-64 overflow-hidden rounded-md border bg-popover p-1 shadow-md">
+                      {mentionCandidates.map((candidate) => (
+                        <button key={candidate.id} type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted" onMouseDown={(event) => event.preventDefault()} onClick={() => insertMention(candidate)}>
+                          <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{(candidate.full_name || candidate.email || "U").slice(0, 2).toUpperCase()}</span>
+                          <span className="truncate">{candidate.full_name || candidate.email}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-muted-foreground">Use @ para marcar alguém · Ctrl/⌘ + Enter para enviar</span>
+                    <Button onClick={() => void addComment()} size="sm" disabled={!newComment.trim()}>
+                      <Send className="mr-1 h-4 w-4" /> Enviar
                     </Button>
                   </div>
                 </div>
