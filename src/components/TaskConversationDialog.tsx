@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Send, X } from "lucide-react";
+import { Send, SmilePlus, X } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ type Props = {
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const MESSAGE_EMOJIS = ["\u{1F600}", "\u{1F602}", "\u{1F44B}", "\u{1F680}", "\u{1F4A1}", "\u{2764}\u{FE0F}", "\u{1F389}", "\u{1F44F}"];
 
 export function TaskConversationDialog({ open, onOpenChange, task }: Props) {
   const { user, isAdmin } = useAuth();
@@ -57,7 +58,8 @@ export function TaskConversationDialog({ open, onOpenChange, task }: Props) {
       .eq("task_id", task.id)
       .order("created_at");
     if (error) return toast.error(error.message);
-    setComments((data ?? []) as Comment[]);
+    const nextComments = (data ?? []) as Comment[];
+    setComments(nextComments);
   }, [task.id]);
 
   useEffect(() => {
@@ -247,7 +249,21 @@ export function TaskConversationDialog({ open, onOpenChange, task }: Props) {
               ))}
             </div>
           )}
-          <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="mt-2 flex flex-nowrap items-center justify-between gap-2 overflow-x-auto">
+            <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
+              <SmilePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              {MESSAGE_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className="rounded p-1 text-base leading-none hover:bg-muted"
+                  onClick={() => setMessage((current) => `${current}${emoji}`)}
+                  title={`Adicionar ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
             <span className="text-[11px] text-muted-foreground">
               Use @ para marcar alguém · Ctrl/⌘ + Enter para enviar
             </span>

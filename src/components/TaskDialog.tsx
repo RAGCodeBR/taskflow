@@ -33,6 +33,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  SmilePlus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
@@ -97,6 +98,7 @@ interface Attachment {
   size_bytes: number | null;
 }
 const LINK_MIME = "text/uri-list";
+const MESSAGE_EMOJIS = ["\u{1F600}", "\u{1F602}", "\u{1F44B}", "\u{1F680}", "\u{1F4A1}", "\u{2764}\u{FE0F}", "\u{1F389}", "\u{1F44F}"];
 const storageObjectName = () =>
   `arquivo-${Date.now()}-${crypto.randomUUID()}`;
 
@@ -256,7 +258,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       supabase.from("attachments").select("*").eq("task_id", taskId).order("created_at"),
     ]);
     setSubtasks((s.data ?? []) as Subtask[]);
-    setComments((c.data ?? []) as Comment[]);
+    const nextComments = (c.data ?? []) as Comment[];
+    setComments(nextComments);
     setAttachments((a.data ?? []) as Attachment[]);
   };
 
@@ -1541,7 +1544,15 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                       ))}
                     </div>
                   )}
-                  <div className="mt-2 flex items-center justify-between gap-2">
+                  <div className="mt-2 flex flex-nowrap items-center justify-between gap-2 overflow-x-auto">
+                    <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
+                      <SmilePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                      {MESSAGE_EMOJIS.map((emoji) => (
+                        <button key={emoji} type="button" className="rounded p-1 text-base leading-none hover:bg-muted" onClick={() => setNewComment((current) => `${current}${emoji}`)} title={`Adicionar ${emoji}`}>
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
                     <span className="text-[11px] text-muted-foreground">Use @ para marcar alguém · Ctrl/⌘ + Enter para enviar</span>
                     <Button onClick={() => void addComment()} size="sm" disabled={!newComment.trim()}>
                       <Send className="mr-1 h-4 w-4" /> Enviar
