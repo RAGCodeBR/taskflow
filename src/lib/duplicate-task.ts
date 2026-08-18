@@ -1,5 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/hooks/use-data";
+import { syncTaskAttachmentToClient } from "@/lib/sync-task-attachment-to-client";
+
+type CopiedSubtask = {
+  title: string;
+  position: number;
+  assignee_id: string | null;
+  due_date: string | null;
+};
+
+type CopiedComment = { body: string; author_id: string };
+type CopiedTagLink = { tag_id: string };
 
 /** Copies the task context that makes sense for a new activity. */
 export async function duplicateTask(task: Task, dueDate: string, userId: string) {
@@ -28,7 +39,7 @@ export async function duplicateTask(task: Task, dueDate: string, userId: string)
     .eq("task_id", task.id);
   if (subtasks?.length) {
     await supabase.from("subtasks").insert(
-      subtasks.map((subtask) => ({
+      subtasks.map((subtask: CopiedSubtask) => ({
         task_id: newTaskId,
         title: subtask.title,
         done: false,
@@ -46,7 +57,7 @@ export async function duplicateTask(task: Task, dueDate: string, userId: string)
   if (comments?.length) {
     await supabase
       .from("comments")
-      .insert(comments.map((comment) => ({ task_id: newTaskId, body: comment.body, author_id: comment.author_id })));
+      .insert(comments.map((comment: CopiedComment) => ({ task_id: newTaskId, body: comment.body, author_id: comment.author_id })));
   }
 
   const { data: tagLinks } = await supabase
@@ -56,7 +67,7 @@ export async function duplicateTask(task: Task, dueDate: string, userId: string)
   if (tagLinks?.length) {
     await supabase
       .from("task_tag_links")
-      .insert(tagLinks.map((tagLink) => ({ task_id: newTaskId, tag_id: tagLink.tag_id })));
+      .insert(tagLinks.map((tagLink: CopiedTagLink) => ({ task_id: newTaskId, tag_id: tagLink.tag_id })));
   }
 
   const { data: attachments } = await supabase
@@ -78,7 +89,27 @@ export async function duplicateTask(task: Task, dueDate: string, userId: string)
         contentType: attachment.mime_type || "application/octet-stream",
       });
       if (uploadError) continue;
-      await supabase.from("attachments").insert({ ...attachment, task_id: newTaskId, storage_path: storagePath });
+      const { data: duplicatedAttachment, error: duplicateAttachmentError } = await supabase
+        .from("attachments")
+        .insert({ ...attachment, task_id: newTaskId, storage_path: storagePath, uploaded_by: userId })
+        .select("id")
+        .single();
+      if (duplicateAttachmentError || !duplicatedAttachment) continue;
+
+      try {
+        await syncTaskAttachmentToClient({
+          file: new File([fileData], attachment.file_name, {
+            type: attachment.mime_type || "application/octet-stream",
+          }),
+          taskId: newTaskId,
+          sourceAttachmentId: duplicatedAttachment.id,
+          uploadedBy: userId,
+          contentType: attachment.mime_type || "application/octet-stream",
+        });
+      } catch {
+        await supabase.from("attachments").delete().eq("id", duplicatedAttachment.id);
+        await supabase.storage.from("task-attachments").remove([storagePath]);
+      }
     } catch {
       // An attachment failure must not prevent the task copy from being created.
     }

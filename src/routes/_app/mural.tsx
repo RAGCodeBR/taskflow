@@ -638,7 +638,6 @@ function MuralPage() {
                     <GripVertical
                       className="h-5 w-5 shrink-0 touch-none cursor-grab opacity-55 active:cursor-grabbing"
                       aria-label="Arraste para mover"
-                      title="Arraste para mover no mural"
                       onPointerDown={(event) => startCanvasDrag(event, post)}
                       onPointerMove={moveCanvasDrag}
                       onPointerUp={finishCanvasDrag}

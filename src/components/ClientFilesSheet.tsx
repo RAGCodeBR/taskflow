@@ -1,15 +1,34 @@
 import { useEffect, useState } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ArrowDown, ArrowUp, ExternalLink, FileText, Paperclip, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useClients } from "@/hooks/use-data";
 import { toast } from "sonner";
-import { AttachmentPreviewDialog, type PreviewableAttachment } from "@/components/AttachmentPreviewDialog";
+import {
+  AttachmentPreviewDialog,
+  type PreviewableAttachment,
+} from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
+import {
+  removeTaskAttachmentAndClientCopy,
+  taskAttachmentIdFromClientFilePath,
+} from "@/lib/sync-task-attachment-to-client";
 
 const PREVIEWABLE_MIME_RE = /^(image\/|video\/|audio\/|text\/)|application\/pdf|json/i;
 const sb = supabase as any;
@@ -58,15 +77,21 @@ export function ClientFilesSheet({
       .eq("client_id", cid)
       .order("position", { ascending: true })
       .order("created_at", { ascending: false });
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     const list = (data ?? []) as ClientFile[];
     setFiles(list);
     const next: Record<string, string> = {};
-    await Promise.all(list.map(async (f) => {
-      const { data: signed } = await supabase.storage
-        .from("task-attachments").createSignedUrl(f.storage_path, 3600);
-      if (signed) next[f.id] = signed.signedUrl;
-    }));
+    await Promise.all(
+      list.map(async (f) => {
+        const { data: signed } = await supabase.storage
+          .from("task-attachments")
+          .createSignedUrl(f.storage_path, 3600);
+        if (signed) next[f.id] = signed.signedUrl;
+      }),
+    );
     setUrls(next);
   };
 
@@ -80,10 +105,16 @@ export function ClientFilesSheet({
     const startPos = files.length;
     let i = 0;
     for (const file of Array.from(fl)) {
-      const safe = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_");
+      const safe = file.name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9._-]+/g, "_");
       const path = `clients/${clientId}/${Date.now()}_${safe}`;
       const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
-      if (upErr) { toast.error(upErr.message); continue; }
+      if (upErr) {
+        toast.error(upErr.message);
+        continue;
+      }
       const { error: insErr } = await sb.from("client_files").insert({
         client_id: clientId,
         title: file.name,
@@ -109,6 +140,17 @@ export function ClientFilesSheet({
 
   const remove = async (f: ClientFile) => {
     if (!confirm(`Excluir "${f.title || f.file_name}"?`)) return;
+    const sourceAttachmentId = taskAttachmentIdFromClientFilePath(f.storage_path);
+    if (sourceAttachmentId) {
+      try {
+        await removeTaskAttachmentAndClientCopy(sourceAttachmentId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Não foi possível excluir o arquivo.");
+        return;
+      }
+      if (clientId) void load(clientId);
+      return;
+    }
     await supabase.storage.from("task-attachments").remove([f.storage_path]);
     await sb.from("client_files").delete().eq("id", f.id);
     if (clientId) void load(clientId);
@@ -130,7 +172,11 @@ export function ClientFilesSheet({
   const openFile = (f: ClientFile) => {
     const canPreview = PREVIEWABLE_MIME_RE.test(f.mime_type ?? "");
     if (canPreview) {
-      setPreview({ file_name: f.title || f.file_name, storage_path: f.storage_path, mime_type: f.mime_type });
+      setPreview({
+        file_name: f.title || f.file_name,
+        storage_path: f.storage_path,
+        mime_type: f.mime_type,
+      });
       return;
     }
     const u = urls[f.id];
@@ -155,32 +201,34 @@ export function ClientFilesSheet({
           className="border-b px-4 py-3"
         >
           <div className="flex items-center gap-2">
-          <Select value={clientId ?? undefined} onValueChange={(v) => setClientId(v)}>
-            <SelectTrigger className="w-[260px]">
-              <SelectValue placeholder="Selecione um cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <label className="cursor-pointer">
-            <input
-              type="file"
-              multiple
-              accept="*/*"
-              className="hidden"
-              onChange={(e) => void onUpload(e.target.files)}
-              disabled={!clientId || uploading}
-            />
-            <span className="inline-flex items-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted">
-              {uploading ? "Enviando…" : "+ Adicionar arquivo"}
-            </span>
-          </label>
-          {clientId && (
-            <p className="ml-auto text-xs text-muted-foreground">{files.length} arquivo(s)</p>
-          )}
+            <Select value={clientId ?? undefined} onValueChange={(v) => setClientId(v)}>
+              <SelectTrigger className="w-[260px]">
+                <SelectValue placeholder="Selecione um cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                multiple
+                accept="*/*"
+                className="hidden"
+                onChange={(e) => void onUpload(e.target.files)}
+                disabled={!clientId || uploading}
+              />
+              <span className="inline-flex items-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted">
+                {uploading ? "Enviando…" : "+ Adicionar arquivo"}
+              </span>
+            </label>
+            {clientId && (
+              <p className="ml-auto text-xs text-muted-foreground">{files.length} arquivo(s)</p>
+            )}
           </div>
         </FileDropZone>
 
@@ -202,15 +250,21 @@ export function ClientFilesSheet({
                   <li key={f.id} className="flex items-center gap-3 rounded-lg border bg-card p-2">
                     <div className="flex flex-col">
                       <Button
-                        size="icon" variant="ghost" className="h-6 w-6"
-                        onClick={() => void move(f.id, -1)} disabled={i === 0}
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => void move(f.id, -1)}
+                        disabled={i === 0}
                         title="Mover para cima"
                       >
                         <ArrowUp className="h-3.5 w-3.5" />
                       </Button>
                       <Button
-                        size="icon" variant="ghost" className="h-6 w-6"
-                        onClick={() => void move(f.id, 1)} disabled={i === files.length - 1}
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => void move(f.id, 1)}
+                        disabled={i === files.length - 1}
                         title="Mover para baixo"
                       >
                         <ArrowDown className="h-3.5 w-3.5" />
@@ -224,10 +278,18 @@ export function ClientFilesSheet({
                       title={f.file_name}
                     >
                       {isImage && urls[f.id] ? (
-                        <img src={urls[f.id]} alt={f.file_name} className="h-full w-full object-cover" />
+                        <img
+                          src={urls[f.id]}
+                          alt={f.file_name}
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                          {canPreview ? <FileText className="h-5 w-5" /> : <ExternalLink className="h-5 w-5" />}
+                          {canPreview ? (
+                            <FileText className="h-5 w-5" />
+                          ) : (
+                            <ExternalLink className="h-5 w-5" />
+                          )}
                         </div>
                       )}
                     </button>
@@ -235,7 +297,11 @@ export function ClientFilesSheet({
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <Input
                         value={f.title ?? ""}
-                        onChange={(e) => setFiles((curr) => curr.map((x) => (x.id === f.id ? { ...x, title: e.target.value } : x)))}
+                        onChange={(e) =>
+                          setFiles((curr) =>
+                            curr.map((x) => (x.id === f.id ? { ...x, title: e.target.value } : x)),
+                          )
+                        }
                         onBlur={(e) => void updateTitle(f.id, e.target.value)}
                         placeholder="Título do arquivo"
                         className="h-7 text-sm"
@@ -245,15 +311,13 @@ export function ClientFilesSheet({
                       </p>
                     </div>
 
-                    <Button
-                      size="sm" variant="ghost"
-                      onClick={() => openFile(f)}
-                      title="Abrir"
-                    >
+                    <Button size="sm" variant="ghost" onClick={() => openFile(f)} title="Abrir">
                       Abrir
                     </Button>
                     <Button
-                      size="icon" variant="ghost" className="h-8 w-8 text-destructive"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive"
                       onClick={() => void remove(f)}
                       title="Excluir"
                     >
@@ -268,7 +332,9 @@ export function ClientFilesSheet({
 
         <AttachmentPreviewDialog
           open={!!preview}
-          onOpenChange={(o) => { if (!o) setPreview(null); }}
+          onOpenChange={(o) => {
+            if (!o) setPreview(null);
+          }}
           attachment={preview}
         />
       </SheetContent>

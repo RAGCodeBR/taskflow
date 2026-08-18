@@ -38,6 +38,7 @@ import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
+import { removeTaskAttachmentAndClientCopy, syncTaskAttachmentToClient } from "@/lib/sync-task-attachment-to-client";
 import { RichTextEditor } from "@/components/RichTextEditor";
 
 interface Props {
@@ -803,10 +804,26 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       .select()
       .single();
     if (error) {
+      await supabase.storage.from("task-attachments").remove([path]);
       toast.error(`${file.name}: ${error.message}`);
       return false;
     }
-    setAttachments((current) => [...current, data as Attachment]);
+    const attachment = data as Attachment;
+    try {
+      await syncTaskAttachmentToClient({
+        file,
+        taskId: tid,
+        sourceAttachmentId: attachment.id,
+        uploadedBy: user.id,
+      });
+    } catch (syncError) {
+      await supabase.from("attachments").delete().eq("id", attachment.id);
+      await supabase.storage.from("task-attachments").remove([path]);
+      toast.error(`${file.name}: não foi possível salvar o arquivo do cliente.`);
+      console.error("Could not sync task attachment to client files", syncError);
+      return false;
+    }
+    setAttachments((current) => [...current, attachment]);
     return true;
   };
 
@@ -862,9 +879,12 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
   };
   const deleteAttachment = async (att: Attachment) => {
-    await supabase.storage.from("task-attachments").remove([att.storage_path]);
-    await supabase.from("attachments").delete().eq("id", att.id);
-    setAttachments(attachments.filter((a) => a.id !== att.id));
+    try {
+      await removeTaskAttachmentAndClientCopy(att.id);
+      setAttachments(attachments.filter((a) => a.id !== att.id));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o arquivo.");
+    }
   };
 
   return (

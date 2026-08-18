@@ -1,9 +1,38 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, ChevronDown, Download, ExternalLink, Eye, EyeOff, ImageUp, LoaderCircle, NotebookPen, Paperclip, Pencil, Plus, Save, Trash2, Users } from "lucide-react";
-import { DndContext, PointerSensor, closestCenter, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  ArrowLeft,
+  Building2,
+  ChevronDown,
+  Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  ImageUp,
+  LoaderCircle,
+  NotebookPen,
+  Paperclip,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  Users,
+} from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,7 +40,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { type Client, type ClientBranch, type ClientDepartment, type ClientDepartmentEmployee, type ClientSystemAccess } from "@/hooks/use-data";
+import {
+  type Client,
+  type ClientBranch,
+  type ClientDepartment,
+  type ClientDepartmentEmployee,
+  type ClientSystemAccess,
+} from "@/hooks/use-data";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -62,13 +97,20 @@ function EditClientPage() {
     },
   });
   const { data: employees = EMPTY_EMPLOYEES } = useQuery({
-    queryKey: ["client-department-employees", clientId, departments.map((department) => department.id)],
+    queryKey: [
+      "client-department-employees",
+      clientId,
+      departments.map((department) => department.id),
+    ],
     enabled: departments.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("client_department_employees")
         .select("*")
-        .in("department_id", departments.map((department) => department.id))
+        .in(
+          "department_id",
+          departments.map((department) => department.id),
+        )
         .order("full_name");
       if (error) throw error;
       return (data ?? []) as ClientDepartmentEmployee[];
@@ -115,7 +157,9 @@ function EditClientPage() {
   const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
   const [employeeFormDepartmentId, setEmployeeFormDepartmentId] = useState<string | null>(null);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
-  const [employeePersonType, setEmployeePersonType] = useState<"individual" | "company">("individual");
+  const [employeePersonType, setEmployeePersonType] = useState<"individual" | "company">(
+    "individual",
+  );
   const [employeeName, setEmployeeName] = useState("");
   const [employeeDocument, setEmployeeDocument] = useState("");
   const [employeeCbo, setEmployeeCbo] = useState("");
@@ -138,7 +182,9 @@ function EditClientPage() {
   const [systemAccessLogin, setSystemAccessLogin] = useState("");
   const [systemAccessPassword, setSystemAccessPassword] = useState("");
   const [systemAccessNotes, setSystemAccessNotes] = useState("");
-  const [visibleSystemAccessPasswordId, setVisibleSystemAccessPasswordId] = useState<string | null>(null);
+  const [visibleSystemAccessPasswordId, setVisibleSystemAccessPasswordId] = useState<string | null>(
+    null,
+  );
   const [branchFormOpen, setBranchFormOpen] = useState(false);
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [branchName, setBranchName] = useState("");
@@ -190,7 +236,8 @@ function EditClientPage() {
     const loadEmployeeAvatars = async () => {
       const employeesWithAvatar = employees.filter((employee) => employee.avatar_path);
       if (employeesWithAvatar.length === 0) {
-        if (!cancelled) setEmployeeAvatarUrls((current) => (Object.keys(current).length === 0 ? current : {}));
+        if (!cancelled)
+          setEmployeeAvatarUrls((current) => (Object.keys(current).length === 0 ? current : {}));
         return;
       }
       const entries = await Promise.all(
@@ -204,7 +251,9 @@ function EditClientPage() {
       if (!cancelled) setEmployeeAvatarUrls(Object.fromEntries(entries));
     };
     void loadEmployeeAvatars();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [employees]);
 
   const save = async () => {
@@ -312,7 +361,8 @@ function EditClientPage() {
   };
 
   const deleteDepartment = async (department: ClientDepartment) => {
-    if (!confirm(`Excluir o departamento "${department.name}" e todos os seus funcionários?`)) return;
+    if (!confirm(`Excluir o departamento "${department.name}" e todos os seus funcionários?`))
+      return;
 
     const { error } = await supabase.from("client_departments").delete().eq("id", department.id);
     if (error) {
@@ -331,7 +381,9 @@ function EditClientPage() {
     if (oldIndex < 0 || newIndex < 0) return;
     const reordered = arrayMove(departments, oldIndex, newIndex);
     const results = await Promise.all(
-      reordered.map((department, position) => supabase.from("client_departments").update({ position }).eq("id", department.id)),
+      reordered.map((department, position) =>
+        supabase.from("client_departments").update({ position }).eq("id", department.id),
+      ),
     );
     const error = results.find((result) => result.error)?.error;
     if (error) {
@@ -359,7 +411,7 @@ function EditClientPage() {
 
   const setEmployeeAvatar = (file: File | null | undefined) => {
     if (!file) return;
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
       toast.error("Selecione uma imagem PNG, JPG ou WebP.");
       return;
     }
@@ -384,8 +436,13 @@ function EditClientPage() {
       toast.error(error.message);
       return;
     }
-    const { error: storageError } = await supabase.storage.from("task-attachments").remove([employee.avatar_path]);
-    if (storageError) toast.error(`Foto desvinculada, mas não foi possível excluir o arquivo: ${storageError.message}`);
+    const { error: storageError } = await supabase.storage
+      .from("task-attachments")
+      .remove([employee.avatar_path]);
+    if (storageError)
+      toast.error(
+        `Foto desvinculada, mas não foi possível excluir o arquivo: ${storageError.message}`,
+      );
     await queryClient.invalidateQueries({ queryKey: ["client-department-employees", clientId] });
     toast.success("Foto do funcionário removida");
   };
@@ -407,7 +464,12 @@ function EditClientPage() {
       activities: employeeActivities.trim() || null,
     };
     const { data: savedEmployee, error } = editingEmployeeId
-      ? await supabase.from("client_department_employees").update(employeeData).eq("id", editingEmployeeId).select().single()
+      ? await supabase
+          .from("client_department_employees")
+          .update(employeeData)
+          .eq("id", editingEmployeeId)
+          .select()
+          .single()
       : await supabase.from("client_department_employees").insert(employeeData).select().single();
     if (error) {
       toast.error(error.message);
@@ -420,7 +482,9 @@ function EditClientPage() {
         .from("task-attachments")
         .upload(avatarPath, employeeAvatarFile, { contentType: employeeAvatarFile.type });
       if (uploadError) {
-        toast.error(`Funcionário salvo, mas não foi possível enviar a foto: ${uploadError.message}`);
+        toast.error(
+          `Funcionário salvo, mas não foi possível enviar a foto: ${uploadError.message}`,
+        );
       } else {
         const { error: avatarError } = await supabase
           .from("client_department_employees")
@@ -443,14 +507,19 @@ function EditClientPage() {
     setEmployeeCbo(employee.cbo ?? "");
     setEmployeeRole(employee.role ?? "");
     setEmployeeSalary(employee.salary === null ? "" : formatSalary(employee.salary));
-    setEmployeeSalaryExtrafolha(employee.salary_extrafolha == null ? "" : formatSalary(employee.salary_extrafolha));
+    setEmployeeSalaryExtrafolha(
+      employee.salary_extrafolha == null ? "" : formatSalary(employee.salary_extrafolha),
+    );
     setEmployeeActivities(employee.activities ?? "");
     setEmployeeAvatarFile(null);
   };
 
   const deleteEmployee = async (employee: ClientDepartmentEmployee) => {
     if (!confirm(`Excluir o funcionário "${employee.full_name}"?`)) return;
-    const { error } = await supabase.from("client_department_employees").delete().eq("id", employee.id);
+    const { error } = await supabase
+      .from("client_department_employees")
+      .delete()
+      .eq("id", employee.id);
     if (error) {
       toast.error(error.message);
       return;
@@ -537,8 +606,13 @@ function EditClientPage() {
       notes: branchNotes.trim() || null,
     };
     const { error } = editingBranchId
-      ? await (supabase.from("client_branches" as any) as any).update(payload).eq("id", editingBranchId)
-      : await (supabase.from("client_branches" as any) as any).insert({ ...payload, client_id: clientId });
+      ? await (supabase.from("client_branches" as any) as any)
+          .update(payload)
+          .eq("id", editingBranchId)
+      : await (supabase.from("client_branches" as any) as any).insert({
+          ...payload,
+          client_id: clientId,
+        });
     if (error) {
       toast.error(error.message);
       return;
@@ -562,7 +636,9 @@ function EditClientPage() {
 
   const deleteBranch = async (branch: ClientBranch) => {
     if (!confirm(`Excluir a unidade "${branch.name}"?`)) return;
-    const { error } = await (supabase.from("client_branches" as any) as any).delete().eq("id", branch.id);
+    const { error } = await (supabase.from("client_branches" as any) as any)
+      .delete()
+      .eq("id", branch.id);
     if (error) {
       toast.error(error.message);
       return;
@@ -601,7 +677,9 @@ function EditClientPage() {
         style: { border: "2px solid #d8e0ea", borderRadius: "12px" },
       });
       const link = document.createElement("a");
-      const safeName = selectedEmployee.full_name.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "") || "funcionario";
+      const safeName =
+        selectedEmployee.full_name.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "") ||
+        "funcionario";
       link.href = url;
       link.download = `cartao-${safeName}.jpeg`;
       link.click();
@@ -632,7 +710,9 @@ function EditClientPage() {
   }
 
   return (
-    <div className={`mx-auto w-full ${activeTab === "notes" ? "max-w-5xl" : "max-w-4xl"} space-y-6 p-6`}>
+    <div
+      className={`mx-auto w-full ${activeTab === "notes" ? "max-w-5xl" : "max-w-4xl"} space-y-6 p-6`}
+    >
       <header className="flex items-center gap-4">
         <Button asChild size="icon" variant="ghost" title="Voltar para clientes">
           <Link to="/clients">
@@ -793,7 +873,12 @@ function EditClientPage() {
                   Cadastre as demais unidades vinculadas a este cliente.
                 </p>
               </div>
-              <Button onClick={() => { resetBranchForm(); setBranchFormOpen(true); }}>
+              <Button
+                onClick={() => {
+                  resetBranchForm();
+                  setBranchFormOpen(true);
+                }}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Cadastrar unidade
               </Button>
@@ -801,17 +886,53 @@ function EditClientPage() {
 
             {branchFormOpen && (
               <div className="space-y-4 rounded-lg border p-4">
-                <h3 className="font-medium">{editingBranchId ? "Editar unidade" : "Nova unidade"}</h3>
+                <h3 className="font-medium">
+                  {editingBranchId ? "Editar unidade" : "Nova unidade"}
+                </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Nome da unidade"><Input value={branchName} onChange={(event) => setBranchName(event.target.value)} /></Field>
-                  <Field label="CNPJ"><Input value={branchCnpj} onChange={(event) => setBranchCnpj(event.target.value)} /></Field>
-                  <Field label="Telefone"><Input value={branchPhone} onChange={(event) => setBranchPhone(event.target.value)} /></Field>
-                  <Field label="E-mail"><Input type="email" value={branchEmail} onChange={(event) => setBranchEmail(event.target.value)} /></Field>
+                  <Field label="Nome da unidade">
+                    <Input
+                      value={branchName}
+                      onChange={(event) => setBranchName(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="CNPJ">
+                    <Input
+                      value={branchCnpj}
+                      onChange={(event) => setBranchCnpj(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Telefone">
+                    <Input
+                      value={branchPhone}
+                      onChange={(event) => setBranchPhone(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="E-mail">
+                    <Input
+                      type="email"
+                      value={branchEmail}
+                      onChange={(event) => setBranchEmail(event.target.value)}
+                    />
+                  </Field>
                 </div>
-                <Field label="Endereço"><Textarea value={branchAddress} onChange={(event) => setBranchAddress(event.target.value)} /></Field>
-                <Field label="Observações"><Textarea value={branchNotes} onChange={(event) => setBranchNotes(event.target.value)} placeholder="Informações adicionais sobre esta unidade" /></Field>
+                <Field label="Endereço">
+                  <Textarea
+                    value={branchAddress}
+                    onChange={(event) => setBranchAddress(event.target.value)}
+                  />
+                </Field>
+                <Field label="Observações">
+                  <Textarea
+                    value={branchNotes}
+                    onChange={(event) => setBranchNotes(event.target.value)}
+                    placeholder="Informações adicionais sobre esta unidade"
+                  />
+                </Field>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={resetBranchForm}>Cancelar</Button>
+                  <Button variant="outline" onClick={resetBranchForm}>
+                    Cancelar
+                  </Button>
                   <Button onClick={saveBranch}>Salvar unidade</Button>
                 </div>
               </div>
@@ -819,22 +940,56 @@ function EditClientPage() {
 
             <div className="space-y-2">
               {branches.map((branch) => (
-                <div key={branch.id} className="flex items-start justify-between gap-3 rounded-lg border p-4">
+                <div
+                  key={branch.id}
+                  className="flex items-start justify-between gap-3 rounded-lg border p-4"
+                >
                   <div className="min-w-0">
-                    <p className="flex items-center gap-2 font-medium"><Building2 className="h-4 w-4 text-muted-foreground" />{branch.name}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {[branch.cnpj && `CNPJ: ${branch.cnpj}`, branch.phone, branch.email].filter(Boolean).join(" · ") || "Sem contatos cadastrados"}
+                    <p className="flex items-center gap-2 font-medium">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      {branch.name}
                     </p>
-                    {branch.address && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{branch.address}</p>}
-                    {branch.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{branch.notes}</p>}
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {[branch.cnpj && `CNPJ: ${branch.cnpj}`, branch.phone, branch.email]
+                        .filter(Boolean)
+                        .join(" · ") || "Sem contatos cadastrados"}
+                    </p>
+                    {branch.address && (
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {branch.address}
+                      </p>
+                    )}
+                    {branch.notes && (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {branch.notes}
+                      </p>
+                    )}
                   </div>
                   <div className="flex shrink-0 gap-1">
-                    <Button size="icon" variant="ghost" title="Editar unidade" onClick={() => startBranchEdit(branch)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" title="Excluir unidade" onClick={() => deleteBranch(branch)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Editar unidade"
+                      onClick={() => startBranchEdit(branch)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Excluir unidade"
+                      onClick={() => deleteBranch(branch)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                   </div>
                 </div>
               ))}
-              {branches.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma unidade cadastrada.</p>}
+              {branches.length === 0 && (
+                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Nenhuma unidade cadastrada.
+                </p>
+              )}
             </div>
           </TabsContent>
 
@@ -846,7 +1001,12 @@ function EditClientPage() {
                   Cadastre e organize os departamentos deste cliente.
                 </p>
               </div>
-              <Button onClick={() => { resetDepartmentForm(); setDepartmentFormOpen(true); }}>
+              <Button
+                onClick={() => {
+                  resetDepartmentForm();
+                  setDepartmentFormOpen(true);
+                }}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Cadastrar departamento
               </Button>
@@ -869,112 +1029,347 @@ function EditClientPage() {
               </div>
             )}
 
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDepartmentDragEnd}>
-              <SortableContext items={departments.map((department) => department.id)} strategy={verticalListSortingStrategy}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDepartmentDragEnd}
+            >
+              <SortableContext
+                items={departments.map((department) => department.id)}
+                strategy={verticalListSortingStrategy}
+              >
                 <div className="space-y-2">
-              {departments.map((department) => (
-                <SortableDepartment key={department.id} id={department.id}>
-                <Collapsible className="rounded-lg border">
-                  <div className="flex items-center gap-1 p-2">
-                    <CollapsibleTrigger className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md px-2 py-2 text-left font-medium hover:bg-muted">
-                      <span className="truncate">{department.name}</span>
-                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    </CollapsibleTrigger>
-                    <div className="flex shrink-0 gap-1">
-                      <Button size="icon" variant="ghost" title="Editar departamento" onClick={() => startDepartmentEdit(department)}><Pencil className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="ghost" title="Excluir departamento" onClick={() => deleteDepartment(department)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
-                  </div>
-                  <CollapsibleContent className="border-t p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-sm font-medium"><Users className="h-4 w-4 text-muted-foreground" />Funcionários ({employees.filter((employee) => employee.department_id === department.id).length})</div>
-                      <Button size="sm" onClick={() => { resetEmployeeForm(); setEmployeeFormDepartmentId(department.id); }}><Plus className="mr-2 h-4 w-4" />Cadastrar funcionário</Button>
-                    </div>
-
-                    {employeeFormDepartmentId === department.id && (
-                      <div className="mt-4 space-y-4 rounded-lg border bg-muted/20 p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <h3 className="font-medium">{editingEmployeeId ? "Editar funcionário" : "Novo funcionário"}</h3>
-                          <div className="inline-flex rounded-md border p-0.5">
-                            <Button type="button" size="sm" variant={employeePersonType === "individual" ? "default" : "ghost"} className="h-7" onClick={() => setEmployeePersonType("individual")}>Pessoa Física</Button>
-                            <Button type="button" size="sm" variant={employeePersonType === "company" ? "default" : "ghost"} className="h-7" onClick={() => setEmployeePersonType("company")}>Pessoa Jurídica</Button>
+                  {departments.map((department) => (
+                    <SortableDepartment key={department.id} id={department.id}>
+                      <Collapsible className="rounded-lg border">
+                        <div className="flex items-center gap-1 p-2">
+                          <CollapsibleTrigger className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md px-2 py-2 text-left font-medium hover:bg-muted">
+                            <span className="truncate">{department.name}</span>
+                            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          </CollapsibleTrigger>
+                          <div className="flex shrink-0 gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              title="Editar departamento"
+                              onClick={() => startDepartmentEdit(department)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              title="Excluir departamento"
+                              onClick={() => deleteDepartment(department)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <Field label={employeePersonType === "individual" ? "Nome Completo" : "Razão Social"}><Input value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} /></Field>
-                          <Field label={employeePersonType === "individual" ? "CPF" : "CNPJ"}><Input value={employeeDocument} onChange={(event) => setEmployeeDocument(event.target.value)} /></Field>
-                          <Field label="CBO"><Input value={employeeCbo} onChange={(event) => setEmployeeCbo(event.target.value)} /></Field>
-                          <Field label="Função"><Input value={employeeRole} onChange={(event) => setEmployeeRole(event.target.value)} /></Field>
-                          <Field label="Folha de pagamento"><Input inputMode="decimal" placeholder="0,00" value={employeeSalary} onChange={(event) => setEmployeeSalary(event.target.value)} onBlur={() => setEmployeeSalary((value) => value ? formatSalary(value) : "")} /></Field>
-                          <Field label="Salário Extrafolha"><Input inputMode="decimal" placeholder="0,00" value={employeeSalaryExtrafolha} onChange={(event) => setEmployeeSalaryExtrafolha(event.target.value)} onBlur={() => setEmployeeSalaryExtrafolha((value) => value ? formatSalary(value) : "")} /></Field>
-                        </div>
-                        <Field label="Observações"><Textarea value={employeeActivities} onChange={(event) => setEmployeeActivities(event.target.value)} placeholder="Descreva livremente quaisquer observações." /></Field>
-                        <div className="space-y-2">
-                          <Label>Foto do funcionário</Label>
-                          <label
-                            htmlFor="employee-avatar"
-                            className={`flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3 transition-colors ${
-                              isEmployeeAvatarDragging
-                                ? "border-primary bg-primary/15"
-                                : "border-primary/50 bg-primary/5 hover:bg-primary/10"
-                            }`}
-                            onDragEnter={(event) => { event.preventDefault(); setIsEmployeeAvatarDragging(true); }}
-                            onDragOver={(event) => event.preventDefault()}
-                            onDragLeave={(event) => { event.preventDefault(); setIsEmployeeAvatarDragging(false); }}
-                            onDrop={(event) => {
-                              event.preventDefault();
-                              setIsEmployeeAvatarDragging(false);
-                              setEmployeeAvatar(event.dataTransfer.files?.[0]);
-                            }}
-                          >
-                            <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground"><ImageUp className="h-4 w-4" /></span>
-                            <span><span className="block text-sm font-medium">{isEmployeeAvatarDragging ? "Solte a foto aqui" : "Selecionar ou arrastar foto do funcionário"}</span><span className="block text-xs text-muted-foreground">PNG, JPG ou WebP</span></span>
-                          </label>
-                          <Input ref={employeeAvatarInputRef} id="employee-avatar" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => setEmployeeAvatar(event.target.files?.[0])} />
-                          {employeeAvatarFile && employeeAvatarPreview && (
-                            <div className="mt-2 flex items-center gap-2 rounded-md border p-2">
-                              <img src={employeeAvatarPreview} alt="Prévia" className="h-9 w-9 rounded-full object-cover" />
-                              <span className="min-w-0 flex-1 truncate text-sm">{employeeAvatarFile.name}</span>
-                              <Button type="button" size="sm" variant="ghost" onClick={clearSelectedEmployeeAvatar}>Remover</Button>
+                        <CollapsibleContent className="border-t p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                              Funcionários (
+                              {
+                                employees.filter(
+                                  (employee) => employee.department_id === department.id,
+                                ).length
+                              }
+                              )
                             </div>
-                          )}
-                          {!employeeAvatarFile && editingEmployeeId && employeeAvatarUrls[editingEmployeeId] && (
-                            <div className="mt-2 flex items-center gap-2 rounded-md border p-2">
-                              <img src={employeeAvatarUrls[editingEmployeeId]} alt="Foto atual" className="h-9 w-9 rounded-full object-cover" />
-                              <span className="min-w-0 flex-1 truncate text-sm">Foto atual salva</span>
-                              <Button type="button" size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => void removeSavedEmployeeAvatar()}>Remover foto</Button>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={resetEmployeeForm}>Cancelar</Button><Button onClick={saveEmployee}>Salvar funcionário</Button></div>
-                      </div>
-                    )}
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                resetEmployeeForm();
+                                setEmployeeFormDepartmentId(department.id);
+                              }}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Cadastrar funcionário
+                            </Button>
+                          </div>
 
-                    <div className="mt-4 space-y-2">
-                      {employees.filter((employee) => employee.department_id === department.id).map((employee) => (
-                        <div key={employee.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                          <button type="button" className="flex min-w-0 flex-1 items-start gap-3 text-left" onClick={() => { setEmployeeDialogPosition({ x: 0, y: 0 }); setSelectedEmployee(employee); }}>
-                            {employeeAvatarUrls[employee.id] && <img src={employeeAvatarUrls[employee.id]} alt={`Foto de ${employee.full_name}`} className="h-10 w-10 shrink-0 rounded-full object-cover" />}
-                            <div className="min-w-0">
-                              <p className="font-medium">{employee.full_name}</p>
-                              <p className="text-sm text-muted-foreground">{employee.role || "Sem função cadastrada"}</p>
-                              <p className="text-xs text-muted-foreground">{employee.person_type === "company" ? "Pessoa Jurídica" : "Pessoa Física"}</p>
+                          {employeeFormDepartmentId === department.id && (
+                            <div className="mt-4 space-y-4 rounded-lg border bg-muted/20 p-4">
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <h3 className="font-medium">
+                                  {editingEmployeeId ? "Editar funcionário" : "Novo funcionário"}
+                                </h3>
+                                <div className="inline-flex rounded-md border p-0.5">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={
+                                      employeePersonType === "individual" ? "default" : "ghost"
+                                    }
+                                    className="h-7"
+                                    onClick={() => setEmployeePersonType("individual")}
+                                  >
+                                    Pessoa Física
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={employeePersonType === "company" ? "default" : "ghost"}
+                                    className="h-7"
+                                    onClick={() => setEmployeePersonType("company")}
+                                  >
+                                    Pessoa Jurídica
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="grid gap-4 sm:grid-cols-2">
+                                <Field
+                                  label={
+                                    employeePersonType === "individual"
+                                      ? "Nome Completo"
+                                      : "Razão Social"
+                                  }
+                                >
+                                  <Input
+                                    value={employeeName}
+                                    onChange={(event) => setEmployeeName(event.target.value)}
+                                  />
+                                </Field>
+                                <Field label={employeePersonType === "individual" ? "CPF" : "CNPJ"}>
+                                  <Input
+                                    value={employeeDocument}
+                                    onChange={(event) => setEmployeeDocument(event.target.value)}
+                                  />
+                                </Field>
+                                <Field label="CBO">
+                                  <Input
+                                    value={employeeCbo}
+                                    onChange={(event) => setEmployeeCbo(event.target.value)}
+                                  />
+                                </Field>
+                                <Field label="Função">
+                                  <Input
+                                    value={employeeRole}
+                                    onChange={(event) => setEmployeeRole(event.target.value)}
+                                  />
+                                </Field>
+                                <Field label="Folha de pagamento">
+                                  <Input
+                                    inputMode="decimal"
+                                    placeholder="0,00"
+                                    value={employeeSalary}
+                                    onChange={(event) => setEmployeeSalary(event.target.value)}
+                                    onBlur={() =>
+                                      setEmployeeSalary((value) =>
+                                        value ? formatSalary(value) : "",
+                                      )
+                                    }
+                                  />
+                                </Field>
+                                <Field label="Salário Extrafolha">
+                                  <Input
+                                    inputMode="decimal"
+                                    placeholder="0,00"
+                                    value={employeeSalaryExtrafolha}
+                                    onChange={(event) =>
+                                      setEmployeeSalaryExtrafolha(event.target.value)
+                                    }
+                                    onBlur={() =>
+                                      setEmployeeSalaryExtrafolha((value) =>
+                                        value ? formatSalary(value) : "",
+                                      )
+                                    }
+                                  />
+                                </Field>
+                              </div>
+                              <Field label="Observações">
+                                <Textarea
+                                  value={employeeActivities}
+                                  onChange={(event) => setEmployeeActivities(event.target.value)}
+                                  placeholder="Descreva livremente quaisquer observações."
+                                />
+                              </Field>
+                              <div className="space-y-2">
+                                <Label>Foto do funcionário</Label>
+                                <label
+                                  htmlFor="employee-avatar"
+                                  className={`flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3 transition-colors ${
+                                    isEmployeeAvatarDragging
+                                      ? "border-primary bg-primary/15"
+                                      : "border-primary/50 bg-primary/5 hover:bg-primary/10"
+                                  }`}
+                                  onDragEnter={(event) => {
+                                    event.preventDefault();
+                                    setIsEmployeeAvatarDragging(true);
+                                  }}
+                                  onDragOver={(event) => event.preventDefault()}
+                                  onDragLeave={(event) => {
+                                    event.preventDefault();
+                                    setIsEmployeeAvatarDragging(false);
+                                  }}
+                                  onDrop={(event) => {
+                                    event.preventDefault();
+                                    setIsEmployeeAvatarDragging(false);
+                                    setEmployeeAvatar(event.dataTransfer.files?.[0]);
+                                  }}
+                                >
+                                  <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground">
+                                    <ImageUp className="h-4 w-4" />
+                                  </span>
+                                  <span>
+                                    <span className="block text-sm font-medium">
+                                      {isEmployeeAvatarDragging
+                                        ? "Solte a foto aqui"
+                                        : "Selecionar ou arrastar foto do funcionário"}
+                                    </span>
+                                    <span className="block text-xs text-muted-foreground">
+                                      PNG, JPG ou WebP
+                                    </span>
+                                  </span>
+                                </label>
+                                <Input
+                                  ref={employeeAvatarInputRef}
+                                  id="employee-avatar"
+                                  type="file"
+                                  accept="image/png,image/jpeg,image/webp"
+                                  className="sr-only"
+                                  onChange={(event) => setEmployeeAvatar(event.target.files?.[0])}
+                                />
+                                {employeeAvatarFile && employeeAvatarPreview && (
+                                  <div className="mt-2 flex items-center gap-2 rounded-md border p-2">
+                                    <img
+                                      src={employeeAvatarPreview}
+                                      alt="Prévia"
+                                      className="h-9 w-9 rounded-full object-cover"
+                                    />
+                                    <span className="min-w-0 flex-1 truncate text-sm">
+                                      {employeeAvatarFile.name}
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={clearSelectedEmployeeAvatar}
+                                    >
+                                      Remover
+                                    </Button>
+                                  </div>
+                                )}
+                                {!employeeAvatarFile &&
+                                  editingEmployeeId &&
+                                  employeeAvatarUrls[editingEmployeeId] && (
+                                    <div className="mt-2 flex items-center gap-2 rounded-md border p-2">
+                                      <img
+                                        src={employeeAvatarUrls[editingEmployeeId]}
+                                        alt="Foto atual"
+                                        className="h-9 w-9 rounded-full object-cover"
+                                      />
+                                      <span className="min-w-0 flex-1 truncate text-sm">
+                                        Foto atual salva
+                                      </span>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-destructive hover:text-destructive"
+                                        onClick={() => void removeSavedEmployeeAvatar()}
+                                      >
+                                        Remover foto
+                                      </Button>
+                                    </div>
+                                  )}
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <Button variant="outline" onClick={resetEmployeeForm}>
+                                  Cancelar
+                                </Button>
+                                <Button onClick={saveEmployee}>Salvar funcionário</Button>
+                              </div>
                             </div>
-                          </button>
-                          <div className="flex shrink-0 items-center justify-end gap-1"><Button className="h-9" size="sm" variant="outline" onClick={() => { setEmployeeDialogPosition({ x: 0, y: 0 }); setSelectedEmployee(employee); }}>Ver dados</Button><Button className="h-9 w-9" size="icon" variant="ghost" title="Editar informações" onClick={() => startEmployeeEdit(employee)}><Pencil className="h-4 w-4" /></Button><Button className="h-9 w-9" size="icon" variant="ghost" title="Excluir funcionário" onClick={() => deleteEmployee(employee)}><Trash2 className="h-4 w-4 text-destructive" /></Button></div>
-                        </div>
-                      ))}
-                      {employees.filter((employee) => employee.department_id === department.id).length === 0 && <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">Nenhum funcionário cadastrado neste departamento.</p>}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-                </SortableDepartment>
-              ))}
-              {departments.length === 0 && (
-                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  Nenhum departamento cadastrado.
-                </p>
-              )}
+                          )}
+
+                          <div className="mt-4 space-y-2">
+                            {employees
+                              .filter((employee) => employee.department_id === department.id)
+                              .map((employee) => (
+                                <div
+                                  key={employee.id}
+                                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                                >
+                                  <button
+                                    type="button"
+                                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                                    onClick={() => {
+                                      setEmployeeDialogPosition({ x: 0, y: 0 });
+                                      setSelectedEmployee(employee);
+                                    }}
+                                  >
+                                    {employeeAvatarUrls[employee.id] && (
+                                      <img
+                                        src={employeeAvatarUrls[employee.id]}
+                                        alt={`Foto de ${employee.full_name}`}
+                                        className="h-10 w-10 shrink-0 rounded-full object-cover"
+                                      />
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="font-medium">{employee.full_name}</p>
+                                      <p className="text-sm text-muted-foreground">
+                                        {employee.role || "Sem função cadastrada"}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {employee.person_type === "company"
+                                          ? "Pessoa Jurídica"
+                                          : "Pessoa Física"}
+                                      </p>
+                                    </div>
+                                  </button>
+                                  <div className="flex shrink-0 items-center justify-end gap-1">
+                                    <Button
+                                      className="h-9"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEmployeeDialogPosition({ x: 0, y: 0 });
+                                        setSelectedEmployee(employee);
+                                      }}
+                                    >
+                                      Ver dados
+                                    </Button>
+                                    <Button
+                                      className="h-9 w-9"
+                                      size="icon"
+                                      variant="ghost"
+                                      title="Editar informações"
+                                      onClick={() => startEmployeeEdit(employee)}
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      className="h-9 w-9"
+                                      size="icon"
+                                      variant="ghost"
+                                      title="Excluir funcionário"
+                                      onClick={() => deleteEmployee(employee)}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            {employees.filter(
+                              (employee) => employee.department_id === department.id,
+                            ).length === 0 && (
+                              <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                                Nenhum funcionário cadastrado neste departamento.
+                              </p>
+                            )}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </SortableDepartment>
+                  ))}
+                  {departments.length === 0 && (
+                    <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      Nenhum departamento cadastrado.
+                    </p>
+                  )}
                 </div>
               </SortableContext>
             </DndContext>
@@ -983,9 +1378,16 @@ function EditClientPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold">Sistemas</h2>
-                <p className="text-sm text-muted-foreground">Gerencie os acessos e credenciais deste cliente.</p>
+                <p className="text-sm text-muted-foreground">
+                  Gerencie os acessos e credenciais deste cliente.
+                </p>
               </div>
-              <Button onClick={() => { resetSystemAccessForm(); setSystemAccessFormOpen(true); }}>
+              <Button
+                onClick={() => {
+                  resetSystemAccessForm();
+                  setSystemAccessFormOpen(true);
+                }}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Cadastrar Acesso
               </Button>
@@ -993,15 +1395,41 @@ function EditClientPage() {
 
             {systemAccessFormOpen && (
               <div className="space-y-4 rounded-lg border p-4">
-                <h3 className="font-medium">{editingSystemAccessId ? "Editar acesso" : "Novo acesso"}</h3>
-                <Field label="Título"><Input value={systemAccessTitle} onChange={(event) => setSystemAccessTitle(event.target.value)} placeholder="Ex.: Portal do cliente" /></Field>
+                <h3 className="font-medium">
+                  {editingSystemAccessId ? "Editar acesso" : "Novo acesso"}
+                </h3>
+                <Field label="Título">
+                  <Input
+                    value={systemAccessTitle}
+                    onChange={(event) => setSystemAccessTitle(event.target.value)}
+                    placeholder="Ex.: Portal do cliente"
+                  />
+                </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Login"><Input value={systemAccessLogin} onChange={(event) => setSystemAccessLogin(event.target.value)} /></Field>
-                  <Field label="Senha"><Input type="password" value={systemAccessPassword} onChange={(event) => setSystemAccessPassword(event.target.value)} /></Field>
+                  <Field label="Login">
+                    <Input
+                      value={systemAccessLogin}
+                      onChange={(event) => setSystemAccessLogin(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Senha">
+                    <Input
+                      type="password"
+                      value={systemAccessPassword}
+                      onChange={(event) => setSystemAccessPassword(event.target.value)}
+                    />
+                  </Field>
                 </div>
-                <Field label="Observação"><Textarea value={systemAccessNotes} onChange={(event) => setSystemAccessNotes(event.target.value)} /></Field>
+                <Field label="Observação">
+                  <Textarea
+                    value={systemAccessNotes}
+                    onChange={(event) => setSystemAccessNotes(event.target.value)}
+                  />
+                </Field>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={resetSystemAccessForm}>Cancelar</Button>
+                  <Button variant="outline" onClick={resetSystemAccessForm}>
+                    Cancelar
+                  </Button>
                   <Button onClick={saveSystemAccess}>Salvar acesso</Button>
                 </div>
               </div>
@@ -1009,32 +1437,72 @@ function EditClientPage() {
 
             <div className="space-y-2">
               {systemAccesses.map((access) => (
-                <div key={access.id} className="flex items-start justify-between gap-3 rounded-lg border p-4">
+                <div
+                  key={access.id}
+                  className="flex items-start justify-between gap-3 rounded-lg border p-4"
+                >
                   <div className="min-w-0">
                     <p className="font-medium">{access.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">Login: {access.login}</p>
                     <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                      <span>Senha: {visibleSystemAccessPasswordId === access.id ? access.password : "••••••••"}</span>
+                      <span>
+                        Senha:{" "}
+                        {visibleSystemAccessPasswordId === access.id ? access.password : "••••••••"}
+                      </span>
                       <Button
                         type="button"
                         size="icon"
                         variant="ghost"
                         className="h-6 w-6"
-                        title={visibleSystemAccessPasswordId === access.id ? "Ocultar senha" : "Visualizar senha"}
-                        onClick={() => setVisibleSystemAccessPasswordId((current) => current === access.id ? null : access.id)}
+                        title={
+                          visibleSystemAccessPasswordId === access.id
+                            ? "Ocultar senha"
+                            : "Visualizar senha"
+                        }
+                        onClick={() =>
+                          setVisibleSystemAccessPasswordId((current) =>
+                            current === access.id ? null : access.id,
+                          )
+                        }
                       >
-                        {visibleSystemAccessPasswordId === access.id ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        {visibleSystemAccessPasswordId === access.id ? (
+                          <EyeOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Eye className="h-3.5 w-3.5" />
+                        )}
                       </Button>
                     </div>
-                    {access.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{access.notes}</p>}
+                    {access.notes && (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {access.notes}
+                      </p>
+                    )}
                   </div>
                   <div className="flex shrink-0 gap-1">
-                    <Button size="icon" variant="ghost" title="Editar acesso" onClick={() => startSystemAccessEdit(access)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" title="Excluir acesso" onClick={() => deleteSystemAccess(access)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Editar acesso"
+                      onClick={() => startSystemAccessEdit(access)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Excluir acesso"
+                      onClick={() => deleteSystemAccess(access)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                   </div>
                 </div>
               ))}
-              {systemAccesses.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum acesso cadastrado.</p>}
+              {systemAccesses.length === 0 && (
+                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Nenhum acesso cadastrado.
+                </p>
+              )}
             </div>
           </TabsContent>
           <TabsContent value="notes" className="mt-6">
@@ -1042,7 +1510,9 @@ function EditClientPage() {
               <NotebookPen className="h-5 w-5 text-primary" />
               <div>
                 <h2 className="font-semibold">Anotações</h2>
-                <p className="text-sm text-muted-foreground">Anotações, pendências, links e anexos deste cliente.</p>
+                <p className="text-sm text-muted-foreground">
+                  Anotações, pendências, links e anexos deste cliente.
+                </p>
               </div>
             </div>
             <NotesWorkspace fixedClientId={clientId} embedded />
@@ -1070,44 +1540,98 @@ function EditClientPage() {
                 <DialogTitle>Dados do funcionário</DialogTitle>
               </DialogHeader>
               <div className="flex justify-end">
-                <Button type="button" size="sm" variant="outline" onClick={() => void downloadEmployeeCard()} disabled={isDownloadingEmployeeCard}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void downloadEmployeeCard()}
+                  disabled={isDownloadingEmployeeCard}
+                >
                   <Download className="mr-2 h-4 w-4" />
                   {isDownloadingEmployeeCard ? "Gerando..." : "Baixar JPEG"}
                 </Button>
               </div>
               <div className="overflow-hidden rounded-xl border-2 border-primary/20 bg-card shadow-sm">
-                <div id="employee-card-export" ref={employeeCardRef} className="overflow-hidden bg-card">
+                <div
+                  id="employee-card-export"
+                  ref={employeeCardRef}
+                  className="overflow-hidden bg-card"
+                >
                   <div className="h-2 bg-gradient-to-r from-emerald-600 via-yellow-400 to-blue-700" />
                   <div className="grid gap-5 p-5 sm:grid-cols-[110px_1fr]">
-                  <div className="order-first">
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Foto salva</p>
-                    {employeeAvatarUrls[selectedEmployee.id] ? (
-                      <img src={employeeAvatarUrls[selectedEmployee.id]} alt={`Foto de ${selectedEmployee.full_name}`} className="aspect-[3/4] w-[110px] rounded-md border bg-muted object-cover" />
-                    ) : (
-                      <div className="grid aspect-[3/4] w-[110px] place-items-center rounded-md border bg-muted text-xs text-muted-foreground">Sem foto</div>
-                    )}
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Nome completo</p>
-                      <p className="text-lg font-semibold">{selectedEmployee.full_name}</p>
+                    <div className="order-first">
+                      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Foto salva
+                      </p>
+                      {employeeAvatarUrls[selectedEmployee.id] ? (
+                        <img
+                          src={employeeAvatarUrls[selectedEmployee.id]}
+                          alt={`Foto de ${selectedEmployee.full_name}`}
+                          className="aspect-[3/4] w-[110px] rounded-md border bg-muted object-cover"
+                        />
+                      ) : (
+                        <div className="grid aspect-[3/4] w-[110px] place-items-center rounded-md border bg-muted text-xs text-muted-foreground">
+                          Sem foto
+                        </div>
+                      )}
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Detail label="Tipo de pessoa" value={selectedEmployee.person_type === "company" ? "Pessoa Jurídica" : "Pessoa Física"} />
-                      <Detail label={selectedEmployee.person_type === "company" ? "CNPJ" : "CPF"} value={selectedEmployee.document} />
-                      <Detail label="CBO" value={selectedEmployee.cbo} />
-                      <Detail label="Função" value={selectedEmployee.role} />
-                      <Detail label="Salário Bruto" value={selectedEmployee.salary === null ? null : formatSalary(selectedEmployee.salary)} />
-                      <Detail label="Salário Extrafolha" value={selectedEmployee.salary_extrafolha == null ? null : formatSalary(selectedEmployee.salary_extrafolha)} />
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Nome completo
+                        </p>
+                        <p className="text-lg font-semibold">{selectedEmployee.full_name}</p>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <Detail
+                          label="Tipo de pessoa"
+                          value={
+                            selectedEmployee.person_type === "company"
+                              ? "Pessoa Jurídica"
+                              : "Pessoa Física"
+                          }
+                        />
+                        <Detail
+                          label={selectedEmployee.person_type === "company" ? "CNPJ" : "CPF"}
+                          value={selectedEmployee.document}
+                        />
+                        <Detail label="CBO" value={selectedEmployee.cbo} />
+                        <Detail label="Função" value={selectedEmployee.role} />
+                        <Detail
+                          label="Salário Bruto"
+                          value={
+                            selectedEmployee.salary === null
+                              ? null
+                              : formatSalary(selectedEmployee.salary)
+                          }
+                        />
+                        <Detail
+                          label="Salário Extrafolha"
+                          value={
+                            selectedEmployee.salary_extrafolha == null
+                              ? null
+                              : formatSalary(selectedEmployee.salary_extrafolha)
+                          }
+                        />
+                      </div>
+                      <Detail label="Observações" value={selectedEmployee.activities} multiline />
                     </div>
-                    <Detail label="Observações" value={selectedEmployee.activities} multiline />
-                  </div>
                   </div>
                 </div>
-                <EmployeeDetailSection title="Anexos do funcionário" icon={<Paperclip className="h-4 w-4" />}>
-                  <AttachmentsManager clientId={clientId} employeeId={selectedEmployee.id} hideHeader />
+                <EmployeeDetailSection
+                  title="Anexos do funcionário"
+                  icon={<Paperclip className="h-4 w-4" />}
+                >
+                  <AttachmentsManager
+                    clientId={clientId}
+                    employeeId={selectedEmployee.id}
+                    hideHeader
+                  />
                 </EmployeeDetailSection>
-                <EmployeeDetailSection title="Anotações do funcionário" icon={<NotebookPen className="h-4 w-4" />}>
+                <EmployeeDetailSection
+                  title="Anotações do funcionário"
+                  icon={<NotebookPen className="h-4 w-4" />}
+                >
                   <EmployeeNotesManager employeeId={selectedEmployee.id} />
                 </EmployeeDetailSection>
               </div>
@@ -1129,7 +1653,15 @@ type ManagedAttachment = {
   created_at: string;
 };
 
-function EmployeeDetailSection({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+function EmployeeDetailSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <Collapsible className="border-t">
       <CollapsibleTrigger className="group flex w-full items-center gap-2 px-5 py-4 text-left hover:bg-muted/30">
@@ -1162,7 +1694,9 @@ function EmployeeNotesManager({ employeeId }: { employeeId: string }) {
     setNotes((data ?? []) as EmployeeNote[]);
   };
 
-  useEffect(() => { void load(); }, [employeeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    void load();
+  }, [employeeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const add = async () => {
     if (!user || !content.trim()) return;
@@ -1178,7 +1712,9 @@ function EmployeeNotesManager({ employeeId }: { employeeId: string }) {
   };
 
   const remove = async (id: string) => {
-    const { error } = await (supabase.from("client_department_employee_notes") as any).delete().eq("id", id);
+    const { error } = await (supabase.from("client_department_employee_notes") as any)
+      .delete()
+      .eq("id", id);
     if (error) return toast.error(error.message);
     setNotes((current) => current.filter((note) => note.id !== id));
   };
@@ -1192,7 +1728,9 @@ function EmployeeNotesManager({ employeeId }: { employeeId: string }) {
       .eq("id", id);
     setSavingEditId(null);
     if (error) return toast.error(error.message);
-    setNotes((current) => current.map((note) => note.id === id ? { ...note, content: nextContent } : note));
+    setNotes((current) =>
+      current.map((note) => (note.id === id ? { ...note, content: nextContent } : note)),
+    );
     setEditingId(null);
     setEditingContent("");
   };
@@ -1206,12 +1744,19 @@ function EmployeeNotesManager({ employeeId }: { employeeId: string }) {
         className="min-h-24"
       />
       <div className="flex justify-end">
-        <Button type="button" size="sm" disabled={saving || !content.trim()} onClick={() => void add()}>
+        <Button
+          type="button"
+          size="sm"
+          disabled={saving || !content.trim()}
+          onClick={() => void add()}
+        >
           <Plus className="mr-1 h-4 w-4" /> {saving ? "Salvando..." : "Adicionar anotação"}
         </Button>
       </div>
       {notes.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhuma anotação adicionada.</p>
+        <p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+          Nenhuma anotação adicionada.
+        </p>
       ) : (
         <ul className="space-y-2">
           {notes.map((note) => (
@@ -1219,13 +1764,31 @@ function EmployeeNotesManager({ employeeId }: { employeeId: string }) {
               <div className="min-w-0 flex-1">
                 {editingId === note.id ? (
                   <div className="space-y-2">
-                    <Textarea value={editingContent} onChange={(event) => setEditingContent(event.target.value)} className="min-h-20" />
+                    <Textarea
+                      value={editingContent}
+                      onChange={(event) => setEditingContent(event.target.value)}
+                      className="min-h-20"
+                    />
                     <div className="flex justify-end gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => { setEditingId(null); setEditingContent(""); }}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditingContent("");
+                        }}
+                      >
                         Cancelar
                       </Button>
-                      <Button type="button" size="sm" disabled={savingEditId === note.id || !editingContent.trim()} onClick={() => void saveEdit(note.id)}>
-                        <Save className="mr-1 h-3.5 w-3.5" /> {savingEditId === note.id ? "Salvando..." : "Salvar"}
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={savingEditId === note.id || !editingContent.trim()}
+                        onClick={() => void saveEdit(note.id)}
+                      >
+                        <Save className="mr-1 h-3.5 w-3.5" />{" "}
+                        {savingEditId === note.id ? "Salvando..." : "Salvar"}
                       </Button>
                     </div>
                   </div>
@@ -1233,15 +1796,32 @@ function EmployeeNotesManager({ employeeId }: { employeeId: string }) {
                   <p className="whitespace-pre-wrap text-sm">{note.content}</p>
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Criada em {format(new Date(note.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  Criada em{" "}
+                  {format(new Date(note.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                 </p>
               </div>
               {editingId !== note.id && (
                 <div className="flex shrink-0 items-start gap-1">
-                  <Button type="button" size="icon" variant="ghost" onClick={() => { setEditingId(note.id); setEditingContent(note.content); }} title="Editar anotação">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingId(note.id);
+                      setEditingContent(note.content);
+                    }}
+                    title="Editar anotação"
+                  >
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => void remove(note.id)} title="Excluir anotação">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => void remove(note.id)}
+                    title="Excluir anotação"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1254,7 +1834,15 @@ function EmployeeNotesManager({ employeeId }: { employeeId: string }) {
   );
 }
 
-function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clientId: string; employeeId?: string; hideHeader?: boolean }) {
+function AttachmentsManager({
+  clientId,
+  employeeId,
+  hideHeader = false,
+}: {
+  clientId: string;
+  employeeId?: string;
+  hideHeader?: boolean;
+}) {
   const { user } = useAuth();
   const [files, setFiles] = useState<ManagedAttachment[]>([]);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -1275,7 +1863,9 @@ function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clie
     setFiles((data ?? []) as ManagedAttachment[]);
   };
 
-  useEffect(() => { void load(); }, [referenceId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    void load();
+  }, [referenceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false;
@@ -1303,18 +1893,40 @@ function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clie
     if (!fileList?.length || !user) return;
     setUploading(true);
     for (const file of Array.from(fileList)) {
-      const safeName = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_");
+      const safeName = file.name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9._-]+/g, "_");
       const path = employeeId
         ? `clients/${clientId}/employees/${employeeId}/files/${Date.now()}_${safeName}`
         : `clients/${clientId}/files/${Date.now()}_${safeName}`;
-      const { error: uploadError } = await supabase.storage.from("task-attachments").upload(path, file, { contentType: file.type || "application/octet-stream" });
+      const { error: uploadError } = await supabase.storage
+        .from("task-attachments")
+        .upload(path, file, { contentType: file.type || "application/octet-stream" });
       if (uploadError) {
         toast.error(uploadError.message);
         continue;
       }
       const payload = employeeId
-        ? { employee_id: employeeId, title: file.name, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id }
-        : { client_id: clientId, title: file.name, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id, position: files.length };
+        ? {
+            employee_id: employeeId,
+            title: file.name,
+            file_name: file.name,
+            storage_path: path,
+            mime_type: file.type || null,
+            size_bytes: file.size,
+            uploaded_by: user.id,
+          }
+        : {
+            client_id: clientId,
+            title: file.name,
+            file_name: file.name,
+            storage_path: path,
+            mime_type: file.type || null,
+            size_bytes: file.size,
+            uploaded_by: user.id,
+            position: files.length,
+          };
       const { error: insertError } = await (supabase.from(table) as any).insert(payload);
       if (insertError) {
         await supabase.storage.from("task-attachments").remove([path]);
@@ -1326,7 +1938,9 @@ function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clie
   };
 
   const open = async (file: ManagedAttachment) => {
-    const { data, error } = await supabase.storage.from("task-attachments").createSignedUrl(file.storage_path, 3600);
+    const { data, error } = await supabase.storage
+      .from("task-attachments")
+      .createSignedUrl(file.storage_path, 3600);
     if (error || !data?.signedUrl) {
       toast.error(error?.message ?? "Não foi possível abrir o arquivo.");
       return;
@@ -1336,6 +1950,21 @@ function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clie
 
   const remove = async (file: ManagedAttachment) => {
     if (!confirm(`Excluir o anexo "${file.file_name}"?`)) return;
+    const { taskAttachmentIdFromClientFilePath } =
+      await import("@/lib/sync-task-attachment-to-client");
+    const sourceAttachmentId = taskAttachmentIdFromClientFilePath(file.storage_path);
+    if (!employeeId && sourceAttachmentId) {
+      const { removeTaskAttachmentAndClientCopy } =
+        await import("@/lib/sync-task-attachment-to-client");
+      try {
+        await removeTaskAttachmentAndClientCopy(sourceAttachmentId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Não foi possível excluir o arquivo.");
+        return;
+      }
+      void load();
+      return;
+    }
     const { error } = await (supabase.from(table) as any).delete().eq("id", file.id);
     if (error) {
       toast.error(error.message);
@@ -1346,12 +1975,18 @@ function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clie
   };
 
   const saveTitle = async (file: ManagedAttachment, title: string) => {
-    const { error } = await (supabase.from(table) as any).update({ title: title.trim() || file.file_name }).eq("id", file.id);
+    const { error } = await (supabase.from(table) as any)
+      .update({ title: title.trim() || file.file_name })
+      .eq("id", file.id);
     if (error) {
       toast.error(error.message);
       return;
     }
-    setFiles((current) => current.map((item) => item.id === file.id ? { ...item, title: title.trim() || file.file_name } : item));
+    setFiles((current) =>
+      current.map((item) =>
+        item.id === file.id ? { ...item, title: title.trim() || file.file_name } : item,
+      ),
+    );
   };
 
   const title = employeeId ? "Anexos do funcionário" : "Anexos do cliente";
@@ -1360,21 +1995,44 @@ function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clie
       {!hideHeader && (
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="flex items-center gap-2 font-semibold"><Paperclip className="h-4 w-4" /> {title}</h2>
-            <p className="text-sm text-muted-foreground">Adicione documentos, imagens e outros arquivos.</p>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <Paperclip className="h-4 w-4" /> {title}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Adicione documentos, imagens e outros arquivos.
+            </p>
           </div>
           <span className="text-sm text-muted-foreground">{files.length} arquivo(s)</span>
         </div>
       )}
-      <FileDropZone onFiles={(dropped) => void upload(dropped)} disabled={uploading} className="rounded-lg border border-dashed p-4">
+      <FileDropZone
+        onFiles={(dropped) => void upload(dropped)}
+        disabled={uploading}
+        className="rounded-lg border border-dashed p-4"
+      >
         <label className="flex cursor-pointer items-center justify-between gap-3">
-          <span className="text-sm text-muted-foreground">Arraste arquivos aqui ou selecione do computador.</span>
-          <span className="rounded-md border bg-background px-3 py-1.5 text-sm">{uploading ? "Enviando..." : "Adicionar arquivos"}</span>
-          <input type="file" multiple className="hidden" onChange={(event) => { void upload(event.target.files); event.currentTarget.value = ""; }} disabled={uploading} />
+          <span className="text-sm text-muted-foreground">
+            Arraste arquivos aqui ou selecione do computador.
+          </span>
+          <span className="rounded-md border bg-background px-3 py-1.5 text-sm">
+            {uploading ? "Enviando..." : "Adicionar arquivos"}
+          </span>
+          <input
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              void upload(event.target.files);
+              event.currentTarget.value = "";
+            }}
+            disabled={uploading}
+          />
         </label>
       </FileDropZone>
       {files.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Nenhum anexo adicionado.</p>
+        <p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+          Nenhum anexo adicionado.
+        </p>
       ) : (
         <ul className="space-y-2">
           {files.map((file) => (
@@ -1386,7 +2044,11 @@ function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clie
                 title={`Abrir ${file.file_name}`}
               >
                 {thumbnails[file.id] ? (
-                  <img src={thumbnails[file.id]} alt={file.title || file.file_name} className="h-full w-full object-cover" />
+                  <img
+                    src={thumbnails[file.id]}
+                    alt={file.title || file.file_name}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <Paperclip className="h-4 w-4" />
                 )}
@@ -1398,10 +2060,23 @@ function AttachmentsManager({ clientId, employeeId, hideHeader = false }: { clie
                   placeholder="Título do anexo"
                   className="h-8"
                 />
-                <p className="mt-1 truncate text-xs text-muted-foreground" title={file.file_name}>{file.file_name}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground" title={file.file_name}>
+                  {file.file_name}
+                </p>
               </div>
-              <Button type="button" size="sm" variant="outline" onClick={() => void open(file)}><ExternalLink className="mr-1 h-3.5 w-3.5" /> Abrir</Button>
-              <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => void remove(file)} title="Excluir anexo"><Trash2 className="h-4 w-4" /></Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => void open(file)}>
+                <ExternalLink className="mr-1 h-3.5 w-3.5" /> Abrir
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="text-destructive"
+                onClick={() => void remove(file)}
+                title="Excluir anexo"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </li>
           ))}
         </ul>
@@ -1420,7 +2095,9 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function SortableDepartment({ id, children }: { id: string; children: ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
 
   return (
     <div
@@ -1446,14 +2123,26 @@ function formatSalary(value: string | number): string {
   const salary = typeof value === "number" ? value : parseSalary(value);
   return salary === null
     ? String(value)
-    : new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(salary);
+    : new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+        salary,
+      );
 }
 
-function Detail({ label, value, multiline = false }: { label: string; value: string | number | null; multiline?: boolean }) {
+function Detail({
+  label,
+  value,
+  multiline = false,
+}: {
+  label: string;
+  value: string | number | null;
+  multiline?: boolean;
+}) {
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={multiline ? "mt-1 whitespace-pre-wrap text-sm" : "text-sm font-medium"}>{value || "Não informado"}</p>
+      <p className={multiline ? "mt-1 whitespace-pre-wrap text-sm" : "text-sm font-medium"}>
+        {value || "Não informado"}
+      </p>
     </div>
   );
 }

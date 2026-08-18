@@ -54,6 +54,7 @@ import {
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
+import { removeTaskAttachmentAndClientCopy, syncTaskAttachmentToClient } from "@/lib/sync-task-attachment-to-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
 import { CommentAttachments } from "@/components/CommentAttachments";
@@ -497,10 +498,26 @@ export function TaskCard({
       .select()
       .single();
     if (error) {
+      await supabase.storage.from("task-attachments").remove([path]);
       toast.error(`${file.name}: ${error.message}`);
       return false;
     }
     const att = data as Attachment;
+    try {
+      await syncTaskAttachmentToClient({
+        file,
+        taskId: task.id,
+        sourceAttachmentId: att.id,
+        uploadedBy: user.id,
+        contentType,
+      });
+    } catch (syncError) {
+      await supabase.from("attachments").delete().eq("id", att.id);
+      await supabase.storage.from("task-attachments").remove([path]);
+      toast.error(`${file.name}: não foi possível salvar o arquivo do cliente.`);
+      console.error("Could not sync task attachment to client files", syncError);
+      return false;
+    }
     setAttachments((c) => [...c, att]);
     if (att.mime_type?.startsWith("image/")) {
       const { data: signed } = await supabase.storage
@@ -537,11 +554,12 @@ export function TaskCard({
   };
 
   const deleteAttachment = async (a: Attachment) => {
-    if (a.mime_type !== LINK_MIME) {
-      await supabase.storage.from("task-attachments").remove([a.storage_path]);
+    try {
+      await removeTaskAttachmentAndClientCopy(a.id);
+      setAttachments((c) => c.filter((x) => x.id !== a.id));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o arquivo.");
     }
-    await supabase.from("attachments").delete().eq("id", a.id);
-    setAttachments((c) => c.filter((x) => x.id !== a.id));
   };
 
   const openAttachment = (a: Attachment) => {
