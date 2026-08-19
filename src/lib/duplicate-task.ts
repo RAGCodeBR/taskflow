@@ -103,6 +103,7 @@ export async function duplicateTask(task: Task, dueDate: string, userId: string)
           }),
           taskId: newTaskId,
           sourceAttachmentId: duplicatedAttachment.id,
+          sourceStoragePath: storagePath,
           uploadedBy: userId,
           contentType: attachment.mime_type || "application/octet-stream",
         });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -15,10 +17,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowDown, ArrowUp, ExternalLink, FileText, Paperclip, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ExternalLink,
+  FileText,
+  Paperclip,
+  Trash2,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useClients } from "@/hooks/use-data";
+import { useClients, useProfiles } from "@/hooks/use-data";
 import { toast } from "sonner";
 import {
   AttachmentPreviewDialog,
@@ -43,6 +53,8 @@ interface ClientFile {
   size_bytes: number | null;
   position: number;
   created_at: string;
+  uploaded_by: string | null;
+  source_attachment_id: string | null;
 }
 
 export function ClientFilesSheet({
@@ -54,13 +66,34 @@ export function ClientFilesSheet({
   onOpenChange: (v: boolean) => void;
   initialClientId?: string | null;
 }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: clients = [] } = useClients();
+  const { data: profiles = [] } = useProfiles();
   const [clientId, setClientId] = useState<string | null>(initialClientId ?? null);
+  const [selectedUploaderIds, setSelectedUploaderIds] = useState<string[]>([]);
   const [files, setFiles] = useState<ClientFile[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<PreviewableAttachment | null>(null);
+  const loadRequestRef = useRef(0);
+
+  const filterableProfiles = useMemo(
+    () =>
+      [...profiles].sort((first, second) => {
+        if (first.id === user?.id) return -1;
+        if (second.id === user?.id) return 1;
+        return 0;
+      }),
+    [profiles, user?.id],
+  );
+  const profilesById = useMemo(
+    () => new Map(profiles.map((profile) => [profile.id, profile])),
+    [profiles],
+  );
+  const selectedProfiles = useMemo(
+    () => filterableProfiles.filter((profile) => selectedUploaderIds.includes(profile.id)),
+    [filterableProfiles, selectedUploaderIds],
+  );
 
   useEffect(() => {
     if (initialClientId) setClientId(initialClientId);
@@ -70,13 +103,26 @@ export function ClientFilesSheet({
     if (open && !clientId && clients[0]) setClientId(clients[0].id);
   }, [open, clients, clientId]);
 
-  const load = async (cid: string) => {
-    const { data, error } = await sb
+  useEffect(() => {
+    if (open && isAdmin && user?.id) setSelectedUploaderIds([user.id]);
+  }, [open, isAdmin, user?.id]);
+
+  const load = async (cid: string, uploaderIds: string[]) => {
+    const requestId = ++loadRequestRef.current;
+    let query = sb
       .from("client_files")
       .select("*")
       .eq("client_id", cid)
       .order("position", { ascending: true })
       .order("created_at", { ascending: false });
+    if (isAdmin) {
+      if (!uploaderIds.length) return;
+      query = query.in("uploaded_by", uploaderIds);
+    } else if (user?.id) {
+      query = query.eq("uploaded_by", user.id);
+    }
+    const { data, error } = await query;
+    if (requestId !== loadRequestRef.current) return;
     if (error) {
       toast.error(error.message);
       return;
@@ -92,12 +138,30 @@ export function ClientFilesSheet({
         if (signed) next[f.id] = signed.signedUrl;
       }),
     );
+    if (requestId !== loadRequestRef.current) return;
     setUrls(next);
   };
 
   useEffect(() => {
-    if (open && clientId) void load(clientId);
-  }, [open, clientId]);
+    if (open && clientId && (!isAdmin || selectedUploaderIds.length)) {
+      void load(clientId, selectedUploaderIds);
+    }
+  }, [open, clientId, isAdmin, selectedUploaderIds, user?.id]);
+
+  const toggleUploader = (uploaderId: string) => {
+    setSelectedUploaderIds((current) => {
+      if (!current.includes(uploaderId)) return [...current, uploaderId];
+      if (current.length === 1) {
+        toast.error("Selecione ao menos um usuário.");
+        return current;
+      }
+      return current.filter((id) => id !== uploaderId);
+    });
+  };
+
+  const selectedUploaderLabel = selectedProfiles
+    .map((profile) => profile.full_name || profile.email || "Usuário sem nome")
+    .join(", ");
 
   const onUpload = async (fl: FileList | null) => {
     if (!fl || !fl.length || !user || !clientId) return;
@@ -129,7 +193,12 @@ export function ClientFilesSheet({
       i++;
     }
     setUploading(false);
-    if (clientId) void load(clientId);
+    const nextUploaderIds =
+      isAdmin && !selectedUploaderIds.includes(user.id)
+        ? [...selectedUploaderIds, user.id]
+        : selectedUploaderIds;
+    if (nextUploaderIds !== selectedUploaderIds) setSelectedUploaderIds(nextUploaderIds);
+    else if (clientId) void load(clientId, nextUploaderIds);
   };
 
   const updateTitle = async (id: string, title: string) => {
@@ -140,7 +209,8 @@ export function ClientFilesSheet({
 
   const remove = async (f: ClientFile) => {
     if (!confirm(`Excluir "${f.title || f.file_name}"?`)) return;
-    const sourceAttachmentId = taskAttachmentIdFromClientFilePath(f.storage_path);
+    const sourceAttachmentId =
+      f.source_attachment_id ?? taskAttachmentIdFromClientFilePath(f.storage_path);
     if (sourceAttachmentId) {
       try {
         await removeTaskAttachmentAndClientCopy(sourceAttachmentId);
@@ -148,12 +218,12 @@ export function ClientFilesSheet({
         toast.error(error instanceof Error ? error.message : "Não foi possível excluir o arquivo.");
         return;
       }
-      if (clientId) void load(clientId);
+      if (clientId) void load(clientId, selectedUploaderIds);
       return;
     }
     await supabase.storage.from("task-attachments").remove([f.storage_path]);
     await sb.from("client_files").delete().eq("id", f.id);
-    if (clientId) void load(clientId);
+    if (clientId) void load(clientId, selectedUploaderIds);
   };
 
   const move = async (id: string, dir: -1 | 1) => {
@@ -200,7 +270,7 @@ export function ClientFilesSheet({
           disabled={!clientId || uploading}
           className="border-b px-4 py-3"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select value={clientId ?? undefined} onValueChange={(v) => setClientId(v)}>
               <SelectTrigger className="w-[260px]">
                 <SelectValue placeholder="Selecione um cliente" />
@@ -213,6 +283,77 @@ export function ClientFilesSheet({
                 ))}
               </SelectContent>
             </Select>
+            {isAdmin && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[220px] justify-between font-normal">
+                    <span className="truncate text-left">
+                      {selectedProfiles.length === 0 && selectedUploaderIds.length === 1
+                        ? "Meu usuário"
+                        : selectedProfiles.length === 1
+                          ? selectedUploaderLabel
+                          : `${selectedProfiles.length} usuários selecionados`}
+                    </span>
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-[var(--radix-popover-trigger-width)] p-2"
+                >
+                  <div className="mb-2 flex items-center justify-between gap-1">
+                    <span className="px-1 text-xs font-medium">Usuários</span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() =>
+                          setSelectedUploaderIds(filterableProfiles.map((profile) => profile.id))
+                        }
+                        disabled={
+                          !filterableProfiles.length ||
+                          selectedUploaderIds.length === filterableProfiles.length
+                        }
+                      >
+                        Todos
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => user?.id && setSelectedUploaderIds([user.id])}
+                        disabled={
+                          selectedUploaderIds.length === 1 && selectedUploaderIds[0] === user?.id
+                        }
+                      >
+                        Somente eu
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="max-h-64 space-y-1 overflow-y-auto">
+                    {filterableProfiles.map((profile) => (
+                      <label
+                        key={profile.id}
+                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                      >
+                        <Checkbox
+                          checked={selectedUploaderIds.includes(profile.id)}
+                          onCheckedChange={() => toggleUploader(profile.id)}
+                        />
+                        <span className="truncate">
+                          {profile.id === user?.id
+                            ? `${profile.full_name || profile.email || "Meu usuário"} (você)`
+                            : `${profile.full_name || profile.email || "Usuário sem nome"}${profile.is_active === false ? " (inativo)" : ""}`}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
             <label className="cursor-pointer">
               <input
                 type="file"
@@ -309,6 +450,12 @@ export function ClientFilesSheet({
                       <p className="truncate text-[11px] text-muted-foreground" title={f.file_name}>
                         {f.file_name}
                       </p>
+                      {isAdmin && (
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          Enviado por{" "}
+                          {profilesById.get(f.uploaded_by ?? "")?.full_name || "Usuário"}
+                        </p>
+                      )}
                     </div>
 
                     <Button size="sm" variant="ghost" onClick={() => openFile(f)} title="Abrir">

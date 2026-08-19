@@ -508,6 +508,7 @@ export function TaskCard({
         file,
         taskId: task.id,
         sourceAttachmentId: att.id,
+        sourceStoragePath: path,
         uploadedBy: user.id,
         contentType,
       });

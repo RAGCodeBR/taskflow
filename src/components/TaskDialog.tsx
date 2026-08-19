@@ -857,6 +857,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         file,
         taskId: tid,
         sourceAttachmentId: attachment.id,
+        sourceStoragePath: path,
         uploadedBy: user.id,
       });
     } catch (syncError) {

@@ -97,6 +97,7 @@ export type Database = {
           mime_type: string | null
           position: number
           size_bytes: number | null
+          source_attachment_id: string | null
           storage_path: string
           title: string | null
           uploaded_by: string | null
@@ -109,6 +110,7 @@ export type Database = {
           mime_type?: string | null
           position?: number
           size_bytes?: number | null
+          source_attachment_id?: string | null
           storage_path: string
           title?: string | null
           uploaded_by?: string | null
@@ -121,11 +123,19 @@ export type Database = {
           mime_type?: string | null
           position?: number
           size_bytes?: number | null
+          source_attachment_id?: string | null
           storage_path?: string
           title?: string | null
           uploaded_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "client_files_source_attachment_id_fkey"
+            columns: ["source_attachment_id"]
+            isOneToOne: false
+            referencedRelation: "attachments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "client_files_client_id_fkey"
             columns: ["client_id"]

@@ -1651,6 +1651,7 @@ type ManagedAttachment = {
   mime_type: string | null;
   size_bytes: number | null;
   created_at: string;
+  source_attachment_id?: string | null;
 };
 
 function EmployeeDetailSection({
@@ -1952,7 +1953,8 @@ function AttachmentsManager({
     if (!confirm(`Excluir o anexo "${file.file_name}"?`)) return;
     const { taskAttachmentIdFromClientFilePath } =
       await import("@/lib/sync-task-attachment-to-client");
-    const sourceAttachmentId = taskAttachmentIdFromClientFilePath(file.storage_path);
+    const sourceAttachmentId =
+      file.source_attachment_id ?? taskAttachmentIdFromClientFilePath(file.storage_path);
     if (!employeeId && sourceAttachmentId) {
       const { removeTaskAttachmentAndClientCopy } =
         await import("@/lib/sync-task-attachment-to-client");
