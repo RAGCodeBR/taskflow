@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Clock3,
   SmilePlus,
+  Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
@@ -98,6 +99,7 @@ interface Attachment {
   size_bytes: number | null;
 }
 const LINK_MIME = "text/uri-list";
+const COMPLETED_STATUS_VALUE = "__completed__";
 const MESSAGE_EMOJIS = ["\u{1F600}", "\u{1F602}", "\u{1F44B}", "\u{1F680}", "\u{1F4A1}", "\u{2764}\u{FE0F}", "\u{1F389}", "\u{1F44F}"];
 const storageObjectName = () =>
   `arquivo-${Date.now()}-${crypto.randomUUID()}`;
@@ -134,6 +136,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [newSubtask, setNewSubtask] = useState("");
   const [newSubtaskDue, setNewSubtaskDue] = useState("");
   const [newSubtaskAssignee, setNewSubtaskAssignee] = useState<string>("");
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [subtaskTitleDraft, setSubtaskTitleDraft] = useState("");
 
   const [subDueChanges, setSubDueChanges] = useState<Record<string, SubtaskDueChange[]>>({});
   const [subDueOpen, setSubDueOpen] = useState<Record<string, boolean>>({});
@@ -205,10 +209,12 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (!open) return;
     setClientPickerOpen(false);
     setClientSearch("");
+    setEditingSubtaskId(null);
+    setSubtaskTitleDraft("");
     if (task) {
       setTitle(task.title);
       setDescription(task.description ?? "");
-      setStatus(task.status);
+      setStatus(task.status === "done" || task.completed_at ? "done" : task.status ?? "todo");
       setPriority(task.priority);
       setColumnId(task.column_id ?? "");
       setClientId(task.client_id ?? "");
@@ -333,14 +339,14 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     title: title.trim() || "Sem título",
     description: description || null,
     status,
-    status_id: matchingStatus?.id ?? task?.status_id ?? null,
+    status_id: matchingStatus?.id ?? null,
     priority,
     column_id: columnId || null,
     client_id: clientId || null,
     assignee_id: assigneeId || null,
     due_date: deadlineToIso(dueDate),
     due_time: dueDate ? dueTime || null : null,
-    completed_at: status === "done" ? new Date().toISOString() : null,
+    completed_at: status === "done" ? task?.completed_at ?? new Date().toISOString() : null,
     };
   };
 
@@ -459,7 +465,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       toast.error("Título é obrigatório");
       return;
     }
-    if (status === "done" && subtasks.some((subtask) => !subtask.done)) {
+    if (
+      status === "done" &&
+      (subtasks.some((subtask) => !subtask.done) || Boolean(newSubtask.trim()))
+    ) {
       toast.error("Conclua todas as subtarefas antes de concluir a tarefa.");
       return;
     }
@@ -611,6 +620,37 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const deleteSubtask = async (id: string) => {
     await supabase.from("subtasks").delete().eq("id", id);
     setSubtasks(subtasks.filter((s) => s.id !== id));
+  };
+  const startEditingSubtaskTitle = (subtask: Subtask) => {
+    setEditingSubtaskId(subtask.id);
+    setSubtaskTitleDraft(subtask.title);
+  };
+  const saveSubtaskTitle = async (subtask: Subtask) => {
+    const nextTitle = subtaskTitleDraft.trim();
+    if (!nextTitle) {
+      toast.error("O título da subtarefa não pode ficar vazio.");
+      return;
+    }
+    if (nextTitle === subtask.title) {
+      setEditingSubtaskId((current) => (current === subtask.id ? null : current));
+      return;
+    }
+
+    const { error } = await supabase
+      .from("subtasks")
+      .update({ title: nextTitle })
+      .eq("id", subtask.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setSubtasks((current) =>
+      current.map((item) =>
+        item.id === subtask.id ? { ...item, title: nextTitle } : item,
+      ),
+    );
+    setEditingSubtaskId((current) => (current === subtask.id ? null : current));
   };
   const updateSubtaskDue = async (st: Subtask, isoOrEmpty: string, reason?: string) => {
     const next = deadlineToIso(isoOrEmpty);
@@ -1033,8 +1073,15 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
             <div className="order-2 space-y-2">
               <Label className="text-xs">Status</Label>
               <Select
-                value={columnId || "none"}
-                onValueChange={(v) => setColumnId(v === "none" ? "" : v)}
+                value={status === "done" ? COMPLETED_STATUS_VALUE : columnId || "none"}
+                onValueChange={(value) => {
+                  if (value === COMPLETED_STATUS_VALUE) {
+                    setStatus("done");
+                    return;
+                  }
+                  setStatus("todo");
+                  setColumnId(value === "none" ? "" : value);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Nenhuma" />
@@ -1046,6 +1093,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                       {c.name}
                     </SelectItem>
                   ))}
+                  <SelectItem value={COMPLETED_STATUS_VALUE}>Concluído</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1247,11 +1295,44 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     <div key={s.id} className="space-y-1.5 rounded-md border bg-muted/30 px-3 py-2">
                       <div className="flex items-center gap-2">
                         <Checkbox checked={s.done} onCheckedChange={() => toggleSubtask(s)} />
-                        <span
-                          className={`flex-1 text-sm ${s.done ? "line-through text-muted-foreground" : ""}`}
-                        >
-                          {s.title}
-                        </span>
+                        {editingSubtaskId === s.id ? (
+                          <Input
+                            value={subtaskTitleDraft}
+                            onChange={(event) => setSubtaskTitleDraft(event.target.value)}
+                            onBlur={() => void saveSubtaskTitle(s)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") event.currentTarget.blur();
+                              if (event.key === "Escape") {
+                                setEditingSubtaskId(null);
+                                setSubtaskTitleDraft(s.title);
+                              }
+                            }}
+                            autoFocus
+                            aria-label="Título da subtarefa"
+                            className="h-7 flex-1 text-sm"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => startEditingSubtaskTitle(s)}
+                            className={`min-w-0 flex-1 truncate text-left text-sm hover:text-primary ${s.done ? "line-through text-muted-foreground" : ""}`}
+                            title="Editar título da subtarefa"
+                          >
+                            {s.title}
+                          </button>
+                        )}
+                        {editingSubtaskId !== s.id && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => startEditingSubtaskTitle(s)}
+                            title="Editar título"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         {assignee && (
                           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                             {assignee.full_name || assignee.email}
