@@ -5,12 +5,57 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Archive, ArchiveRestore, Plus, Pencil, Trash2, Sparkles, Search } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Archive, ArchiveRestore, ChevronDown, FileDown, Plus, Pencil, Trash2, Sparkles, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useClients, useTasks, type Client } from "@/hooks/use-data";
+import { useClients, useProfiles, useSubtasks, useTasks, type Client } from "@/hooks/use-data";
 import { toast } from "sonner";
+
+type ReportPeriod = "all" | "current_month" | "last_3_months" | "last_6_months" | "last_12_months" | "custom";
+
+const reportPeriodLabels: Record<ReportPeriod, string> = {
+  all: "Todo o período",
+  current_month: "Mês atual",
+  last_3_months: "Últimos 3 meses",
+  last_6_months: "Últimos 6 meses",
+  last_12_months: "Últimos 12 meses",
+  custom: "Período personalizado",
+};
+
+const toInputDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+const formatReportDate = (value: string | null | undefined) => {
+  if (!value) return "Sem data informada";
+  const date = value.length === 10 ? new Date(`${value}T12:00:00`) : new Date(value);
+  return Number.isNaN(date.getTime()) ? "Sem data informada" : date.toLocaleDateString("pt-BR");
+};
+
+const getPeriodBounds = (period: ReportPeriod, customStart: string, customEnd: string) => {
+  if (period === "all") return { start: "", end: "" };
+  if (period === "custom") return { start: customStart, end: customEnd };
+
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (period === "last_3_months") start.setMonth(start.getMonth() - 2);
+  if (period === "last_6_months") start.setMonth(start.getMonth() - 5);
+  if (period === "last_12_months") start.setMonth(start.getMonth() - 11);
+  return { start: toInputDate(start), end: toInputDate(today) };
+};
+
+const stripHtml = (value: string | null) => {
+  if (!value) return "";
+  const element = document.createElement("div");
+  element.innerHTML = value;
+  return (element.textContent || element.innerText || "").replace(/\s+/g, " ").trim();
+};
+
+const filenamePart = (value: string) =>
+  value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
 
 export const Route = createFileRoute("/_app/clients")({
   component: Outlet,
@@ -21,6 +66,8 @@ export function ClientsIndexPage() {
   const { user } = useAuth();
   const { data: clients = [] } = useClients();
   const { data: tasks = [] } = useTasks();
+  const { data: subtasks = [] } = useSubtasks();
+  const { data: profiles = [] } = useProfiles();
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Client | null>(null);
   const [color, setColor] = useState("#1e3a8a");
@@ -37,6 +84,16 @@ export function ClientsIndexPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
   const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
+  const [reportClient, setReportClient] = useState<Client | null>(null);
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("all");
+  const [reportScope, setReportScope] = useState<"completed" | "all">("completed");
+  const [reportStart, setReportStart] = useState("");
+  const [reportEnd, setReportEnd] = useState("");
+  const [reportIncludeDescription, setReportIncludeDescription] = useState(false);
+  const [reportIncludeSubtasks, setReportIncludeSubtasks] = useState(false);
+  const [reportShowAssignee, setReportShowAssignee] = useState(false);
+  const [reportAssigneeIds, setReportAssigneeIds] = useState<string[]>([]);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +204,153 @@ export function ClientsIndexPage() {
     toast.success(isActive ? "Cliente reativado" : "Cliente inativado");
   };
 
+  const openReport = (client: Client) => {
+    setReportClient(client);
+    setReportPeriod("all");
+    setReportScope("completed");
+    setReportStart("");
+    setReportEnd("");
+    setReportIncludeDescription(false);
+    setReportIncludeSubtasks(false);
+    setReportShowAssignee(false);
+    setReportAssigneeIds([]);
+  };
+
+  const generateReport = async () => {
+    if (!reportClient) return;
+    const { start, end } = getPeriodBounds(reportPeriod, reportStart, reportEnd);
+    if (start && end && start > end) {
+      toast.error("A data inicial não pode ser posterior à data final.");
+      return;
+    }
+    if (reportShowAssignee && !reportAssigneeIds.length) {
+      toast.error("Selecione ao menos um colaborador para o relatório.");
+      return;
+    }
+
+    setGeneratingReport(true);
+    try {
+      const isCompleted = (task: (typeof tasks)[number]) => task.status === "done" || !!task.completed_at;
+      const taskDate = (task: (typeof tasks)[number]) =>
+        (isCompleted(task) ? task.completed_at : task.due_date || task.created_at)?.slice(0, 10) ?? "";
+      const inPeriod = (task: (typeof tasks)[number]) => {
+        const date = taskDate(task);
+        return (!start || date >= start) && (!end || date <= end);
+      };
+      const reportTasks = tasks
+        .filter((task) => task.client_id === reportClient.id)
+        .filter((task) => reportScope === "all" || isCompleted(task))
+        .filter((task) => !reportShowAssignee || (!!task.assignee_id && reportAssigneeIds.includes(task.assignee_id)))
+        .filter(inPeriod)
+        .sort((a, b) => taskDate(a).localeCompare(taskDate(b)) || a.title.localeCompare(b.title, "pt-BR"));
+      const assignees = new Map(profiles.map((profile) => [profile.id, profile.full_name || profile.email || "Colaborador sem nome"]));
+      const subtasksByTask = new Map<string, typeof subtasks>();
+      subtasks.forEach((subtask) => {
+        const current = subtasksByTask.get(subtask.task_id) ?? [];
+        current.push(subtask);
+        subtasksByTask.set(subtask.task_id, current);
+      });
+
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
+      let y = 18;
+      const ensureSpace = (height: number) => {
+        if (y + height <= pageHeight - 16) return;
+        pdf.addPage();
+        y = 18;
+      };
+      const text = (value: string, size = 10, style: "normal" | "bold" = "normal", color: [number, number, number] = [35, 45, 65]) => {
+        pdf.setFont("helvetica", style);
+        pdf.setFontSize(size);
+        pdf.setTextColor(...color);
+        const lines = pdf.splitTextToSize(value, contentWidth);
+        const height = Math.max(5, lines.length * (size * 0.42 + 0.8));
+        ensureSpace(height);
+        pdf.text(lines, margin, y);
+        y += height;
+      };
+      const gap = (height = 3) => {
+        ensureSpace(height);
+        y += height;
+      };
+      const section = (title: string) => {
+        gap(3);
+        ensureSpace(9);
+        pdf.setDrawColor(210, 218, 230);
+        pdf.line(margin, y, pageWidth - margin, y);
+        y += 5;
+        text(title, 12, "bold", [20, 54, 103]);
+        gap(1);
+      };
+
+      const completedCount = reportTasks.filter(isCompleted).length;
+      const pendingCount = reportTasks.length - completedCount;
+      text("Relatório de entregas", 19, "bold", [20, 54, 103]);
+      text(reportClient.name, 13, "bold");
+      text(`Gerado em ${new Date().toLocaleDateString("pt-BR")} · ${reportPeriodLabels[reportPeriod]}`, 9, "normal", [90, 100, 120]);
+      gap(3);
+      section("Resumo");
+      text(`Entregas concluídas: ${completedCount} | Pendências: ${pendingCount} | Total listado: ${reportTasks.length}`);
+      text(`Escopo: ${reportScope === "completed" ? "somente entregas concluídas" : "entregas concluídas e pendências"}.`);
+      if (start || end) text(`Período: ${start ? formatReportDate(start) : "início"} a ${end ? formatReportDate(end) : "hoje"}.`);
+
+      const completedTasks = reportTasks.filter(isCompleted);
+      section("Entregas realizadas");
+      if (!completedTasks.length) {
+        text("Nenhuma entrega concluída foi encontrada para os filtros selecionados.", 10, "normal", [90, 100, 120]);
+      }
+      completedTasks.forEach((task, index) => {
+        ensureSpace(18);
+        text(`${index + 1}. ${task.title}`, 11, "bold");
+        text(`Concluída em: ${formatReportDate(task.completed_at)}`, 9, "normal", [70, 80, 100]);
+        if (reportShowAssignee) text(`Responsável: ${task.assignee_id ? assignees.get(task.assignee_id) ?? "Colaborador não localizado" : "Não atribuído"}`, 9, "normal", [70, 80, 100]);
+        const description = reportIncludeDescription ? stripHtml(task.description) : "";
+        if (description) text(description, 9);
+        const taskSubtasks = reportIncludeSubtasks ? (subtasksByTask.get(task.id) ?? []).filter((subtask) => subtask.done) : [];
+        if (taskSubtasks.length) {
+          text("Subtarefas concluídas:", 9, "bold");
+          taskSubtasks.forEach((subtask) => text(`• ${subtask.title}${subtask.completed_at ? ` — ${formatReportDate(subtask.completed_at)}` : ""}`, 9));
+        }
+        gap(3);
+      });
+
+      if (reportScope === "all") {
+        const pendingTasks = reportTasks.filter((task) => !isCompleted(task));
+        section("Pendências");
+        if (!pendingTasks.length) text("Não há pendências para os filtros selecionados.", 10, "normal", [90, 100, 120]);
+        pendingTasks.forEach((task, index) => {
+          ensureSpace(15);
+          text(`${index + 1}. ${task.title}`, 11, "bold");
+          text(`Prazo: ${formatReportDate(task.due_date)}`, 9, "normal", [70, 80, 100]);
+          if (reportShowAssignee) text(`Responsável: ${task.assignee_id ? assignees.get(task.assignee_id) ?? "Colaborador não localizado" : "Não atribuído"}`, 9, "normal", [70, 80, 100]);
+          const description = reportIncludeDescription ? stripHtml(task.description) : "";
+          if (description) text(description, 9);
+          gap(3);
+        });
+      }
+
+      pdf.save(`relatorio-entregas-${filenamePart(reportClient.name) || "cliente"}.pdf`);
+      setReportClient(null);
+      toast.success("Relatório PDF gerado.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Não foi possível gerar o relatório PDF.");
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  const selectedReportAssignees = profiles.filter((profile) => reportAssigneeIds.includes(profile.id));
+  const toggleReportAssignee = (profileId: string) => {
+    setReportAssigneeIds((current) =>
+      current.includes(profileId) ? current.filter((id) => id !== profileId) : [...current, profileId],
+    );
+  };
+
   return (
     <div className="space-y-6 p-6">
       <header className="flex items-center justify-between">
@@ -206,6 +410,9 @@ export function ClientsIndexPage() {
                   </div>
                 </div>
                 <div className="flex gap-1">
+                  <Button size="icon" variant="ghost" title="Gerar relatório PDF" onClick={() => openReport(c)}>
+                    <FileDown className="h-4 w-4 text-primary" />
+                  </Button>
                   <Button asChild size="icon" variant="ghost" title="Relatório IA">
                     <Link to="/client-report/$clientId" params={{ clientId: c.id }}>
                       <Sparkles className="h-4 w-4 text-primary" />
@@ -240,6 +447,117 @@ export function ClientsIndexPage() {
           </Card>
         )}
       </div>
+
+      <Dialog open={!!reportClient} onOpenChange={(nextOpen) => !nextOpen && setReportClient(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Gerar relatório de entregas</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              O relatório de <span className="font-medium text-foreground">{reportClient?.name}</span> usa a data de conclusão das tarefas como data da entrega.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="report-period">Período</Label>
+                <Select value={reportPeriod} onValueChange={(value) => setReportPeriod(value as ReportPeriod)}>
+                  <SelectTrigger id="report-period"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(reportPeriodLabels) as [ReportPeriod, string][]).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="report-scope">Conteúdo</Label>
+                <Select value={reportScope} onValueChange={(value) => setReportScope(value as "completed" | "all")}>
+                  <SelectTrigger id="report-scope"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completed">Somente entregas concluídas</SelectItem>
+                    <SelectItem value="all">Entregas e pendências</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {reportPeriod === "custom" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="report-start">Data inicial</Label>
+                  <Input id="report-start" type="date" value={reportStart} onChange={(event) => setReportStart(event.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="report-end">Data final</Label>
+                  <Input id="report-end" type="date" value={reportEnd} onChange={(event) => setReportEnd(event.target.value)} />
+                </div>
+              </div>
+            )}
+            <div className="space-y-3 rounded-md border p-3">
+              <p className="text-sm font-medium">Detalhes no relatório</p>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox checked={reportShowAssignee} onCheckedChange={(checked) => setReportShowAssignee(checked === true)} />
+                Mostrar responsável (colaborador)
+              </label>
+              {reportShowAssignee && (
+                <div className="space-y-2 pl-6">
+                  <Label className="text-xs text-muted-foreground">Colaboradores com tarefas no relatório</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" className="w-full justify-between font-normal">
+                        <span className="truncate text-left">
+                          {!profiles.length
+                            ? "Carregando colaboradores..."
+                            : selectedReportAssignees.length === 1
+                              ? selectedReportAssignees[0].full_name || selectedReportAssignees[0].email || "Colaborador sem nome"
+                              : `${selectedReportAssignees.length} colaboradores selecionados`}
+                        </span>
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
+                      <p className="px-2 pb-2 pt-1 text-xs text-muted-foreground">Selecione os colaboradores cujas tarefas devem aparecer.</p>
+                      <div className="max-h-64 space-y-1 overflow-y-auto overscroll-contain pr-1" onWheel={(event) => event.stopPropagation()}>
+                        {!!profiles.length && (
+                          <label className="flex cursor-pointer items-center gap-2 rounded-sm border-b px-2 py-2 text-sm font-medium hover:bg-muted">
+                            <Checkbox
+                              checked={selectedReportAssignees.length === profiles.length ? true : selectedReportAssignees.length ? "indeterminate" : false}
+                              onCheckedChange={() => setReportAssigneeIds(
+                                selectedReportAssignees.length === profiles.length ? [] : profiles.map((profile) => profile.id),
+                              )}
+                            />
+                            <span>Selecionar todos</span>
+                          </label>
+                        )}
+                        {profiles.map((profile) => (
+                          <label key={profile.id} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-muted">
+                            <Checkbox checked={reportAssigneeIds.includes(profile.id)} onCheckedChange={() => toggleReportAssignee(profile.id)} />
+                            <span>{profile.full_name || profile.email || "Colaborador sem nome"}</span>
+                          </label>
+                        ))}
+                        {!profiles.length && <p className="px-2 py-2 text-sm text-muted-foreground">Nenhum colaborador disponível.</p>}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox checked={reportIncludeDescription} onCheckedChange={(checked) => setReportIncludeDescription(checked === true)} />
+                Mostrar descrição das tarefas
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox checked={reportIncludeSubtasks} onCheckedChange={(checked) => setReportIncludeSubtasks(checked === true)} />
+                Mostrar subtarefas concluídas
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setReportClient(null)} disabled={generatingReport}>Cancelar</Button>
+            <Button type="button" onClick={() => void generateReport()} disabled={generatingReport}>
+              <FileDown className="mr-2 h-4 w-4" />{generatingReport ? "Gerando..." : "Baixar PDF"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
