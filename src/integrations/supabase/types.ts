@@ -254,6 +254,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           id: string
+          is_active: boolean
           name: string
           updated_at: string
           cnpj: string | null
@@ -273,6 +274,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_active?: boolean
           name: string
           updated_at?: string
           cnpj?: string | null
@@ -292,6 +294,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_active?: boolean
           name?: string
           updated_at?: string
           cnpj?: string | null

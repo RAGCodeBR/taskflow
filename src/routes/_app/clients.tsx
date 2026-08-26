@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Sparkles, Search } from "lucide-react";
+import { Archive, ArchiveRestore, Plus, Pencil, Trash2, Sparkles, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useClients, useTasks, type Client } from "@/hooks/use-data";
@@ -35,6 +35,7 @@ export function ClientsIndexPage() {
   const [email, setEmail] = useState("");
   const [responsible, setResponsible] = useState("");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("all");
   const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -62,8 +63,13 @@ export function ClientsIndexPage() {
   }, [clients]);
   const filteredClients = clients.filter((client) => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
+    // Treat clients created before the migration as active until the database update runs.
+    const isActive = client.is_active !== false;
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" ? isActive : !isActive);
 
-    return (
+    return matchesStatus && (
       client.name.toLocaleLowerCase("pt-BR").includes(term) ||
       client.description?.toLocaleLowerCase("pt-BR").includes(term)
     );
@@ -126,6 +132,21 @@ export function ClientsIndexPage() {
     qc.invalidateQueries({ queryKey: ["clients"] });
   };
 
+  const setClientActive = async (client: Client, isActive: boolean) => {
+    const action = isActive ? "reativar" : "inativar";
+    const description = isActive
+      ? `Reativar o cliente "${client.name}"? Ele voltará a aparecer nas listas de clientes ativos.`
+      : `Inativar o cliente "${client.name}"? Nenhuma tarefa, histórico, dado ou anexo será excluído.`;
+    if (!confirm(description)) return;
+    const { error } = await supabase.from("clients").update({ is_active: isActive }).eq("id", client.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await qc.invalidateQueries({ queryKey: ["clients"] });
+    toast.success(isActive ? "Cliente reativado" : "Cliente inativado");
+  };
+
   return (
     <div className="space-y-6 p-6">
       <header className="flex items-center justify-between">
@@ -135,21 +156,39 @@ export function ClientsIndexPage() {
         </div>
         <Button asChild><Link to="/clients/new"><Plus className="mr-2 h-4 w-4" />Novo cliente</Link></Button>
       </header>
-      {/* CAMPO DE BUSCA DE CLIENTES */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Localizar cliente..."
-          className="pl-9"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Localizar cliente..."
+            className="pl-9"
+          />
+        </div>
+        <div className="flex rounded-md border p-1" aria-label="Filtrar clientes por status">
+          {([
+            ["all", "Todos"],
+            ["active", "Ativos"],
+            ["inactive", "Inativos"],
+          ] as const).map(([value, label]) => (
+            <Button
+              key={value}
+              size="sm"
+              variant={statusFilter === value ? "secondary" : "ghost"}
+              onClick={() => setStatusFilter(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filteredClients.map(c => {
           const count = tasks.filter(t => t.client_id === c.id).length;
+          const isActive = c.is_active !== false;
           return (
-            <Card key={c.id} className="p-4">
+            <Card key={c.id} className={`p-4 ${isActive ? "" : "border-dashed opacity-80"}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   {avatarUrls[c.id] ? (
@@ -163,7 +202,7 @@ export function ClientsIndexPage() {
                   )}
                   <div>
                     <h3 className="font-semibold">{c.name}</h3>
-                    <p className="text-xs text-muted-foreground">{count} tarefa(s)</p>
+                    <p className="text-xs text-muted-foreground">{count} tarefa(s){!isActive ? " · Inativo" : ""}</p>
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -175,6 +214,14 @@ export function ClientsIndexPage() {
                   <Button asChild size="icon" variant="ghost" title="Editar cliente">
                     <Link to="/clients/$clientId/edit" params={{ clientId: c.id }}><Pencil className="h-4 w-4" /></Link>
                   </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => void setClientActive(c, !isActive)}
+                    title={isActive ? "Inativar cliente" : "Reativar cliente"}
+                  >
+                    {isActive ? <Archive className="h-4 w-4" /> : <ArchiveRestore className="h-4 w-4 text-primary" />}
+                  </Button>
                   <Button size="icon" variant="ghost" onClick={() => remove(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
               </div>
@@ -185,6 +232,11 @@ export function ClientsIndexPage() {
         {clients.length === 0 && (
           <Card className="col-span-full p-10 text-center text-muted-foreground">
             Nenhum cliente cadastrado. Crie um para começar a organizar tarefas.
+          </Card>
+        )}
+        {clients.length > 0 && filteredClients.length === 0 && (
+          <Card className="col-span-full p-10 text-center text-muted-foreground">
+            Nenhum cliente encontrado neste filtro.
           </Card>
         )}
       </div>

@@ -74,6 +74,7 @@ export interface Client {
   email: string | null;
   responsible: string | null;
   avatar_path: string | null;
+  is_active: boolean;
 }
 export interface ClientDepartment {
   id: string;
