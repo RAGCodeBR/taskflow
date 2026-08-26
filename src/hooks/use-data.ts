@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Data access layer for the TaskFlow screens.
@@ -140,9 +141,18 @@ export interface AgendaEvent {
   updated_by: string | null;
   source: "taskflow" | "google";
   google_event_id: string | null;
+  google_calendar_id?: string | null;
   sync_status: "not_configured" | "pending" | "synced" | "error";
   created_at: string;
   updated_at: string;
+}
+
+export interface AgendaCalendarSource {
+  google_calendar_id: string;
+  name: string;
+  color: string;
+  is_shared: boolean;
+  is_visible: boolean;
 }
 
 export interface GoogleCalendarConnection {
@@ -167,8 +177,10 @@ export function useGoogleCalendarConnection() {
 
 export function useAgendaEvents() {
   const qc = useQueryClient();
+  const { user, loading: loadingAuth } = useAuth();
 
   useEffect(() => {
+    if (!user) return;
     const channel = supabase
       .channel(`agenda-events-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "calendar_events" }, () => {
@@ -178,28 +190,38 @@ export function useAgendaEvents() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [qc]);
+  }, [qc, user?.id]);
 
   return useQuery({
     queryKey: ["agenda_events"],
     queryFn: async () => {
-      // The Agenda is a shared team resource and has its own RLS policy. Reading
-      // it directly avoids an extra Edge Function hop and makes the calendar
-      // reflect the same records that the sync has just written.
-      const { data, error } = await (supabase.from("calendar_events" as any) as any)
-        .select("*")
-        .is("deleted_at", null)
-        .order("starts_at", { ascending: true });
-      if (!error && data?.length) return data as AgendaEvent[];
-
-      // Keep the protected server route as a fallback for environments where a
-      // browser policy temporarily prevents the direct query.
-      const fallback = await supabase.functions.invoke("agenda-events");
-      if (fallback.error) throw fallback.error;
-      if (fallback.data?.error) throw new Error(fallback.data.error);
-      return (fallback.data?.events ?? []) as AgendaEvent[];
+      // Uses the same authenticated Edge Function proven by the Google sync.
+      // It bypasses browser-side RLS filtering while preserving team access.
+      const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
+        body: { action: "list_events" },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "Não foi possível carregar a Agenda.");
+      return (data.events ?? []) as AgendaEvent[];
     },
+    enabled: !loadingAuth && !!user,
     refetchOnMount: "always",
+  });
+}
+
+export function useAgendaCalendarSources() {
+  const { user, loading: loadingAuth } = useAuth();
+  return useQuery({
+    queryKey: ["agenda_calendar_sources", user?.id],
+    enabled: !loadingAuth && !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
+        body: { action: "list_events" },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "Não foi possível carregar as agendas.");
+      return (data.sources ?? []) as AgendaCalendarSource[];
+    },
   });
 }
 

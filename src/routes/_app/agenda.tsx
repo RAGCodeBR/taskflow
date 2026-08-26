@@ -25,7 +25,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AgendaEventDialog } from "@/components/AgendaEventDialog";
-import { useAgendaEvents, useGoogleCalendarConnection, type AgendaEvent } from "@/hooks/use-data";
+import {
+  useAgendaCalendarSources,
+  useAgendaEvents,
+  useGoogleCalendarConnection,
+  type AgendaEvent,
+  type AgendaCalendarSource,
+} from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -48,6 +54,7 @@ const DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 function AgendaPage() {
   const { data: events = [], isLoading, error } = useAgendaEvents();
+  const { data: calendarSources = [] } = useAgendaCalendarSources();
   const { user } = useAuth();
   const { data: googleConnection, isLoading: loadingGoogle } = useGoogleCalendarConnection();
   const queryClient = useQueryClient();
@@ -72,9 +79,26 @@ function AgendaPage() {
   );
   const totalHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT;
   const agendaEvents = syncedEvents ?? events;
+  const visibleCalendarIds = useMemo(
+    () =>
+      new Set(
+        calendarSources
+          .filter((source) => source.is_visible)
+          .map((source) => source.google_calendar_id),
+      ),
+    [calendarSources],
+  );
   const visibleEvents = useMemo(
-    () => agendaEvents.map((event) => ({ ...event, ...previewSchedule[event.id] })),
-    [agendaEvents, previewSchedule],
+    () =>
+      agendaEvents
+        .filter(
+          (event) =>
+            !event.google_calendar_id ||
+            calendarSources.length === 0 ||
+            visibleCalendarIds.has(event.google_calendar_id),
+        )
+        .map((event) => ({ ...event, ...previewSchedule[event.id] })),
+    [agendaEvents, calendarSources.length, previewSchedule, visibleCalendarIds],
   );
   const allDayEvents = visibleEvents.filter((event) => event.is_all_day);
 
@@ -83,6 +107,38 @@ function AgendaPage() {
     setSelectedDate(date);
     setSelectedTime(time);
     setDialogOpen(true);
+  };
+
+  const setCalendarVisibility = async (source: AgendaCalendarSource, isVisible: boolean) => {
+    if (!user) return;
+    const previousSources = queryClient.getQueryData<AgendaCalendarSource[]>([
+      "agenda_calendar_sources",
+      user.id,
+    ]);
+    queryClient.setQueryData<AgendaCalendarSource[]>(
+      ["agenda_calendar_sources", user.id],
+      (current = []) =>
+        current.map((item) =>
+          item.google_calendar_id === source.google_calendar_id
+            ? { ...item, is_visible: isVisible }
+            : item,
+        ),
+    );
+    const { data, error: preferenceError } = await supabase.functions.invoke(
+      "google-calendar-sync",
+      {
+        body: {
+          action: "set_calendar_visibility",
+          googleCalendarId: source.google_calendar_id,
+          isVisible,
+        },
+      },
+    );
+    if (preferenceError || !data?.ok) {
+      queryClient.setQueryData(["agenda_calendar_sources", user.id], previousSources);
+      toast.error("Não foi possível atualizar o filtro da agenda.");
+      return;
+    }
   };
 
   const timedEventsForDay = (day: Date) =>
@@ -141,7 +197,7 @@ function AgendaPage() {
   };
 
   const syncGoogle = async (silent = false) => {
-    if (!googleConnection || syncingGoogle) return;
+    if (syncingGoogle) return;
     setSyncingGoogle(true);
     const { data, error: invokeError } = await supabase.functions.invoke("google-calendar-sync");
     setSyncingGoogle(false);
@@ -163,6 +219,7 @@ function AgendaPage() {
     } else {
       await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
     }
+    await queryClient.invalidateQueries({ queryKey: ["agenda_calendar_sources"] });
     if (!silent) {
       if (data.importErrors?.length) toast.error(data.importErrors[0]);
       else
@@ -362,6 +419,33 @@ function AgendaPage() {
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           Não foi possível carregar a Agenda: {(error as Error).message}
         </div>
+      )}
+      {calendarSources.length > 0 && (
+        <section className="rounded-lg border bg-card p-4">
+          <h2 className="text-sm font-semibold">Minhas agendas</h2>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+            {calendarSources.map((source) => (
+              <label
+                key={source.google_calendar_id}
+                className="flex cursor-pointer items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={source.is_visible}
+                  onChange={(input) => void setCalendarVisibility(source, input.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                  style={{ accentColor: source.color }}
+                />
+                <span
+                  className="h-3 w-3 rounded-sm"
+                  style={{ backgroundColor: source.color }}
+                  aria-hidden="true"
+                />
+                <span>{source.name}</span>
+              </label>
+            ))}
+          </div>
+        </section>
       )}
       <div className="overflow-x-auto rounded-lg border bg-card">
         <div className="min-w-[900px]">

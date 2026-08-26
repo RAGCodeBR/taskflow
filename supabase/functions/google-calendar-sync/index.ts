@@ -109,7 +109,11 @@ function localPayload(event: any) {
   };
 }
 
-function googleToLocal(event: any, createdBy: string, calendarId: string) {
+function googleToLocal(
+  event: any,
+  createdBy: string,
+  calendar: { id: string; backgroundColor?: string | null },
+) {
   const allDay = Boolean(event.start?.date);
   let startsAt = event.start?.dateTime;
   let endsAt = event.end?.dateTime;
@@ -126,7 +130,7 @@ function googleToLocal(event: any, createdBy: string, calendarId: string) {
     is_all_day: allDay,
     created_by: createdBy,
     updated_by: createdBy,
-    google_calendar_id: calendarId,
+    google_calendar_id: calendar.id,
     google_event_id: event.id,
     google_etag: event.etag ?? null,
     google_updated_at: event.updated ?? null,
@@ -134,7 +138,9 @@ function googleToLocal(event: any, createdBy: string, calendarId: string) {
     description: event.description ?? null,
     location: event.location ?? null,
     meeting_url: event.hangoutLink ?? null,
-    color: "#2563eb",
+    color: /^#[0-9A-Fa-f]{6}$/.test(calendar.backgroundColor ?? "")
+      ? calendar.backgroundColor
+      : "#2563eb",
     source: "google",
     sync_status: "synced",
   };
@@ -217,19 +223,60 @@ async function sync(request: Request) {
       .eq("id", connection.id);
 
   const calendars = await listAccessibleCalendars(token);
-  const googleEvents = (
-    await Promise.all(calendars.map((calendar) => listGoogleEvents(token, calendar.id)))
-  ).flat();
+  if (!calendars.some((calendar) => calendar.id === calendarId))
+    calendars.unshift({
+      id: calendarId,
+      summary: "Agenda compartilhada",
+      backgroundColor: "#2563eb",
+    });
+
+  const { error: sourceError } = await admin.from("calendar_sources").upsert(
+    calendars.map((calendar) => ({
+      google_calendar_id: calendar.id,
+      name: calendar.summary || calendar.summaryOverride || calendar.id,
+      color: /^#[0-9A-Fa-f]{6}$/.test(calendar.backgroundColor ?? "")
+        ? calendar.backgroundColor
+        : "#2563eb",
+      is_shared: calendar.id === calendarId,
+    })),
+    { onConflict: "google_calendar_id" },
+  );
+  if (sourceError) throw sourceError;
+
+  const eventPages = await Promise.allSettled(
+    calendars.map(async (calendar) => ({
+      calendar,
+      events: await listGoogleEvents(token, calendar.id),
+    })),
+  );
+  const importedCalendars = eventPages
+    .filter(
+      (
+        result,
+      ): result is PromiseFulfilledResult<{
+        calendar: { id: string; backgroundColor?: string | null };
+        events: any[];
+      }> => result.status === "fulfilled",
+    )
+    .map((result) => result.value);
+  const calendarErrors = eventPages
+    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+    .map((result) =>
+      result.reason instanceof Error ? result.reason.message : "Calendário inacessível.",
+    );
+  const googleEvents = importedCalendars.flatMap(({ calendar, events }) =>
+    events.map((event) => ({ ...event, taskflowCalendar: calendar })),
+  );
   const remoteIds = new Set(
     googleEvents
-      .filter((event) => event.taskflowCalendarId === calendarId)
+      .filter((event) => event.taskflowCalendar.id === calendarId)
       .map((event) => event.id),
   );
   const remoteEventKeys = new Set(
-    googleEvents.map((event) => `${event.taskflowCalendarId}:${event.id}`),
+    googleEvents.map((event) => `${event.taskflowCalendar.id}:${event.id}`),
   );
   const remotePayloads = googleEvents.map((event) =>
-    googleToLocal(event, user.id, event.taskflowCalendarId),
+    googleToLocal(event, user.id, event.taskflowCalendar),
   );
   const { error: importError } = remotePayloads.length
     ? await admin
@@ -237,7 +284,7 @@ async function sync(request: Request) {
         .upsert(remotePayloads, { onConflict: "google_calendar_id,google_event_id" })
     : { error: null };
   const pulled = importError ? 0 : remotePayloads.length;
-  const importErrors = importError ? [importError.message] : [];
+  const importErrors = [...calendarErrors, ...(importError ? [importError.message] : [])];
 
   const { data: localEvents, error: localError } = await admin
     .from("calendar_events")
@@ -310,10 +357,61 @@ async function sync(request: Request) {
   });
 }
 
+async function listSavedEvents(request: Request) {
+  const { user, admin } = await authenticatedTeamUser(request);
+  const [eventsResult, sourcesResult, preferencesResult] = await Promise.all([
+    admin
+      .from("calendar_events")
+      .select("*")
+      .is("deleted_at", null)
+      .order("starts_at", { ascending: true }),
+    admin
+      .from("calendar_sources")
+      .select("google_calendar_id, name, color, is_shared")
+      .order("is_shared", { ascending: false })
+      .order("name", { ascending: true }),
+    admin
+      .from("calendar_source_preferences")
+      .select("google_calendar_id, is_visible")
+      .eq("user_id", user.id),
+  ]);
+  if (eventsResult.error) throw eventsResult.error;
+  if (sourcesResult.error) throw sourcesResult.error;
+  if (preferencesResult.error) throw preferencesResult.error;
+  const visibility = new Map(
+    (preferencesResult.data ?? []).map((item: any) => [item.google_calendar_id, item.is_visible]),
+  );
+  const sources = (sourcesResult.data ?? []).map((source: any) => ({
+    ...source,
+    is_visible: visibility.get(source.google_calendar_id) ?? true,
+  }));
+  return json({ ok: true, events: eventsResult.data ?? [], sources });
+}
+
+async function setCalendarVisibility(request: Request, body: any) {
+  const { user, admin } = await authenticatedTeamUser(request);
+  if (typeof body?.googleCalendarId !== "string" || typeof body?.isVisible !== "boolean")
+    throw new Error("Filtro de agenda inválido.");
+  const { error } = await admin.from("calendar_source_preferences").upsert(
+    {
+      user_id: user.id,
+      google_calendar_id: body.googleCalendarId,
+      is_visible: body.isVisible,
+    },
+    { onConflict: "user_id,google_calendar_id" },
+  );
+  if (error) throw error;
+  return json({ ok: true });
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
   try {
+    const body = await request.json().catch(() => ({}));
+    if (body?.action === "list_events") return await listSavedEvents(request);
+    if (body?.action === "set_calendar_visibility")
+      return await setCalendarVisibility(request, body);
     return await sync(request);
   } catch (error) {
     console.error(error);
