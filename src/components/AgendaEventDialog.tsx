@@ -24,15 +24,22 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   event?: AgendaEvent | null;
   defaultDate?: Date | null;
+  defaultStartTime?: string | null;
 };
 
-const defaultStartTime = "09:00";
+const defaultStartTimeValue = "09:00";
 const defaultEndTime = "10:00";
 
 const dateValue = (value: string) => format(new Date(value), "yyyy-MM-dd");
 const timeValue = (value: string) => format(new Date(value), "HH:mm");
 
-export function AgendaEventDialog({ open, onOpenChange, event, defaultDate }: Props) {
+export function AgendaEventDialog({
+  open,
+  onOpenChange,
+  event,
+  defaultDate,
+  defaultStartTime,
+}: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
@@ -66,9 +73,11 @@ export function AgendaEventDialog({ open, onOpenChange, event, defaultDate }: Pr
     setTitle("");
     setDescription("");
     setStartDate(date);
-    setStartTime(defaultStartTime);
+    setStartTime(defaultStartTime ?? defaultStartTimeValue);
+    const [hours, minutes] = (defaultStartTime ?? "09:00").split(":").map(Number);
+    const end = new Date(2000, 0, 1, hours + 1, minutes);
     setEndDate(date);
-    setEndTime(defaultEndTime);
+    setEndTime(format(end, "HH:mm"));
     setAllDay(false);
     setLocation("");
     setMeetingUrl("");

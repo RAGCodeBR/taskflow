@@ -76,6 +76,14 @@ async function begin(request: Request) {
   return json({ authorizeUrl: authorizationUrl.toString() });
 }
 
+async function disconnect(request: Request) {
+  const { user, admin } = await authenticatedTeamUser(request);
+  const { error } = await admin.from("calendar_google_connections").delete().eq("user_id", user.id);
+  if (error) throw error;
+  await admin.from("calendar_google_oauth_states").delete().eq("user_id", user.id);
+  return json({ ok: true });
+}
+
 async function callback(request: Request) {
   const url = new URL(request.url);
   const state = url.searchParams.get("state");
@@ -142,7 +150,11 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     if (request.method === "GET") return await callback(request);
-    if (request.method === "POST") return await begin(request);
+    if (request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      if (body?.action === "disconnect") return await disconnect(request);
+      return await begin(request);
+    }
     return json({ error: "Método não permitido." }, 405);
   } catch (error) {
     console.error(error);
