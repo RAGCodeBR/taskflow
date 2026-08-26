@@ -126,6 +126,73 @@ export interface Profile {
   is_active?: boolean;
 }
 
+export interface AgendaEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+  is_all_day: boolean;
+  location: string | null;
+  meeting_url: string | null;
+  color: string;
+  created_by: string;
+  updated_by: string | null;
+  source: "taskflow" | "google";
+  google_event_id: string | null;
+  sync_status: "not_configured" | "pending" | "synced" | "error";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoogleCalendarConnection {
+  id: string;
+  google_email: string;
+  connected_at: string;
+  updated_at: string;
+}
+
+export function useGoogleCalendarConnection() {
+  return useQuery({
+    queryKey: ["google_calendar_connection"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("calendar_google_connections" as any) as any)
+        .select("id, google_email, connected_at, updated_at")
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as GoogleCalendarConnection | null;
+    },
+  });
+}
+
+export function useAgendaEvents() {
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`agenda-events-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "calendar_events" }, () => {
+        void qc.invalidateQueries({ queryKey: ["agenda_events"] });
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [qc]);
+
+  return useQuery({
+    queryKey: ["agenda_events"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("calendar_events" as any) as any)
+        .select("*")
+        .is("deleted_at", null)
+        .order("starts_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as AgendaEvent[];
+    },
+  });
+}
+
 export interface TaskCollaborator {
   task_id: string;
   collaborator_id: string;

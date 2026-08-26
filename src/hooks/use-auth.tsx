@@ -46,23 +46,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // released as soon as the session was restored, while this sequence was
     // still running.  During that interval `permissions` was empty and the
     // entire sidebar was filtered out for client accounts.
-    const [profileResult, authResult, rolesResult, linkResult, permissionsResult] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url, theme_preferences")
-        .eq("id", uid)
-        .maybeSingle(),
-      supabase.auth.getUser(),
-      supabase.from("user_roles").select("role").eq("user_id", uid),
-      (supabase.from("client_user_links" as any) as any)
-        .select("client_id")
-        .eq("user_id", uid)
-        .maybeSingle(),
-      (supabase.from("user_permissions") as any)
-        .select("permissions")
-        .eq("user_id", uid)
-        .maybeSingle(),
-    ]);
+    const [profileResult, authResult, rolesResult, linkResult, permissionsResult] =
+      await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, theme_preferences")
+          .eq("id", uid)
+          .maybeSingle(),
+        supabase.auth.getUser(),
+        supabase.from("user_roles").select("role").eq("user_id", uid),
+        (supabase.from("client_user_links" as any) as any)
+          .select("client_id")
+          .eq("user_id", uid)
+          .maybeSingle(),
+        (supabase.from("user_permissions") as any)
+          .select("permissions")
+          .eq("user_id", uid)
+          .maybeSingle(),
+      ]);
     const prof = profileResult.data;
     const roles = rolesResult.data;
     const link = linkResult.data;
@@ -85,13 +86,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             "clients",
             "reports",
             "mural",
+            "agenda",
             "portal_entregas",
             "portal_financeiro",
             "users",
             "trash",
             "settings",
           ]
-        : Array.isArray(access?.permissions) ? access.permissions : [],
+        : Array.isArray(access?.permissions)
+          ? access.permissions
+          : [],
     );
   };
 

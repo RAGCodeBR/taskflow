@@ -14,9 +14,13 @@ const userAccessSchema = z.object({
 async function requireAdmin(userId: string | null) {
   if (!userId) throw new Response("Unauthorized", { status: 401 });
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
   if (error) throw new Error(error.message);
-  if (!data?.some((row: { role: string }) => row.role === "admin")) throw new Response("Forbidden", { status: 403 });
+  if (!data?.some((row: { role: string }) => row.role === "admin"))
+    throw new Response("Forbidden", { status: 403 });
   return supabaseAdmin;
 }
 
@@ -26,7 +30,8 @@ export const createUserAccess = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const callerId = (context as any)?.userId ?? null;
     const supabaseAdmin = await requireAdmin(callerId);
-    if (data.role === "client" && !data.clientId) throw new Error("Selecione o cliente que será vinculado a este acesso.");
+    if (data.role === "client" && !data.clientId)
+      throw new Error("Selecione o cliente que será vinculado a este acesso.");
     const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
@@ -38,12 +43,32 @@ export const createUserAccess = createServerFn({ method: "POST" })
 
     const { error: permissionsError } = await supabaseAdmin.from("user_permissions").upsert({
       user_id: created.user.id,
-      permissions: data.role === "admin" ? ["dashboard", "tasks", "import_ata", "clients", "reports", "mural", "portal_entregas", "portal_financeiro", "users", "trash", "settings"] : data.role === "client" ? ["portal_entregas", "portal_financeiro"] : data.permissions,
+      permissions:
+        data.role === "admin"
+          ? [
+              "dashboard",
+              "tasks",
+              "import_ata",
+              "clients",
+              "reports",
+              "mural",
+              "agenda",
+              "portal_entregas",
+              "portal_financeiro",
+              "users",
+              "trash",
+              "settings",
+            ]
+          : data.role === "client"
+            ? ["portal_entregas", "portal_financeiro"]
+            : data.permissions,
       updated_by: callerId,
     });
     if (permissionsError) throw new Error(permissionsError.message);
     if (data.role === "client" && data.clientId) {
-      const { error: linkError } = await (supabaseAdmin.from("client_user_links" as any) as any).upsert({ user_id: created.user.id, client_id: data.clientId });
+      const { error: linkError } = await (
+        supabaseAdmin.from("client_user_links" as any) as any
+      ).upsert({ user_id: created.user.id, client_id: data.clientId });
       if (linkError) throw new Error(linkError.message);
     }
     return { userId: created.user.id };
@@ -51,23 +76,67 @@ export const createUserAccess = createServerFn({ method: "POST" })
 
 export const updateUserAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => z.object({ userId: z.string().uuid(), role: z.enum(["admin", "collaborator", "client"]), permissions: z.array(z.string()).max(20), clientId: z.string().uuid().nullable().or(z.literal("")) }).parse(data))
+  .inputValidator((data) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        role: z.enum(["admin", "collaborator", "client"]),
+        permissions: z.array(z.string()).max(20),
+        clientId: z.string().uuid().nullable().or(z.literal("")),
+      })
+      .parse(data),
+  )
   .handler(async ({ data, context }) => {
     const callerId = (context as any)?.userId ?? null;
     const supabaseAdmin = await requireAdmin(callerId);
-    if (data.role === "client" && !data.clientId) throw new Error("Selecione o cliente que será vinculado a este acesso.");
-    if (data.userId === callerId && data.role !== "admin") throw new Error("Você não pode remover seu próprio acesso de administrador.");
-    const { error: roleError } = await supabaseAdmin.from("user_roles").delete().eq("user_id", data.userId);
+    if (data.role === "client" && !data.clientId)
+      throw new Error("Selecione o cliente que será vinculado a este acesso.");
+    if (data.userId === callerId && data.role !== "admin")
+      throw new Error("Você não pode remover seu próprio acesso de administrador.");
+    const { error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .delete()
+      .eq("user_id", data.userId);
     if (roleError) throw new Error(roleError.message);
-    const { error: insertRoleError } = await supabaseAdmin.from("user_roles").insert({ user_id: data.userId, role: data.role });
+    const { error: insertRoleError } = await supabaseAdmin
+      .from("user_roles")
+      .insert({ user_id: data.userId, role: data.role });
     if (insertRoleError) throw new Error(insertRoleError.message);
-    const { error: permissionsError } = await supabaseAdmin.from("user_permissions").upsert({ user_id: data.userId, permissions: data.role === "admin" ? ["dashboard", "tasks", "import_ata", "clients", "reports", "mural", "portal_entregas", "portal_financeiro", "users", "trash", "settings"] : data.role === "client" ? ["portal_entregas", "portal_financeiro"] : data.permissions, updated_by: callerId });
+    const { error: permissionsError } = await supabaseAdmin
+      .from("user_permissions")
+      .upsert({
+        user_id: data.userId,
+        permissions:
+          data.role === "admin"
+            ? [
+                "dashboard",
+                "tasks",
+                "import_ata",
+                "clients",
+                "reports",
+                "mural",
+                "agenda",
+                "portal_entregas",
+                "portal_financeiro",
+                "users",
+                "trash",
+                "settings",
+              ]
+            : data.role === "client"
+              ? ["portal_entregas", "portal_financeiro"]
+              : data.permissions,
+        updated_by: callerId,
+      });
     if (permissionsError) throw new Error(permissionsError.message);
     if (data.role === "client" && data.clientId) {
-      const { error: linkError } = await (supabaseAdmin.from("client_user_links" as any) as any).upsert({ user_id: data.userId, client_id: data.clientId });
+      const { error: linkError } = await (
+        supabaseAdmin.from("client_user_links" as any) as any
+      ).upsert({ user_id: data.userId, client_id: data.clientId });
       if (linkError) throw new Error(linkError.message);
     } else {
-      const { error: unlinkError } = await (supabaseAdmin.from("client_user_links" as any) as any).delete().eq("user_id", data.userId);
+      const { error: unlinkError } = await (supabaseAdmin.from("client_user_links" as any) as any)
+        .delete()
+        .eq("user_id", data.userId);
       if (unlinkError) throw new Error(unlinkError.message);
     }
     return { ok: true };

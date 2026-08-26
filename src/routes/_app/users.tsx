@@ -42,6 +42,7 @@ const ACCESS_OPTIONS = [
   ["clients", "Clientes"],
   ["reports", "Relatórios"],
   ["mural", "Mural"],
+  ["agenda", "Agenda"],
   ["portal_entregas", "Calendário de entregas"],
   ["portal_financeiro", "Financeiro"],
   ["trash", "Lixeira"],
@@ -68,6 +69,7 @@ const defaults: FormState = {
     "clients",
     "reports",
     "mural",
+    "agenda",
     "portal_entregas",
     "portal_financeiro",
     "trash",
@@ -258,7 +260,10 @@ function UsersPage() {
       body: { action, data },
     });
     if (error) {
-      const details = await error.context?.clone().json().catch(() => null);
+      const details = await error.context
+        ?.clone()
+        .json()
+        .catch(() => null);
       const message = details?.error ?? error.message;
       throw new Error(
         typeof message === "string"
@@ -329,13 +334,12 @@ function UsersPage() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível excluir o acesso."),
   });
-  const profilesWithEmails = useMemo(
-    () => {
-      const emailsById = new Map(profileEmails.map((item: { id: string; email: string | null }) => [item.id, item.email]));
-      return profiles.map((profile) => ({ ...profile, email: emailsById.get(profile.id) ?? null }));
-    },
-    [profiles, profileEmails],
-  );
+  const profilesWithEmails = useMemo(() => {
+    const emailsById = new Map(
+      profileEmails.map((item: { id: string; email: string | null }) => [item.id, item.email]),
+    );
+    return profiles.map((profile) => ({ ...profile, email: emailsById.get(profile.id) ?? null }));
+  }, [profiles, profileEmails]);
   const activeProfiles = useMemo(
     () => profilesWithEmails.filter((p) => (p as any).is_active !== false),
     [profilesWithEmails],
@@ -347,9 +351,9 @@ function UsersPage() {
   const activeProfilesByRole = useMemo(() => {
     const byRole: Record<Role, any[]> = { admin: [], collaborator: [], client: [] };
     for (const profile of activeProfiles) {
-      const role =
-        (roles.find((item: { user_id: string; role: Role }) => item.user_id === profile.id)?.role ??
-          "collaborator") as Role;
+      const role = (roles.find(
+        (item: { user_id: string; role: Role }) => item.user_id === profile.id,
+      )?.role ?? "collaborator") as Role;
       byRole[role].push(profile);
     }
     return (Object.keys(byRole) as Role[]).map((role) => ({
@@ -459,7 +463,8 @@ function UsersPage() {
             <DialogHeader>
               <DialogTitle>Criar acesso</DialogTitle>
               <DialogDescription>
-                O usuário receberá um convite por e-mail para criar a própria senha e ativar o acesso.
+                O usuário receberá um convite por e-mail para criar a própria senha e ativar o
+                acesso.
               </DialogDescription>
             </DialogHeader>
             <AccessForm value={form} onChange={setForm} includeCredentials />
