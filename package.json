@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "docs:codigo": "node scripts/generate-code-explanations.mjs",
     "lint": "eslint .",
+    "test": "vitest run",
     "format": "prettier --write .",
     "test:gemini": "node teste-gemini.js"
   },
@@ -105,6 +106,7 @@
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.1.11"
   }
 }

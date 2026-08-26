@@ -183,13 +183,23 @@ export function useAgendaEvents() {
   return useQuery({
     queryKey: ["agenda_events"],
     queryFn: async () => {
+      // The Agenda is a shared team resource and has its own RLS policy. Reading
+      // it directly avoids an extra Edge Function hop and makes the calendar
+      // reflect the same records that the sync has just written.
       const { data, error } = await (supabase.from("calendar_events" as any) as any)
         .select("*")
         .is("deleted_at", null)
         .order("starts_at", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as AgendaEvent[];
+      if (!error && data?.length) return data as AgendaEvent[];
+
+      // Keep the protected server route as a fallback for environments where a
+      // browser policy temporarily prevents the direct query.
+      const fallback = await supabase.functions.invoke("agenda-events");
+      if (fallback.error) throw fallback.error;
+      if (fallback.data?.error) throw new Error(fallback.data.error);
+      return (fallback.data?.events ?? []) as AgendaEvent[];
     },
+    refetchOnMount: "always",
   });
 }
 

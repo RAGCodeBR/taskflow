@@ -5,7 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const calendarScope = "https://www.googleapis.com/auth/calendar.events";
+// Full Calendar scope is required to list every calendar the connected account
+// can access, then consolidate their events in the Taskflow Agenda.
+const calendarScope = "https://www.googleapis.com/auth/calendar";
 const identityScopes = "openid email";
 
 function json(body: Record<string, unknown>, status = 200) {

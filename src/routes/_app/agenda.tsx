@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   addDays,
+  addMinutes,
   addWeeks,
   differenceInMinutes,
   endOfDay,
@@ -19,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AgendaEventDialog } from "@/components/AgendaEventDialog";
 import { useAgendaEvents, useGoogleCalendarConnection, type AgendaEvent } from "@/hooks/use-data";
+import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -27,10 +35,20 @@ export const Route = createFileRoute("/_app/agenda")({ component: AgendaPage });
 const DAY_START_HOUR = 0;
 const DAY_END_HOUR = 24;
 const HOUR_HEIGHT = 64;
+const SNAP_MINUTES = 15;
+
+type ScheduleChange = Pick<AgendaEvent, "starts_at" | "ends_at">;
+type Gesture = {
+  event: AgendaEvent;
+  mode: "move" | "resize";
+  startY: number;
+  moved: boolean;
+};
 const DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 function AgendaPage() {
   const { data: events = [], isLoading, error } = useAgendaEvents();
+  const { user } = useAuth();
   const { data: googleConnection, isLoading: loadingGoogle } = useGoogleCalendarConnection();
   const queryClient = useQueryClient();
   const [cursor, setCursor] = useState(new Date());
@@ -39,6 +57,13 @@ function AgendaPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [syncingGoogle, setSyncingGoogle] = useState(false);
+  const [syncedEvents, setSyncedEvents] = useState<AgendaEvent[] | null>(null);
+  const [previewSchedule, setPreviewSchedule] = useState<Record<string, ScheduleChange>>({});
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [savingIds, setSavingIds] = useState<string[]>([]);
+  const gestureRef = useRef<Gesture | null>(null);
+  const skipClickRef = useRef(false);
 
   const weekStart = useMemo(() => startOfWeek(cursor, { weekStartsOn: 1 }), [cursor]);
   const days = useMemo(
@@ -46,7 +71,12 @@ function AgendaPage() {
     [weekStart],
   );
   const totalHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT;
-  const allDayEvents = events.filter((event) => event.is_all_day);
+  const agendaEvents = syncedEvents ?? events;
+  const visibleEvents = useMemo(
+    () => agendaEvents.map((event) => ({ ...event, ...previewSchedule[event.id] })),
+    [agendaEvents, previewSchedule],
+  );
+  const allDayEvents = visibleEvents.filter((event) => event.is_all_day);
 
   const openNew = (date: Date = new Date(), time: string | null = null) => {
     setEditing(null);
@@ -56,7 +86,7 @@ function AgendaPage() {
   };
 
   const timedEventsForDay = (day: Date) =>
-    events.filter(
+    visibleEvents.filter(
       (event) =>
         !event.is_all_day &&
         new Date(event.starts_at) < endOfDay(day) &&
@@ -110,6 +140,38 @@ function AgendaPage() {
     toast.success("Conta Google desconectada.");
   };
 
+  const syncGoogle = async (silent = false) => {
+    if (!googleConnection || syncingGoogle) return;
+    setSyncingGoogle(true);
+    const { data, error: invokeError } = await supabase.functions.invoke("google-calendar-sync");
+    setSyncingGoogle(false);
+    if (invokeError || !data?.ok) {
+      let errorMessage =
+        data?.error || invokeError?.message || "Não foi possível sincronizar a Agenda.";
+      if (invokeError && "context" in invokeError) {
+        const detail = await (invokeError as any).context?.json().catch(() => null);
+        errorMessage = detail?.error || errorMessage;
+      }
+      if (!silent) toast.error(errorMessage);
+      return;
+    }
+    const returnedEvents = Array.isArray(data.events) ? (data.events as AgendaEvent[]) : null;
+    if (returnedEvents) {
+      // A grade recebe a resposta da sincronização imediatamente, sem depender de cache.
+      setSyncedEvents(returnedEvents);
+      queryClient.setQueryData(["agenda_events"], returnedEvents);
+    } else {
+      await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
+    }
+    if (!silent) {
+      if (data.importErrors?.length) toast.error(data.importErrors[0]);
+      else
+        toast.success(
+          `Agenda sincronizada: ${data.pushed} enviados, ${data.pulled} recebidos de ${data.remoteEvents} evento(s) no Google.`,
+        );
+    }
+  };
+
   const eventStyle = (event: AgendaEvent, day: Date) => {
     const dayStart = startOfDay(day);
     const dayEnd = endOfDay(day);
@@ -122,6 +184,104 @@ function AgendaPage() {
       height: Math.max(26, (duration / 60) * HOUR_HEIGHT),
     };
   };
+
+  const scheduleForGesture = (gesture: Gesture, clientY: number): ScheduleChange => {
+    const rawDelta = ((clientY - gesture.startY) / HOUR_HEIGHT) * 60;
+    const delta = Math.round(rawDelta / SNAP_MINUTES) * SNAP_MINUTES;
+    const originalStart = new Date(gesture.event.starts_at);
+    const originalEnd = new Date(gesture.event.ends_at);
+    const dayStart = startOfDay(originalStart);
+    const nextDay = addDays(dayStart, 1);
+    if (gesture.mode === "resize") {
+      const minEnd = addMinutes(originalStart, SNAP_MINUTES);
+      const end = new Date(
+        Math.min(
+          Math.max(addMinutes(originalEnd, delta).getTime(), minEnd.getTime()),
+          nextDay.getTime(),
+        ),
+      );
+      return { starts_at: originalStart.toISOString(), ends_at: end.toISOString() };
+    }
+    const duration = originalEnd.getTime() - originalStart.getTime();
+    const latestStart = new Date(nextDay.getTime() - duration);
+    const start = new Date(
+      Math.min(
+        Math.max(addMinutes(originalStart, delta).getTime(), dayStart.getTime()),
+        latestStart.getTime(),
+      ),
+    );
+    return {
+      starts_at: start.toISOString(),
+      ends_at: new Date(start.getTime() + duration).toISOString(),
+    };
+  };
+
+  const persistSchedule = async (event: AgendaEvent, schedule: ScheduleChange) => {
+    if (!user) return;
+    const previousEvents = queryClient.getQueryData<AgendaEvent[]>(["agenda_events"]);
+    setSavingIds((ids) => [...ids, event.id]);
+    queryClient.setQueryData<AgendaEvent[]>(["agenda_events"], (current = []) =>
+      current.map((item) =>
+        item.id === event.id ? { ...item, ...schedule, updated_by: user.id } : item,
+      ),
+    );
+    setPreviewSchedule((current) => {
+      const { [event.id]: _removed, ...remaining } = current;
+      return remaining;
+    });
+    try {
+      const { error: updateError } = await (supabase.from("calendar_events" as any) as any)
+        .update({ ...schedule, updated_by: user.id, sync_status: "pending" })
+        .eq("id", event.id);
+      if (updateError) throw updateError;
+      await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
+      void syncGoogle(true);
+    } catch (updateError) {
+      queryClient.setQueryData(["agenda_events"], previousEvents);
+      toast.error("Não foi possível atualizar o evento. A alteração foi desfeita.");
+    } finally {
+      setSavingIds((ids) => ids.filter((id) => id !== event.id));
+    }
+  };
+
+  const startGesture = (
+    reactEvent: ReactPointerEvent<HTMLDivElement>,
+    event: AgendaEvent,
+    mode: Gesture["mode"],
+  ) => {
+    if (reactEvent.button !== 0) return;
+    reactEvent.preventDefault();
+    reactEvent.stopPropagation();
+    gestureRef.current = { event, mode, startY: reactEvent.clientY, moved: false };
+    setDraggingId(event.id);
+  };
+
+  useEffect(() => {
+    const move = (pointerEvent: PointerEvent) => {
+      const gesture = gestureRef.current;
+      if (!gesture) return;
+      if (Math.abs(pointerEvent.clientY - gesture.startY) > 3) gesture.moved = true;
+      setPreviewSchedule({ [gesture.event.id]: scheduleForGesture(gesture, pointerEvent.clientY) });
+    };
+    const end = (pointerEvent: PointerEvent) => {
+      const gesture = gestureRef.current;
+      if (!gesture) return;
+      gestureRef.current = null;
+      setDraggingId(null);
+      if (!gesture.moved) {
+        setPreviewSchedule({});
+        return;
+      }
+      skipClickRef.current = true;
+      void persistSchedule(gesture.event, scheduleForGesture(gesture, pointerEvent.clientY));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+    };
+  });
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
@@ -161,6 +321,11 @@ function AgendaPage() {
             disabled={connectingGoogle}
           >
             {connectingGoogle ? "Desconectando…" : "Desconectar Google Agenda"}
+          </Button>
+        )}
+        {!loadingGoogle && googleConnection && (
+          <Button onClick={() => void syncGoogle()} disabled={syncingGoogle}>
+            {syncingGoogle ? "Sincronizando…" : "Sincronizar agora"}
           </Button>
         )}
       </div>
@@ -267,15 +432,36 @@ function AgendaPage() {
                 ))}
                 {timedEventsForDay(day).map((event) => {
                   const style = eventStyle(event, day);
+                  const isActive = draggingId === event.id;
                   return (
-                    <button
+                    <div
                       key={event.id}
+                      role="button"
+                      tabIndex={0}
+                      onPointerDown={(pointerEvent) => startGesture(pointerEvent, event, "move")}
                       onClick={() => {
+                        if (skipClickRef.current) {
+                          skipClickRef.current = false;
+                          return;
+                        }
                         setEditing(event);
                         setDialogOpen(true);
                       }}
-                      className="absolute left-1 right-1 z-10 overflow-hidden rounded-md px-1.5 py-1 text-left text-[11px] text-white shadow-sm hover:brightness-95"
-                      style={{ ...style, backgroundColor: event.color }}
+                      onKeyDown={(keyboardEvent) => {
+                        if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+                          keyboardEvent.preventDefault();
+                          setEditing(event);
+                          setDialogOpen(true);
+                        }
+                      }}
+                      className={`absolute z-10 overflow-hidden rounded-md px-1.5 py-1 text-left text-[11px] text-white shadow-sm outline-none transition-shadow hover:brightness-95 focus-visible:ring-2 focus-visible:ring-primary/70 ${isActive ? "z-20 cursor-grabbing opacity-85 shadow-lg" : "cursor-grab"} ${savingIds.includes(event.id) ? "animate-pulse" : ""}`}
+                      style={{
+                        ...style,
+                        left: "3px",
+                        width: "calc(100% - 6px)",
+                        backgroundColor: event.color,
+                        touchAction: "none",
+                      }}
                       title={event.title}
                     >
                       <span className="block truncate font-semibold">{event.title}</span>
@@ -283,7 +469,15 @@ function AgendaPage() {
                         {format(new Date(event.starts_at), "HH:mm")} –{" "}
                         {format(new Date(event.ends_at), "HH:mm")}
                       </span>
-                    </button>
+                      <span
+                        role="presentation"
+                        aria-label="Resize event duration"
+                        onPointerDown={(pointerEvent) =>
+                          startGesture(pointerEvent, event, "resize")
+                        }
+                        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize"
+                      />
+                    </div>
                   );
                 })}
               </div>
@@ -302,6 +496,7 @@ function AgendaPage() {
         event={editing}
         defaultDate={selectedDate}
         defaultStartTime={selectedTime}
+        onSaved={() => syncGoogle(true)}
       />
     </div>
   );

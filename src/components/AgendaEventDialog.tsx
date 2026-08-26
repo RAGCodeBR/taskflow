@@ -25,6 +25,7 @@ type Props = {
   event?: AgendaEvent | null;
   defaultDate?: Date | null;
   defaultStartTime?: string | null;
+  onSaved?: () => void | Promise<void>;
 };
 
 const defaultStartTimeValue = "09:00";
@@ -39,6 +40,7 @@ export function AgendaEventDialog({
   event,
   defaultDate,
   defaultStartTime,
+  onSaved,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -108,7 +110,7 @@ export function AgendaEventDialog({
       color,
       updated_by: user.id,
       source: event?.source ?? "taskflow",
-      sync_status: event?.google_event_id ? "pending" : "not_configured",
+      sync_status: "pending",
     };
     const table = supabase.from("calendar_events" as any) as any;
     const result = event
@@ -119,6 +121,7 @@ export function AgendaEventDialog({
     await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
     toast.success(event ? "Compromisso atualizado" : "Compromisso criado");
     onOpenChange(false);
+    await onSaved?.();
   };
 
   const remove = async () => {
@@ -126,13 +129,19 @@ export function AgendaEventDialog({
     if (!window.confirm(`Excluir “${event.title}”?`)) return;
     setSaving(true);
     const { error } = await (supabase.from("calendar_events" as any) as any)
-      .update({ deleted_at: new Date().toISOString(), deleted_by: user.id, updated_by: user.id })
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user.id,
+        updated_by: user.id,
+        sync_status: "pending",
+      })
       .eq("id", event.id);
     setSaving(false);
     if (error) return toast.error(error.message);
     await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
     toast.success("Compromisso excluído");
     onOpenChange(false);
+    await onSaved?.();
   };
 
   return (
@@ -164,7 +173,7 @@ export function AgendaEventDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="agenda-start-date">Início</Label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_104px] gap-2">
                 <Input
                   id="agenda-start-date"
                   type="date"
@@ -182,7 +191,7 @@ export function AgendaEventDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="agenda-end-date">Término</Label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_104px] gap-2">
                 <Input
                   id="agenda-end-date"
                   type="date"
@@ -235,7 +244,7 @@ export function AgendaEventDialog({
             />
           </div>
         </div>
-        <DialogFooter className="gap-2 sm:justify-between">
+        <DialogFooter className="mt-6 gap-3 border-t pt-4 sm:justify-end">
           {event ? (
             <Button
               type="button"
@@ -245,9 +254,7 @@ export function AgendaEventDialog({
             >
               <Trash2 className="mr-2 h-4 w-4" /> Excluir
             </Button>
-          ) : (
-            <span />
-          )}
+          ) : null}
           <Button type="button" onClick={() => void save()} disabled={saving}>
             {saving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
             Salvar compromisso
