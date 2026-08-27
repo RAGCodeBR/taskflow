@@ -2,7 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Circle, Clock3, FileText, MessageCircle, Paperclip, Plus, Send, Users } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  Clock3,
+  FileText,
+  MessageCircle,
+  Paperclip,
+  Plus,
+  Send,
+  Users,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useClients, useProfiles } from "@/hooks/use-data";
@@ -13,21 +23,73 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { MAX_TASK_ATTACHMENT_BYTES } from "@/lib/attachment-limits";
 
 export const Route = createFileRoute("/_app/requests")({ component: RequestsPage });
 
 type Status = "new" | "in_progress" | "resolved";
-type Request = { id: string; title: string; description: string | null; status: Status; priority: string; client_id: string | null; due_date: string | null; created_by: string; created_at: string; updated_at: string };
-type Message = { id: string; request_id: string; body: string; author_id: string; created_at: string };
-type Activity = { id: string; request_id: string; actor_id: string | null; kind: string; details: string | null; created_at: string };
-type Attachment = { id: string; request_id: string; file_name: string; storage_path: string; uploaded_by: string; created_at: string };
+type Request = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: Status;
+  priority: string;
+  client_id: string | null;
+  due_date: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+type Message = {
+  id: string;
+  request_id: string;
+  body: string;
+  author_id: string;
+  created_at: string;
+};
+type Activity = {
+  id: string;
+  request_id: string;
+  actor_id: string | null;
+  kind: string;
+  details: string | null;
+  created_at: string;
+};
+type Attachment = {
+  id: string;
+  request_id: string;
+  file_name: string;
+  storage_path: string;
+  uploaded_by: string;
+  created_at: string;
+};
 
-const statusLabel: Record<Status, string> = { new: "Nova", in_progress: "Resolvendo", resolved: "Finalizada" };
-const priorityLabel: Record<string, string> = { low: "Baixa", medium: "Média", high: "Alta", urgent: "Urgente" };
+const statusLabel: Record<Status, string> = {
+  new: "Nova",
+  in_progress: "Resolvendo",
+  resolved: "Finalizada",
+};
+const priorityLabel: Record<string, string> = {
+  low: "Baixa",
+  medium: "Média",
+  high: "Alta",
+  urgent: "Urgente",
+};
 
 function RequestsPage() {
   const { user, isAdmin } = useAuth();
@@ -38,26 +100,585 @@ function RequestsPage() {
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [message, setMessage] = useState("");
-  const [form, setForm] = useState({ title: "", description: "", clientId: "", priority: "medium", dueDate: "" });
+  const [isUploading, setIsUploading] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    clientId: "",
+    priority: "medium",
+    dueDate: "",
+  });
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
-  const { data: requests = [], isLoading } = useQuery({ queryKey: ["service_requests"], queryFn: async () => { const { data, error } = await (supabase.from("service_requests") as any).select("*").order("updated_at", { ascending: false }); if (error) throw error; return (data ?? []) as Request[]; } });
+  const { data: requests = [], isLoading } = useQuery({
+    queryKey: ["service_requests"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("service_requests") as any)
+        .select("*")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Request[];
+    },
+  });
   const selected = requests.find((request) => request.id === selectedId) ?? requests[0] ?? null;
-  const { data: messages = [] } = useQuery({ queryKey: ["service_request_messages", selected?.id], enabled: !!selected, queryFn: async () => { const { data, error } = await (supabase.from("service_request_messages") as any).select("*").eq("request_id", selected!.id).order("created_at"); if (error) throw error; return (data ?? []) as Message[]; } });
-  const { data: activity = [] } = useQuery({ queryKey: ["service_request_activity", selected?.id], enabled: !!selected, queryFn: async () => { const { data, error } = await (supabase.from("service_request_activity") as any).select("*").eq("request_id", selected!.id).order("created_at"); if (error) throw error; return (data ?? []) as Activity[]; } });
-  const { data: participants = [] } = useQuery({ queryKey: ["service_request_participants", selected?.id], enabled: !!selected, queryFn: async () => { const { data, error } = await (supabase.from("service_request_participants") as any).select("user_id").eq("request_id", selected!.id); if (error) throw error; return (data ?? []) as { user_id: string }[]; } });
-  const { data: assignees = [] } = useQuery({ queryKey: ["service_request_assignees", selected?.id], enabled: !!selected, queryFn: async () => { const { data, error } = await (supabase.from("service_request_assignees") as any).select("user_id").eq("request_id", selected!.id); if (error) throw error; return (data ?? []) as { user_id: string }[]; } });
-  const { data: attachments = [] } = useQuery({ queryKey: ["service_request_attachments", selected?.id], enabled: !!selected, queryFn: async () => { const { data, error } = await (supabase.from("service_request_attachments") as any).select("*").eq("request_id", selected!.id).order("created_at"); if (error) throw error; return (data ?? []) as Attachment[]; } });
-  const nameOf = (id: string | null) => profiles.find((profile) => profile.id === id)?.full_name || profiles.find((profile) => profile.id === id)?.email || "Usuário";
-  const refresh = () => ["service_requests", "service_request_messages", "service_request_activity", "service_request_participants", "service_request_assignees", "service_request_attachments"].forEach((key) => void qc.invalidateQueries({ queryKey: [key] }));
-  const addActivity = async (requestId: string, kind: string, details: string) => { if (!user) return; await (supabase.from("service_request_activity") as any).insert({ request_id: requestId, actor_id: user.id, kind, details }); };
-  const createRequest = useMutation({ mutationFn: async () => { if (!user || !form.title.trim()) throw new Error("Informe o assunto da solicitação."); const { data: requestId, error } = await (supabase.rpc as any)("create_service_request", { p_title: form.title.trim(), p_description: form.description.trim() || null, p_client_id: form.clientId || null, p_priority: form.priority, p_due_date: form.dueDate || null, p_participant_ids: selectedParticipants }); if (error) throw error; if (!requestId) throw new Error("Não foi possível criar a solicitação."); return { id: requestId }; }, onSuccess: (request) => { refresh(); setSelectedId(request.id); setDialogOpen(false); setForm({ title: "", description: "", clientId: "", priority: "medium", dueDate: "" }); setSelectedParticipants([]); toast.success("Solicitação criada."); }, onError: (error: Error) => toast.error(error.message) });
-  const sendMessage = useMutation({ mutationFn: async () => { if (!selected || !user || !message.trim()) return; const { error } = await (supabase.from("service_request_messages") as any).insert({ request_id: selected.id, author_id: user.id, body: message.trim() }); if (error) throw error; await (supabase.from("service_requests") as any).update({ updated_at: new Date().toISOString() }).eq("id", selected.id); }, onSuccess: () => { setMessage(""); refresh(); }, onError: (error: Error) => toast.error(error.message) });
-  const updateRequest = useMutation({ mutationFn: async ({ field, value, kind, label }: { field: string; value: string; kind: string; label: string }) => { if (!selected) return; const { error } = await (supabase.from("service_requests") as any).update({ [field]: value }).eq("id", selected.id); if (error) throw error; await addActivity(selected.id, kind, label); }, onSuccess: refresh, onError: (error: Error) => toast.error(error.message) });
-  const uploadFiles = async (files: FileList) => { if (!selected || !user) return; const chosen = Array.from(files); const invalid = chosen.find((file) => file.size > MAX_TASK_ATTACHMENT_BYTES); if (invalid) return toast.error(`${invalid.name} ultrapassa 50 MB.`); try { for (const file of chosen) { const path = `service-requests/${selected.id}/${crypto.randomUUID()}-${file.name}`; const { error: uploadError } = await supabase.storage.from("service-request-attachments").upload(path, file); if (uploadError) throw uploadError; const { error } = await (supabase.from("service_request_attachments") as any).insert({ request_id: selected.id, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id }); if (error) throw error; } await addActivity(selected.id, "attachment_added", `${chosen.length} anexo(s) adicionado(s)`); refresh(); toast.success("Anexo(s) incluído(s)."); } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível anexar."); } };
+  const { data: messages = [] } = useQuery({
+    queryKey: ["service_request_messages", selected?.id],
+    enabled: !!selected,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("service_request_messages") as any)
+        .select("*")
+        .eq("request_id", selected!.id)
+        .order("created_at");
+      if (error) throw error;
+      return (data ?? []) as Message[];
+    },
+  });
+  const { data: activity = [] } = useQuery({
+    queryKey: ["service_request_activity", selected?.id],
+    enabled: !!selected,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("service_request_activity") as any)
+        .select("*")
+        .eq("request_id", selected!.id)
+        .order("created_at");
+      if (error) throw error;
+      return (data ?? []) as Activity[];
+    },
+  });
+  const { data: participants = [] } = useQuery({
+    queryKey: ["service_request_participants", selected?.id],
+    enabled: !!selected,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("service_request_participants") as any)
+        .select("user_id")
+        .eq("request_id", selected!.id);
+      if (error) throw error;
+      return (data ?? []) as { user_id: string }[];
+    },
+  });
+  const { data: assignees = [] } = useQuery({
+    queryKey: ["service_request_assignees", selected?.id],
+    enabled: !!selected,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("service_request_assignees") as any)
+        .select("user_id")
+        .eq("request_id", selected!.id);
+      if (error) throw error;
+      return (data ?? []) as { user_id: string }[];
+    },
+  });
+  const { data: attachments = [] } = useQuery({
+    queryKey: ["service_request_attachments", selected?.id],
+    enabled: !!selected,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("service_request_attachments") as any)
+        .select("*")
+        .eq("request_id", selected!.id)
+        .order("created_at");
+      if (error) throw error;
+      return (data ?? []) as Attachment[];
+    },
+  });
+  const nameOf = (id: string | null) =>
+    profiles.find((profile) => profile.id === id)?.full_name ||
+    profiles.find((profile) => profile.id === id)?.email ||
+    "Usuário";
+  const refresh = () =>
+    [
+      "service_requests",
+      "service_request_messages",
+      "service_request_activity",
+      "service_request_participants",
+      "service_request_assignees",
+      "service_request_attachments",
+    ].forEach((key) => void qc.invalidateQueries({ queryKey: [key] }));
+  const addActivity = async (requestId: string, kind: string, details: string) => {
+    if (!user) return;
+    await (supabase.from("service_request_activity") as any).insert({
+      request_id: requestId,
+      actor_id: user.id,
+      kind,
+      details,
+    });
+  };
+  const createRequest = useMutation({
+    mutationFn: async () => {
+      if (!user || !form.title.trim()) throw new Error("Informe o assunto da solicitação.");
+      const { data: requestId, error } = await (supabase.rpc as any)("create_service_request", {
+        p_title: form.title.trim(),
+        p_description: form.description.trim() || null,
+        p_client_id: form.clientId || null,
+        p_priority: form.priority,
+        p_due_date: form.dueDate || null,
+        p_participant_ids: selectedParticipants,
+      });
+      if (error) throw error;
+      if (!requestId) throw new Error("Não foi possível criar a solicitação.");
+      return { id: requestId };
+    },
+    onSuccess: (request) => {
+      refresh();
+      setSelectedId(request.id);
+      setDialogOpen(false);
+      setForm({ title: "", description: "", clientId: "", priority: "medium", dueDate: "" });
+      setSelectedParticipants([]);
+      toast.success("Solicitação criada.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const sendMessage = useMutation({
+    mutationFn: async () => {
+      if (!selected || !user || !message.trim()) return;
+      const { error } = await (supabase.from("service_request_messages") as any).insert({
+        request_id: selected.id,
+        author_id: user.id,
+        body: message.trim(),
+      });
+      if (error) throw error;
+      await (supabase.from("service_requests") as any)
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", selected.id);
+    },
+    onSuccess: () => {
+      setMessage("");
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const updateRequest = useMutation({
+    mutationFn: async ({
+      field,
+      value,
+      kind,
+      label,
+    }: {
+      field: string;
+      value: string;
+      kind: string;
+      label: string;
+    }) => {
+      if (!selected) return;
+      const { error } = await (supabase.from("service_requests") as any)
+        .update({ [field]: value })
+        .eq("id", selected.id);
+      if (error) throw error;
+      await addActivity(selected.id, kind, label);
+    },
+    onSuccess: refresh,
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const uploadFiles = async (files: FileList) => {
+    if (!selected || !user) return;
+    const chosen = Array.from(files);
+    const invalid = chosen.find((file) => file.size > MAX_TASK_ATTACHMENT_BYTES);
+    if (invalid) return toast.error(`${invalid.name} ultrapassa 50 MB.`);
+    setIsUploading(true);
+    try {
+      for (const file of chosen) {
+        const path = `service-requests/${selected.id}/${crypto.randomUUID()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("service-request-attachments")
+          .upload(path, file);
+        if (uploadError) throw uploadError;
+        const { error } = await (supabase.from("service_request_attachments") as any).insert({
+          request_id: selected.id,
+          file_name: file.name,
+          storage_path: path,
+          mime_type: file.type || null,
+          size_bytes: file.size,
+          uploaded_by: user.id,
+        });
+        if (error) throw error;
+      }
+      await addActivity(selected.id, "attachment_added", `${chosen.length} anexo(s) adicionado(s)`);
+      refresh();
+      toast.success("Anexo(s) incluído(s).");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível anexar.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
   const filtered = requests.filter((request) => filter === "all" || request.status === filter);
-  const timeline = useMemo(() => [...messages.map((item) => ({ type: "message" as const, date: item.created_at, item })), ...activity.map((item) => ({ type: "activity" as const, date: item.created_at, item }))].sort((a, b) => a.date.localeCompare(b.date)), [activity, messages]);
-  return <div className="flex h-full min-h-0 flex-col p-4 md:p-6"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-muted-foreground">Central da equipe</p><h1 className="text-2xl font-semibold">Solicitações</h1><p className="text-sm text-muted-foreground">Conversa, responsáveis, prazos e documentos em um único histórico.</p></div><Button onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Nova solicitação</Button></div><div className="mb-3 flex gap-2 overflow-x-auto">{(["all", "new", "in_progress", "resolved"] as const).map((item) => <Button key={item} size="sm" variant={filter === item ? "default" : "outline"} onClick={() => setFilter(item)}>{item === "all" ? "Todas" : statusLabel[item]}</Button>)}</div><div className="grid min-h-0 flex-1 overflow-hidden rounded-xl border bg-card lg:grid-cols-[280px_minmax(0,1fr)_300px]"> <ScrollArea className="border-b lg:border-b-0 lg:border-r"><div className="p-2">{isLoading ? <p className="p-4 text-sm text-muted-foreground">Carregando…</p> : filtered.length === 0 ? <p className="p-4 text-sm text-muted-foreground">Nenhuma solicitação neste filtro.</p> : filtered.map((request) => <button key={request.id} onClick={() => setSelectedId(request.id)} className={`w-full rounded-lg p-3 text-left transition ${selected?.id === request.id ? "bg-primary/10 ring-1 ring-primary/20" : "hover:bg-muted"}`}><div className="mb-1 flex items-center justify-between gap-2"><Badge variant="outline">{statusLabel[request.status]}</Badge><span className="text-[11px] text-muted-foreground">{format(new Date(request.updated_at), "dd/MM")}</span></div><p className="line-clamp-2 text-sm font-semibold">{request.title}</p><p className="mt-1 text-xs text-muted-foreground">{priorityLabel[request.priority] ?? request.priority}</p></button>)}</div></ScrollArea>{selected ? <><div className="flex min-h-0 flex-col"><div className="border-b p-4"><div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">{selected.title}</h2><p className="mt-1 text-sm text-muted-foreground">{selected.description || "Sem descrição."}</p></div><Badge>{statusLabel[selected.status]}</Badge></div></div><ScrollArea className="min-h-0 flex-1"><div className="space-y-3 p-4">{timeline.map((entry) => entry.type === "activity" ? <div key={entry.item.id} className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-3.5 w-3.5" /><span>{nameOf(entry.item.actor_id)} · {entry.item.details}</span><span className="ml-auto">{format(new Date(entry.date), "dd/MM HH:mm")}</span></div> : <div key={entry.item.id} className={`flex gap-2 ${entry.item.author_id === user?.id ? "justify-end" : ""}`}><div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${entry.item.author_id === user?.id ? "bg-primary text-primary-foreground" : "bg-muted"}`}><p className="mb-1 text-[11px] font-semibold opacity-70">{entry.item.author_id === user?.id ? "Você" : nameOf(entry.item.author_id)} · {format(new Date(entry.date), "dd/MM HH:mm")}</p><p className="whitespace-pre-wrap">{entry.item.body}</p></div></div>)}</div></ScrollArea><div className="border-t p-3"><div className="flex gap-2"><Textarea value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void sendMessage.mutateAsync(); } }} placeholder="Adicione uma mensagem… Use Ctrl/⌘ + Enter para enviar." rows={2}/><Button size="icon" disabled={!message.trim() || sendMessage.isPending} onClick={() => void sendMessage.mutateAsync()}><Send className="h-4 w-4" /></Button></div></div></div><ScrollArea className="border-t lg:border-l lg:border-t-0"><div className="space-y-5 p-4"><Section title="Situação"><Label className="text-xs">Status</Label><Select value={selected.status} onValueChange={(value) => void updateRequest.mutateAsync({ field: "status", value, kind: "status_changed", label: `Status alterado para ${statusLabel[value as Status]}` })}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent>{(["new", "in_progress", "resolved"] as Status[]).map((status) => <SelectItem key={status} value={status}>{statusLabel[status]}</SelectItem>)}</SelectContent></Select><Label className="mt-3 block text-xs">Prioridade</Label><Select value={selected.priority} onValueChange={(value) => void updateRequest.mutateAsync({ field: "priority", value, kind: "priority_changed", label: `Prioridade alterada para ${priorityLabel[value]}` })}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(priorityLabel).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Section><Section title={`Responsáveis (${assignees.length})`}><ProfileChips ids={assignees.map((item) => item.user_id)} nameOf={nameOf}/></Section><Section title={`Participantes (${participants.length})`}><ProfileChips ids={participants.map((item) => item.user_id)} nameOf={nameOf}/></Section><Section title={`Anexos (${attachments.length})`}><input id="request-files" type="file" multiple className="hidden" onChange={(event) => { if (event.target.files) void uploadFiles(event.target.files); event.currentTarget.value = ""; }} /><Button size="sm" variant="outline" className="w-full" onClick={() => document.getElementById("request-files")?.click()}><Paperclip className="mr-2 h-4 w-4" />Adicionar anexo</Button><div className="mt-2 space-y-1">{attachments.map((attachment) => <button key={attachment.id} className="flex w-full items-center gap-2 rounded p-1 text-left text-xs hover:bg-muted" onClick={async () => { const { data } = await supabase.storage.from("service-request-attachments").createSignedUrl(attachment.storage_path, 60); if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer"); }}><FileText className="h-3.5 w-3.5" /><span className="truncate">{attachment.file_name}</span></button>)}</div></Section></div></ScrollArea></> : <div className="grid min-h-[360px] place-items-center lg:col-span-2"><div className="text-center text-muted-foreground"><MessageCircle className="mx-auto mb-2 h-8 w-8" />Selecione ou crie uma solicitação.</div></div>}</div><Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent><DialogHeader><DialogTitle>Nova solicitação</DialogTitle></DialogHeader><div className="space-y-3"><div><Label>Assunto</Label><Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Ex.: Documentos para cadastro" /></div><div><Label>Descrição</Label><Textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Explique o que precisa ser resolvido." /></div><div className="grid grid-cols-2 gap-3"><div><Label>Cliente</Label><Select value={form.clientId || "none"} onValueChange={(value) => setForm({ ...form, clientId: value === "none" ? "" : value })}><SelectTrigger><SelectValue placeholder="Sem cliente" /></SelectTrigger><SelectContent><SelectItem value="none">Sem cliente</SelectItem>{clients.map((client) => <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>)}</SelectContent></Select></div><div><Label>Prioridade</Label><Select value={form.priority} onValueChange={(value) => setForm({ ...form, priority: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(priorityLabel).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div></div><div><Label>Participantes</Label><div className="mt-2 max-h-32 space-y-2 overflow-y-auto rounded-md border p-2">{profiles.filter((profile) => profile.id !== user?.id && profile.is_active !== false).map((profile) => <label key={profile.id} className="flex cursor-pointer items-center gap-2 text-sm"><Checkbox checked={selectedParticipants.includes(profile.id)} onCheckedChange={(checked) => setSelectedParticipants((current) => checked ? [...current, profile.id] : current.filter((id) => id !== profile.id))}/>{profile.full_name || profile.email}</label>)}</div></div></div><DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button><Button disabled={createRequest.isPending} onClick={() => void createRequest.mutateAsync()}>Criar solicitação</Button></DialogFooter></DialogContent></Dialog></div>;
+  const timeline = useMemo(
+    () =>
+      [
+        ...messages.map((item) => ({ type: "message" as const, date: item.created_at, item })),
+        ...activity.map((item) => ({ type: "activity" as const, date: item.created_at, item })),
+      ].sort((a, b) => a.date.localeCompare(b.date)),
+    [activity, messages],
+  );
+  return (
+    <div className="flex h-full min-h-0 flex-col p-4 md:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[.18em] text-muted-foreground">
+            Central da equipe
+          </p>
+          <h1 className="text-2xl font-semibold">Solicitações</h1>
+          <p className="text-sm text-muted-foreground">
+            Conversa, responsáveis, prazos e documentos em um único histórico.
+          </p>
+        </div>
+        <Button onClick={() => setDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nova solicitação
+        </Button>
+      </div>
+      <div className="mb-3 flex gap-2 overflow-x-auto">
+        {(["all", "new", "in_progress", "resolved"] as const).map((item) => (
+          <Button
+            key={item}
+            size="sm"
+            variant={filter === item ? "default" : "outline"}
+            onClick={() => setFilter(item)}
+          >
+            {item === "all" ? "Todas" : statusLabel[item]}
+          </Button>
+        ))}
+      </div>
+      <div className="grid min-h-0 flex-1 overflow-hidden rounded-xl border bg-card lg:grid-cols-[280px_minmax(0,1fr)_300px]">
+        {" "}
+        <ScrollArea className="border-b lg:border-b-0 lg:border-r">
+          <div className="p-2">
+            {isLoading ? (
+              <p className="p-4 text-sm text-muted-foreground">Carregando…</p>
+            ) : filtered.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">Nenhuma solicitação neste filtro.</p>
+            ) : (
+              filtered.map((request) => (
+                <button
+                  key={request.id}
+                  onClick={() => setSelectedId(request.id)}
+                  className={`w-full rounded-lg p-3 text-left transition ${selected?.id === request.id ? "bg-primary/10 ring-1 ring-primary/20" : "hover:bg-muted"}`}
+                >
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <Badge variant="outline">{statusLabel[request.status]}</Badge>
+                    <span className="text-[11px] text-muted-foreground">
+                      {format(new Date(request.updated_at), "dd/MM")}
+                    </span>
+                  </div>
+                  <p className="line-clamp-2 text-sm font-semibold">{request.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {priorityLabel[request.priority] ?? request.priority}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+        {selected ? (
+          <>
+            <div className="flex min-h-0 flex-col">
+              <div className="border-b p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">{selected.title}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {selected.description || "Sem descrição."}
+                    </p>
+                  </div>
+                  <Badge>{statusLabel[selected.status]}</Badge>
+                </div>
+              </div>
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="space-y-3 p-4">
+                  {timeline.map((entry) =>
+                    entry.type === "activity" ? (
+                      <div
+                        key={entry.item.id}
+                        className="flex items-center gap-2 text-xs text-muted-foreground"
+                      >
+                        <Clock3 className="h-3.5 w-3.5" />
+                        <span>
+                          {nameOf(entry.item.actor_id)} · {entry.item.details}
+                        </span>
+                        <span className="ml-auto">
+                          {format(new Date(entry.date), "dd/MM HH:mm")}
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        key={entry.item.id}
+                        className={`flex gap-2 ${entry.item.author_id === user?.id ? "justify-end" : ""}`}
+                      >
+                        <div
+                          className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${entry.item.author_id === user?.id ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+                        >
+                          <p className="mb-1 text-[11px] font-semibold opacity-70">
+                            {entry.item.author_id === user?.id
+                              ? "Você"
+                              : nameOf(entry.item.author_id)}{" "}
+                            · {format(new Date(entry.date), "dd/MM HH:mm")}
+                          </p>
+                          <p className="whitespace-pre-wrap">{entry.item.body}</p>
+                        </div>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </ScrollArea>
+              <div className="border-t p-3">
+                <div className="flex gap-2">
+                  <Textarea
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    onKeyDown={(event) => {
+                      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                        event.preventDefault();
+                        void sendMessage.mutateAsync();
+                      }
+                    }}
+                    placeholder="Adicione uma mensagem… Use Ctrl/⌘ + Enter para enviar."
+                    rows={2}
+                  />
+                  <Button
+                    size="icon"
+                    disabled={!message.trim() || sendMessage.isPending}
+                    onClick={() => void sendMessage.mutateAsync()}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <ScrollArea className="min-w-0 border-t lg:border-l lg:border-t-0">
+              <div className="space-y-5 p-4">
+                <Section title="Situação">
+                  <Label className="text-xs">Status</Label>
+                  <Select
+                    value={selected.status}
+                    onValueChange={(value) =>
+                      void updateRequest.mutateAsync({
+                        field: "status",
+                        value,
+                        kind: "status_changed",
+                        label: `Status alterado para ${statusLabel[value as Status]}`,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(["new", "in_progress", "resolved"] as Status[]).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {statusLabel[status]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Label className="mt-3 block text-xs">Prioridade</Label>
+                  <Select
+                    value={selected.priority}
+                    onValueChange={(value) =>
+                      void updateRequest.mutateAsync({
+                        field: "priority",
+                        value,
+                        kind: "priority_changed",
+                        label: `Prioridade alterada para ${priorityLabel[value]}`,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(priorityLabel).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Section>
+                <Section title={`Responsáveis (${assignees.length})`}>
+                  <ProfileChips ids={assignees.map((item) => item.user_id)} nameOf={nameOf} />
+                </Section>
+                <Section title={`Participantes (${participants.length})`}>
+                  <ProfileChips ids={participants.map((item) => item.user_id)} nameOf={nameOf} />
+                </Section>
+                <Section title={`Anexos (${attachments.length})`}>
+                  <input
+                    id="request-files"
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => {
+                      if (event.target.files) void uploadFiles(event.target.files);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full min-w-0"
+                    disabled={isUploading}
+                    onClick={() => document.getElementById("request-files")?.click()}
+                  >
+                    <Paperclip className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="truncate">{isUploading ? "Enviando arquivo…" : "Adicionar anexo"}</span>
+                  </Button>
+                  <div className="mt-2 space-y-1 overflow-hidden">
+                    {attachments.map((attachment) => (
+                      <button
+                        key={attachment.id}
+                        title={`Abrir ${attachment.file_name}`}
+                        className="flex w-full min-w-0 items-center gap-2 rounded-md border bg-muted/30 p-2 text-left text-xs transition-colors hover:bg-muted"
+                        onClick={async () => {
+                          const { data } = await supabase.storage
+                            .from("service-request-attachments")
+                            .createSignedUrl(attachment.storage_path, 60);
+                          if (data?.signedUrl)
+                            window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate">{attachment.file_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </Section>
+              </div>
+            </ScrollArea>
+          </>
+        ) : (
+          <div className="grid min-h-[360px] place-items-center lg:col-span-2">
+            <div className="text-center text-muted-foreground">
+              <MessageCircle className="mx-auto mb-2 h-8 w-8" />
+              Selecione ou crie uma solicitação.
+            </div>
+          </div>
+        )}
+      </div>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova solicitação</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Assunto</Label>
+              <Input
+                value={form.title}
+                onChange={(event) => setForm({ ...form, title: event.target.value })}
+                placeholder="Ex.: Documentos para cadastro"
+              />
+            </div>
+            <div>
+              <Label>Descrição</Label>
+              <Textarea
+                value={form.description}
+                onChange={(event) => setForm({ ...form, description: event.target.value })}
+                placeholder="Explique o que precisa ser resolvido."
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Cliente</Label>
+                <Select
+                  value={form.clientId || "none"}
+                  onValueChange={(value) =>
+                    setForm({ ...form, clientId: value === "none" ? "" : value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem cliente</SelectItem>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Prioridade</Label>
+                <Select
+                  value={form.priority}
+                  onValueChange={(value) => setForm({ ...form, priority: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(priorityLabel).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Participantes</Label>
+              <div className="mt-2 max-h-32 space-y-2 overflow-y-auto rounded-md border p-2">
+                {profiles
+                  .filter((profile) => profile.id !== user?.id && profile.is_active !== false)
+                  .map((profile) => (
+                    <label
+                      key={profile.id}
+                      className="flex cursor-pointer items-center gap-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={selectedParticipants.includes(profile.id)}
+                        onCheckedChange={(checked) =>
+                          setSelectedParticipants((current) =>
+                            checked
+                              ? [...current, profile.id]
+                              : current.filter((id) => id !== profile.id),
+                          )
+                        }
+                      />
+                      {profile.full_name || profile.email}
+                    </label>
+                  ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={createRequest.isPending}
+              onClick={() => void createRequest.mutateAsync()}
+            >
+              Criar solicitação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) { return <section><h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">{title}</h3>{children}</section>; }
-function ProfileChips({ ids, nameOf }: { ids: string[]; nameOf: (id: string) => string }) { return ids.length ? <div className="space-y-1">{ids.map((id) => <div key={id} className="flex items-center gap-2 text-sm"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold">{nameOf(id).slice(0, 2).toUpperCase()}</span>{nameOf(id)}</div>)}</div> : <p className="text-sm text-muted-foreground">Ninguém atribuído.</p>; }
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+function ProfileChips({ ids, nameOf }: { ids: string[]; nameOf: (id: string) => string }) {
+  return ids.length ? (
+    <div className="space-y-1">
+      {ids.map((id) => (
+        <div key={id} className="flex items-center gap-2 text-sm">
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold">
+            {nameOf(id).slice(0, 2).toUpperCase()}
+          </span>
+          {nameOf(id)}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <p className="text-sm text-muted-foreground">Ninguém atribuído.</p>
+  );
+}
