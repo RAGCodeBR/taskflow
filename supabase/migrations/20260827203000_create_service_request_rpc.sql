@@ -15,10 +15,9 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_actor_id uuid := auth.uid();
   v_request_id uuid;
 BEGIN
-  IF v_actor_id IS NULL THEN
+  IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Sessão inválida. Entre novamente para criar uma solicitação.' USING ERRCODE = '42501';
   END IF;
 
@@ -27,19 +26,20 @@ BEGIN
   END IF;
 
   INSERT INTO public.service_requests (title, description, client_id, priority, due_date, created_by)
-  VALUES (trim(p_title), nullif(trim(coalesce(p_description, '')), ''), p_client_id, p_priority, p_due_date, v_actor_id)
+  VALUES (trim(p_title), nullif(trim(coalesce(p_description, '')), ''), p_client_id, p_priority, p_due_date, auth.uid())
   RETURNING id INTO v_request_id;
 
   INSERT INTO public.service_request_participants (request_id, user_id, added_by)
-  SELECT v_request_id, participant_id, v_actor_id
-  FROM (
-    SELECT v_actor_id AS participant_id
-    UNION
-    SELECT participant_id FROM unnest(coalesce(p_participant_ids, ARRAY[]::uuid[])) AS participant_id
-  ) participants;
+  VALUES (v_request_id, auth.uid(), auth.uid())
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.service_request_participants (request_id, user_id, added_by)
+  SELECT v_request_id, participant_id, auth.uid()
+  FROM unnest(coalesce(p_participant_ids, ARRAY[]::uuid[])) AS selected(participant_id)
+  ON CONFLICT DO NOTHING;
 
   INSERT INTO public.service_request_activity (request_id, actor_id, kind, details)
-  VALUES (v_request_id, v_actor_id, 'created', 'Solicitação criada');
+  VALUES (v_request_id, auth.uid(), 'created', 'Solicitação criada');
 
   RETURN v_request_id;
 END;
