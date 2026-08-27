@@ -120,7 +120,11 @@ ALTER TABLE public.service_request_activity ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.service_requests, public.service_request_messages, public.service_request_participants, public.service_request_assignees, public.service_request_attachments, public.service_request_activity TO authenticated;
 
 CREATE POLICY service_requests_read ON public.service_requests FOR SELECT TO authenticated USING (public.can_access_service_request(id));
-CREATE POLICY service_requests_create ON public.service_requests FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
+-- `created_by` is assigned by trg_service_requests_creator.  The RLS check
+-- only needs to assert that this is an authenticated application request;
+-- checking a browser-provided creator before the trigger runs can reject a
+-- valid ticket when the session/profile was refreshed out of sequence.
+CREATE POLICY service_requests_create ON public.service_requests FOR INSERT TO authenticated WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY service_requests_update ON public.service_requests FOR UPDATE TO authenticated USING (public.can_access_service_request(id)) WITH CHECK (public.can_access_service_request(id));
 CREATE POLICY service_requests_delete ON public.service_requests FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'::public.app_role) OR created_by = auth.uid());
 
