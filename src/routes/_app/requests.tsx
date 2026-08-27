@@ -114,7 +114,9 @@ function RequestsPage() {
   const { data: clients = [] } = useClients();
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | Status>("all");
+  const [statusFilters, setStatusFilters] = useState<Status[]>([]);
+  const [clientFilter, setClientFilter] = useState("all");
+  const [assigneeFilter, setAssigneeFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -410,11 +412,20 @@ function RequestsPage() {
   };
   const filtered = requests.filter(
     (request) =>
-      (filter === "all" || request.status === filter) &&
+      (statusFilters.length === 0 || statusFilters.includes(request.status)) &&
+      (clientFilter === "all" || request.client_id === clientFilter) &&
+      (assigneeFilter === "all" ||
+        allAssignees.some(
+          (assignee) => assignee.request_id === request.id && assignee.user_id === assigneeFilter,
+        )) &&
       `${request.title} ${clients.find((client) => client.id === request.client_id)?.name || ""}`
         .toLocaleLowerCase()
         .includes(search.trim().toLocaleLowerCase()),
   );
+  const toggleStatusFilter = (status: Status) =>
+    setStatusFilters((current) =>
+      current.includes(status) ? current.filter((item) => item !== status) : [...current, status],
+    );
   const timeline = useMemo(
     () =>
       [
@@ -424,64 +435,100 @@ function RequestsPage() {
     [activity, messages],
   );
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background p-4 md:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="flex h-full min-h-0 flex-col bg-background p-5 md:p-7">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-muted-foreground">
-            Central da equipe
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Gestão das solicitações</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Acompanhe atendimentos, responsáveis, conversas e documentos.
-          </p>
+          <h1 className="text-lg font-semibold tracking-tight">Gestão das solicitações</h1>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button className="rounded-full px-4" onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Nova solicitação
         </Button>
       </div>
       {!selected && (
-        <>
-          <div className="mb-3 flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm sm:flex-row sm:items-center">
-            <div className="relative min-w-0 flex-1">
+        <div className="mb-5 space-y-3 border-b border-border/70 pb-4">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="relative w-full max-w-md min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                className="pl-9"
-                placeholder="Buscar por assunto ou cliente…"
+                className="h-9 rounded-full border-0 bg-muted/55 pl-9 shadow-none focus-visible:ring-1"
+                placeholder="Buscar por ID, cliente ou assunto…"
               />
             </div>
-            <span className="shrink-0 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+              {(["new", "in_progress", "resolved"] as Status[]).map((status) => {
+                const checked = statusFilters.includes(status);
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    className={`flex items-center gap-1.5 transition-colors ${checked ? "text-foreground" : "hover:text-foreground"}`}
+                    onClick={() => toggleStatusFilter(status)}
+                  >
+                    <span
+                      className={`grid h-4 w-4 place-items-center rounded-[4px] border ${
+                        checked
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-muted-foreground/55 bg-transparent"
+                      }`}
+                    >
+                      {checked && <Check className="h-3 w-3" />}
+                    </span>
+                    {statusLabel[status]}
+                  </button>
+                );
+              })}
+              {statusFilters.length > 0 && (
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={() => setStatusFilters([])}
+                >
+                  Limpar status
+                </button>
+              )}
+            </div>
+            <span className="ml-auto text-xs text-muted-foreground">
               {filtered.length} solicitação(ões)
             </span>
           </div>
-          <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-            {(["all", "new", "in_progress", "resolved"] as const).map((item) => {
-              const count =
-                item === "all"
-                  ? requests.length
-                  : requests.filter((request) => request.status === item).length;
-              return (
-                <Button
-                  key={item}
-                  size="sm"
-                  variant={filter === item ? "default" : "outline"}
-                  onClick={() => setFilter(item)}
-                >
-                  {item === "all" ? "Todas" : statusLabel[item]}{" "}
-                  <span className="ml-1 opacity-70">{count}</span>
-                </Button>
-              );
-            })}
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Select value={clientFilter} onValueChange={setClientFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-44 border-0 bg-transparent px-2 shadow-none hover:bg-muted/50 focus:ring-0">
+                <SelectValue placeholder="Todos os clientes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os clientes</SelectItem>
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-52 border-0 bg-transparent px-2 shadow-none hover:bg-muted/50 focus:ring-0">
+                <SelectValue placeholder="Todos os colaboradores" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os colaboradores</SelectItem>
+                {mentionProfiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.full_name || profile.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </>
+        </div>
       )}
       <div
-        className={`grid overflow-hidden rounded-xl border bg-card shadow-sm ${selected ? "min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_310px]" : "shrink-0"}`}
+        className={`grid overflow-hidden ${selected ? "min-h-0 flex-1 rounded-xl border bg-card shadow-sm lg:grid-cols-[minmax(0,1fr)_310px]" : "shrink-0"}`}
       >
         <ScrollArea className={selected ? "hidden" : "min-h-0"}>
-          <div className="p-2 md:p-3">
+          <div>
             {isLoading ? (
               <p className="p-4 text-sm text-muted-foreground">Carregando…</p>
             ) : filtered.length === 0 ? (
@@ -492,37 +539,42 @@ function RequestsPage() {
                 </div>
               </div>
             ) : (
-              <div className="divide-y rounded-lg border bg-card">
-                <div className="hidden grid-cols-[minmax(0,1fr)_220px_170px_110px] gap-4 bg-muted/45 px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground md:grid">
-                  <span>Assunto / cliente</span>
-                  <span>Status · prioridade</span>
-                  <span>Responsáveis</span>
-                  <span>Atualizado</span>
+              <div className="divide-y divide-border/70">
+                <div className="hidden grid-cols-[minmax(0,1fr)_270px_210px_120px] gap-4 px-4 pb-2 text-[10px] font-bold uppercase tracking-[.08em] text-muted-foreground md:grid">
+                  <span>Assunto · cliente</span>
+                  <span>Status · prioridade · prazo</span>
+                  <span>Pessoas envolvidas</span>
+                  <span>Última atualização</span>
                 </div>
                 {filtered.map((request) => (
                   <button
                     key={request.id}
                     onClick={() => setSelectedId(request.id)}
-                    className="grid w-full gap-3 px-4 py-3 text-left transition hover:bg-muted/70 md:grid-cols-[minmax(0,1fr)_220px_170px_110px] md:items-center"
+                    className="grid w-full gap-3 px-4 py-3 text-left transition odd:bg-emerald-500/[0.035] hover:bg-muted/55 md:grid-cols-[minmax(0,1fr)_270px_210px_120px] md:items-center"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">
                         <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
                         {request.title}
                       </p>
-                  <p className="mt-1 truncate text-xs text-primary/80">
-                    {clients.find((client) => client.id === request.client_id)?.name ||
-                      "Sem cliente vinculado"}
-                  </p>
-                  {request.description && (
-                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                      {request.description}
-                    </p>
-                  )}
+                      <p className="mt-1 truncate text-xs text-primary/80">
+                        {clients.find((client) => client.id === request.client_id)?.name ||
+                          "Sem cliente vinculado"}
+                      </p>
+                      {request.description && (
+                        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                          {request.description}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <StatusBadge status={request.status} />
                       <PriorityBadge priority={request.priority} />
+                      {request.due_date && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {format(new Date(`${request.due_date}T12:00:00`), "dd/MM/yyyy")}
+                        </span>
+                      )}
                     </div>
                     <RequestMembers
                       assigneeIds={allAssignees
@@ -699,7 +751,9 @@ function RequestsPage() {
                             onClick={() => insertMention(profile)}
                           >
                             <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
-                              {(profile.full_name || profile.email || "U").slice(0, 2).toUpperCase()}
+                              {(profile.full_name || profile.email || "U")
+                                .slice(0, 2)
+                                .toUpperCase()}
                             </span>
                             <span className="truncate">{profile.full_name || profile.email}</span>
                           </button>
