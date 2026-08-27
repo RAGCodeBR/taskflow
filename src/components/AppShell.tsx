@@ -108,7 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           className={`flex ${sidebarOpen ? "flex-col items-center gap-3 py-4 px-5" : "items-center justify-center py-5 px-2"}`}
         >
           <div
-            className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 ${sidebarOpen ? "h-16 w-40 p-1" : "h-9 w-9 p-0.5"}`}
+            className={`flex shrink-0 items-center justify-center ${sidebarOpen ? "h-16 w-40" : "h-9 w-9"}`}
           >
             <img
               src={businessMentoringLogo}
@@ -233,7 +233,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <div className="flex items-center justify-between px-5 py-4">
               <div className="flex flex-col items-center gap-3">
-                <div className="flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 p-1">
+                <div className="flex h-16 w-40 shrink-0 items-center justify-center">
                   <img
                     src={businessMentoringLogo}
                     alt="TaskFlow"
