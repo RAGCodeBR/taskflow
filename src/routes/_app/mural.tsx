@@ -61,13 +61,13 @@ type MuralReaction = {
 };
 
 const COLORS = [
-  { value: "sky", label: "Azul", card: "bg-sky-200/85 dark:bg-sky-900/65" },
-  { value: "amber", label: "Amarelo", card: "bg-amber-200/85 dark:bg-amber-900/65" },
-  { value: "violet", label: "Lilás", card: "bg-violet-200/85 dark:bg-violet-900/65" },
-  { value: "green", label: "Verde", card: "bg-green-200/85 dark:bg-green-900/65" },
-  { value: "rose", label: "Rosa", card: "bg-pink-200/85 dark:bg-pink-900/65" },
-  { value: "red", label: "Vermelho", card: "bg-red-200/85 dark:bg-red-900/65" },
-  { value: "stone", label: "Cinza", card: "bg-stone-200/85 dark:bg-stone-800" },
+  { value: "sky", label: "Azul", card: "bg-[#d9eff7] text-[#263b42]" },
+  { value: "amber", label: "Amarelo", card: "bg-[#fff6a8] text-[#423b1b]" },
+  { value: "violet", label: "Lilás", card: "bg-[#e9e1ff] text-[#39344f]" },
+  { value: "green", label: "Verde", card: "bg-[#caffdf] text-[#294438]" },
+  { value: "rose", label: "Rosa", card: "bg-[#ffe1f0] text-[#4c3543]" },
+  { value: "red", label: "Vermelho", card: "bg-[#ffdcd5] text-[#553832]" },
+  { value: "stone", label: "Cinza", card: "bg-[#f0eee9] text-[#343330]" },
 ] as const;
 
 type CardSize = "compact" | "normal" | "large";
@@ -109,6 +109,11 @@ function textStyleCss(style: TextStyle | null | undefined) {
   return TEXT_STYLES.find((item) => item.value === style)?.css ?? TEXT_STYLES[0].css;
 }
 
+function profileName(profiles: Array<{ id: string; full_name: string | null; email?: string | null }>, userId?: string) {
+  const name = profiles.find((profile) => profile.id === userId)?.full_name;
+  return name?.split(" ")[0] || "equipe";
+}
+
 function MuralPage() {
   const { user, isAdmin } = useAuth();
   const { data: profiles = [] } = useProfiles();
@@ -116,7 +121,7 @@ function MuralPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editingPost, setEditingPost] = useState<MuralPost | null>(null);
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [postFilter, setPostFilter] = useState<"all" | "pinned" | "open" | "completed">("all");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [frontCardId, setFrontCardId] = useState<string | null>(null);
   const [draftPositions, setDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -288,18 +293,19 @@ function MuralPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const postCountLabel = useMemo(
-    () => `${posts.length} post-it${posts.length === 1 ? "" : "s"} no mural`,
-    [posts.length],
-  );
   const orderedPosts = useMemo(() => {
     return posts
-      .filter((post) => (showCompleted ? !!post.completed_at : !post.completed_at))
+      .filter((post) => {
+        if (postFilter === "pinned") return post.is_pinned;
+        if (postFilter === "open") return !post.completed_at;
+        if (postFilter === "completed") return !!post.completed_at;
+        return !post.completed_at;
+      })
       .sort((a, b) => {
         if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [posts, showCompleted]);
+  }, [posts, postFilter]);
   const openNewPost = () => {
     setEditingPost(null);
     setForm(emptyForm);
@@ -472,26 +478,16 @@ function MuralPage() {
   };
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5 p-4 sm:p-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="min-h-full bg-[#f6f5f0] px-4 py-5 text-[#313532] sm:px-7 sm:py-7">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <Pin className="h-4 w-4" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight">Mural</h1>
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Ideias, lembretes e comunicados compartilhados pela equipe. Arraste seus post-its pelo espaço livre; a tela rola em todas as direções e evita sobreposições. Itens fixados ficam sempre à frente. {postCountLabel}.
-          </p>
+          <p className="text-[11px] text-[#8a9089]">Mural da equipe</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Olá, {profileName(profiles, user?.id)} 👋</h1>
+          <p className="mt-1 text-sm text-[#747a74]">Recados, normas e novidades compartilhadas com a equipe.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant={showCompleted ? "secondary" : "outline"} onClick={() => setShowCompleted((current) => !current)}>
-            {showCompleted ? <RotateCcw className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-            {showCompleted ? "Post-its em aberto" : "Post-its concluídos"}
-          </Button>
+          <Button className="rounded-full bg-[#287f80] px-4 text-white hover:bg-[#236f70]" onClick={openNewPost}><Plus className="h-4 w-4" /> Novo recado</Button>
           <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) setEditingPost(null); }}>
-            <Button onClick={openNewPost}><Plus className="h-4 w-4" /> Novo post-it</Button>
           <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingPost ? "Editar post-it" : "Novo post-it"}</DialogTitle>
@@ -563,47 +559,44 @@ function MuralPage() {
         </div>
       </header>
 
+      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "Recados em aberto", value: posts.filter((post) => !post.completed_at).length, tone: "bg-[#fff0cf]" },
+          { label: "Recados fixados", value: posts.filter((post) => post.is_pinned && !post.completed_at).length, tone: "bg-[#dff2fa]" },
+          { label: "Reações da equipe", value: reactions.length, tone: "bg-[#dff5e9]" },
+          { label: "Recados concluídos", value: posts.filter((post) => !!post.completed_at).length, tone: "bg-[#f8e1ef]" },
+        ].map((metric) => (
+          <div key={metric.label} className={`flex min-h-20 items-center justify-between rounded-xl px-4 py-3 shadow-[0_1px_0_rgb(0_0_0_/_0.05)] ${metric.tone}`}>
+            <div><p className="text-sm font-medium">{metric.label}</p><p className="mt-1 text-xs text-[#727973]">Atualização do mural</p></div>
+            <strong className="text-2xl font-semibold">{metric.value}</strong>
+          </div>
+        ))}
+      </section>
+
       {isLoading ? (
-        <div className="py-20 text-center text-sm text-muted-foreground">Carregando mural...</div>
+        <div className="py-20 text-center text-sm text-[#747a74]">Carregando mural...</div>
       ) : orderedPosts.length === 0 ? (
-        <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed bg-card/60 p-8 text-center">
+        <div className="grid min-h-72 place-items-center rounded-xl border border-dashed border-[#d9dcd5] bg-white/50 p-8 text-center">
           <div>
-            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary"><Pin className="h-5 w-5" /></div>
-            <h2 className="font-semibold">{showCompleted ? "Nenhum post-it concluído" : "O mural está pronto para começar"}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{showCompleted ? "Os post-its concluídos aparecerão aqui." : "Publique o primeiro post-it para compartilhar uma ideia ou recado."}</p>
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-[#dff2fa] text-[#287f80]"><Pin className="h-5 w-5" /></div>
+            <h2 className="font-semibold">O mural está pronto para começar</h2>
+            <p className="mt-1 text-sm text-[#747a74]">Publique o primeiro recado para compartilhar uma ideia ou comunicado.</p>
           </div>
         </div>
       ) : (
-        <div className="space-y-1.5">
-          <div
-            ref={topCanvasScrollRef}
-            className="h-4 overflow-x-auto overflow-y-hidden rounded-md border border-border/60 bg-muted/30"
-            aria-label="Rolagem horizontal do mural"
-            onScroll={(event) => {
-              const viewport = canvasViewportRef.current;
-              if (viewport && viewport.scrollLeft !== event.currentTarget.scrollLeft) {
-                viewport.scrollLeft = event.currentTarget.scrollLeft;
-              }
-            }}
-          >
-            <div style={{ width: CANVAS_WIDTH, height: 1 }} />
+        <section>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#858b85]">Em destaque</p>
+            <div className="flex flex-wrap gap-1 rounded-full bg-white/70 p-1 text-xs shadow-sm">
+              {([
+                ["all", "Todos"], ["pinned", "Fixados"], ["open", "Em aberto"], ["completed", "Concluídos"],
+              ] as const).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => setPostFilter(value)} className={`rounded-full px-3 py-1 transition-colors ${postFilter === value ? "bg-[#d9efed] text-[#256e6f]" : "text-[#737a74] hover:bg-[#eeefea]"}`}>{label}</button>
+              ))}
+            </div>
           </div>
-        <div
-          ref={canvasViewportRef}
-          className="h-[calc(100dvh-15rem)] min-h-[34rem] overflow-auto rounded-2xl border border-border/60 bg-muted/20 shadow-inner"
-          onScroll={(event) => {
-            const topScroll = topCanvasScrollRef.current;
-            if (topScroll && topScroll.scrollLeft !== event.currentTarget.scrollLeft) {
-              topScroll.scrollLeft = event.currentTarget.scrollLeft;
-            }
-          }}
-        >
-          <div
-            ref={canvasRef}
-            className="relative bg-[linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)] bg-[size:28px_28px]"
-            style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
-          >
-          {orderedPosts.map((post) => {
+          <div ref={canvasRef} className="grid auto-rows-auto gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {orderedPosts.map((post, index) => {
             const canEdit = isAdmin || post.created_by === user?.id;
             const postAttachments = attachments.filter((attachment) => attachment.post_id === post.id);
             const postReactions = reactions.filter((reaction) => reaction.post_id === post.id);
@@ -616,24 +609,18 @@ function MuralPage() {
                   if (node) postRefs.current.set(post.id, node);
                   else postRefs.current.delete(post.id);
                 }}
-                className={`group absolute overflow-hidden rounded-md p-4 shadow-[0_5px_10px_-5px_rgb(0_0_0_/_0.38)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_14px_-6px_rgb(0_0_0_/_0.44)] ${post.card_size === "large" ? "w-[34rem] p-6" : post.card_size === "compact" ? "w-64 p-3" : "w-80"} ${post.is_pinned ? "ring-2 ring-primary/40" : ""} ${draggingId === post.id ? "opacity-75 shadow-xl" : ""} ${colorClass(post.color)}`}
+                className={`group relative min-w-0 self-start overflow-hidden rounded-sm border border-black/[0.035] p-4 shadow-[0_9px_18px_-14px_rgb(46_57_48_/_0.7)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_14px_24px_-15px_rgb(46_57_48_/_0.72)] ${post.card_size === "large" ? "md:col-span-2 p-6" : post.card_size === "compact" ? "max-w-xs p-3" : ""} ${post.is_pinned ? "ring-1 ring-[#287f80]/45" : ""} ${draggingId === post.id ? "opacity-75 shadow-xl" : ""} ${colorClass(post.color)}`}
                 style={{
                   ...textStyleCss(post.text_style),
-                  left: draftPositions[post.id]?.x ?? post.canvas_x,
-                  top: draftPositions[post.id]?.y ?? post.canvas_y,
-                  // Mantemos as camadas abaixo das janelas/modais da aplicação.
-                  // O post-it fixado só fica à frente dos demais cartões, nunca
-                  // à frente de um formulário aberto.
-                  zIndex: post.is_pinned ? 20 : frontCardId === post.id || draggingId === post.id
-                    ? 15
-                    : Math.max(1, orderedPosts.length - orderedPosts.findIndex((item) => item.id === post.id)),
                 }}
               >
+                <span className={`absolute -top-1 left-1/2 h-3 w-14 -translate-x-1/2 rounded-sm opacity-65 ${post.color === "amber" ? "bg-[#ffe363]" : post.color === "sky" ? "bg-[#8dd6ee]" : post.color === "green" ? "bg-[#65e7ba]" : post.color === "rose" ? "bg-[#ffa7d0]" : "bg-[#c9b7fa]"}`} />
+                {index === 4 && <span className="sr-only">Mural</span>}
                 {post.image_url && (
                   <img src={post.image_url} alt="" className="-mx-4 -mt-4 mb-4 h-36 w-[calc(100%+2rem)] object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
                 )}
-                <div className="flex items-start gap-2">
-                  <h2 className={`min-w-0 flex-1 font-bold leading-snug ${post.card_size === "large" ? "text-xl" : "text-base"}`}>{post.title}</h2>
+                <div className="flex items-start gap-2 pt-1">
+                  <div className="min-w-0 flex-1"><p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.11em] text-foreground/55">{post.tag || "Aviso"}</p><h2 className={`font-bold leading-snug ${post.card_size === "large" ? "text-xl" : "text-base"}`}>{post.title}</h2></div>
                   {canEdit && (
                     <GripVertical
                       className="h-5 w-5 shrink-0 touch-none cursor-grab opacity-55 active:cursor-grabbing"
@@ -732,8 +719,7 @@ function MuralPage() {
             );
           })}
           </div>
-        </div>
-        </div>
+        </section>
       )}
     </div>
   );
