@@ -46,6 +46,7 @@ import {
   type ClientDepartment,
   type ClientDepartmentEmployee,
   type ClientSystemAccess,
+  useProfiles,
 } from "@/hooks/use-data";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1844,19 +1845,39 @@ function AttachmentsManager({
   employeeId?: string;
   hideHeader?: boolean;
 }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const { data: profiles = [] } = useProfiles();
   const [files, setFiles] = useState<ManagedAttachment[]>([]);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
+  // Admins begin with their own uploads, but may deliberately switch to one
+  // person or all people. Other roles always remain restricted to themselves.
+  const [ownerFilter, setOwnerFilter] = useState<string>(user?.id ?? "");
   const table = employeeId ? "client_department_employee_attachments" : "client_files";
   const foreignKey = employeeId ? "employee_id" : "client_id";
   const referenceId = employeeId ?? clientId;
 
+  useEffect(() => {
+    if (user?.id) setOwnerFilter((current) => current || user.id);
+  }, [user?.id]);
+
   const load = async () => {
-    const { data, error } = await (supabase.from(table) as any)
+    // The client-wide attachment area is personal by default. Keep the
+    // employee attachment area unchanged, since it belongs to the employee.
+    if (!employeeId && !user?.id) {
+      setFiles([]);
+      return;
+    }
+
+    let query = (supabase.from(table) as any)
       .select("*")
       .eq(foreignKey, referenceId)
       .order("created_at", { ascending: false });
+    if (!employeeId) {
+      const selectedOwner = isAdmin ? ownerFilter || user!.id : user!.id;
+      if (selectedOwner !== "all") query = query.eq("uploaded_by", selectedOwner);
+    }
+    const { data, error } = await query;
     if (error) {
       toast.error(error.message);
       return;
@@ -1866,7 +1887,7 @@ function AttachmentsManager({
 
   useEffect(() => {
     void load();
-  }, [referenceId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [referenceId, ownerFilter, isAdmin, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false;
@@ -2005,6 +2026,25 @@ function AttachmentsManager({
             </p>
           </div>
           <span className="text-sm text-muted-foreground">{files.length} arquivo(s)</span>
+        </div>
+      )}
+      {isAdmin && !employeeId && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+          <Label htmlFor="client-attachment-owner" className="text-sm">Exibir anexos de</Label>
+          <select
+            id="client-attachment-owner"
+            value={ownerFilter || user?.id || ""}
+            onChange={(event) => setOwnerFilter(event.target.value)}
+            className="h-8 min-w-52 rounded-md border bg-background px-2 text-sm"
+          >
+            <option value={user?.id ?? ""}>Meus anexos</option>
+            <option value="all">Todos os usuários</option>
+            {profiles.filter((profile) => profile.id !== user?.id).map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.full_name || profile.email || "Usuário sem nome"}
+              </option>
+            ))}
+          </select>
         </div>
       )}
       <FileDropZone
