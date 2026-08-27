@@ -232,6 +232,7 @@ function AgendaPage() {
     await queryClient.invalidateQueries({ queryKey: ["agenda_calendar_sources"] });
     if (!silent) {
       if (data.importErrors?.length) toast.error(data.importErrors[0]);
+      else if (data.pushErrors?.length) toast.error(data.pushErrors[0]);
       else
         toast.success(
           `Agenda sincronizada: ${data.pushed} enviados, ${data.pulled} recebidos de ${data.remoteEvents} evento(s) no Google.`,

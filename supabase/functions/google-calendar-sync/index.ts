@@ -67,6 +67,17 @@ async function accessToken(connection: any) {
   };
 }
 
+async function tokenForConnection(admin: any, connection: any) {
+  const result = await accessToken(connection);
+  const token = typeof result === "string" ? result : result.token;
+  if (typeof result !== "string")
+    await admin
+      .from("calendar_google_connections")
+      .update({ access_token: token, access_token_expires_at: result.expiresAt })
+      .eq("id", connection.id);
+  return token;
+}
+
 async function googleRequest(token: string, url: string, init?: RequestInit) {
   const response = await fetch(url, {
     ...init,
@@ -230,25 +241,27 @@ async function sync(request: Request, body: any = {}) {
     .maybeSingle();
   if (connectionError || !connection)
     throw new Error("Conecte sua conta Google antes de sincronizar.");
-  const tokenResult = await accessToken(connection);
-  const token = typeof tokenResult === "string" ? tokenResult : tokenResult.token;
-  if (typeof tokenResult !== "string")
-    await admin
-      .from("calendar_google_connections")
-      .update({ access_token: token, access_token_expires_at: tokenResult.expiresAt })
-      .eq("id", connection.id);
-
+  const token = await tokenForConnection(admin, connection);
   const range = requestedRange(body);
   const calendars = await listAccessibleCalendars(token);
-  if (!calendars.some((calendar) => calendar.id === calendarId))
-    calendars.unshift({
-      id: calendarId,
-      summary: "Agenda compartilhada",
-      backgroundColor: "#2563eb",
-    });
+  const sharedCalendar = calendars.find((calendar) => calendar.id === calendarId);
+  const canWriteSharedCalendar =
+    sharedCalendar?.accessRole === "owner" || sharedCalendar?.accessRole === "writer";
+  // Keep the shared calendar in the local filter list, but do not request it
+  // with a collaborator's token when Google has not shared it with that user.
+  const calendarsForSources = calendars.some((calendar) => calendar.id === calendarId)
+    ? calendars
+    : [
+        {
+          id: calendarId,
+          summary: "Agenda compartilhada",
+          backgroundColor: "#2563eb",
+        },
+        ...calendars,
+      ];
 
   const { error: sourceError } = await admin.from("calendar_sources").upsert(
-    calendars.map((calendar) => ({
+    calendarsForSources.map((calendar) => ({
       google_calendar_id: calendar.id,
       name: calendar.summary || calendar.summaryOverride || calendar.id,
       color: /^#[0-9A-Fa-f]{6}$/.test(calendar.backgroundColor ?? "")
@@ -304,17 +317,33 @@ async function sync(request: Request, body: any = {}) {
     .from("calendar_events")
     .select("*")
     .in("sync_status", ["pending", "not_configured", "error"])
+    .or(`created_by.eq.${user.id},updated_by.eq.${user.id}`)
     .order("starts_at");
   if (localError) throw localError;
   let pushed = 0;
+  const pushErrors: string[] = [];
   for (const event of localEvents ?? []) {
     try {
       const targetCalendarId = event.google_calendar_id ?? calendarId;
+      if (targetCalendarId === calendarId && !canWriteSharedCalendar) {
+        const message =
+          "Sua conta Google precisa ter a permissÃ£o 'Fazer alteraÃ§Ãµes em eventos' na agenda compartilhada.";
+        await admin
+          .from("calendar_events")
+          .update({
+            sync_status: "error",
+            sync_error: message,
+          })
+          .eq("id", event.id);
+        pushErrors.push(message);
+        continue;
+      }
+      const writeToken = token;
       if (event.deleted_at) {
         if (event.google_event_id) {
           try {
             await googleRequest(
-              token,
+              writeToken,
               `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events/${encodeURIComponent(event.google_event_id)}`,
               { method: "DELETE" },
             );
@@ -333,7 +362,7 @@ async function sync(request: Request, body: any = {}) {
       if (event.google_event_id) {
         try {
           googleEvent = await googleRequest(
-            token,
+            writeToken,
             `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events/${encodeURIComponent(event.google_event_id)}`,
             { method: "PATCH", body: JSON.stringify(payload) },
           );
@@ -342,14 +371,14 @@ async function sync(request: Request, body: any = {}) {
           // The Google entry was removed outside Taskflow. Recreate it and
           // replace the stale remote ID so future edits remain synchronized.
           googleEvent = await googleRequest(
-            token,
+            writeToken,
             `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
             { method: "POST", body: JSON.stringify(payload) },
           );
         }
       } else {
         googleEvent = await googleRequest(
-          token,
+          writeToken,
           `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
           { method: "POST", body: JSON.stringify(payload) },
         );
@@ -367,13 +396,15 @@ async function sync(request: Request, body: any = {}) {
         .eq("id", event.id);
       pushed += 1;
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Erro ao enviar ao Google.";
       await admin
         .from("calendar_events")
         .update({
           sync_status: "error",
-          sync_error: error instanceof Error ? error.message : "Erro ao enviar ao Google.",
+          sync_error: message,
         })
         .eq("id", event.id);
+      pushErrors.push(message);
     }
   }
   const { data: activeEvents, error: activeEventsError } = await admin
@@ -390,6 +421,7 @@ async function sync(request: Request, body: any = {}) {
     pulled,
     remoteEvents: remoteIds.size,
     importErrors: [...new Set(importErrors)].slice(0, 3),
+    pushErrors: [...new Set(pushErrors)].slice(0, 3),
     events: activeEvents ?? [],
   });
 }

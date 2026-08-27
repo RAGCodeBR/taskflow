@@ -71,8 +71,10 @@ async function begin(request: Request) {
     response_type: "code",
     scope: `${identityScopes} ${calendarScope}`,
     access_type: "offline",
-    include_granted_scopes: "true",
-    prompt: "consent",
+    // Force the consent page so old identity-only connections also receive
+    // the Calendar permission required by the Agenda.
+    include_granted_scopes: "false",
+    prompt: "select_account consent",
     state,
   }).toString();
   return json({ authorizeUrl: authorizationUrl.toString() });
@@ -123,7 +125,7 @@ async function callback(request: Request) {
     }),
   });
   const tokens = await tokenResponse.json();
-  if (!tokenResponse.ok || !tokens.access_token || !tokens.refresh_token)
+  if (!tokenResponse.ok || !tokens.access_token)
     throw new Error("O Google não retornou uma autorização válida. Tente conectar novamente.");
   const profileResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
@@ -131,16 +133,29 @@ async function callback(request: Request) {
   const profile = await profileResponse.json();
   if (!profileResponse.ok || !profile.email)
     throw new Error("Não foi possível identificar a conta Google.");
+  const scopes = String(tokens.scope ?? "").split(/\s+/);
+  if (!scopes.includes(calendarScope))
+    throw new Error(
+      "Calendar permission was not granted. Reconnect and approve the requested access.",
+    );
+  const { data: previousConnection, error: previousConnectionError } = await admin
+    .from("calendar_google_connections")
+    .select("refresh_token")
+    .eq("user_id", stateRow.user_id)
+    .maybeSingle();
+  if (previousConnectionError) throw previousConnectionError;
+  const refreshToken = tokens.refresh_token ?? previousConnection?.refresh_token;
+  if (!refreshToken) throw new Error("Google did not return persistent access. Reconnect again.");
   const { error: connectionError } = await admin.from("calendar_google_connections").upsert(
     {
       user_id: stateRow.user_id,
       google_email: profile.email,
-      refresh_token: tokens.refresh_token,
+      refresh_token: refreshToken,
       access_token: tokens.access_token,
       access_token_expires_at: new Date(
         Date.now() + Number(tokens.expires_in ?? 3600) * 1000,
       ).toISOString(),
-      granted_scopes: tokens.scope ?? `${identityScopes} ${calendarScope}`,
+      granted_scopes: tokens.scope,
     },
     { onConflict: "user_id" },
   );
