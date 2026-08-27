@@ -4,7 +4,7 @@ import { useTasks, useClients, useAssignableProfiles, useColumns } from "@/hooks
 import { DateFilterBar } from "@/components/DateFilterBar";
 import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
 import { Card } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { CheckCircle2, ListTodo, AlertTriangle, Clock } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { format, parseISO } from "date-fns";
@@ -54,11 +54,25 @@ function Dashboard() {
     const month = filtered.filter(t => matchDateFilter(t, "this_month")).length;
     return { total, done, pending, overdue, today, week, month };
   }, [filtered]);
-  const byClient = useMemo(() => clients.map(c => ({
-    name: c.name,
-    value: filtered.filter(t => t.client_id === c.id).length,
-    color: c.color || "#1e3a8a",
-  })).filter(c => c.value > 0), [clients, filtered]);
+  const byClient = useMemo(
+    () =>
+      clients
+        .map((client) => {
+          const clientTasks = filtered.filter((task) => task.client_id === client.id);
+          const concluded = clientTasks.filter((task) => task.status === "done").length;
+          const overdue = clientTasks.filter((task) => matchDateFilter(task, "overdue")).length;
+          return {
+            name: client.name,
+            concluídas: concluded,
+            emAberto: clientTasks.length - concluded - overdue,
+            atrasadas: overdue,
+            total: clientTasks.length,
+          };
+        })
+        .filter((client) => client.total > 0)
+        .sort((a, b) => b.total - a.total),
+    [clients, filtered],
+  );
   const byUser = useMemo(() => assignableProfiles.map(p => ({
     name: (p.full_name || p.email || "?").slice(0, 12),
     feitas: filtered.filter(t => t.assignee_id === p.id && t.status === "done").length,
@@ -164,18 +178,28 @@ function Dashboard() {
           </div>
         </Card>
         <Card className="p-5">
-          <h3 className="mb-4 font-semibold">Atividades por cliente</h3>
-          <div className="h-64">
+          <div className="mb-1 flex items-baseline justify-between gap-3">
+            <h3 className="font-semibold">Panorama das atividades por cliente</h3>
+            <span className="text-xs text-muted-foreground">Conclusão × pendências</span>
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Veja onde a equipe está avançando e quais clientes concentram atrasos.
+          </p>
+          <div className="h-72">
             {byClient.length === 0 ? (
               <div className="grid h-full place-items-center text-sm text-muted-foreground">Nenhum cliente com tarefas ainda</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={byClient} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                    {byClient.map((c, i) => <Cell key={i} fill={c.color} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
+                <BarChart data={byClient} layout="vertical" margin={{ top: 4, right: 12, left: 10, bottom: 0 }}>
+                  <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis type="number" allowDecimals={false} fontSize={11} />
+                  <YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }} />
+                  <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.45 }} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="concluídas" name="Concluídas" stackId="atividade" fill="#059669" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="emAberto" name="Em aberto" stackId="atividade" fill="#2563eb" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="atrasadas" name="Atrasadas" stackId="atividade" fill="#dc2626" radius={[0, 4, 4, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             )}
           </div>

@@ -24,9 +24,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 import {
   CheckCircle2,
@@ -177,12 +174,20 @@ function ReportsPage() {
   });
 
   const byClient = clients
-    .map((c) => ({
-      name: c.name,
-      value: filteredTasks.filter((t) => t.client_id === c.id).length,
-      color: c.color || "#1e3a8a",
-    }))
-    .filter((x) => x.value > 0);
+    .map((client) => {
+      const clientTasks = filteredTasks.filter((task) => task.client_id === client.id);
+      const concluded = clientTasks.filter((task) => task.status === "done").length;
+      const overdue = clientTasks.filter((task) => matchDateFilter(task, "overdue")).length;
+      return {
+        name: client.name,
+        concluídas: concluded,
+        emAberto: clientTasks.length - concluded - overdue,
+        atrasadas: overdue,
+        total: clientTasks.length,
+      };
+    })
+    .filter((client) => client.total > 0)
+    .sort((a, b) => b.total - a.total);
 
   const admins = perUser.filter((u) => u.isAdmin);
   const members = perUser.filter((u) => !u.isAdmin);
@@ -276,7 +281,13 @@ function ReportsPage() {
           </div>
         </Card>
         <Card className="p-4">
-          <h3 className="mb-3 font-semibold">Distribuição por cliente</h3>
+          <div className="mb-1 flex items-baseline justify-between gap-3">
+            <h3 className="font-semibold">Atividades por cliente</h3>
+            <span className="text-xs text-muted-foreground">Conclusão × pendências</span>
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Comparativo de atividades concluídas, em aberto e atrasadas para cada cliente.
+          </p>
           <div className="h-72">
             {byClient.length === 0 ? (
               <div className="grid h-full place-items-center text-sm text-muted-foreground">
@@ -284,22 +295,16 @@ function ReportsPage() {
               </div>
             ) : (
               <ResponsiveContainer>
-                <PieChart>
-                  <Pie
-                    data={byClient}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    label
-                  >
-                    {byClient.map((c, i) => (
-                      <Cell key={i} fill={c.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
+                <BarChart data={byClient} layout="vertical" margin={{ top: 4, right: 12, left: 10, bottom: 0 }}>
+                  <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis type="number" allowDecimals={false} fontSize={11} />
+                  <YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }} />
+                  <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.45 }} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="concluídas" name="Concluídas" stackId="atividade" fill="#059669" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="emAberto" name="Em aberto" stackId="atividade" fill="#2563eb" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="atrasadas" name="Atrasadas" stackId="atividade" fill="#dc2626" radius={[0, 4, 4, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             )}
           </div>
