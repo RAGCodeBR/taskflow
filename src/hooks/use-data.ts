@@ -176,30 +176,37 @@ export function useGoogleCalendarConnection() {
   });
 }
 
-export function useAgendaEvents() {
+export function useAgendaEvents(rangeStart?: string, rangeEnd?: string) {
   const qc = useQueryClient();
   const { user, loading: loadingAuth } = useAuth();
 
   useEffect(() => {
     if (!user) return;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     const channel = supabase
       .channel(`agenda-events-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "calendar_events" }, () => {
-        void qc.invalidateQueries({ queryKey: ["agenda_events"] });
+        if (refreshTimer) clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+          void qc.invalidateQueries({ queryKey: ["agenda_events"] });
+        }, 750);
       })
       .subscribe();
     return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
   }, [qc, user?.id]);
 
   return useQuery({
-    queryKey: ["agenda_events"],
+    queryKey: ["agenda_events", rangeStart, rangeEnd],
     queryFn: async () => {
       // Uses the same authenticated Edge Function proven by the Google sync.
       // It bypasses browser-side RLS filtering while preserving team access.
       const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
-        body: { action: "list_events" },
+        // Loading the grid must be quick; remote Google sync remains an
+        // explicit action and this path reads the already imported records.
+        body: { action: "list_events", rangeStart, rangeEnd },
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error ?? "Não foi possível carregar a Agenda.");
@@ -217,7 +224,9 @@ export function useAgendaCalendarSources() {
     enabled: !loadingAuth && !!user,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
-        body: { action: "list_events" },
+        // Calendar filters have their own lightweight endpoint. Do not load
+        // an event range just to render the filter list.
+        body: { action: "list_sources" },
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error ?? "Não foi possível carregar as agendas.");

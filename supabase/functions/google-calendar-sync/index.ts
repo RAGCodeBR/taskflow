@@ -83,6 +83,11 @@ async function googleRequest(token: string, url: string, init?: RequestInit) {
   return data;
 }
 
+function wasRemovedFromGoogle(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return message.includes("resource has been deleted") || message.includes("not found");
+}
+
 function googleDate(event: any) {
   if (event.is_all_day) {
     const start = new Date(event.starts_at).toLocaleDateString("en-CA", {
@@ -146,21 +151,32 @@ function googleToLocal(
   };
 }
 
-async function listGoogleEvents(token: string, calendarId: string) {
+function requestedRange(body: any) {
+  const start = typeof body?.rangeStart === "string" ? new Date(body.rangeStart) : null;
+  const end = typeof body?.rangeEnd === "string" ? new Date(body.rangeEnd) : null;
+  if (start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end > start)
+    return { start, end };
+  const startDefault = new Date();
+  startDefault.setMonth(startDefault.getMonth() - 3);
+  const endDefault = new Date();
+  endDefault.setFullYear(endDefault.getFullYear() + 1);
+  return { start: startDefault, end: endDefault };
+}
+
+async function listGoogleEvents(
+  token: string,
+  calendarId: string,
+  range: { start: Date; end: Date },
+) {
   const events: any[] = [];
-  const now = new Date();
-  const timeMin = new Date(now);
-  timeMin.setMonth(timeMin.getMonth() - 3);
-  const timeMax = new Date(now);
-  timeMax.setFullYear(timeMax.getFullYear() + 1);
   let pageToken = "";
   do {
     const query = new URLSearchParams({
       singleEvents: "false",
       showDeleted: "false",
       maxResults: "2500",
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
+      timeMin: range.start.toISOString(),
+      timeMax: range.end.toISOString(),
     });
     if (pageToken) query.set("pageToken", pageToken);
     const page = await googleRequest(
@@ -203,7 +219,7 @@ async function listAccessibleCalendars(token: string) {
   );
 }
 
-async function sync(request: Request) {
+async function sync(request: Request, body: any = {}) {
   const { user, admin } = await authenticatedTeamUser(request);
   const calendarId = Deno.env.get("GOOGLE_SHARED_CALENDAR_ID");
   if (!calendarId) throw new Error("GOOGLE_SHARED_CALENDAR_ID não está configurado.");
@@ -222,6 +238,7 @@ async function sync(request: Request) {
       .update({ access_token: token, access_token_expires_at: tokenResult.expiresAt })
       .eq("id", connection.id);
 
+  const range = requestedRange(body);
   const calendars = await listAccessibleCalendars(token);
   if (!calendars.some((calendar) => calendar.id === calendarId))
     calendars.unshift({
@@ -246,7 +263,7 @@ async function sync(request: Request) {
   const eventPages = await Promise.allSettled(
     calendars.map(async (calendar) => ({
       calendar,
-      events: await listGoogleEvents(token, calendar.id),
+      events: await listGoogleEvents(token, calendar.id, range),
     })),
   );
   const importedCalendars = eventPages
@@ -272,9 +289,6 @@ async function sync(request: Request) {
       .filter((event) => event.taskflowCalendar.id === calendarId)
       .map((event) => event.id),
   );
-  const remoteEventKeys = new Set(
-    googleEvents.map((event) => `${event.taskflowCalendar.id}:${event.id}`),
-  );
   const remotePayloads = googleEvents.map((event) =>
     googleToLocal(event, user.id, event.taskflowCalendar),
   );
@@ -296,29 +310,50 @@ async function sync(request: Request) {
   for (const event of localEvents ?? []) {
     try {
       const targetCalendarId = event.google_calendar_id ?? calendarId;
-      const remoteKey = `${targetCalendarId}:${event.google_event_id}`;
       if (event.deleted_at) {
-        if (event.google_event_id && remoteEventKeys.has(remoteKey))
-          await googleRequest(
-            token,
-            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events/${encodeURIComponent(event.google_event_id)}`,
-            { method: "DELETE" },
-          );
+        if (event.google_event_id) {
+          try {
+            await googleRequest(
+              token,
+              `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events/${encodeURIComponent(event.google_event_id)}`,
+              { method: "DELETE" },
+            );
+          } catch (error) {
+            if (!wasRemovedFromGoogle(error)) throw error;
+          }
+        }
+        await admin
+          .from("calendar_events")
+          .update({ sync_status: "synced", sync_error: null })
+          .eq("id", event.id);
         continue;
       }
       const payload = localPayload(event);
-      const googleEvent =
-        event.google_event_id && remoteEventKeys.has(remoteKey)
-          ? await googleRequest(
-              token,
-              `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events/${encodeURIComponent(event.google_event_id)}`,
-              { method: "PATCH", body: JSON.stringify(payload) },
-            )
-          : await googleRequest(
-              token,
-              `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
-              { method: "POST", body: JSON.stringify(payload) },
-            );
+      let googleEvent: any;
+      if (event.google_event_id) {
+        try {
+          googleEvent = await googleRequest(
+            token,
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events/${encodeURIComponent(event.google_event_id)}`,
+            { method: "PATCH", body: JSON.stringify(payload) },
+          );
+        } catch (error) {
+          if (!wasRemovedFromGoogle(error)) throw error;
+          // The Google entry was removed outside Taskflow. Recreate it and
+          // replace the stale remote ID so future edits remain synchronized.
+          googleEvent = await googleRequest(
+            token,
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
+            { method: "POST", body: JSON.stringify(payload) },
+          );
+        }
+      } else {
+        googleEvent = await googleRequest(
+          token,
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
+          { method: "POST", body: JSON.stringify(payload) },
+        );
+      }
       await admin
         .from("calendar_events")
         .update({
@@ -345,6 +380,8 @@ async function sync(request: Request) {
     .from("calendar_events")
     .select("*")
     .is("deleted_at", null)
+    .lt("starts_at", range.end.toISOString())
+    .gt("ends_at", range.start.toISOString())
     .order("starts_at", { ascending: true });
   if (activeEventsError) throw activeEventsError;
   return json({
@@ -357,14 +394,8 @@ async function sync(request: Request) {
   });
 }
 
-async function listSavedEvents(request: Request) {
-  const { user, admin } = await authenticatedTeamUser(request);
-  const [eventsResult, sourcesResult, preferencesResult] = await Promise.all([
-    admin
-      .from("calendar_events")
-      .select("*")
-      .is("deleted_at", null)
-      .order("starts_at", { ascending: true }),
+async function savedSourcesForUser(admin: any, userId: string) {
+  const [sourcesResult, preferencesResult] = await Promise.all([
     admin
       .from("calendar_sources")
       .select("google_calendar_id, name, color, is_shared")
@@ -373,18 +404,39 @@ async function listSavedEvents(request: Request) {
     admin
       .from("calendar_source_preferences")
       .select("google_calendar_id, is_visible")
-      .eq("user_id", user.id),
+      .eq("user_id", userId),
   ]);
-  if (eventsResult.error) throw eventsResult.error;
   if (sourcesResult.error) throw sourcesResult.error;
   if (preferencesResult.error) throw preferencesResult.error;
   const visibility = new Map(
     (preferencesResult.data ?? []).map((item: any) => [item.google_calendar_id, item.is_visible]),
   );
-  const sources = (sourcesResult.data ?? []).map((source: any) => ({
+  return (sourcesResult.data ?? []).map((source: any) => ({
     ...source,
     is_visible: visibility.get(source.google_calendar_id) ?? true,
   }));
+}
+
+async function listSavedSources(request: Request) {
+  const { user, admin } = await authenticatedTeamUser(request);
+  const sources = await savedSourcesForUser(admin, user.id);
+  return json({ ok: true, sources });
+}
+
+async function listSavedEvents(request: Request, body: any = {}) {
+  const { user, admin } = await authenticatedTeamUser(request);
+  const range = requestedRange(body);
+  const [eventsResult, sources] = await Promise.all([
+    admin
+      .from("calendar_events")
+      .select("*")
+      .is("deleted_at", null)
+      .lt("starts_at", range.end.toISOString())
+      .gt("ends_at", range.start.toISOString())
+      .order("starts_at", { ascending: true }),
+    savedSourcesForUser(admin, user.id),
+  ]);
+  if (eventsResult.error) throw eventsResult.error;
   return json({ ok: true, events: eventsResult.data ?? [], sources });
 }
 
@@ -409,10 +461,11 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
   try {
     const body = await request.json().catch(() => ({}));
-    if (body?.action === "list_events") return await listSavedEvents(request);
+    if (body?.action === "list_events") return await listSavedEvents(request, body);
+    if (body?.action === "list_sources") return await listSavedSources(request);
     if (body?.action === "set_calendar_visibility")
       return await setCalendarVisibility(request, body);
-    return await sync(request);
+    return await sync(request, body);
   } catch (error) {
     console.error(error);
     return json({

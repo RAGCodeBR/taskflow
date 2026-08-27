@@ -53,32 +53,33 @@ type Gesture = {
 const DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 function AgendaPage() {
-  const { data: events = [], isLoading, error } = useAgendaEvents();
+  const [cursor, setCursor] = useState(new Date());
+  const weekStart = useMemo(() => startOfWeek(cursor, { weekStartsOn: 1 }), [cursor]);
+  const agendaRangeStart = useMemo(() => startOfDay(weekStart).toISOString(), [weekStart]);
+  const agendaRangeEnd = useMemo(() => endOfDay(addDays(weekStart, 6)).toISOString(), [weekStart]);
+  const { data: events = [], isLoading, error } = useAgendaEvents(agendaRangeStart, agendaRangeEnd);
   const { data: calendarSources = [] } = useAgendaCalendarSources();
   const { user } = useAuth();
   const { data: googleConnection, isLoading: loadingGoogle } = useGoogleCalendarConnection();
   const queryClient = useQueryClient();
-  const [cursor, setCursor] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AgendaEvent | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [syncingGoogle, setSyncingGoogle] = useState(false);
-  const [syncedEvents, setSyncedEvents] = useState<AgendaEvent[] | null>(null);
   const [previewSchedule, setPreviewSchedule] = useState<Record<string, ScheduleChange>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<string[]>([]);
   const gestureRef = useRef<Gesture | null>(null);
   const skipClickRef = useRef(false);
 
-  const weekStart = useMemo(() => startOfWeek(cursor, { weekStartsOn: 1 }), [cursor]);
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
     [weekStart],
   );
   const totalHeight = (DAY_END_HOUR - DAY_START_HOUR) * HOUR_HEIGHT;
-  const agendaEvents = syncedEvents ?? events;
+  const agendaEvents = events;
   const visibleCalendarIds = useMemo(
     () =>
       new Set(
@@ -88,6 +89,7 @@ function AgendaPage() {
       ),
     [calendarSources],
   );
+  const hasActiveCalendarFilter = calendarSources.some((source) => !source.is_visible);
   const visibleEvents = useMemo(
     () =>
       agendaEvents
@@ -95,10 +97,17 @@ function AgendaPage() {
           (event) =>
             !event.google_calendar_id ||
             calendarSources.length === 0 ||
+            !hasActiveCalendarFilter ||
             visibleCalendarIds.has(event.google_calendar_id),
         )
         .map((event) => ({ ...event, ...previewSchedule[event.id] })),
-    [agendaEvents, calendarSources.length, previewSchedule, visibleCalendarIds],
+    [
+      agendaEvents,
+      calendarSources.length,
+      hasActiveCalendarFilter,
+      previewSchedule,
+      visibleCalendarIds,
+    ],
   );
   const allDayEvents = visibleEvents.filter((event) => event.is_all_day);
 
@@ -199,7 +208,9 @@ function AgendaPage() {
   const syncGoogle = async (silent = false) => {
     if (syncingGoogle) return;
     setSyncingGoogle(true);
-    const { data, error: invokeError } = await supabase.functions.invoke("google-calendar-sync");
+    const { data, error: invokeError } = await supabase.functions.invoke("google-calendar-sync", {
+      body: { rangeStart: agendaRangeStart, rangeEnd: agendaRangeEnd },
+    });
     setSyncingGoogle(false);
     if (invokeError || !data?.ok) {
       let errorMessage =
@@ -213,9 +224,8 @@ function AgendaPage() {
     }
     const returnedEvents = Array.isArray(data.events) ? (data.events as AgendaEvent[]) : null;
     if (returnedEvents) {
-      // A grade recebe a resposta da sincronização imediatamente, sem depender de cache.
-      setSyncedEvents(returnedEvents);
-      queryClient.setQueryData(["agenda_events"], returnedEvents);
+      // A grade recebe a resposta da sincronização imediatamente pelo cache único.
+      queryClient.setQueryData(["agenda_events", agendaRangeStart, agendaRangeEnd], returnedEvents);
     } else {
       await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
     }
@@ -275,9 +285,10 @@ function AgendaPage() {
 
   const persistSchedule = async (event: AgendaEvent, schedule: ScheduleChange) => {
     if (!user) return;
-    const previousEvents = queryClient.getQueryData<AgendaEvent[]>(["agenda_events"]);
+    const agendaQueryKey = ["agenda_events", agendaRangeStart, agendaRangeEnd];
+    const previousEvents = queryClient.getQueryData<AgendaEvent[]>(agendaQueryKey);
     setSavingIds((ids) => [...ids, event.id]);
-    queryClient.setQueryData<AgendaEvent[]>(["agenda_events"], (current = []) =>
+    queryClient.setQueryData<AgendaEvent[]>(agendaQueryKey, (current = []) =>
       current.map((item) =>
         item.id === event.id ? { ...item, ...schedule, updated_by: user.id } : item,
       ),
@@ -294,7 +305,7 @@ function AgendaPage() {
       await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
       void syncGoogle(true);
     } catch (updateError) {
-      queryClient.setQueryData(["agenda_events"], previousEvents);
+      queryClient.setQueryData(agendaQueryKey, previousEvents);
       toast.error("Não foi possível atualizar o evento. A alteração foi desfeita.");
     } finally {
       setSavingIds((ids) => ids.filter((id) => id !== event.id));
@@ -580,7 +591,9 @@ function AgendaPage() {
         event={editing}
         defaultDate={selectedDate}
         defaultStartTime={selectedTime}
-        onSaved={() => syncGoogle(true)}
+        // Saving must report a Google delivery error to the person who
+        // created the event; silent failures make the two calendars diverge.
+        onSaved={() => syncGoogle()}
       />
     </div>
   );
