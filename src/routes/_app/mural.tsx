@@ -263,7 +263,11 @@ function MuralPage() {
   const setPostCompleted = useMutation({
     mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
       const { error } = await (supabase.from("mural_posts") as any)
-        .update({ completed_at: completed ? new Date().toISOString() : null })
+        // Um recado concluído deixa automaticamente de ocupar a área de fixados.
+        .update({
+          completed_at: completed ? new Date().toISOString() : null,
+          ...(completed ? { is_pinned: false } : {}),
+        })
         .eq("id", id);
       if (error) throw error;
     },
@@ -573,28 +577,29 @@ function MuralPage() {
         ))}
       </section>
 
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#858b85]">Em destaque</p>
+        <div className="flex flex-wrap gap-1 rounded-full bg-white/70 p-1 text-xs shadow-sm">
+          {([
+            ["all", "Todos"], ["pinned", "Fixados"], ["open", "Em aberto"], ["completed", "Concluídos"],
+          ] as const).map(([value, label]) => (
+            <button key={value} type="button" onClick={() => setPostFilter(value)} className={`rounded-full px-3 py-1 transition-colors ${postFilter === value ? "bg-[#d9efed] text-[#256e6f]" : "text-[#737a74] hover:bg-[#eeefea]"}`}>{label}</button>
+          ))}
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="py-20 text-center text-sm text-[#747a74]">Carregando mural...</div>
       ) : orderedPosts.length === 0 ? (
         <div className="grid min-h-72 place-items-center rounded-xl border border-dashed border-[#d9dcd5] bg-white/50 p-8 text-center">
           <div>
             <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-[#dff2fa] text-[#287f80]"><Pin className="h-5 w-5" /></div>
-            <h2 className="font-semibold">O mural está pronto para começar</h2>
-            <p className="mt-1 text-sm text-[#747a74]">Publique o primeiro recado para compartilhar uma ideia ou comunicado.</p>
+            <h2 className="font-semibold">{postFilter === "all" ? "O mural está pronto para começar" : "Nenhum recado nesta visualização"}</h2>
+            <p className="mt-1 text-sm text-[#747a74]">{postFilter === "all" ? "Publique o primeiro recado para compartilhar uma ideia ou comunicado." : "Use os filtros acima para navegar entre os outros recados."}</p>
           </div>
         </div>
       ) : (
         <section>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#858b85]">Em destaque</p>
-            <div className="flex flex-wrap gap-1 rounded-full bg-white/70 p-1 text-xs shadow-sm">
-              {([
-                ["all", "Todos"], ["pinned", "Fixados"], ["open", "Em aberto"], ["completed", "Concluídos"],
-              ] as const).map(([value, label]) => (
-                <button key={value} type="button" onClick={() => setPostFilter(value)} className={`rounded-full px-3 py-1 transition-colors ${postFilter === value ? "bg-[#d9efed] text-[#256e6f]" : "text-[#737a74] hover:bg-[#eeefea]"}`}>{label}</button>
-              ))}
-            </div>
-          </div>
           <div ref={canvasRef} className="grid auto-rows-auto gap-5 md:grid-cols-2 xl:grid-cols-4">
           {orderedPosts.map((post, index) => {
             const canEdit = isAdmin || post.created_by === user?.id;
