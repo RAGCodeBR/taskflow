@@ -104,6 +104,8 @@ const priorityLabel: Record<string, string> = {
   urgent: "Urgente",
 };
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 function RequestsPage() {
   const { user, isAdmin } = useAuth();
   const { data: profiles = [] } = useProfiles();
@@ -182,6 +184,26 @@ function RequestsPage() {
       return (data ?? []) as { user_id: string }[];
     },
   });
+  const { data: allAssignees = [] } = useQuery({
+    queryKey: ["service_request_assignees", "all"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("service_request_assignees") as any).select(
+        "request_id, user_id",
+      );
+      if (error) throw error;
+      return (data ?? []) as { request_id: string; user_id: string }[];
+    },
+  });
+  const { data: allParticipants = [] } = useQuery({
+    queryKey: ["service_request_participants", "all"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("service_request_participants") as any).select(
+        "request_id, user_id",
+      );
+      if (error) throw error;
+      return (data ?? []) as { request_id: string; user_id: string }[];
+    },
+  });
   const { data: attachments = [] } = useQuery({
     queryKey: ["service_request_attachments", selected?.id],
     enabled: !!selected,
@@ -198,6 +220,32 @@ function RequestsPage() {
     profiles.find((profile) => profile.id === id)?.full_name ||
     profiles.find((profile) => profile.id === id)?.email ||
     "Usuário";
+  const mentionableProfiles = useMemo(
+    () => profiles.filter((profile) => profile.is_active !== false),
+    [profiles],
+  );
+  const mentionQuery = useMemo(() => {
+    const match = message.match(/(?:^|\s)@([^\n@]*)$/);
+    return match ? match[1].trim().toLocaleLowerCase("pt-BR") : null;
+  }, [message]);
+  const mentionCandidates = useMemo(() => {
+    if (mentionQuery === null) return [];
+    return mentionableProfiles
+      .filter((profile) =>
+        (profile.full_name || profile.email || "")
+          .toLocaleLowerCase("pt-BR")
+          .includes(mentionQuery),
+      )
+      .slice(0, 6);
+  }, [mentionQuery, mentionableProfiles]);
+  const mentionNames = mentionableProfiles
+    .map((profile) => profile.full_name || profile.email)
+    .filter((name): name is string => Boolean(name));
+  const insertMention = (profile: { full_name: string | null; email: string | null }) => {
+    const name = profile.full_name || profile.email;
+    if (!name) return;
+    setMessage((current) => current.replace(/(^|\s)@[^\n@]*$/, `$1@${name} `));
+  };
   const refresh = () =>
     [
       "service_requests",
@@ -353,8 +401,19 @@ function RequestsPage() {
   const filtered = requests.filter(
     (request) =>
       (filter === "all" || request.status === filter) &&
-      request.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+      `${request.title} ${clients.find((client) => client.id === request.client_id)?.name || ""}`
+        .toLocaleLowerCase()
+        .includes(search.trim().toLocaleLowerCase()),
   );
+  const openCount = requests.filter((request) => request.status !== "resolved").length;
+  const unassignedCount = requests.filter(
+    (request) => !allAssignees.some((assignee) => assignee.request_id === request.id),
+  ).length;
+  const involvedPeopleCount = new Set([
+    ...allAssignees.map((assignee) => assignee.user_id),
+    ...allParticipants.map((participant) => participant.user_id),
+    ...requests.map((request) => request.created_by),
+  ]).size;
   const timeline = useMemo(
     () =>
       [
@@ -460,13 +519,40 @@ function RequestsPage() {
                       <PriorityBadge priority={request.priority} />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {request.created_by === user?.id ? "Criada por você" : "Equipe"}
+                      {(() => {
+                        const ownerIds = allAssignees
+                          .filter((assignee) => assignee.request_id === request.id)
+                          .map((assignee) => assignee.user_id);
+                        return ownerIds.length
+                          ? ownerIds.slice(0, 2).map(nameOf).join(", ") +
+                              (ownerIds.length > 2 ? ` +${ownerIds.length - 2}` : "")
+                          : "Sem responsável";
+                      })()}
                     </p>
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(request.updated_at), "dd/MM/yyyy")}
                     </span>
                   </button>
                 ))}
+              </div>
+            )}
+            {!isLoading && filtered.length > 0 && (
+              <div className="mt-4 grid gap-3 border-t pt-4 md:grid-cols-3">
+                <RequestInsight
+                  label="Em aberto"
+                  value={openCount}
+                  description="Solicitações aguardando uma conclusão."
+                />
+                <RequestInsight
+                  label="Sem responsável"
+                  value={unassignedCount}
+                  description="Itens que ainda precisam de alguém da equipe."
+                />
+                <RequestInsight
+                  label="Pessoas envolvidas"
+                  value={involvedPeopleCount}
+                  description="Participantes e responsáveis nas solicitações."
+                />
               </div>
             )}
           </div>
@@ -566,27 +652,76 @@ function RequestsPage() {
                               : nameOf(entry.item.author_id)}{" "}
                             · {format(new Date(entry.date), "dd/MM HH:mm")}
                           </p>
-                          <p className="whitespace-pre-wrap">{entry.item.body}</p>
+                          <p className="whitespace-pre-wrap break-words">
+                            {mentionNames.length
+                              ? entry.item.body
+                                  .split(
+                                    new RegExp(
+                                      `(${mentionNames.map((name) => `@${escapeRegExp(name)}`).join("|")})`,
+                                      "gi",
+                                    ),
+                                  )
+                                  .map((part, index) =>
+                                    part.startsWith("@") ? (
+                                      <span
+                                        key={index}
+                                        className={
+                                          entry.item.author_id === user?.id
+                                            ? "font-semibold underline"
+                                            : "font-semibold text-primary"
+                                        }
+                                      >
+                                        {part}
+                                      </span>
+                                    ) : (
+                                      part
+                                    ),
+                                  )
+                              : entry.item.body}
+                          </p>
                         </div>
                       </div>
                     ),
                   )}
                 </div>
               </ScrollArea>
-              <div className="border-t bg-card p-3 md:p-4">
+              <div className="relative border-t bg-card p-3 md:p-4">
                 <div className="flex gap-2">
-                  <Textarea
-                    value={message}
-                    onChange={(event) => setMessage(event.target.value)}
-                    onKeyDown={(event) => {
-                      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                        event.preventDefault();
-                        void sendMessage.mutateAsync();
-                      }
-                    }}
-                    placeholder="Adicione uma mensagem… Use @ para mencionar usuários."
-                    rows={2}
-                  />
+                  <div className="relative min-w-0 flex-1">
+                    <Textarea
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void sendMessage.mutateAsync();
+                        }
+                      }}
+                      placeholder="Adicione uma mensagem… Use @ para mencionar usuários."
+                      rows={2}
+                    />
+                    {mentionCandidates.length > 0 && (
+                      <div className="absolute bottom-[calc(100%+6px)] left-0 z-20 w-full max-w-sm overflow-hidden rounded-lg border bg-popover p-1 shadow-lg">
+                        <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                          Mencionar alguém
+                        </p>
+                        {mentionCandidates.map((profile) => (
+                          <button
+                            key={profile.id}
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => insertMention(profile)}
+                          >
+                            <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
+                              {(profile.full_name || profile.email || "U").slice(0, 2).toUpperCase()}
+                            </span>
+                            <span className="truncate">{profile.full_name || profile.email}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <Button
                     size="icon"
                     disabled={!message.trim() || sendMessage.isPending}
@@ -595,6 +730,9 @@ function RequestsPage() {
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Use @ para mencionar alguém · Enter envia · Shift + Enter quebra linha
+                </p>
               </div>
             </div>
             <ScrollArea className="min-w-0 border-t bg-muted/20 lg:border-l lg:border-t-0">
@@ -905,6 +1043,26 @@ function Section({
       </h3>
       {children}
     </section>
+  );
+}
+
+function RequestInsight({
+  label,
+  value,
+  description,
+}: {
+  label: string;
+  value: number;
+  description: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/25 p-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-xs font-semibold">{label}</p>
+        <span className="text-xl font-semibold text-primary">{value}</span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
+    </div>
   );
 }
 
