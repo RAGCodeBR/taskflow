@@ -19,6 +19,7 @@ import { Route as AppImportAtaRouteImport } from './routes/_app/import-ata'
 import { Route as AppMuralRouteImport } from './routes/_app/mural'
 import { Route as AppNotesRouteImport } from './routes/_app/notes'
 import { Route as AppReportsRouteImport } from './routes/_app/reports'
+import { Route as AppRequestsRouteImport } from './routes/_app/requests'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppTrashRouteImport } from './routes/_app/trash'
@@ -81,6 +82,11 @@ const AppNotesRoute = AppNotesRouteImport.update({
 const AppReportsRoute = AppReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRequestsRoute = AppRequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/mural': typeof AppMuralRoute
   '/notes': typeof AppNotesRoute
   '/reports': typeof AppReportsRoute
+  '/requests': typeof AppRequestsRoute
   '/settings': typeof AppSettingsRoute
   '/tasks': typeof AppTasksRouteWithChildren
   '/trash': typeof AppTrashRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/mural': typeof AppMuralRoute
   '/notes': typeof AppNotesRoute
   '/reports': typeof AppReportsRoute
+  '/requests': typeof AppRequestsRoute
   '/settings': typeof AppSettingsRoute
   '/trash': typeof AppTrashRoute
   '/users': typeof AppUsersRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/_app/mural': typeof AppMuralRoute
   '/_app/notes': typeof AppNotesRoute
   '/_app/reports': typeof AppReportsRoute
+  '/_app/requests': typeof AppRequestsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/tasks': typeof AppTasksRouteWithChildren
   '/_app/trash': typeof AppTrashRoute
@@ -241,6 +250,7 @@ export interface FileRouteTypes {
     | '/mural'
     | '/notes'
     | '/reports'
+    | '/requests'
     | '/settings'
     | '/tasks'
     | '/trash'
@@ -265,6 +275,7 @@ export interface FileRouteTypes {
     | '/mural'
     | '/notes'
     | '/reports'
+    | '/requests'
     | '/settings'
     | '/trash'
     | '/users'
@@ -290,6 +301,7 @@ export interface FileRouteTypes {
     | '/_app/mural'
     | '/_app/notes'
     | '/_app/reports'
+    | '/_app/requests'
     | '/_app/settings'
     | '/_app/tasks'
     | '/_app/trash'
@@ -382,6 +394,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/requests': {
+      id: '/_app/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof AppRequestsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings': {
@@ -527,6 +546,7 @@ interface AppRouteChildren {
   AppMuralRoute: typeof AppMuralRoute
   AppNotesRoute: typeof AppNotesRoute
   AppReportsRoute: typeof AppReportsRoute
+  AppRequestsRoute: typeof AppRequestsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTasksRoute: typeof AppTasksRouteWithChildren
   AppTrashRoute: typeof AppTrashRoute
@@ -544,6 +564,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMuralRoute: AppMuralRoute,
   AppNotesRoute: AppNotesRoute,
   AppReportsRoute: AppReportsRoute,
+  AppRequestsRoute: AppRequestsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTasksRoute: AppTasksRouteWithChildren,
   AppTrashRoute: AppTrashRoute,

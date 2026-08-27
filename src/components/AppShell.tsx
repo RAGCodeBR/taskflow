@@ -22,6 +22,7 @@ import {
   CircleDollarSign,
   ChevronDown,
   MessageSquareText,
+  ClipboardList,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AssignmentPopup } from "@/components/AssignmentPopup";
@@ -49,6 +50,7 @@ const allNav: readonly NavItem[] = [
   { to: "/mural", label: "Mural LA", icon: MessageSquareText },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/tasks", label: "Minhas Tarefas", icon: ListChecks },
+  { to: "/requests", label: "Solicitações", icon: ClipboardList },
   { to: "/import-ata", label: "Importar Ata", icon: FileUp },
   { to: "/clients", label: "Clientes", icon: Building2 },
   { to: "/reports", label: "Relatórios", icon: BarChart3 },
@@ -68,6 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const accessByPath: Record<string, string> = {
       "/dashboard": "dashboard",
       "/tasks": "tasks",
+      "/requests": "requests",
       "/import-ata": "import_ata",
       "/clients": "clients",
       "/reports": "reports",

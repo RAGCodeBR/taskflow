@@ -82,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? [
             "dashboard",
             "tasks",
+            "requests",
             "import_ata",
             "clients",
             "reports",
