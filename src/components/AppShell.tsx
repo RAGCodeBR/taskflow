@@ -30,6 +30,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import businessMentoringLogo from "@/assets/la-business-mentoring.png";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useMuralUnreadCount } from "@/hooks/use-mural-unread";
+import { useRequestUnreadCount } from "@/hooks/use-request-unread";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -50,11 +51,11 @@ const allNav: readonly NavItem[] = [
   { to: "/mural", label: "Mural LA", icon: MessageSquareText },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/tasks", label: "Minhas Tarefas", icon: ListChecks },
-  { to: "/requests", label: "Solicitações", icon: ClipboardList },
   { to: "/import-ata", label: "Importar Ata", icon: FileUp },
   { to: "/clients", label: "Clientes", icon: Building2 },
   { to: "/reports", label: "Relatórios", icon: BarChart3 },
   { to: "/agenda", label: "Agenda", icon: CalendarDays },
+  { to: "/requests", label: "Solicitações", icon: ClipboardList },
   { to: "/portal", label: "Portal do Cliente", icon: PanelsTopLeft },
   { to: "/users", label: "Usuários", icon: Users, adminOnly: true },
   { to: "/trash", label: "Lixeira", icon: Trash2 },
@@ -64,6 +65,7 @@ const allNav: readonly NavItem[] = [
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile, user, signOut, isAdmin, hasPermission } = useAuth();
   const muralUnreadCount = useMuralUnreadCount();
+  const requestUnreadCount = useRequestUnreadCount();
   const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
   const canAccessFinance = hasPermission("portal_financeiro") || hasPermission("portal");
   const nav = useMemo(() => {
@@ -166,6 +168,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {n.to === "/mural" && muralUnreadCount > 0 && (
                   <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                     {muralUnreadCount > 99 ? "99+" : muralUnreadCount}
+                  </span>
+                )}
+                {n.to === "/requests" && requestUnreadCount > 0 && (
+                  <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {requestUnreadCount > 99 ? "99+" : requestUnreadCount}
                   </span>
                 )}
               </Link>
@@ -280,6 +287,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {n.to === "/mural" && muralUnreadCount > 0 && (
                       <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                         {muralUnreadCount > 99 ? "99+" : muralUnreadCount}
+                      </span>
+                    )}
+                    {n.to === "/requests" && requestUnreadCount > 0 && (
+                      <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                        {requestUnreadCount > 99 ? "99+" : requestUnreadCount}
                       </span>
                     )}
                   </Link>

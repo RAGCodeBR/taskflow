@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useClients, useProfiles } from "@/hooks/use-data";
+import { useAssignableProfiles, useClients, useProfiles } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { MAX_TASK_ATTACHMENT_BYTES } from "@/lib/attachment-limits";
+import { requestUnreadKey } from "@/hooks/use-request-unread";
 
 export const Route = createFileRoute("/_app/requests")({ component: RequestsPage });
 
@@ -109,6 +110,7 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
 function RequestsPage() {
   const { user, isAdmin } = useAuth();
   const { data: profiles = [] } = useProfiles();
+  const { data: mentionProfiles = [] } = useAssignableProfiles();
   const { data: clients = [] } = useClients();
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -135,6 +137,17 @@ function RequestsPage() {
       return (data ?? []) as Request[];
     },
   });
+  useEffect(() => {
+    if (!user) return;
+    void (async () => {
+      const { error } = await (supabase.from("notifications") as any)
+        .update({ is_read: true })
+        .eq("user_id", user.id)
+        .eq("type", "service_request")
+        .eq("is_read", false);
+      if (!error) void qc.invalidateQueries({ queryKey: requestUnreadKey(user.id) });
+    })();
+  }, [qc, user?.id]);
   const selected = selectedId
     ? (requests.find((request) => request.id === selectedId) ?? null)
     : null;
@@ -220,10 +233,7 @@ function RequestsPage() {
     profiles.find((profile) => profile.id === id)?.full_name ||
     profiles.find((profile) => profile.id === id)?.email ||
     "Usuário";
-  const mentionableProfiles = useMemo(
-    () => profiles.filter((profile) => profile.is_active !== false),
-    [profiles],
-  );
+  const mentionableProfiles = useMemo(() => mentionProfiles, [mentionProfiles]);
   const mentionQuery = useMemo(() => {
     const match = message.match(/(?:^|\s)@([^\n@]*)$/);
     return match ? match[1].trim().toLocaleLowerCase("pt-BR") : null;
@@ -405,15 +415,6 @@ function RequestsPage() {
         .toLocaleLowerCase()
         .includes(search.trim().toLocaleLowerCase()),
   );
-  const openCount = requests.filter((request) => request.status !== "resolved").length;
-  const unassignedCount = requests.filter(
-    (request) => !allAssignees.some((assignee) => assignee.request_id === request.id),
-  ).length;
-  const involvedPeopleCount = new Set([
-    ...allAssignees.map((assignee) => assignee.user_id),
-    ...allParticipants.map((participant) => participant.user_id),
-    ...requests.map((request) => request.created_by),
-  ]).size;
   const timeline = useMemo(
     () =>
       [
@@ -477,7 +478,7 @@ function RequestsPage() {
         </>
       )}
       <div
-        className={`grid min-h-0 flex-1 overflow-hidden rounded-xl border bg-card shadow-sm ${selected ? "lg:grid-cols-[minmax(0,1fr)_310px]" : ""}`}
+        className={`grid overflow-hidden rounded-xl border bg-card shadow-sm ${selected ? "min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_310px]" : "shrink-0"}`}
       >
         <ScrollArea className={selected ? "hidden" : "min-h-0"}>
           <div className="p-2 md:p-3">
@@ -509,50 +510,34 @@ function RequestsPage() {
                         <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
                         {request.title}
                       </p>
-                      <p className="mt-1 truncate text-xs text-primary/80">
-                        {clients.find((client) => client.id === request.client_id)?.name ||
-                          "Sem cliente vinculado"}
-                      </p>
+                  <p className="mt-1 truncate text-xs text-primary/80">
+                    {clients.find((client) => client.id === request.client_id)?.name ||
+                      "Sem cliente vinculado"}
+                  </p>
+                  {request.description && (
+                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                      {request.description}
+                    </p>
+                  )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <StatusBadge status={request.status} />
                       <PriorityBadge priority={request.priority} />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {(() => {
-                        const ownerIds = allAssignees
-                          .filter((assignee) => assignee.request_id === request.id)
-                          .map((assignee) => assignee.user_id);
-                        return ownerIds.length
-                          ? ownerIds.slice(0, 2).map(nameOf).join(", ") +
-                              (ownerIds.length > 2 ? ` +${ownerIds.length - 2}` : "")
-                          : "Sem responsável";
-                      })()}
-                    </p>
+                    <RequestMembers
+                      assigneeIds={allAssignees
+                        .filter((assignee) => assignee.request_id === request.id)
+                        .map((assignee) => assignee.user_id)}
+                      participantIds={allParticipants
+                        .filter((participant) => participant.request_id === request.id)
+                        .map((participant) => participant.user_id)}
+                      nameOf={nameOf}
+                    />
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(request.updated_at), "dd/MM/yyyy")}
                     </span>
                   </button>
                 ))}
-              </div>
-            )}
-            {!isLoading && filtered.length > 0 && (
-              <div className="mt-4 grid gap-3 border-t pt-4 md:grid-cols-3">
-                <RequestInsight
-                  label="Em aberto"
-                  value={openCount}
-                  description="Solicitações aguardando uma conclusão."
-                />
-                <RequestInsight
-                  label="Sem responsável"
-                  value={unassignedCount}
-                  description="Itens que ainda precisam de alguém da equipe."
-                />
-                <RequestInsight
-                  label="Pessoas envolvidas"
-                  value={involvedPeopleCount}
-                  description="Participantes e responsáveis nas solicitações."
-                />
               </div>
             )}
           </div>
@@ -1046,22 +1031,44 @@ function Section({
   );
 }
 
-function RequestInsight({
-  label,
-  value,
-  description,
+function RequestMembers({
+  assigneeIds,
+  participantIds,
+  nameOf,
 }: {
-  label: string;
-  value: number;
-  description: string;
+  assigneeIds: string[];
+  participantIds: string[];
+  nameOf: (id: string | null) => string;
 }) {
+  const people = [...new Set([...assigneeIds, ...participantIds])];
   return (
-    <div className="rounded-lg border bg-muted/25 p-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-xs font-semibold">{label}</p>
-        <span className="text-xl font-semibold text-primary">{value}</span>
-      </div>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
+    <div className="min-w-0">
+      {people.length > 0 ? (
+        <>
+          <div className="flex -space-x-1.5">
+            {people.slice(0, 4).map((id) => (
+              <span
+                key={id}
+                title={nameOf(id)}
+                className="grid h-6 w-6 place-items-center rounded-full border-2 border-card bg-primary/10 text-[8px] font-bold text-primary"
+              >
+                {nameOf(id).slice(0, 2).toUpperCase()}
+              </span>
+            ))}
+            {people.length > 4 && (
+              <span className="grid h-6 w-6 place-items-center rounded-full border-2 border-card bg-muted text-[9px] font-semibold text-muted-foreground">
+                +{people.length - 4}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            {assigneeIds.length > 0 ? "Responsável" : "Participante"}
+            {people.length > 1 ? " + equipe" : `: ${nameOf(people[0])}`}
+          </p>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">Sem responsável</p>
+      )}
     </div>
   );
 }
