@@ -29,6 +29,7 @@ function AppLayout() {
     ["/agenda", "agenda"],
   ];
   const clientCanAccessCurrentRoute =
+    pathname.startsWith("/mural") ||
     (pathname.startsWith("/portal/entregas") &&
       (hasPermission("portal_entregas") || hasPermission("portal"))) ||
     (pathname.startsWith("/portal/financeiro") &&

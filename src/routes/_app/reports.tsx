@@ -96,7 +96,7 @@ function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
 
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
-  if (!hasPermission("reports")) return <Navigate to="/dashboard" />;
+  if (!hasPermission("reports")) return <Navigate to="/mural" />;
 
   const matchesStatus = (p: any) => {
     const active = p.is_active !== false;

@@ -80,7 +80,7 @@ const CARD_SIZES: { value: CardSize; label: string }[] = [
 ];
 
 const TEXT_STYLES: { value: TextStyle; label: string; css: CSSProperties }[] = [
-  { value: "clean", label: "Clássico", css: { fontFamily: "var(--font-sans)" } },
+  { value: "clean", label: "Editorial", css: { fontFamily: "Georgia, 'Times New Roman', serif" } },
   { value: "handwritten", label: "Manual", css: { fontFamily: "cursive", letterSpacing: "0.01em" } },
   { value: "editorial", label: "Elegante", css: { fontFamily: "Georgia, 'Times New Roman', serif" } },
   { value: "typewriter", label: "Máquina", css: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.92em" } },
@@ -481,7 +481,7 @@ function MuralPage() {
     <div className="min-h-full bg-[#f6f5f0] px-4 py-5 text-[#313532] sm:px-7 sm:py-7">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-[11px] text-[#8a9089]">Mural da equipe</p>
+          <p className="text-[11px] text-[#8a9089]">Mural LA</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Olá, {profileName(profiles, user?.id)} 👋</h1>
           <p className="mt-1 text-sm text-[#747a74]">Recados, normas e novidades compartilhadas com a equipe.</p>
         </div>
@@ -609,28 +609,18 @@ function MuralPage() {
                   if (node) postRefs.current.set(post.id, node);
                   else postRefs.current.delete(post.id);
                 }}
-                className={`group relative min-w-0 self-start overflow-hidden rounded-sm border border-black/[0.035] p-4 shadow-[0_9px_18px_-14px_rgb(46_57_48_/_0.7)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_14px_24px_-15px_rgb(46_57_48_/_0.72)] ${post.card_size === "large" ? "md:col-span-2 p-6" : post.card_size === "compact" ? "max-w-xs p-3" : ""} ${post.is_pinned ? "ring-1 ring-[#287f80]/45" : ""} ${draggingId === post.id ? "opacity-75 shadow-xl" : ""} ${colorClass(post.color)}`}
+                className={`group relative min-w-0 self-start overflow-hidden rounded-sm border border-black/[0.035] p-4 shadow-[0_9px_18px_-14px_rgb(46_57_48_/_0.7)] transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:translate-x-1 hover:shadow-[0_16px_26px_-15px_rgb(46_57_48_/_0.78)] ${index % 5 === 0 ? "rotate-[-0.7deg] hover:rotate-[0.15deg]" : index % 5 === 1 ? "rotate-[0.45deg] hover:rotate-[-0.25deg]" : index % 5 === 2 ? "rotate-[-0.3deg] hover:rotate-[0.45deg]" : index % 5 === 3 ? "rotate-[0.72deg] hover:rotate-[0.05deg]" : "rotate-[-0.12deg] hover:rotate-[-0.5deg]"} ${post.card_size === "large" ? "md:col-span-2 p-6" : post.card_size === "compact" ? "max-w-xs p-3" : ""} ${post.is_pinned ? "ring-1 ring-[#287f80]/45" : ""} ${draggingId === post.id ? "opacity-75 shadow-xl" : ""} ${colorClass(post.color)}`}
                 style={{
                   ...textStyleCss(post.text_style),
                 }}
               >
-                <span className={`absolute -top-1 left-1/2 h-3 w-14 -translate-x-1/2 rounded-sm opacity-65 ${post.color === "amber" ? "bg-[#ffe363]" : post.color === "sky" ? "bg-[#8dd6ee]" : post.color === "green" ? "bg-[#65e7ba]" : post.color === "rose" ? "bg-[#ffa7d0]" : "bg-[#c9b7fa]"}`} />
+                <span className={`absolute -top-1 left-1/2 h-5 w-20 -translate-x-1/2 rounded-[2px] opacity-70 shadow-sm ${post.color === "amber" ? "bg-[#ffe363]" : post.color === "sky" ? "bg-[#8dd6ee]" : post.color === "green" ? "bg-[#65e7ba]" : post.color === "rose" ? "bg-[#ffa7d0]" : "bg-[#c9b7fa]"}`} />
                 {index === 4 && <span className="sr-only">Mural</span>}
                 {post.image_url && (
                   <img src={post.image_url} alt="" className="-mx-4 -mt-4 mb-4 h-36 w-[calc(100%+2rem)] object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
                 )}
                 <div className="flex items-start gap-2 pt-1">
                   <div className="min-w-0 flex-1"><p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.11em] text-foreground/55">{post.tag || "Aviso"}</p><h2 className={`font-bold leading-snug ${post.card_size === "large" ? "text-xl" : "text-base"}`}>{post.title}</h2></div>
-                  {canEdit && (
-                    <GripVertical
-                      className="h-5 w-5 shrink-0 touch-none cursor-grab opacity-55 active:cursor-grabbing"
-                      aria-label="Arraste para mover"
-                      onPointerDown={(event) => startCanvasDrag(event, post)}
-                      onPointerMove={moveCanvasDrag}
-                      onPointerUp={finishCanvasDrag}
-                      onPointerCancel={finishCanvasDrag}
-                    />
-                  )}
                   {canEdit && <div className="-mr-2 -mt-2 flex opacity-0 transition-opacity group-hover:opacity-100">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updatePostPresentation.mutate({ id: post.id, patch: { is_pinned: !post.is_pinned } })} title={post.is_pinned ? "Desafixar" : "Fixar à frente dos demais"}>
                       {post.is_pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}

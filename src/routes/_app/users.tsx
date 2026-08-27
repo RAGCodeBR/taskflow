@@ -380,7 +380,7 @@ function UsersPage() {
     setEditing(id);
   };
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
-  if (!isAdmin) return <Navigate to="/dashboard" />;
+  if (!isAdmin) return <Navigate to="/mural" />;
   const renderProfile = (p: any) => {
     const role = (roles.find((r: { user_id: string; role: string }) => r.user_id === p.id)?.role ??
       "collaborator") as Role;

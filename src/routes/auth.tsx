@@ -22,7 +22,7 @@ function AuthPage() {
   const invitationFlow = new URLSearchParams(window.location.search).get("invite") === "1";
 
   useEffect(() => {
-    if (user && !invitationFlow) navigate({ to: "/dashboard", replace: true });
+    if (user && !invitationFlow) navigate({ to: "/mural", replace: true });
   }, [user, invitationFlow, navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -48,7 +48,7 @@ function AuthPage() {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       toast.success("Senha definida com sucesso.");
-      navigate({ to: "/dashboard", replace: true });
+      navigate({ to: "/mural", replace: true });
     } catch (err) {
       toast.error((err as Error).message);
     } finally {

@@ -12,5 +12,5 @@ function HomeRedirect() {
     return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Carregando…</div>;
   }
 
-  return <Navigate to={user ? "/dashboard" : "/auth"} replace />;
+  return <Navigate to={user ? "/mural" : "/auth"} replace />;
 }
