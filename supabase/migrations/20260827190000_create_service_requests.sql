@@ -92,9 +92,24 @@ BEGIN
 END;
 $$;
 
+-- The authenticated identity is the source of truth for the creator. This
+-- avoids rejecting legitimate inserts when a client-side profile is stale.
+CREATE OR REPLACE FUNCTION public.set_service_request_creator()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    NEW.created_by = auth.uid();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS trg_service_requests_updated_at ON public.service_requests;
 CREATE TRIGGER trg_service_requests_updated_at BEFORE UPDATE ON public.service_requests
 FOR EACH ROW EXECUTE FUNCTION public.touch_service_request();
+DROP TRIGGER IF EXISTS trg_service_requests_creator ON public.service_requests;
+CREATE TRIGGER trg_service_requests_creator BEFORE INSERT ON public.service_requests
+FOR EACH ROW EXECUTE FUNCTION public.set_service_request_creator();
 
 ALTER TABLE public.service_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.service_request_messages ENABLE ROW LEVEL SECURITY;
