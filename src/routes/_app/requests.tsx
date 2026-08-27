@@ -781,14 +781,7 @@ function RequestsPage() {
               </div>
             </ScrollArea>
           </>
-        ) : (
-          <div className="grid min-h-[360px] place-items-center lg:col-span-2">
-            <div className="text-center text-muted-foreground">
-              <MessageCircle className="mx-auto mb-2 h-8 w-8" />
-              Selecione ou crie uma solicitação.
-            </div>
-          </div>
-        )}
+        ) : null}
       </div>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
