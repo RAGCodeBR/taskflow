@@ -86,7 +86,7 @@
   --chart-4: oklch(0.58 0.22 27);
   --chart-5: oklch(0.55 0.2 310);
 
-  --sidebar: oklch(0.70 0.008 95);
+  --sidebar: oklch(0.7 0.008 95);
   --sidebar-foreground: oklch(0.29 0.012 95);
   --sidebar-primary: oklch(0.38 0.08 205);
   --sidebar-primary-foreground: oklch(0.98 0 0);
@@ -102,28 +102,35 @@
 }
 
 .dark {
-  --background: oklch(0.15 0.03 264);
-  --foreground: oklch(0.95 0.01 250);
-  --card: oklch(0.2 0.05 264);
-  --card-foreground: oklch(0.95 0.01 250);
-  --popover: oklch(0.2 0.05 264);
-  --popover-foreground: oklch(0.95 0.01 250);
-  --primary: oklch(0.6 0.18 250);
-  --primary-foreground: oklch(0.1 0.03 264);
-  --primary-glow: oklch(0.7 0.2 250);
-  --secondary: oklch(0.25 0.05 264);
-  --secondary-foreground: oklch(0.95 0.01 250);
-  --muted: oklch(0.25 0.05 264);
-  --muted-foreground: oklch(0.7 0.03 250);
-  --accent: oklch(0.3 0.06 264);
-  --accent-foreground: oklch(0.95 0.01 250);
-  --border: oklch(0.3 0.05 264);
-  --input: oklch(0.3 0.05 264);
-  --ring: oklch(0.6 0.18 250);
-  --sidebar: oklch(0.24 0.008 95);
-  --sidebar-foreground: oklch(0.91 0.008 95);
-  --sidebar-accent: oklch(0.34 0.012 95);
-  --sidebar-border: oklch(0.39 0.01 95);
+  color-scheme: dark;
+  --background: oklch(0.175 0.012 250);
+  --foreground: oklch(0.94 0.008 250);
+  --card: oklch(0.22 0.014 250);
+  --card-foreground: oklch(0.94 0.008 250);
+  --popover: oklch(0.235 0.016 250);
+  --popover-foreground: oklch(0.94 0.008 250);
+  --primary: oklch(0.68 0.11 232);
+  --primary-foreground: oklch(0.16 0.015 250);
+  --primary-glow: oklch(0.75 0.12 232);
+  --secondary: oklch(0.275 0.016 250);
+  --secondary-foreground: oklch(0.94 0.008 250);
+  --muted: oklch(0.265 0.014 250);
+  --muted-foreground: oklch(0.72 0.014 250);
+  --accent: oklch(0.31 0.024 235);
+  --accent-foreground: oklch(0.95 0.008 250);
+  --border: oklch(0.34 0.016 250);
+  --input: oklch(0.285 0.014 250);
+  --ring: oklch(0.68 0.11 232);
+  --sidebar: oklch(0.2 0.012 250);
+  --sidebar-foreground: oklch(0.91 0.008 250);
+  --sidebar-primary: oklch(0.67 0.11 232);
+  --sidebar-primary-foreground: oklch(0.16 0.015 250);
+  --sidebar-accent: oklch(0.29 0.018 250);
+  --sidebar-accent-foreground: oklch(0.96 0.006 250);
+  --sidebar-border: oklch(0.34 0.014 250);
+  --sidebar-ring: oklch(0.68 0.11 232);
+  --gradient-sidebar: linear-gradient(180deg, oklch(0.205 0.014 250), oklch(0.17 0.012 250));
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.28), 0 10px 24px -14px rgb(0 0 0 / 0.5);
 }
 
 /* Os seletores de data são nativos do navegador; force ícones claros no tema escuro. */
@@ -133,31 +140,77 @@
   opacity: 1 !important;
 }
 
+.dark ::selection {
+  background: color-mix(in oklab, var(--primary) 48%, transparent);
+  color: var(--foreground);
+}
+.dark input,
+.dark textarea,
+.dark select {
+  color-scheme: dark;
+}
+.dark .mural-la {
+  background: oklch(0.19 0.014 95);
+  color: var(--foreground);
+}
+.dark .mural-la .mural-subtle {
+  color: oklch(0.72 0.014 95);
+}
+.dark .mural-la .mural-filter {
+  background: oklch(0.25 0.015 95 / 0.9);
+}
+.dark .mural-la .mural-empty {
+  background: oklch(0.235 0.014 95 / 0.8);
+  border-color: oklch(0.38 0.014 95);
+}
+
 @layer base {
-  * { border-color: var(--color-border); }
+  * {
+    border-color: var(--color-border);
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-feature-settings: "ss01", "cv11";
   }
-  h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
 }
 
-.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
-.scrollbar-thin::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--muted-foreground) 30%, transparent); border-radius: 999px; }
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+  border-radius: 999px;
+}
 
-.kanban-scroll { scrollbar-width: thin; }
+.kanban-scroll {
+  scrollbar-width: thin;
+}
 .kanban-top-scroll {
   height: 18px;
   scrollbar-width: thin;
 }
-.kanban-top-scroll::-webkit-scrollbar { height: 8px; }
+.kanban-top-scroll::-webkit-scrollbar {
+  height: 8px;
+}
 .kanban-top-scroll::-webkit-scrollbar-thumb {
   background: color-mix(in oklab, var(--muted-foreground) 45%, transparent);
   border-radius: 999px;
 }
-.task-overdue { box-shadow: inset 3px 0 0 var(--destructive); }
-.task-due-soon { box-shadow: inset 3px 0 0 var(--warning); }
+.task-overdue {
+  box-shadow: inset 3px 0 0 var(--destructive);
+}
+.task-due-soon {
+  box-shadow: inset 3px 0 0 var(--warning);
+}
 
 [contenteditable][data-placeholder]:empty::before {
   content: attr(data-placeholder);
@@ -166,20 +219,68 @@
 }
 
 /* Tiptap rich-text editor styles */
-.tiptap { cursor: text; outline: none; }
-.tiptap p { margin: 0.25rem 0; }
-.tiptap ul { list-style: disc; padding-left: 1.25rem; margin: 0.25rem 0; }
-.tiptap ol { list-style: decimal; padding-left: 1.5rem; margin: 0.25rem 0; }
-.tiptap ul ul { list-style: circle; }
-.tiptap ul ul ul { list-style: square; }
-.tiptap li { margin: 0.1rem 0; }
-.tiptap li > p { margin: 0; display: inline; }
-.tiptap h2 { font-size: 0.95rem; font-weight: 600; margin: 0.4rem 0 0.2rem; }
-.tiptap h3 { font-size: 0.85rem; font-weight: 600; margin: 0.35rem 0 0.15rem; }
-.tiptap blockquote { border-left: 3px solid var(--border); padding-left: 0.6rem; color: var(--muted-foreground); margin: 0.3rem 0; }
-.tiptap code { background: color-mix(in oklab, var(--muted) 80%, transparent); padding: 0 0.25rem; border-radius: 3px; font-size: 0.85em; }
-.tiptap a { color: var(--primary); text-decoration: underline; }
-.tiptap mark, .prose mark { color: inherit; padding: 0 0.1em; border-radius: 2px; }
+.tiptap {
+  cursor: text;
+  outline: none;
+}
+.tiptap p {
+  margin: 0.25rem 0;
+}
+.tiptap ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0.25rem 0;
+}
+.tiptap ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin: 0.25rem 0;
+}
+.tiptap ul ul {
+  list-style: circle;
+}
+.tiptap ul ul ul {
+  list-style: square;
+}
+.tiptap li {
+  margin: 0.1rem 0;
+}
+.tiptap li > p {
+  margin: 0;
+  display: inline;
+}
+.tiptap h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0.4rem 0 0.2rem;
+}
+.tiptap h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0.35rem 0 0.15rem;
+}
+.tiptap blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 0.6rem;
+  color: var(--muted-foreground);
+  margin: 0.3rem 0;
+}
+.tiptap code {
+  background: color-mix(in oklab, var(--muted) 80%, transparent);
+  padding: 0 0.25rem;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+.tiptap a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.tiptap mark,
+.prose mark {
+  color: inherit;
+  padding: 0 0.1em;
+  border-radius: 2px;
+}
 .dark .tiptap mark,
 .dark .prose mark {
   /* Os marca-textos têm fundos claros; não herdar o texto claro do tema escuro. */
@@ -190,5 +291,10 @@
 .dark .prose mark::selection {
   color: oklch(0.2 0.04 264) !important;
 }
-.tiptap-wrapper, .tiptap-wrapper * { cursor: text; }
-.tiptap-wrapper button { cursor: pointer; }
+.tiptap-wrapper,
+.tiptap-wrapper * {
+  cursor: text;
+}
+.tiptap-wrapper button {
+  cursor: pointer;
+}
