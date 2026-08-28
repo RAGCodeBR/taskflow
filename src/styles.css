@@ -191,6 +191,19 @@
   border-radius: 999px;
 }
 
+/* O menu lateral pode ter mais itens que a altura da tela. Mantemos a rolagem
+   para teclado/trackpad, mas sem expor uma barra visual dentro da navegação. */
+.sidebar-nav {
+  -ms-overflow-style: none;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.sidebar-nav::-webkit-scrollbar {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
 .kanban-scroll {
   scrollbar-width: thin;
 }

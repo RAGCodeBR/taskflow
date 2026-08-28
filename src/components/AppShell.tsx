@@ -136,7 +136,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
 
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
+        <nav className="sidebar-nav min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
           {nav.map((n) => {
             if (n.to === "/portal")
               return (
