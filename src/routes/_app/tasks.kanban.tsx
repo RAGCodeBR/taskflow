@@ -123,7 +123,15 @@ function SortableTaskCard({
   } as CSSProperties;
 
   return (
-    <div ref={setNodeRef} style={style} className={minimal ? "w-[clamp(15rem,18vw,19rem)] max-w-full min-w-0 shrink-0" : "w-72 max-w-full min-w-0 shrink-0"}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={
+        minimal
+          ? "w-[clamp(15rem,18vw,19rem)] max-w-full min-w-0 shrink-0"
+          : "w-72 max-w-full min-w-0 shrink-0"
+      }
+    >
       <TaskCard
         task={task}
         columns={columns}
@@ -177,15 +185,35 @@ function compareByField(
   }
 }
 
-function CompletedColumn({ taskIds, count, children, orientation, minimal, open, onOpenChange }: any) {
+function CompletedColumn({
+  taskIds,
+  count,
+  children,
+  orientation,
+  minimal,
+  open,
+  onOpenChange,
+}: any) {
   const { setNodeRef, isOver } = useDroppable({
     id: `drop:${COMPLETED_COL_ID}`,
     data: { type: "column-drop", colId: COMPLETED_COL_ID },
   });
   const isH = orientation === "horizontal";
   return (
-    <div className={isH ? (minimal ? "flex w-[clamp(15rem,18vw,19rem)] shrink-0 flex-col" : "flex w-72 shrink-0 flex-col") : "flex w-full flex-col"}>
-      <button type="button" onClick={onOpenChange} className="mb-2 flex w-full items-center gap-1.5 rounded px-1 text-left hover:bg-muted/50">
+    <div
+      className={
+        isH
+          ? minimal
+            ? "flex w-[clamp(15rem,18vw,19rem)] shrink-0 flex-col"
+            : "flex w-72 shrink-0 flex-col"
+          : "flex w-full flex-col"
+      }
+    >
+      <button
+        type="button"
+        onClick={onOpenChange}
+        className="mb-2 flex w-full items-center gap-1.5 rounded px-1 text-left hover:bg-muted/50"
+      >
         <span className="h-3 w-3 rounded-full bg-emerald-500 dark:bg-emerald-400 dark:ring-2 dark:ring-emerald-200/40 dark:shadow-[0_0_12px_rgba(74,222,128,0.7)]" />
         <h3 className="font-semibold">Concluídas</h3>
         <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-400/25 dark:text-emerald-100 dark:ring-1 dark:ring-emerald-200/45 dark:shadow-[0_0_10px_rgba(74,222,128,0.32)]">
@@ -196,7 +224,9 @@ function CompletedColumn({ taskIds, count, children, orientation, minimal, open,
             Arraste tarefas aqui para concluir
           </span>
         )}
-        <ChevronDown className={`ml-auto h-4 w-4 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+        <ChevronDown
+          className={`ml-auto h-4 w-4 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`}
+        />
       </button>
       <SortableContext
         items={taskIds}
@@ -206,12 +236,20 @@ function CompletedColumn({ taskIds, count, children, orientation, minimal, open,
           ref={setNodeRef}
           className={`rounded-lg border-2 border-solid p-2 transition ${
             open
-              ? (isH ? "flex flex-col gap-2" : "flex flex-nowrap items-start gap-2 overflow-x-auto pb-2")
+              ? isH
+                ? "flex flex-col gap-2"
+                : "flex flex-nowrap items-start gap-2 overflow-x-auto pb-2"
               : "flex items-center justify-center"
           } ${isOver ? "border-emerald-500 bg-emerald-500/10" : "border-emerald-500/30 bg-emerald-500/5"}`}
           style={{ minHeight: open ? (isH ? 200 : 120) : 42 }}
         >
-          {open ? children : <span className="text-xs font-medium text-muted-foreground">Arraste aqui para concluir</span>}
+          {open ? (
+            children
+          ) : (
+            <span className="text-xs font-medium text-muted-foreground">
+              Arraste aqui para concluir
+            </span>
+          )}
         </div>
       </SortableContext>
     </div>
@@ -255,7 +293,13 @@ function SortableColumn({
     <div
       ref={setSortRef}
       style={style}
-      className={isH ? (minimal ? "flex w-[clamp(15rem,18vw,19rem)] shrink-0 flex-col" : "flex w-fit min-w-72 shrink-0 flex-col") : "flex w-full flex-col"}
+      className={
+        isH
+          ? minimal
+            ? "flex w-[clamp(15rem,18vw,19rem)] shrink-0 flex-col"
+            : "flex w-fit min-w-72 shrink-0 flex-col"
+          : "flex w-full flex-col"
+      }
     >
       <div className="mb-2 flex items-center justify-between px-1">
         <div className="flex items-center gap-1.5">
@@ -375,7 +419,8 @@ function KanbanPage() {
   const toggleMinimalCards = () => {
     const next = !minimalCards;
     setMinimalCards(next);
-    if (typeof window !== "undefined") window.localStorage.setItem(minimalCardsStorageKey, String(next));
+    if (typeof window !== "undefined")
+      window.localStorage.setItem(minimalCardsStorageKey, String(next));
   };
 
   const subtaskAssigneeTaskIds = useMemo(() => {
@@ -443,9 +488,7 @@ function KanbanPage() {
   useEffect(() => {
     if (!user?.id) return;
     if (isCollaborator) {
-      setFilters((current) =>
-        current.assignee ? { ...current, assignee: undefined } : current,
-      );
+      setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
       return;
     }
     if (didApplyDefaultAssignee.current) return;
@@ -1166,6 +1209,7 @@ function KanbanPage() {
               </Button>
             )}
             <Button
+              className="h-9 rounded-full px-4 shadow-sm"
               onClick={() => {
                 setEditTask(null);
                 setDefaultCol(columns[0]?.id ?? null);
@@ -1653,7 +1697,10 @@ function KanbanScrollArea({
           <div ref={topScrollContentRef} className="h-px" />
         </div>
       )}
-      <div ref={mainRef} className="kanban-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
+      <div
+        ref={mainRef}
+        className="kanban-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4"
+      >
         {children}
       </div>
     </div>

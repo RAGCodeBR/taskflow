@@ -561,7 +561,7 @@ function MuralPage() {
   };
 
   return (
-    <div className="mural-la min-h-full bg-[#f6f5f0] px-4 py-5 text-[#313532] sm:px-7 sm:py-7">
+    <div className="mural-la min-h-full bg-background px-4 py-5 text-[#313532] sm:px-7 sm:py-7">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mural-subtle text-[11px] text-[#8a9089]">Mural LA</p>
@@ -573,10 +573,7 @@ function MuralPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            className="rounded-full bg-[#287f80] px-4 text-white hover:bg-[#236f70]"
-            onClick={openNewPost}
-          >
+          <Button className="h-9 rounded-full px-4 shadow-sm" onClick={openNewPost}>
             <Plus className="h-4 w-4" /> Novo recado
           </Button>
           <Dialog

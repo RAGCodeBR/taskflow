@@ -440,7 +440,7 @@ function RequestsPage() {
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Gestão das solicitações</h1>
         </div>
-        <Button className="rounded-full px-4" onClick={() => setDialogOpen(true)}>
+        <Button className="h-9 rounded-full px-4 shadow-sm" onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Nova solicitação
         </Button>
