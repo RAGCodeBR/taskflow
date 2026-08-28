@@ -150,7 +150,7 @@
   color-scheme: dark;
 }
 .dark .mural-la {
-  background: oklch(0.19 0.014 95);
+  background: oklch(0.18 0.012 250);
   color: var(--foreground);
 }
 .dark .mural-la .mural-subtle {

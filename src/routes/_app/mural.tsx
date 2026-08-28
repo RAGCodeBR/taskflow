@@ -736,18 +736,22 @@ function MuralPage() {
           {
             label: "Recados em aberto",
             value: posts.filter((post) => !post.completed_at).length,
-            tone: "bg-[#fff0cf]",
+            tone: "bg-[#fff0cf] text-[#3d3d32]",
           },
           {
             label: "Recados fixados",
             value: posts.filter((post) => post.is_pinned && !post.completed_at).length,
-            tone: "bg-[#dff2fa]",
+            tone: "bg-[#dff2fa] text-[#304248]",
           },
-          { label: "Reações da equipe", value: reactions.length, tone: "bg-[#dff5e9]" },
+          {
+            label: "Reações da equipe",
+            value: reactions.length,
+            tone: "bg-[#dff5e9] text-[#32433a]",
+          },
           {
             label: "Recados concluídos",
             value: posts.filter((post) => !!post.completed_at).length,
-            tone: "bg-[#f8e1ef]",
+            tone: "bg-[#f8e1ef] text-[#493742]",
           },
         ].map((metric) => (
           <div
@@ -847,7 +851,7 @@ function MuralPage() {
                   )}
                   <div className="flex items-start gap-2 pt-1">
                     <div className="min-w-0 flex-1">
-                      <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.11em] text-foreground/55">
+                      <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.11em] opacity-60">
                         {post.tag || "Aviso"}
                       </p>
                       <h2
@@ -861,7 +865,7 @@ function MuralPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-7 w-7 text-current"
                           onClick={() =>
                             updatePostPresentation.mutate({
                               id: post.id,
@@ -879,7 +883,7 @@ function MuralPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-7 w-7 text-current"
                           onClick={() =>
                             updatePostPresentation.mutate({
                               id: post.id,
@@ -901,7 +905,7 @@ function MuralPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-7 w-7 text-current"
                           onClick={() =>
                             setPostCompleted.mutate({ id: post.id, completed: !post.completed_at })
                           }
@@ -916,7 +920,7 @@ function MuralPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-7 w-7 text-current"
                           onClick={() => openEditPost(post)}
                           title="Editar post-it"
                         >
@@ -925,7 +929,7 @@ function MuralPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-7 w-7 text-current"
                           onClick={() => removePost.mutate(post.id)}
                           title="Remover post-it"
                         >
@@ -935,13 +939,13 @@ function MuralPage() {
                     )}
                   </div>
                   {post.is_pinned && (
-                    <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-background/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide">
+                    <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-white/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide">
                       <Pin className="h-3 w-3" /> Fixado à frente
                     </span>
                   )}
                   {post.content && (
                     <p
-                      className={`whitespace-pre-wrap leading-relaxed text-foreground/85 ${post.is_pinned ? "mt-2" : "mt-3"} ${post.card_size === "large" ? "text-base" : "text-sm"}`}
+                      className={`whitespace-pre-wrap leading-relaxed opacity-85 ${post.is_pinned ? "mt-2" : "mt-3"} ${post.card_size === "large" ? "text-base" : "text-sm"}`}
                     >
                       {post.content}
                     </p>
@@ -971,7 +975,7 @@ function MuralPage() {
                         onFiles={(files) => uploadFiles(post, files)}
                         disabled={uploadingPostId === post.id}
                       >
-                        <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed border-foreground/25 bg-background/20 px-2 py-2 text-xs font-medium hover:bg-background/35">
+                        <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed border-black/20 bg-white/25 px-2 py-2 text-xs font-medium hover:bg-white/40">
                           <Upload className="h-3.5 w-3.5" />
                           {uploadingPostId === post.id ? "Enviando..." : "Anexar arquivo"}
                           <input
@@ -989,7 +993,7 @@ function MuralPage() {
                     {postAttachments.map((attachment) => (
                       <div
                         key={attachment.id}
-                        className="flex items-center gap-1 rounded bg-background/45 px-2 py-1.5 text-xs"
+                        className="flex items-center gap-1 rounded bg-white/40 px-2 py-1.5 text-xs"
                       >
                         <Paperclip className="h-3.5 w-3.5 shrink-0" />
                         <span className="min-w-0 flex-1 truncate" title={attachment.file_name}>
@@ -998,7 +1002,7 @@ function MuralPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
+                          className="h-6 w-6 text-current"
                           onClick={() => void downloadAttachment(attachment)}
                           title="Baixar anexo"
                         >
@@ -1008,7 +1012,7 @@ function MuralPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-6 w-6 text-current"
                             onClick={() => void deleteAttachment(attachment)}
                             title="Excluir anexo"
                           >
@@ -1019,10 +1023,7 @@ function MuralPage() {
                     ))}
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-1.5 border-t border-foreground/10 pt-3">
-                    <SmilePlus
-                      className="mr-0.5 h-3.5 w-3.5 text-foreground/60"
-                      aria-hidden="true"
-                    />
+                    <SmilePlus className="mr-0.5 h-3.5 w-3.5 opacity-60" aria-hidden="true" />
                     {REACTION_EMOJIS.map((emoji) => {
                       const emojiReactions = postReactions.filter(
                         (reaction) => reaction.emoji === emoji,
@@ -1046,7 +1047,7 @@ function MuralPage() {
                           disabled={toggleReaction.isPending}
                           onClick={() => toggleReaction.mutate({ postId: post.id, emoji })}
                           title={names ? `${emoji} por ${names}` : `Reagir com ${emoji}`}
-                          className="h-7 min-w-7 gap-1 rounded-full px-1.5 text-xs"
+                          className="h-7 min-w-7 gap-1 rounded-full px-1.5 text-xs text-current"
                         >
                           <span>{emoji}</span>
                           {emojiReactions.length > 0 && <span>{emojiReactions.length}</span>}
@@ -1054,7 +1055,7 @@ function MuralPage() {
                       );
                     })}
                     {postReactions.length > 0 && (
-                      <p className="basis-full pt-1 text-[10px] text-foreground/65">
+                      <p className="basis-full pt-1 text-[10px] opacity-65">
                         {postReactions
                           .map(
                             (reaction) =>
@@ -1069,13 +1070,13 @@ function MuralPage() {
                   )}
                   <div className="mt-4 flex items-center justify-between gap-2">
                     {post.tag ? (
-                      <span className="inline-flex rounded bg-background/65 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                      <span className="inline-flex rounded bg-white/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                         {post.tag}
                       </span>
                     ) : (
                       <span />
                     )}
-                    <p className="text-right text-[10px] font-medium text-foreground/60">
+                    <p className="text-right text-[10px] font-medium opacity-60">
                       Por {authorName}
                     </p>
                   </div>
