@@ -103,6 +103,55 @@ const preloadImage = (src: string) =>
     image.src = src;
   });
 
+const CLIENT_AVATAR_CACHE_KEY = "taskflow-client-avatar-urls";
+const CLIENT_AVATAR_CACHE_TTL = 50 * 60 * 1000;
+
+type CachedAvatar = { url: string; expiresAt: number };
+
+const getCachedAvatarUrls = (): Record<string, string> => {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const cached = JSON.parse(
+      window.sessionStorage.getItem(CLIENT_AVATAR_CACHE_KEY) ?? "{}",
+    ) as Record<string, CachedAvatar>;
+    const now = Date.now();
+    const valid = Object.fromEntries(
+      Object.entries(cached)
+        .filter(([, entry]) => entry?.url && entry.expiresAt > now)
+        .map(([clientId, entry]) => [clientId, entry.url]),
+    );
+    window.sessionStorage.setItem(
+      CLIENT_AVATAR_CACHE_KEY,
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(cached).filter(([, entry]) => entry?.url && entry.expiresAt > now),
+        ),
+      ),
+    );
+    return valid;
+  } catch {
+    return {};
+  }
+};
+
+const cacheAvatarUrls = (urls: Record<string, string>) => {
+  if (typeof window === "undefined" || Object.keys(urls).length === 0) return;
+
+  try {
+    const cached = JSON.parse(
+      window.sessionStorage.getItem(CLIENT_AVATAR_CACHE_KEY) ?? "{}",
+    ) as Record<string, CachedAvatar>;
+    const expiresAt = Date.now() + CLIENT_AVATAR_CACHE_TTL;
+    Object.entries(urls).forEach(([clientId, url]) => {
+      cached[clientId] = { url, expiresAt };
+    });
+    window.sessionStorage.setItem(CLIENT_AVATAR_CACHE_KEY, JSON.stringify(cached));
+  } catch {
+    // A lista segue funcional se o navegador bloquear o armazenamento local.
+  }
+};
+
 export const Route = createFileRoute("/_app/clients")({
   component: Outlet,
 });
@@ -129,7 +178,7 @@ export function ClientsIndexPage() {
   const [responsible, setResponsible] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
-  const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
+  const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>(getCachedAvatarUrls);
   const [avatarsReady, setAvatarsReady] = useState(false);
   const [reportClient, setReportClient] = useState<Client | null>(null);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("all");
@@ -147,7 +196,15 @@ export function ClientsIndexPage() {
 
     const loadAvatarUrls = async () => {
       const clientsWithAvatar = clients.filter((client) => client.avatar_path);
-      setAvatarsReady(false);
+      const cachedUrls = getCachedAvatarUrls();
+      const visibleCachedUrls = Object.fromEntries(
+        clientsWithAvatar
+          .filter((client) => cachedUrls[client.id])
+          .map((client) => [client.id, cachedUrls[client.id]]),
+      );
+      const clientsToLoad = clientsWithAvatar.filter((client) => !visibleCachedUrls[client.id]);
+
+      setAvatarUrls(visibleCachedUrls);
 
       if (clientsWithAvatar.length === 0) {
         if (!cancelled) {
@@ -157,13 +214,20 @@ export function ClientsIndexPage() {
         return;
       }
 
+      if (clientsToLoad.length === 0) {
+        if (!cancelled) setAvatarsReady(true);
+        return;
+      }
+
+      setAvatarsReady(false);
+
       const { data } = await supabase.storage.from("task-attachments").createSignedUrls(
-        clientsWithAvatar.map((client) => client.avatar_path!),
+        clientsToLoad.map((client) => client.avatar_path!),
         3600,
       );
 
       const urlByPath = new Map((data ?? []).map((item) => [item.path, item.signedUrl] as const));
-      const candidates = clientsWithAvatar
+      const candidates = clientsToLoad
         .map((client) => [client.id, urlByPath.get(client.avatar_path!)] as const)
         .filter((entry): entry is readonly [string, string] => Boolean(entry[1]));
       const verified = await Promise.all(
@@ -173,11 +237,11 @@ export function ClientsIndexPage() {
       );
 
       if (!cancelled) {
-        setAvatarUrls(
-          Object.fromEntries(
-            verified.filter((entry): entry is readonly [string, string] => entry !== null),
-          ),
+        const loadedUrls = Object.fromEntries(
+          verified.filter((entry): entry is readonly [string, string] => entry !== null),
         );
+        cacheAvatarUrls(loadedUrls);
+        setAvatarUrls({ ...visibleCachedUrls, ...loadedUrls });
         setAvatarsReady(true);
       }
     };
