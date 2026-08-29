@@ -107,7 +107,7 @@ function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
         </p>
       </div>
 
-      <div className="flex overflow-x-auto border-b px-3">
+      <div className="flex max-w-full overflow-x-auto border-b px-3">
         {clients.map((client, index) => {
           const isActive = activeClient === client.id;
           return (
@@ -133,50 +133,55 @@ function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
       </div>
 
       <div className="divide-y px-5">
-        {clients.map((client, index) => {
-          const color = battleColors[index] ?? "#c6d1de";
-          return (
-            <article key={client.id} className="py-5">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  {index === 0 ? (
-                    <Trophy className="h-5 w-5 text-[#f59e0b]" />
-                  ) : (
-                    <span className="grid h-5 w-5 place-items-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
-                      {index + 1}
+        {clients
+          .filter((client) => client.id === activeClient)
+          .map((client) => {
+            const index = clients.findIndex((item) => item.id === client.id);
+            const color = battleColors[index] ?? "#c6d1de";
+            return (
+              <article key={client.id} className="py-5">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {index === 0 ? (
+                      <Trophy className="h-5 w-5 text-[#f59e0b]" />
+                    ) : (
+                      <span className="grid h-5 w-5 place-items-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                        {index + 1}
+                      </span>
+                    )}
+                    <h3 className="text-lg font-semibold">{client.name}</h3>
+                    <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                      {client.people} {client.people === 1 ? "pessoa" : "pessoas"}
                     </span>
-                  )}
-                  <h3 className="text-lg font-semibold">{client.name}</h3>
-                  <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
-                    {client.people} {client.people === 1 ? "pessoa" : "pessoas"}
-                  </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="font-medium text-[#167c80]">
+                      {client.onTimeRate}% no prazo
+                    </span>
+                    <span className="text-lg font-bold tabular-nums">{client.score}/100</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="font-medium text-[#167c80]">{client.onTimeRate}% no prazo</span>
-                  <span className="text-lg font-bold tabular-nums">{client.score}/100</span>
+                <div className="h-5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full transition-[width]"
+                    style={{ width: `${Math.max(client.score, 1)}%`, backgroundColor: color }}
+                  />
                 </div>
-              </div>
-              <div className="h-5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full transition-[width]"
-                  style={{ width: `${Math.max(client.score, 1)}%`, backgroundColor: color }}
-                />
-              </div>
-              <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-                <p>
-                  <Flame className="mr-1 inline h-4 w-4 text-emerald-600" />
-                  <span className="font-semibold text-emerald-600">Ponto forte:</span>{" "}
-                  {client.strongPoint}
-                </p>
-                <p>
-                  <ShieldAlert className="mr-1 inline h-4 w-4 text-rose-500" />
-                  <span className="font-semibold text-rose-500">O que travou:</span>{" "}
-                  {client.blocker}
-                </p>
-              </div>
-            </article>
-          );
-        })}
+                <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                  <p>
+                    <Flame className="mr-1 inline h-4 w-4 text-emerald-600" />
+                    <span className="font-semibold text-emerald-600">Ponto forte:</span>{" "}
+                    {client.strongPoint}
+                  </p>
+                  <p>
+                    <ShieldAlert className="mr-1 inline h-4 w-4 text-rose-500" />
+                    <span className="font-semibold text-rose-500">O que travou:</span>{" "}
+                    {client.blocker}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
       </div>
     </section>
   );
@@ -204,6 +209,7 @@ function ReportsPage() {
   const [filter, setFilter] = useState<DateFilter>("all");
   const [userFilter, setUserFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
+  const [reportView, setReportView] = useState<"summary" | "clients" | "team" | "risk">("clients");
 
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
   if (!hasPermission("reports")) return <Navigate to="/mural" />;
@@ -427,7 +433,36 @@ function ReportsPage() {
 
       <DateFilterBar value={filter} onChange={setFilter} />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div
+        className="flex max-w-full overflow-x-auto border-b"
+        role="tablist"
+        aria-label="Visões dos relatórios"
+      >
+        {[
+          ["summary", "Resumo"],
+          ["clients", "Desempenho dos clientes"],
+          ["team", "Ranking da equipe"],
+          ["risk", "Pessoas em risco"],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={reportView === id}
+            onClick={() => setReportView(id as typeof reportView)}
+            className={`relative shrink-0 px-4 py-3 text-sm font-medium ${reportView === id ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {label}
+            {reportView === id && (
+              <span className="absolute inset-x-3 bottom-0 h-0.5 bg-[#167c80]" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div
+        className={reportView === "summary" ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-6" : "hidden"}
+      >
         <Kpi label="Total" value={totals.total} icon={ListTodo} color="#2563eb" />
         <Kpi label="Concluídas" value={totals.done} icon={CheckCircle2} color="#059669" />
         <Kpi label="Pendentes" value={totals.pending} icon={Clock} color="#f59e0b" />
@@ -440,9 +475,11 @@ function ReportsPage() {
         />
       </div>
 
-      <ClientBattlePanel clients={clientPerformance} />
+      <div className={reportView === "clients" ? "block" : "hidden"}>
+        <ClientBattlePanel clients={clientPerformance} />
+      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className={reportView === "summary" ? "grid gap-4 lg:grid-cols-2" : "hidden"}>
         <Card className="p-4">
           <h3 className="mb-3 font-semibold">Comparativo por usuário</h3>
           <div className="h-72">
@@ -517,21 +554,31 @@ function ReportsPage() {
         </Card>
       </div>
 
-      <UserTable title="Administradores" icon={ShieldCheck} rows={admins} />
-      <UserTable title="Colaboradores" rows={members} icon={UserIcon} />
+      <div className={reportView === "team" ? "space-y-4" : "hidden"}>
+        <UserTable title="Administradores" icon={ShieldCheck} rows={admins} />
+        <UserTable title="Colaboradores" rows={members} icon={UserIcon} />
+      </div>
 
-      {unassignedRow && (
-        <Card className="p-4">
-          <h3 className="mb-3 font-semibold text-amber-700">Tarefas sem responsável</h3>
-          <p className="mb-2 text-xs text-muted-foreground">
-            Existem {unassignedRow.total} tarefa(s) sem responsável atribuído ({unassignedRow.done}{" "}
-            concluída(s), {unassignedRow.pending} pendente(s)). Atribua um responsável para que
-            apareçam nos relatórios por usuário.
-          </p>
-        </Card>
-      )}
+      <div className={reportView === "risk" ? "block" : "hidden"}>
+        {unassignedRow ? (
+          <Card className="p-4">
+            <h3 className="mb-3 font-semibold text-amber-700">Tarefas sem responsável</h3>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Existem {unassignedRow.total} tarefa(s) sem responsável atribuído (
+              {unassignedRow.done} concluída(s), {unassignedRow.pending} pendente(s)). Atribua um
+              responsável para que apareçam nos relatórios por usuário.
+            </p>
+          </Card>
+        ) : (
+          <Card className="p-4 text-sm text-muted-foreground">
+            Nenhuma tarefa sem responsável no período.
+          </Card>
+        )}
+      </div>
 
-      <ClientByUserTable clients={clients} users={perUser} tasks={filteredTasks} />
+      <div className={reportView === "summary" ? "block" : "hidden"}>
+        <ClientByUserTable clients={clients} users={perUser} tasks={filteredTasks} />
+      </div>
     </div>
   );
 }
