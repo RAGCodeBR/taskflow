@@ -30,6 +30,7 @@ import {
   Trash2,
   Sparkles,
   Search,
+  LoaderCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -84,6 +85,24 @@ const filenamePart = (value: string) =>
     .replace(/^-|-$/g, "")
     .toLowerCase();
 
+const preloadImage = (src: string) =>
+  new Promise<boolean>((resolve) => {
+    const image = new Image();
+    const timeout = window.setTimeout(() => finish(false), 8000);
+    let settled = false;
+
+    const finish = (loaded: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve(loaded);
+    };
+
+    image.onload = () => finish(true);
+    image.onerror = () => finish(false);
+    image.src = src;
+  });
+
 export const Route = createFileRoute("/_app/clients")({
   component: Outlet,
 });
@@ -111,6 +130,7 @@ export function ClientsIndexPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
   const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
+  const [avatarsReady, setAvatarsReady] = useState(false);
   const [reportClient, setReportClient] = useState<Client | null>(null);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("all");
   const [reportScope, setReportScope] = useState<"completed" | "all">("completed");
@@ -126,18 +146,40 @@ export function ClientsIndexPage() {
     let cancelled = false;
 
     const loadAvatarUrls = async () => {
-      const urls = await Promise.all(
-        clients
-          .filter((client) => client.avatar_path)
-          .map(async (client) => {
-            const { data } = await supabase.storage
-              .from("task-attachments")
-              .createSignedUrl(client.avatar_path!, 3600);
-            return [client.id, data?.signedUrl ?? ""] as const;
-          }),
+      const clientsWithAvatar = clients.filter((client) => client.avatar_path);
+      setAvatarsReady(false);
+
+      if (clientsWithAvatar.length === 0) {
+        if (!cancelled) {
+          setAvatarUrls({});
+          setAvatarsReady(true);
+        }
+        return;
+      }
+
+      const { data } = await supabase.storage.from("task-attachments").createSignedUrls(
+        clientsWithAvatar.map((client) => client.avatar_path!),
+        3600,
       );
 
-      if (!cancelled) setAvatarUrls(Object.fromEntries(urls));
+      const urlByPath = new Map((data ?? []).map((item) => [item.path, item.signedUrl] as const));
+      const candidates = clientsWithAvatar
+        .map((client) => [client.id, urlByPath.get(client.avatar_path!)] as const)
+        .filter((entry): entry is readonly [string, string] => Boolean(entry[1]));
+      const verified = await Promise.all(
+        candidates.map(async ([clientId, url]) =>
+          (await preloadImage(url)) ? ([clientId, url] as const) : null,
+        ),
+      );
+
+      if (!cancelled) {
+        setAvatarUrls(
+          Object.fromEntries(
+            verified.filter((entry): entry is readonly [string, string] => entry !== null),
+          ),
+        );
+        setAvatarsReady(true);
+      }
     };
 
     void loadAvatarUrls();
@@ -513,6 +555,13 @@ export function ClientsIndexPage() {
                       alt={`Logo de ${c.name}`}
                       className="block h-11 w-11 shrink-0 rounded-xl border border-border bg-muted object-contain p-0.5"
                     />
+                  ) : c.avatar_path && !avatarsReady ? (
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/70"
+                      aria-label={`Carregando logo de ${c.name}`}
+                    >
+                      <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
                   ) : (
                     <div
                       className="h-11 w-11 shrink-0 rounded-xl shadow-sm"
