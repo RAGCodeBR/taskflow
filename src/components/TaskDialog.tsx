@@ -1050,7 +1050,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-64 p-2">
-                  <div className="max-h-56 space-y-0.5 overflow-y-auto">
+                  <div className="max-h-56 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
                     {assignableProfiles.map((profile) => {
                         const selected = collaboratorIds.includes(profile.id);
                         const name = profile.full_name || profile.email || "Usuário sem nome";
