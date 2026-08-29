@@ -68,6 +68,7 @@ export function TaskFilters({
   const { data: assignableProfiles } = useAssignableProfiles();
   const { data: columns = [] } = useColumns();
   const [clientsOpen, setClientsOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const scope: TaskScope = filters.scope ?? "all";
@@ -119,170 +120,215 @@ export function TaskFilters({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-card p-1.5">
-          {/* Scope segmented */}
-          <div>
-            <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
-              <ScopeBtn active={scope === "all"} onClick={() => onChange({ ...filters, scope: undefined, assignee: undefined })} icon={<Users className="h-3.5 w-3.5" />}>Todas</ScopeBtn>
-              <ScopeBtn active={scope === "mine"} onClick={() => onChange({ ...filters, scope: "mine", assignee: undefined })} icon={<UserCheck className="h-3.5 w-3.5" />}>Atribuídas a mim</ScopeBtn>
-              <ScopeBtn active={scope === "created"} onClick={() => onChange({ ...filters, scope: "created", assignee: undefined })} icon={<PenSquare className="h-3.5 w-3.5" />}>Criadas por mim</ScopeBtn>
-            </div>
+      <div className="flex flex-wrap items-center gap-1.5 rounded-md border bg-card/80 p-1.5 shadow-sm">
+        {/* Scope segmented */}
+        <div>
+          <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+            <ScopeBtn
+              active={scope === "all"}
+              onClick={() => onChange({ ...filters, scope: undefined, assignee: undefined })}
+              icon={<Users className="h-3.5 w-3.5" />}
+            >
+              Todas
+            </ScopeBtn>
+            <ScopeBtn
+              active={scope === "mine"}
+              onClick={() => onChange({ ...filters, scope: "mine", assignee: undefined })}
+              icon={<UserCheck className="h-3.5 w-3.5" />}
+            >
+              Atribuídas a mim
+            </ScopeBtn>
+            <ScopeBtn
+              active={scope === "created"}
+              onClick={() => onChange({ ...filters, scope: "created", assignee: undefined })}
+              icon={<PenSquare className="h-3.5 w-3.5" />}
+            >
+              Criadas por mim
+            </ScopeBtn>
           </div>
+        </div>
 
-          <div>
+        {/* Clients multi */}
+        <Popover open={clientsOpen} onOpenChange={setClientsOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 justify-between gap-1.5 font-normal">
+              <span className="truncate max-w-40">{clientsLabel}</span>
+              {selectedClients.length > 0 && (
+                <Badge variant="secondary" className="h-5 px-1.5">
+                  {selectedClients.length}
+                </Badge>
+              )}
+              <ChevronDown className="h-4 w-4 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-64 p-2">
+            <div className="flex items-center gap-2 mb-2">
+              <Input
+                placeholder="Buscar cliente..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8"
+              />
+              {selectedClients.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setSelectedClients([])}
+                  title="Limpar seleção"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center justify-between px-2 py-1.5 border-b mb-1">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={(v) => {
+                    if (v) setSelectedClients((clients ?? []).map((c) => c.id));
+                    else setSelectedClients([]);
+                  }}
+                />
+                <span>Selecionar todos</span>
+              </label>
+              <span className="text-xs text-muted-foreground">
+                {selectedClients.length}/{clients?.length ?? 0}
+              </span>
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              {filteredClients.length === 0 ? (
+                <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                  Nenhum cliente
+                </div>
+              ) : (
+                filteredClients.map((c) => (
+                  <label
+                    key={c.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm"
+                  >
+                    <Checkbox
+                      checked={selectedClients.includes(c.id)}
+                      onCheckedChange={() => toggleClient(c.id)}
+                    />
+                    <span className="truncate">{c.name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
 
-          {/* Date compact select */}
+        {!hideAssignee && (
           <Select
-            value={dateVal}
-            onValueChange={(v) => onChange({ ...filters, date: v as DateFilter })}
+            value={filters.assignee ?? "all"}
+            onValueChange={(v) => onChange({ ...filters, assignee: v === "all" ? undefined : v })}
           >
-            <SelectTrigger className="h-7 w-32">
-              <SelectValue />
+            <SelectTrigger className="h-7 w-48">
+              <SelectValue placeholder="Responsável" />
             </SelectTrigger>
             <SelectContent>
-              {DATE_OPTIONS.map((d) => (
-                <SelectItem key={d} value={d}>
-                  {dateFilterLabels[d]}
+              <SelectItem value="all">Todos responsáveis</SelectItem>
+              {assignableProfiles?.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.full_name || p.email}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+        )}
+
+        <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 gap-1.5 font-normal">
+              <FilterIcon className="h-3.5 w-3.5" />
+              Filtros
+              {activeCount > 0 && (
+                <Badge variant="secondary" className="h-5 min-w-5 px-1.5">
+                  {activeCount}
+                </Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-64 space-y-3 p-3">
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium">Período</span>
+              <Select
+                value={dateVal}
+                onValueChange={(v) => onChange({ ...filters, date: v as DateFilter })}
+              >
+                <SelectTrigger className="h-8 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DATE_OPTIONS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {dateFilterLabels[d]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium">Prioridade</span>
+              <Select
+                value={filters.priority ?? "all"}
+                onValueChange={(v) =>
+                  onChange({ ...filters, priority: v === "all" ? undefined : v })
+                }
+              >
+                <SelectTrigger className="h-8 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas prioridades</SelectItem>
+                  <SelectItem value="low">Baixa</SelectItem>
+                  <SelectItem value="medium">Média</SelectItem>
+                  <SelectItem value="high">Alta</SelectItem>
+                  <SelectItem value="urgent">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium">Status</span>
+              <Select
+                value={filters.status ?? "all"}
+                onValueChange={(v) => onChange({ ...filters, status: v === "all" ? undefined : v })}
+              >
+                <SelectTrigger className="h-8 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos status</SelectItem>
+                  {columns.map((column) => (
+                    <SelectItem key={column.id} value={`${COLUMN_STATUS_PREFIX}${column.id}`}>
+                      {column.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={COMPLETED_STATUS_FILTER}>Concluídos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </PopoverContent>
+        </Popover>
+        {activeCount > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 ml-auto text-muted-foreground"
+            onClick={clearAll}
+          >
+            <RotateCcw className="mr-1 h-3.5 w-3.5" />
+            Limpar ({activeCount})
+          </Button>
+        )}
+        {activeCount === 0 && (
+          <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+            <FilterIcon className="h-3.5 w-3.5" />
+            Nenhum filtro
           </div>
-
-          {/* Clients multi */}
-          <Popover open={clientsOpen} onOpenChange={setClientsOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 justify-between gap-1.5 font-normal">
-                <span className="truncate max-w-40">{clientsLabel}</span>
-                {selectedClients.length > 0 && (
-                  <Badge variant="secondary" className="h-5 px-1.5">
-                    {selectedClients.length}
-                  </Badge>
-                )}
-                <ChevronDown className="h-4 w-4 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-64 p-2">
-              <div className="flex items-center gap-2 mb-2">
-                <Input
-                  placeholder="Buscar cliente..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-8"
-                />
-                {selectedClients.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={() => setSelectedClients([])}
-                    title="Limpar seleção"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-              <div className="flex items-center justify-between px-2 py-1.5 border-b mb-1">
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={(v) => {
-                      if (v) setSelectedClients((clients ?? []).map((c) => c.id));
-                      else setSelectedClients([]);
-                    }}
-                  />
-                  <span>Selecionar todos</span>
-                </label>
-                <span className="text-xs text-muted-foreground">
-                  {selectedClients.length}/{clients?.length ?? 0}
-                </span>
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {filteredClients.length === 0 ? (
-                  <div className="px-2 py-4 text-sm text-muted-foreground text-center">
-                    Nenhum cliente
-                  </div>
-                ) : (
-                  filteredClients.map((c) => (
-                    <label
-                      key={c.id}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm"
-                    >
-                      <Checkbox
-                        checked={selectedClients.includes(c.id)}
-                        onCheckedChange={() => toggleClient(c.id)}
-                      />
-                      <span className="truncate">{c.name}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          {!hideAssignee && (
-            <Select
-              value={filters.assignee ?? "all"}
-              onValueChange={(v) => onChange({ ...filters, assignee: v === "all" ? undefined : v })}
-            >
-              <SelectTrigger className="h-7 w-48">
-                <SelectValue placeholder="Responsável" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos responsáveis</SelectItem>
-                {assignableProfiles?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.full_name || p.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {/* Priority */}
-          <Select
-            value={filters.priority ?? "all"}
-            onValueChange={(v) => onChange({ ...filters, priority: v === "all" ? undefined : v })}
-          >
-            <SelectTrigger className="h-7 w-40">
-              <SelectValue placeholder="Prioridade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas prioridades</SelectItem>
-              <SelectItem value="low">Baixa</SelectItem>
-              <SelectItem value="medium">Média</SelectItem>
-              <SelectItem value="high">Alta</SelectItem>
-              <SelectItem value="urgent">Urgente</SelectItem>
-            </SelectContent>
-          </Select>
-          {/* Status */}
-          <Select
-            value={filters.status ?? "all"}
-            onValueChange={(v) => onChange({ ...filters, status: v === "all" ? undefined : v })}
-          >
-            <SelectTrigger className="h-7 w-36">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos status</SelectItem>
-              {columns.map((column) => (
-                <SelectItem key={column.id} value={`${COLUMN_STATUS_PREFIX}${column.id}`}>{column.name}</SelectItem>
-              ))}
-              <SelectItem value={COMPLETED_STATUS_FILTER}>Concluídos</SelectItem>
-            </SelectContent>
-          </Select>      {activeCount > 0 && (
-        <Button size="sm" variant="ghost" className="h-7 ml-auto text-muted-foreground" onClick={clearAll}>
-          <RotateCcw className="mr-1 h-3.5 w-3.5" />
-          Limpar ({activeCount})
-        </Button>
-      )}
-      {activeCount === 0 && (
-        <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-          <FilterIcon className="h-3.5 w-3.5" />
-          Nenhum filtro
-        </div>
-      )}
-      {children}
+        )}
+        {children}
       </div>
     </>
   );
@@ -360,9 +406,7 @@ export function applyTaskFilters<
     if (f.scope === "mine") {
       if (!uid) return false;
       const participatesInTask =
-        t.assignee_id === uid ||
-        !!subIds?.has(t.id) ||
-        !!collaboratorIds?.has(t.id);
+        t.assignee_id === uid || !!subIds?.has(t.id) || !!collaboratorIds?.has(t.id);
       if (!participatesInTask) return false;
     }
     if (f.scope === "created" && (!uid || t.created_by !== uid)) return false;
@@ -394,7 +438,8 @@ export function applyTaskFilters<
       }
     }
     if (f.priority && t.priority !== f.priority) return false;
-    if (f.status === COMPLETED_STATUS_FILTER && t.status !== "done" && !t.completed_at) return false;
+    if (f.status === COMPLETED_STATUS_FILTER && t.status !== "done" && !t.completed_at)
+      return false;
     if (f.status?.startsWith(COLUMN_STATUS_PREFIX)) {
       const columnId = f.status.slice(COLUMN_STATUS_PREFIX.length);
       if (t.column_id !== columnId || t.status === "done" || !!t.completed_at) return false;

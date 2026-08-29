@@ -54,7 +54,10 @@ import {
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
-import { removeTaskAttachmentAndClientCopy, syncTaskAttachmentToClient } from "@/lib/sync-task-attachment-to-client";
+import {
+  removeTaskAttachmentAndClientCopy,
+  syncTaskAttachmentToClient,
+} from "@/lib/sync-task-attachment-to-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
 import { CommentAttachments } from "@/components/CommentAttachments";
@@ -172,7 +175,10 @@ export function TaskCard({
   const fileRef = useRef<HTMLInputElement>(null);
   const descTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [fileUploadProgress, setFileUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [fileUploadProgress, setFileUploadProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
@@ -534,7 +540,9 @@ export function TaskCard({
     if (!selectedFiles.length || fileUploadProgress) return;
     const oversizedFiles = selectedFiles.filter(isTaskAttachmentTooLarge);
     if (oversizedFiles.length) {
-      toast.error(`${oversizedFiles.length} ${oversizedFiles.length === 1 ? "arquivo ultrapassa" : "arquivos ultrapassam"} o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+      toast.error(
+        `${oversizedFiles.length} ${oversizedFiles.length === 1 ? "arquivo ultrapassa" : "arquivos ultrapassam"} o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`,
+      );
       return;
     }
     let uploaded = 0;
@@ -547,7 +555,9 @@ export function TaskCard({
       if (uploaded === selectedFiles.length) {
         toast.success(`${uploaded} ${uploaded === 1 ? "arquivo enviado" : "arquivos enviados"}`);
       } else {
-        toast.error(`${uploaded} de ${selectedFiles.length} arquivos foram enviados. Tente novamente os restantes.`);
+        toast.error(
+          `${uploaded} de ${selectedFiles.length} arquivos foram enviados. Tente novamente os restantes.`,
+        );
       }
     } finally {
       setFileUploadProgress(null);
@@ -992,7 +1002,7 @@ export function TaskCard({
     return (
       <div
         {...dragHandleProps}
-        className="group flex min-h-[132px] w-full cursor-grab touch-none flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition hover:border-primary/40 hover:shadow active:cursor-grabbing"
+        className="group flex min-h-[132px] w-full cursor-grab touch-none flex-col overflow-hidden rounded-[0.75rem] border bg-card shadow-sm transition hover:border-primary/40 hover:shadow active:cursor-grabbing"
         title={task.title || "Sem título"}
       >
         <div
@@ -1100,7 +1110,7 @@ export function TaskCard({
       <div
         {...dragHandleProps}
         className={cn(
-          "group relative flex min-h-[420px] w-full cursor-grab touch-none flex-col overflow-visible rounded-lg border bg-card shadow-sm transition hover:border-primary/40 hover:shadow active:cursor-grabbing",
+          "group relative flex min-h-[420px] w-full cursor-grab touch-none flex-col overflow-visible rounded-[0.75rem] border bg-card shadow-sm transition hover:border-primary/40 hover:shadow active:cursor-grabbing",
         )}
       >
         {/* Client color strip at top */}
@@ -1108,7 +1118,7 @@ export function TaskCard({
           <div
             className={cn(
               "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider",
-              "rounded-t-lg",
+              "rounded-t-[0.75rem]",
             )}
             style={{ background: client.color, color: clientText }}
           >
@@ -1678,71 +1688,68 @@ export function TaskCard({
 
             {/* Attachment thumbnails grid */}
             {isVisible("attachments") ? (
-              <div
-                className=""
-                style={{ order: orderOf("attachments") }}
-              >
+              <div className="" style={{ order: orderOf("attachments") }}>
                 {attachments.length > 0 ? (
                   <div className="grid grid-cols-3 gap-1">
                     {attachments.slice(0, 6).map((a) => {
-                  const isLink = a.mime_type === LINK_MIME;
-                  const isImage = !isLink && a.mime_type?.startsWith("image/");
-                  return (
-                    <div
-                      key={a.id}
-                      className="group/att relative aspect-square overflow-hidden rounded border bg-muted"
-                    >
-                      {isImage && thumbs[a.id] ? (
-                        <button
-                          type="button"
-                          onPointerDown={stop}
-                          onClick={(e) => {
-                            stop(e);
-                            openAttachment(a);
-                          }}
-                          className="block h-full w-full"
+                      const isLink = a.mime_type === LINK_MIME;
+                      const isImage = !isLink && a.mime_type?.startsWith("image/");
+                      return (
+                        <div
+                          key={a.id}
+                          className="group/att relative aspect-square overflow-hidden rounded border bg-muted"
                         >
-                          <img
-                            src={thumbs[a.id]}
-                            alt={a.file_name}
-                            className="h-full w-full object-cover"
-                          />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onPointerDown={stop}
-                          onClick={(e) => {
-                            stop(e);
-                            openAttachment(a);
-                          }}
-                          className="flex h-full w-full flex-col items-center justify-center gap-0.5 p-1 text-muted-foreground"
-                          title={a.file_name}
-                        >
-                          {isLink ? (
-                            <Link2 className="h-4 w-4" />
+                          {isImage && thumbs[a.id] ? (
+                            <button
+                              type="button"
+                              onPointerDown={stop}
+                              onClick={(e) => {
+                                stop(e);
+                                openAttachment(a);
+                              }}
+                              className="block h-full w-full"
+                            >
+                              <img
+                                src={thumbs[a.id]}
+                                alt={a.file_name}
+                                className="h-full w-full object-cover"
+                              />
+                            </button>
                           ) : (
-                            <FileText className="h-4 w-4" />
+                            <button
+                              type="button"
+                              onPointerDown={stop}
+                              onClick={(e) => {
+                                stop(e);
+                                openAttachment(a);
+                              }}
+                              className="flex h-full w-full flex-col items-center justify-center gap-0.5 p-1 text-muted-foreground"
+                              title={a.file_name}
+                            >
+                              {isLink ? (
+                                <Link2 className="h-4 w-4" />
+                              ) : (
+                                <FileText className="h-4 w-4" />
+                              )}
+                              <span className="line-clamp-1 w-full break-all text-center text-[8px] leading-tight">
+                                {a.file_name}
+                              </span>
+                            </button>
                           )}
-                          <span className="line-clamp-1 w-full break-all text-center text-[8px] leading-tight">
-                            {a.file_name}
-                          </span>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onPointerDown={stop}
-                        onClick={(e) => {
-                          stop(e);
-                          void deleteAttachment(a);
-                        }}
-                        className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 opacity-0 transition group-hover/att:opacity-100"
-                        title="Remover"
-                      >
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    </div>
-                  );
+                          <button
+                            type="button"
+                            onPointerDown={stop}
+                            onClick={(e) => {
+                              stop(e);
+                              void deleteAttachment(a);
+                            }}
+                            className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 opacity-0 transition group-hover/att:opacity-100"
+                            title="Remover"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      );
                     })}
                     {attachments.length > 6 ? (
                       <button
@@ -1774,7 +1781,11 @@ export function TaskCard({
                     className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground/70 hover:bg-muted hover:text-foreground"
                   >
                     <Upload className="h-3 w-3" />
-                    <span>{fileUploadProgress ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…` : `Adicionar arquivos (até ${MAX_TASK_ATTACHMENT_LABEL})`}</span>
+                    <span>
+                      {fileUploadProgress
+                        ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…`
+                        : `Adicionar arquivos (até ${MAX_TASK_ATTACHMENT_LABEL})`}
+                    </span>
                   </button>
                   <input
                     ref={fileRef}
@@ -1848,28 +1859,28 @@ export function TaskCard({
                 className="rounded-md border"
                 style={{ order: orderOf("meta") }}
               >
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  onPointerDown={stop}
-                  className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/60"
-                >
-                  <ChevronRight
-                    className={cn(
-                      "h-3.5 w-3.5 transition-transform",
-                      collaboratorsOpen && "rotate-90",
-                    )}
-                  />
-                  <Users className="h-3.5 w-3.5" />
-                  <span className="font-medium text-foreground">Colaboradores</span>
-                  <span className="ml-auto text-[10px]">
-                    {taskCollaborators.length === 0 ? "Nenhum" : taskCollaborators.length}
-                  </span>
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="border-t p-1.5">
-                <div className="max-h-56 space-y-0.5 overflow-y-auto">
-                  {assignableProfiles.map((profile) => {
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    onPointerDown={stop}
+                    className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/60"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "h-3.5 w-3.5 transition-transform",
+                        collaboratorsOpen && "rotate-90",
+                      )}
+                    />
+                    <Users className="h-3.5 w-3.5" />
+                    <span className="font-medium text-foreground">Colaboradores</span>
+                    <span className="ml-auto text-[10px]">
+                      {taskCollaborators.length === 0 ? "Nenhum" : taskCollaborators.length}
+                    </span>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="border-t p-1.5">
+                  <div className="max-h-56 space-y-0.5 overflow-y-auto">
+                    {assignableProfiles.map((profile) => {
                       const checked = taskCollaborators.some(
                         (collaborator) => collaborator.id === profile.id,
                       );
@@ -1896,8 +1907,8 @@ export function TaskCard({
                         </button>
                       );
                     })}
-                </div>
-              </CollapsibleContent>
+                  </div>
+                </CollapsibleContent>
               </Collapsible>
             ) : null}
 
@@ -1997,21 +2008,19 @@ export function TaskCard({
 
             {isVisible("meta") ? (
               <div className="space-y-0" style={{ order: orderOf("meta") }}>
-              <div className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-muted-foreground">
-                <UserIcon className="h-3 w-3 shrink-0" />
-                <span className="truncate">
-                  Criada por: {creatorName}
-                </span>
-              </div>
-              {task.assignee_id && task.assigned_by ? (
                 <div className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-muted-foreground">
-                  <Users className="h-3 w-3 shrink-0" />
-                  <span className="truncate">
-                    Atribuída por:{" "}
-                    {assigner?.full_name || assigner?.email || "Usuário não identificado"}
-                  </span>
+                  <UserIcon className="h-3 w-3 shrink-0" />
+                  <span className="truncate">Criada por: {creatorName}</span>
                 </div>
-              ) : null}
+                {task.assignee_id && task.assigned_by ? (
+                  <div className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-muted-foreground">
+                    <Users className="h-3 w-3 shrink-0" />
+                    <span className="truncate">
+                      Atribuída por:{" "}
+                      {assigner?.full_name || assigner?.email || "Usuário não identificado"}
+                    </span>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -2082,7 +2091,6 @@ export function TaskCard({
                   <MessageCircle className="h-3 w-3" />
                   <span>Conversa</span>
                 </button>
-
               </div>
             ) : null}
           </div>
@@ -2147,7 +2155,11 @@ export function TaskCard({
             >
               Cancelar
             </Button>
-            <Button size="sm" disabled={!dueChange.reason.trim()} onClick={() => void confirmDueChange(false)}>
+            <Button
+              size="sm"
+              disabled={!dueChange.reason.trim()}
+              onClick={() => void confirmDueChange(false)}
+            >
               Salvar
             </Button>
           </DialogFooter>

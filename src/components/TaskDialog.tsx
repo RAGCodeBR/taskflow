@@ -18,7 +18,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/use-auth";
-import { useAssignableProfiles, useClients, useColumns, useProfiles, useTaskStatuses, type Task } from "@/hooks/use-data";
+import {
+  useAssignableProfiles,
+  useClients,
+  useColumns,
+  useProfiles,
+  useTaskStatuses,
+  type Task,
+} from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -40,7 +47,10 @@ import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
-import { removeTaskAttachmentAndClientCopy, syncTaskAttachmentToClient } from "@/lib/sync-task-attachment-to-client";
+import {
+  removeTaskAttachmentAndClientCopy,
+  syncTaskAttachmentToClient,
+} from "@/lib/sync-task-attachment-to-client";
 import { RichTextEditor } from "@/components/RichTextEditor";
 
 interface Props {
@@ -100,9 +110,17 @@ interface Attachment {
 }
 const LINK_MIME = "text/uri-list";
 const COMPLETED_STATUS_VALUE = "__completed__";
-const MESSAGE_EMOJIS = ["\u{1F600}", "\u{1F602}", "\u{1F44B}", "\u{1F680}", "\u{1F4A1}", "\u{2764}\u{FE0F}", "\u{1F389}", "\u{1F44F}"];
-const storageObjectName = () =>
-  `arquivo-${Date.now()}-${crypto.randomUUID()}`;
+const MESSAGE_EMOJIS = [
+  "\u{1F600}",
+  "\u{1F602}",
+  "\u{1F44B}",
+  "\u{1F680}",
+  "\u{1F4A1}",
+  "\u{2764}\u{FE0F}",
+  "\u{1F389}",
+  "\u{1F44F}",
+];
+const storageObjectName = () => `arquivo-${Date.now()}-${crypto.randomUUID()}`;
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -146,7 +164,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [fileUploadProgress, setFileUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [fileUploadProgress, setFileUploadProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const canDeleteTask = !!currentTaskId && (!!isAdmin || !task || task.created_by === user?.id);
@@ -214,7 +235,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (task) {
       setTitle(task.title);
       setDescription(task.description ?? "");
-      setStatus(task.status === "done" || task.completed_at ? "done" : task.status ?? "todo");
+      setStatus(task.status === "done" || task.completed_at ? "done" : (task.status ?? "todo"));
       setPriority(task.priority);
       setColumnId(task.column_id ?? "");
       setClientId(task.client_id ?? "");
@@ -275,16 +296,28 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       .channel(`task-comments-${currentTaskId}-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "comments", filter: `task_id=eq.${currentTaskId}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "comments",
+          filter: `task_id=eq.${currentTaskId}`,
+        },
         ({ new: comment }: { new: Record<string, unknown> }) => {
           setComments((existing) =>
-            existing.some((item) => item.id === comment.id) ? existing : [...existing, comment as unknown as Comment],
+            existing.some((item) => item.id === comment.id)
+              ? existing
+              : [...existing, comment as unknown as Comment],
           );
         },
       )
       .on(
         "postgres_changes",
-        { event: "DELETE", schema: "public", table: "comments", filter: `task_id=eq.${currentTaskId}` },
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "comments",
+          filter: `task_id=eq.${currentTaskId}`,
+        },
         ({ old: comment }: { old: { id: string } }) =>
           setComments((existing) => existing.filter((item) => item.id !== comment.id)),
       )
@@ -334,19 +367,21 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
 
   const buildPayload = () => {
-    const matchingStatus = statuses.find((item) => status === "done" ? item.is_completed : !item.is_completed);
+    const matchingStatus = statuses.find((item) =>
+      status === "done" ? item.is_completed : !item.is_completed,
+    );
     return {
-    title: title.trim() || "Sem título",
-    description: description || null,
-    status,
-    status_id: matchingStatus?.id ?? null,
-    priority,
-    column_id: columnId || null,
-    client_id: clientId || null,
-    assignee_id: assigneeId || null,
-    due_date: deadlineToIso(dueDate),
-    due_time: dueDate ? dueTime || null : null,
-    completed_at: status === "done" ? task?.completed_at ?? new Date().toISOString() : null,
+      title: title.trim() || "Sem título",
+      description: description || null,
+      status,
+      status_id: matchingStatus?.id ?? null,
+      priority,
+      column_id: columnId || null,
+      client_id: clientId || null,
+      assignee_id: assigneeId || null,
+      due_date: deadlineToIso(dueDate),
+      due_time: dueDate ? dueTime || null : null,
+      completed_at: status === "done" ? (task?.completed_at ?? new Date().toISOString()) : null,
     };
   };
 
@@ -487,9 +522,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         const dueDateChanged = hasDueDateChanged(previousDueDate, dueDate);
         // Definir o primeiro prazo não é uma alteração. A justificativa só é
         // obrigatória a partir da segunda definição/alteração do prazo.
-        const dueChangeReason = dueDateChanged && previousDueDate
-          ? dueDateChangeReason.trim()
-          : null;
+        const dueChangeReason =
+          dueDateChanged && previousDueDate ? dueDateChangeReason.trim() : null;
         if (dueDateChanged && previousDueDate && !dueChangeReason) {
           toast.error("Informe a justificativa para alterar o prazo da tarefa.");
           return;
@@ -646,9 +680,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     }
 
     setSubtasks((current) =>
-      current.map((item) =>
-        item.id === subtask.id ? { ...item, title: nextTitle } : item,
-      ),
+      current.map((item) => (item.id === subtask.id ? { ...item, title: nextTitle } : item)),
     );
     setEditingSubtaskId((current) => (current === subtask.id ? null : current));
   };
@@ -657,7 +689,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const prev = st.due_date;
     if (next === prev) return;
     const justification = prev
-      ? reason?.trim() || window.prompt("Justificativa obrigatória para mudar o prazo da subtarefa:")?.trim()
+      ? reason?.trim() ||
+        window.prompt("Justificativa obrigatória para mudar o prazo da subtarefa:")?.trim()
       : null;
     if (prev && !justification) {
       toast.error("Informe a justificativa para alterar o prazo da subtarefa.");
@@ -802,13 +835,23 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (error) return toast.error(error.message);
     const mentionIds = mentionedProfileIds(body).filter((id) => id !== user.id);
     if (mentionIds.length) {
-      const { error: mentionError } = await supabase.from("comment_mentions").insert(
-        mentionIds.map((mentionedUserId) => ({ comment_id: data.id, mentioned_user_id: mentionedUserId })),
-      );
-      if (mentionError) toast.error(`Comentário enviado, mas não foi possível notificar as menções: ${mentionError.message}`);
+      const { error: mentionError } = await supabase
+        .from("comment_mentions")
+        .insert(
+          mentionIds.map((mentionedUserId) => ({
+            comment_id: data.id,
+            mentioned_user_id: mentionedUserId,
+          })),
+        );
+      if (mentionError)
+        toast.error(
+          `Comentário enviado, mas não foi possível notificar as menções: ${mentionError.message}`,
+        );
     }
     setComments((existing) =>
-      existing.some((comment) => comment.id === data.id) ? existing : [...existing, data as Comment],
+      existing.some((comment) => comment.id === data.id)
+        ? existing
+        : [...existing, data as Comment],
     );
     setNewComment("");
   };
@@ -876,7 +919,9 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (!selectedFiles.length || fileUploadProgress) return;
     const oversizedFiles = selectedFiles.filter(isTaskAttachmentTooLarge);
     if (oversizedFiles.length) {
-      toast.error(`${oversizedFiles.length} ${oversizedFiles.length === 1 ? "arquivo ultrapassa" : "arquivos ultrapassam"} o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+      toast.error(
+        `${oversizedFiles.length} ${oversizedFiles.length === 1 ? "arquivo ultrapassa" : "arquivos ultrapassam"} o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`,
+      );
       return;
     }
     const taskId = await ensureTask();
@@ -891,7 +936,9 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       if (uploaded === selectedFiles.length) {
         toast.success(`${uploaded} ${uploaded === 1 ? "arquivo enviado" : "arquivos enviados"}`);
       } else {
-        toast.error(`${uploaded} de ${selectedFiles.length} arquivos foram enviados. Tente novamente os restantes.`);
+        toast.error(
+          `${uploaded} de ${selectedFiles.length} arquivos foram enviados. Tente novamente os restantes.`,
+        );
       }
     } finally {
       setFileUploadProgress(null);
@@ -933,22 +980,23 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{task ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
+      <DialogContent className="max-h-[90vh] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl">
+        <DialogHeader className="border-b bg-muted/20 px-6 py-5">
+          <DialogTitle className="text-xl">{task ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-5 px-6 py-5">
           <div className="space-y-2">
             <Label>Título *</Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="O que precisa ser feito?"
+              className="h-11 text-base"
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 rounded-md border bg-muted/15 p-4 sm:grid-cols-2 md:grid-cols-3">
             <div className="order-1 space-y-2">
               <Label className="text-xs">Prioridade</Label>
               <Select
@@ -1052,21 +1100,21 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 <PopoverContent align="start" className="w-64 p-2">
                   <div className="max-h-56 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
                     {assignableProfiles.map((profile) => {
-                        const selected = collaboratorIds.includes(profile.id);
-                        const name = profile.full_name || profile.email || "Usuário sem nome";
-                        return (
-                          <label
-                            key={profile.id}
-                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
-                          >
-                            <Checkbox
-                              checked={selected}
-                              onCheckedChange={() => toggleCollaborator(profile.id)}
-                            />
-                            <span className="truncate">{name}</span>
-                          </label>
-                        );
-                      })}
+                      const selected = collaboratorIds.includes(profile.id);
+                      const name = profile.full_name || profile.email || "Usuário sem nome";
+                      return (
+                        <label
+                          key={profile.id}
+                          className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                        >
+                          <Checkbox
+                            checked={selected}
+                            onCheckedChange={() => toggleCollaborator(profile.id)}
+                          />
+                          <span className="truncate">{name}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -1176,9 +1224,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
               {task && (
                 <div className="pt-1">
                   <Label className="text-xs text-muted-foreground">Criada por</Label>
-                  <p className="mt-1 text-sm font-medium">
-                    {taskCreatorName}
-                  </p>
+                  <p className="mt-1 text-sm font-medium">{taskCreatorName}</p>
                 </div>
               )}
             </div>
@@ -1497,19 +1543,21 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                               }}
                             >
                               <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed py-1.5 text-[11px] text-muted-foreground hover:bg-muted/40">
-                              <Paperclip className="h-3 w-3" /> Anexar arquivo
-                              <input
-                                type="file"
-                                multiple
-                                className="hidden"
-                                onChange={(e) => {
-                                  const files = e.target.files;
-                                  if (files) void (async () => {
-                                    for (const file of Array.from(files)) await uploadSubFile(s, file);
-                                  })();
-                                  e.target.value = "";
-                                }}
-                              />
+                                <Paperclip className="h-3 w-3" /> Anexar arquivo
+                                <input
+                                  type="file"
+                                  multiple
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const files = e.target.files;
+                                    if (files)
+                                      void (async () => {
+                                        for (const file of Array.from(files))
+                                          await uploadSubFile(s, file);
+                                      })();
+                                    e.target.value = "";
+                                  }}
+                                />
                               </label>
                             </FileDropZone>
                           </div>
@@ -1567,36 +1615,68 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     </p>
                   )}
                   {comments.map((comment) => {
-                    const author = profiles?.find((candidate) => candidate.id === comment.author_id);
+                    const author = profiles?.find(
+                      (candidate) => candidate.id === comment.author_id,
+                    );
                     const authorName = author?.full_name || author?.email || "Usuário";
                     const isOwnComment = comment.author_id === user?.id;
                     const mentionNames = mentionableProfiles
                       .map((candidate) => candidate.full_name || candidate.email)
                       .filter((name): name is string => Boolean(name));
                     const mentionParts = mentionNames.length
-                      ? comment.body.split(new RegExp(`(${mentionNames.map((name) => `@${escapeRegExp(name)}`).join("|")})`, "gi"))
+                      ? comment.body.split(
+                          new RegExp(
+                            `(${mentionNames.map((name) => `@${escapeRegExp(name)}`).join("|")})`,
+                            "gi",
+                          ),
+                        )
                       : [comment.body];
                     return (
-                      <div key={comment.id} className={`flex gap-2 ${isOwnComment ? "justify-end" : "justify-start"}`}>
+                      <div
+                        key={comment.id}
+                        className={`flex gap-2 ${isOwnComment ? "justify-end" : "justify-start"}`}
+                      >
                         {!isOwnComment && (
                           <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
                             {authorName.slice(0, 2).toUpperCase()}
                           </div>
                         )}
-                        <div className={`group max-w-[85%] rounded-lg px-3 py-2 text-sm ${isOwnComment ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                        <div
+                          className={`group max-w-[85%] rounded-lg px-3 py-2 text-sm ${isOwnComment ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+                        >
                           <div className="mb-1 flex items-center gap-2 text-[11px] opacity-75">
-                            <span className="font-medium">{isOwnComment ? "Você" : authorName}</span>
+                            <span className="font-medium">
+                              {isOwnComment ? "Você" : authorName}
+                            </span>
                             <span>{format(new Date(comment.created_at), "dd/MM HH:mm")}</span>
                             {(isOwnComment || isAdmin) && (
-                              <button type="button" className="ml-auto opacity-0 transition-opacity group-hover:opacity-100" onClick={() => deleteComment(comment.id)} title="Excluir mensagem">
+                              <button
+                                type="button"
+                                className="ml-auto opacity-0 transition-opacity group-hover:opacity-100"
+                                onClick={() => deleteComment(comment.id)}
+                                title="Excluir mensagem"
+                              >
                                 <X className="h-3.5 w-3.5" />
                               </button>
                             )}
                           </div>
                           <p className="whitespace-pre-wrap break-words">
-                            {mentionParts.map((part, index) => part.startsWith("@") ? (
-                              <span key={index} className={isOwnComment ? "font-semibold underline" : "font-semibold text-primary"}>{part}</span>
-                            ) : part)}
+                            {mentionParts.map((part, index) =>
+                              part.startsWith("@") ? (
+                                <span
+                                  key={index}
+                                  className={
+                                    isOwnComment
+                                      ? "font-semibold underline"
+                                      : "font-semibold text-primary"
+                                  }
+                                >
+                                  {part}
+                                </span>
+                              ) : (
+                                part
+                              ),
+                            )}
                           </p>
                         </div>
                       </div>
@@ -1619,8 +1699,18 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   {mentionCandidates.length > 0 && (
                     <div className="absolute bottom-[calc(100%+4px)] left-2 z-10 w-64 overflow-hidden rounded-md border bg-popover p-1 shadow-md">
                       {mentionCandidates.map((candidate) => (
-                        <button key={candidate.id} type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted" onMouseDown={(event) => event.preventDefault()} onClick={() => insertMention(candidate)}>
-                          <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{(candidate.full_name || candidate.email || "U").slice(0, 2).toUpperCase()}</span>
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => insertMention(candidate)}
+                        >
+                          <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
+                            {(candidate.full_name || candidate.email || "U")
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </span>
                           <span className="truncate">{candidate.full_name || candidate.email}</span>
                         </button>
                       ))}
@@ -1630,13 +1720,25 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
                       <SmilePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                       {MESSAGE_EMOJIS.map((emoji) => (
-                        <button key={emoji} type="button" className="rounded p-1 text-base leading-none hover:bg-muted" onClick={() => setNewComment((current) => `${current}${emoji}`)} title={`Adicionar ${emoji}`}>
+                        <button
+                          key={emoji}
+                          type="button"
+                          className="rounded p-1 text-base leading-none hover:bg-muted"
+                          onClick={() => setNewComment((current) => `${current}${emoji}`)}
+                          title={`Adicionar ${emoji}`}
+                        >
                           {emoji}
                         </button>
                       ))}
                     </div>
-                    <span className="text-[11px] text-muted-foreground">Use @ para marcar alguém · Ctrl/⌘ + Enter para enviar</span>
-                    <Button onClick={() => void addComment()} size="sm" disabled={!newComment.trim()}>
+                    <span className="text-[11px] text-muted-foreground">
+                      Use @ para marcar alguém · Ctrl/⌘ + Enter para enviar
+                    </span>
+                    <Button
+                      onClick={() => void addComment()}
+                      size="sm"
+                      disabled={!newComment.trim()}
+                    >
                       <Send className="mr-1 h-4 w-4" /> Enviar
                     </Button>
                   </div>
@@ -1682,23 +1784,23 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     </Button>
                   </div>
                 ))}
-                <FileDropZone
-                  onFiles={uploadFiles}
-                  disabled={!!fileUploadProgress}
-                >
+                <FileDropZone onFiles={uploadFiles} disabled={!!fileUploadProgress}>
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-3 text-sm text-muted-foreground hover:bg-muted/40">
-                  <Paperclip className="h-4 w-4" /> {fileUploadProgress ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…` : `Anexar arquivos (até ${MAX_TASK_ATTACHMENT_LABEL} cada)`}
-                  <input
-                    type="file"
-                    multiple
-                    className="hidden"
-                    disabled={!!fileUploadProgress}
-                    onChange={(e) => {
-                      const files = e.target.files;
-                      if (files) void uploadFiles(files);
-                      e.target.value = "";
-                    }}
-                  />
+                    <Paperclip className="h-4 w-4" />{" "}
+                    {fileUploadProgress
+                      ? `Enviando ${fileUploadProgress.current}/${fileUploadProgress.total}…`
+                      : `Anexar arquivos (até ${MAX_TASK_ATTACHMENT_LABEL} cada)`}
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      disabled={!!fileUploadProgress}
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (files) void uploadFiles(files);
+                        e.target.value = "";
+                      }}
+                    />
                   </label>
                 </FileDropZone>
               </TabsContent>

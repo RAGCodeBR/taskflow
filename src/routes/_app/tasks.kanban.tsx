@@ -1209,7 +1209,7 @@ function KanbanPage() {
               </Button>
             )}
             <Button
-              className="h-9 rounded-full px-4 shadow-sm"
+              className="h-9 rounded-md px-4 shadow-sm"
               onClick={() => {
                 setEditTask(null);
                 setDefaultCol(columns[0]?.id ?? null);
