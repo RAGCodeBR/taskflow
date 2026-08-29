@@ -128,7 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Button
             size="icon"
             variant="ghost"
-            className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            className="h-7 w-7 text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             onClick={() => setSidebarOpen((o) => !o)}
             title={sidebarOpen ? "Recolher menu" : "Expandir menu"}
           >
@@ -159,9 +159,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 } ${
                   Active
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
                 }`}
-                title={n.label}
+                title={sidebarOpen ? undefined : n.label}
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 {sidebarOpen && <span className="truncate">{n.label}</span>}
@@ -205,7 +205,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                className="h-8 w-8 text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 onClick={toggle}
                 title={theme === "dark" ? "Modo claro" : "Modo escuro"}
               >
@@ -214,7 +214,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                className="h-8 w-8 text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 onClick={signOut}
                 title="Sair"
               >
@@ -279,7 +279,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                       Active
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -376,7 +376,7 @@ function PortalNavGroup({
   return (
     <Collapsible defaultOpen={active} className="space-y-1">
       <CollapsibleTrigger
-        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"}`}
+        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"}`}
       >
         <PanelsTopLeft className="h-4 w-4" />
         <span className="flex-1 text-left">Portal do Cliente</span>
@@ -387,7 +387,7 @@ function PortalNavGroup({
           <Link
             to="/portal/entregas"
             onClick={onNavigate}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
           >
             <CalendarCog className="h-4 w-4" />
             Calendário de Entregas
@@ -397,7 +397,7 @@ function PortalNavGroup({
           <Link
             to="/portal/financeiro"
             onClick={onNavigate}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
           >
             <CircleDollarSign className="h-4 w-4" />
             Financeiro
