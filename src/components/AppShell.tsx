@@ -27,7 +27,7 @@ import {
 import { NotificationBell } from "@/components/NotificationBell";
 import { AssignmentPopup } from "@/components/AssignmentPopup";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import taskflowMark from "@/assets/taskflow-mark.png";
+import businessMentoringLogo from "@/assets/la-business-mentoring.png";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useMuralUnreadCount } from "@/hooks/use-mural-unread";
 import { useRequestUnreadCount } from "@/hooks/use-request-unread";
@@ -110,21 +110,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         style={{ background: "var(--gradient-sidebar)" }}
       >
         <div
-          className={`flex shrink-0 items-center ${sidebarOpen ? "gap-2.5 px-5 pb-3 pt-4" : "justify-center px-2 pb-4 pt-5"}`}
+          className={`flex ${sidebarOpen ? "flex-col items-center gap-3 py-4 px-5" : "items-center justify-center py-5 px-2"}`}
         >
-          <div className={sidebarOpen ? "h-10 w-10" : "h-9 w-9"}>
-            <img src={taskflowMark} alt="TaskFlow" className="h-full w-full object-contain" />
+          <div
+            className={`flex shrink-0 items-center justify-center ${sidebarOpen ? "h-16 w-40" : "h-9 w-9"}`}
+          >
+            <img
+              src={businessMentoringLogo}
+              alt="TaskFlow"
+              className="h-full w-full object-contain"
+            />
           </div>
-          {sidebarOpen && (
-            <div className="min-w-0">
-              <span className="block text-[17px] font-semibold leading-none tracking-tight">
-                TaskFlow
-              </span>
-              <span className="mt-1 block text-[9px] font-medium uppercase tracking-[0.16em] text-sidebar-foreground/55">
-                Organize. Foque. Realize.
-              </span>
-            </div>
-          )}
+          {sidebarOpen && <span className="text-lg font-semibold leading-none">TaskFlow</span>}
         </div>
 
         <div className={`flex ${sidebarOpen ? "justify-end px-3" : "justify-center"} mb-2`}>
@@ -245,18 +242,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             style={{ background: "var(--gradient-sidebar)" }}
           >
             <div className="flex items-center justify-between px-5 py-4">
-              <div className="flex items-center gap-2.5">
-                <div className="h-10 w-10 shrink-0">
-                  <img src={taskflowMark} alt="TaskFlow" className="h-full w-full object-contain" />
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex h-16 w-40 shrink-0 items-center justify-center">
+                  <img
+                    src={businessMentoringLogo}
+                    alt="TaskFlow"
+                    className="h-full w-full object-contain"
+                  />
                 </div>
-                <div>
-                  <span className="block text-[17px] font-semibold leading-none tracking-tight">
-                    TaskFlow
-                  </span>
-                  <span className="mt-1 block text-[9px] font-medium uppercase tracking-[0.16em] text-sidebar-foreground/55">
-                    Organize. Foque. Realize.
-                  </span>
-                </div>
+                <span className="text-lg font-semibold leading-none">TaskFlow</span>
               </div>
               <Button size="icon" variant="ghost" onClick={() => setSidebarOpen(false)}>
                 <PanelLeft className="h-5 w-5" />
