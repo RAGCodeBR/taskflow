@@ -154,37 +154,6 @@ const COMPLETED_COL_ID = "__completed__";
 type SortField = "position" | "due_date" | "created_at" | "tag" | "priority" | "status";
 type SortDirection = "asc" | "desc";
 
-function compareByField(
-  field: SortField,
-  a: any,
-  b: any,
-  tagNameForTask: Map<string, string>,
-  statuses: any[],
-): number {
-  switch (field) {
-    case "due_date":
-      if (!a.due_date && !b.due_date) return 0;
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-    case "created_at":
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    case "tag":
-      return (tagNameForTask.get(a.id) ?? "").localeCompare(tagNameForTask.get(b.id) ?? "");
-    case "priority": {
-      const order: Record<string, number> = { low: 1, medium: 2, high: 3, urgent: 4 };
-      return (order[a.priority ?? ""] || 0) - (order[b.priority ?? ""] || 0);
-    }
-    case "status": {
-      const sa = statuses.find((s: any) => s.id === a.status_id);
-      const sb = statuses.find((s: any) => s.id === b.status_id);
-      return (sa ? sa.position : 9999) - (sb ? sb.position : 9999);
-    }
-    default:
-      return 0;
-  }
-}
-
 function CompletedColumn({
   taskIds,
   count,
@@ -481,7 +450,7 @@ function KanbanPage() {
   }, [userTaskOrder]);
   const didApplyDefaultAssignee = useRef(false);
   const [sort, setSort] = useState<{ field: SortField; direction: SortDirection }>({
-    field: "position",
+    field: "due_date",
     direction: "asc",
   });
 
@@ -496,10 +465,6 @@ function KanbanPage() {
     didApplyDefaultAssignee.current = true;
   }, [user?.id, isCollaborator]);
 
-  const [sort2, setSort2] = useState<{ field: SortField | "none"; direction: SortDirection }>({
-    field: "none",
-    direction: "asc",
-  });
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
@@ -622,10 +587,6 @@ function KanbanPage() {
           break;
         }
       }
-      if (cmp === 0 && sort2.field !== "none") {
-        const c2 = compareByField(sort2.field as SortField, a, b, tagNameForTask, statuses);
-        cmp = sort2.direction === "asc" ? c2 : -c2;
-      }
       if (cmp === 0)
         cmp = (b.completed_at ?? b.updated_at ?? "").localeCompare(
           a.completed_at ?? a.updated_at ?? "",
@@ -637,7 +598,6 @@ function KanbanPage() {
     taskView,
     filters,
     sort,
-    sort2,
     tagNameForTask,
     completedRange,
     statuses,
@@ -737,10 +697,6 @@ function KanbanPage() {
           break;
         }
       }
-      if (cmp === 0 && sort2.field !== "none") {
-        const c2 = compareByField(sort2.field as SortField, a, b, tagNameForTask, statuses);
-        cmp = sort2.direction === "asc" ? c2 : -c2;
-      }
       if (cmp === 0) {
         const ap = userTaskPos.has(a.id)
           ? (userTaskPos.get(a.id) as number)
@@ -753,7 +709,7 @@ function KanbanPage() {
       return sort.direction === "asc" ? cmp : -cmp;
     });
     return r;
-  }, [filtered, sort, sort2, tagNameForTask, userTaskPos, statuses, user?.id]);
+  }, [filtered, sort, tagNameForTask, userTaskPos, statuses, user?.id]);
 
   const tasksByCol = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -1288,21 +1244,19 @@ function KanbanPage() {
                 </Button>
               ) : null}
             </div>
-            <div className="inline-flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Ordenar:</span>
+            <div className="inline-flex items-center gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Ordenar por</span>
               <Select
                 value={sort.field}
                 onValueChange={(v) => setSort((s) => ({ ...s, field: v as SortField }))}
               >
-                <SelectTrigger className="h-7 w-44">
-                  <SelectValue placeholder="1º critério" />
+                <SelectTrigger className="h-7 w-40">
+                  <SelectValue placeholder="Escolher critério" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="position">Posição (manual)</SelectItem>
-                  <SelectItem value="priority">Prioridade</SelectItem>
                   <SelectItem value="due_date">Prazo</SelectItem>
+                  <SelectItem value="priority">Prioridade</SelectItem>
                   <SelectItem value="created_at">Data de criação</SelectItem>
-                  <SelectItem value="tag">Tag</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -1312,7 +1266,8 @@ function KanbanPage() {
                 onClick={() =>
                   setSort((s) => ({ ...s, direction: s.direction === "asc" ? "desc" : "asc" }))
                 }
-                title="Inverter direção"
+                title={sort.direction === "asc" ? "Ordem crescente" : "Ordem decrescente"}
+                aria-label={sort.direction === "asc" ? "Ordem crescente" : "Ordem decrescente"}
               >
                 {sort.direction === "asc" ? (
                   <ArrowUp className="h-3.5 w-3.5" />
@@ -1320,39 +1275,6 @@ function KanbanPage() {
                   <ArrowDown className="h-3.5 w-3.5" />
                 )}
               </Button>
-              <span className="text-xs text-muted-foreground">então:</span>
-              <Select
-                value={sort2.field}
-                onValueChange={(v) => setSort2((s) => ({ ...s, field: v as SortField | "none" }))}
-              >
-                <SelectTrigger className="h-7 w-44">
-                  <SelectValue placeholder="2º critério" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— nenhum —</SelectItem>
-                  <SelectItem value="priority">Prioridade</SelectItem>
-                  <SelectItem value="due_date">Prazo</SelectItem>
-                  <SelectItem value="created_at">Data de criação</SelectItem>
-                  <SelectItem value="tag">Tag</SelectItem>
-                </SelectContent>
-              </Select>
-              {sort2.field !== "none" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7"
-                  onClick={() =>
-                    setSort2((s) => ({ ...s, direction: s.direction === "asc" ? "desc" : "asc" }))
-                  }
-                  title="Inverter direção secundária"
-                >
-                  {sort2.direction === "asc" ? (
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  ) : (
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              )}
             </div>
           </TaskFilters>
         </div>
