@@ -37,7 +37,8 @@ import {
   ShieldAlert,
   Swords,
   Trophy,
-  UsersRound,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { isAfter, parseISO } from "date-fns";
 
@@ -93,6 +94,11 @@ const battleColors = ["#167c80", "#2d5c91", "#53739e", "#7a91ad", "#a4b3c5", "#c
 
 function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
   const [activeClient, setActiveClient] = useState<string | null>(clients[0]?.id ?? null);
+  const activeIndex = Math.max(
+    0,
+    clients.findIndex((client) => client.id === activeClient),
+  );
+  const selectClientAt = (index: number) => setActiveClient(clients[index]?.id ?? clients[0].id);
 
   if (clients.length === 0) return null;
 
@@ -107,29 +113,35 @@ function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
         </p>
       </div>
 
-      <div className="flex max-w-full overflow-x-auto border-b px-3">
-        {clients.map((client, index) => {
-          const isActive = activeClient === client.id;
-          return (
-            <button
-              key={client.id}
-              type="button"
-              onClick={() => setActiveClient(client.id)}
-              className={`relative flex shrink-0 items-center gap-2 px-4 py-4 text-sm font-medium transition-colors hover:bg-muted/50 ${
-                isActive ? "text-foreground" : "text-muted-foreground"
-              }`}
-            >
-              <span
-                className="grid h-7 w-7 place-items-center rounded-full text-xs font-bold text-white"
-                style={{ backgroundColor: battleColors[index] ?? "#c6d1de" }}
-              >
-                {index + 1}
-              </span>
-              <span className="max-w-40 truncate">{client.name}</span>
-              {isActive && <span className="absolute inset-x-3 bottom-0 h-0.5 bg-[#167c80]" />}
-            </button>
-          );
-        })}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b bg-muted/20 px-5 py-3">
+        <button
+          type="button"
+          onClick={() => selectClientAt((activeIndex - 1 + clients.length) % clients.length)}
+          className="grid h-9 w-9 place-items-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Cliente anterior"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <Select value={activeClient ?? undefined} onValueChange={setActiveClient}>
+          <SelectTrigger className="h-9 w-full bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {clients.map((client, index) => (
+              <SelectItem key={client.id} value={client.id}>
+                {index + 1}. {client.name} · {client.score}/100
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <button
+          type="button"
+          onClick={() => selectClientAt((activeIndex + 1) % clients.length)}
+          className="grid h-9 w-9 place-items-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Próximo cliente"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
       </div>
 
       <div className="divide-y px-5">
