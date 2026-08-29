@@ -33,6 +33,11 @@ import {
   ShieldCheck,
   User as UserIcon,
   ListChecks,
+  Flame,
+  ShieldAlert,
+  Swords,
+  Trophy,
+  UsersRound,
 } from "lucide-react";
 import { isAfter, parseISO } from "date-fns";
 
@@ -69,6 +74,114 @@ function Kpi({
   );
 }
 
+type ClientPerformance = {
+  id: string;
+  name: string;
+  people: number;
+  total: number;
+  done: number;
+  pending: number;
+  overdue: number;
+  unassigned: number;
+  onTimeRate: number;
+  score: number;
+  strongPoint: string;
+  blocker: string;
+};
+
+const battleColors = ["#167c80", "#2d5c91", "#53739e", "#7a91ad", "#a4b3c5", "#c6d1de"];
+
+function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
+  const [activeClient, setActiveClient] = useState<string | null>(clients[0]?.id ?? null);
+
+  if (clients.length === 0) return null;
+
+  return (
+    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-5">
+        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <Swords className="h-5 w-5 text-[#167c80]" /> Desempenho dos clientes
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Score composto de entregas, prazo e pendências — evita que só o volume distorça a leitura.
+        </p>
+      </div>
+
+      <div className="flex overflow-x-auto border-b px-3">
+        {clients.map((client, index) => {
+          const isActive = activeClient === client.id;
+          return (
+            <button
+              key={client.id}
+              type="button"
+              onClick={() => setActiveClient(client.id)}
+              className={`relative flex shrink-0 items-center gap-2 px-4 py-4 text-sm font-medium transition-colors hover:bg-muted/50 ${
+                isActive ? "text-foreground" : "text-muted-foreground"
+              }`}
+            >
+              <span
+                className="grid h-7 w-7 place-items-center rounded-full text-xs font-bold text-white"
+                style={{ backgroundColor: battleColors[index] ?? "#c6d1de" }}
+              >
+                {index + 1}
+              </span>
+              <span className="max-w-40 truncate">{client.name}</span>
+              {isActive && <span className="absolute inset-x-3 bottom-0 h-0.5 bg-[#167c80]" />}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="divide-y px-5">
+        {clients.map((client, index) => {
+          const color = battleColors[index] ?? "#c6d1de";
+          return (
+            <article key={client.id} className="py-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  {index === 0 ? (
+                    <Trophy className="h-5 w-5 text-[#f59e0b]" />
+                  ) : (
+                    <span className="grid h-5 w-5 place-items-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                      {index + 1}
+                    </span>
+                  )}
+                  <h3 className="text-lg font-semibold">{client.name}</h3>
+                  <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                    {client.people} {client.people === 1 ? "pessoa" : "pessoas"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="font-medium text-[#167c80]">{client.onTimeRate}% no prazo</span>
+                  <span className="text-lg font-bold tabular-nums">{client.score}/100</span>
+                </div>
+              </div>
+              <div className="h-5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full transition-[width]"
+                  style={{ width: `${Math.max(client.score, 1)}%`, backgroundColor: color }}
+                />
+              </div>
+              <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                <p>
+                  <Flame className="mr-1 inline h-4 w-4 text-emerald-600" />
+                  <span className="font-semibold text-emerald-600">Ponto forte:</span>{" "}
+                  {client.strongPoint}
+                </p>
+                <p>
+                  <ShieldAlert className="mr-1 inline h-4 w-4 text-rose-500" />
+                  <span className="font-semibold text-rose-500">O que travou:</span>{" "}
+                  {client.blocker}
+                </p>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function ReportsPage() {
   const { isAdmin, hasPermission, loading } = useAuth();
   const { data: tasks = [] } = useTasks();
@@ -102,9 +215,13 @@ function ReportsPage() {
   // Client accounts can access the portal, but are never collaborators and
   // therefore must not be included in user report filters, charts or tables.
   const clientUserIds = new Set(
-    roles.filter((role: { role: string }) => role.role === "client").map((role: { user_id: string }) => role.user_id),
+    roles
+      .filter((role: { role: string }) => role.role === "client")
+      .map((role: { user_id: string }) => role.user_id),
   );
-  const visibleProfiles = profiles.filter(matchesStatus).filter((profile) => !clientUserIds.has(profile.id));
+  const visibleProfiles = profiles
+    .filter(matchesStatus)
+    .filter((profile) => !clientUserIds.has(profile.id));
   const visibleIds = new Set(visibleProfiles.map((p) => p.id));
 
   const filteredTasks = tasks
@@ -154,7 +271,9 @@ function ReportsPage() {
       (t) =>
         t.due_date && t.completed_at && !isAfter(parseISO(t.completed_at), parseISO(t.due_date)),
     ).length;
-    const isAdminRole = roles.some((r: { user_id: string; role: string }) => r.user_id === p.id && r.role === "admin");
+    const isAdminRole = roles.some(
+      (r: { user_id: string; role: string }) => r.user_id === p.id && r.role === "admin",
+    );
     const sub = sumSubtasks(userTasks);
     return {
       id: p.id,
@@ -188,6 +307,65 @@ function ReportsPage() {
     })
     .filter((client) => client.total > 0)
     .sort((a, b) => b.total - a.total);
+
+  const clientPerformance: ClientPerformance[] = clients
+    .map((client) => {
+      const clientTasks = filteredTasks.filter((task) => task.client_id === client.id);
+      if (clientTasks.length === 0) return null;
+
+      const doneTasks = clientTasks.filter((task) => task.status === "done");
+      const overdue = clientTasks.filter((task) => matchDateFilter(task, "overdue")).length;
+      const unassigned = clientTasks.filter((task) => !task.assignee_id).length;
+      const people = new Set(clientTasks.map((task) => task.assignee_id).filter(Boolean)).size;
+      const onTime = doneTasks.filter(
+        (task) =>
+          task.due_date &&
+          task.completed_at &&
+          !isAfter(parseISO(task.completed_at), parseISO(task.due_date)),
+      ).length;
+      const onTimeRate = doneTasks.length ? Math.round((onTime / doneTasks.length) * 100) : 0;
+      const completionRate = Math.round((doneTasks.length / clientTasks.length) * 100);
+      const score = Math.max(
+        0,
+        Math.min(
+          100,
+          Math.round(
+            completionRate * 0.55 +
+              onTimeRate * 0.3 +
+              Math.min(15, clientTasks.length * 3) -
+              overdue * 5,
+          ),
+        ),
+      );
+      const pending = clientTasks.length - doneTasks.length;
+      const strongPoint = doneTasks.length
+        ? `${doneTasks.length} ${doneTasks.length === 1 ? "tarefa concluída" : "tarefas concluídas"}, ${onTimeRate}% das entregas no prazo.`
+        : `${clientTasks.length} ${clientTasks.length === 1 ? "tarefa acompanhada" : "tarefas acompanhadas"} no período.`;
+      const blocker = overdue
+        ? `${overdue} ${overdue === 1 ? "tarefa atrasada" : "tarefas atrasadas"}.`
+        : unassigned
+          ? `${unassigned} ${unassigned === 1 ? "tarefa sem responsável" : "tarefas sem responsável"}.`
+          : pending
+            ? `${pending} ${pending === 1 ? "tarefa pendente" : "tarefas pendentes"}.`
+            : "Nenhum bloqueio identificado no período.";
+
+      return {
+        id: client.id,
+        name: client.name,
+        people: people || 1,
+        total: clientTasks.length,
+        done: doneTasks.length,
+        pending,
+        overdue,
+        unassigned,
+        onTimeRate,
+        score,
+        strongPoint,
+        blocker,
+      };
+    })
+    .filter((client): client is ClientPerformance => Boolean(client))
+    .sort((a, b) => b.score - a.score || b.total - a.total);
 
   const admins = perUser.filter((u) => u.isAdmin);
   const members = perUser.filter((u) => !u.isAdmin);
@@ -262,6 +440,8 @@ function ReportsPage() {
         />
       </div>
 
+      <ClientBattlePanel clients={clientPerformance} />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">
           <h3 className="mb-3 font-semibold">Comparativo por usuário</h3>
@@ -295,15 +475,41 @@ function ReportsPage() {
               </div>
             ) : (
               <ResponsiveContainer>
-                <BarChart data={byClient} layout="vertical" margin={{ top: 4, right: 12, left: 10, bottom: 0 }}>
-                  <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <BarChart
+                  data={byClient}
+                  layout="vertical"
+                  margin={{ top: 4, right: 12, left: 10, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    horizontal={false}
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                  />
                   <XAxis type="number" allowDecimals={false} fontSize={11} />
                   <YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }} />
                   <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.45 }} />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="concluídas" name="Concluídas" stackId="atividade" fill="#059669" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="emAberto" name="Em aberto" stackId="atividade" fill="#2563eb" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="atrasadas" name="Atrasadas" stackId="atividade" fill="#dc2626" radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="concluídas"
+                    name="Concluídas"
+                    stackId="atividade"
+                    fill="#059669"
+                    radius={[0, 0, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="emAberto"
+                    name="Em aberto"
+                    stackId="atividade"
+                    fill="#2563eb"
+                    radius={[0, 0, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="atrasadas"
+                    name="Atrasadas"
+                    stackId="atividade"
+                    fill="#dc2626"
+                    radius={[0, 4, 4, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
