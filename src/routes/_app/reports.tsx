@@ -37,8 +37,6 @@ import {
   ShieldAlert,
   Swords,
   Trophy,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { isAfter, parseISO } from "date-fns";
 
@@ -94,11 +92,6 @@ const battleColors = ["#167c80", "#2d5c91", "#53739e", "#7a91ad", "#a4b3c5", "#c
 
 function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
   const [activeClient, setActiveClient] = useState<string | null>(clients[0]?.id ?? null);
-  const activeIndex = Math.max(
-    0,
-    clients.findIndex((client) => client.id === activeClient),
-  );
-  const selectClientAt = (index: number) => setActiveClient(clients[index]?.id ?? clients[0].id);
 
   if (clients.length === 0) return null;
 
@@ -113,87 +106,91 @@ function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b bg-muted/20 px-5 py-3">
-        <button
-          type="button"
-          onClick={() => selectClientAt((activeIndex - 1 + clients.length) % clients.length)}
-          className="grid h-9 w-9 place-items-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Cliente anterior"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <Select value={activeClient ?? undefined} onValueChange={setActiveClient}>
-          <SelectTrigger className="h-9 w-full bg-background">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map((client, index) => (
-              <SelectItem key={client.id} value={client.id}>
-                {index + 1}. {client.name} · {client.score}/100
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <button
-          type="button"
-          onClick={() => selectClientAt((activeIndex + 1) % clients.length)}
-          className="grid h-9 w-9 place-items-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Próximo cliente"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="divide-y px-5">
-        {clients
-          .filter((client) => client.id === activeClient)
-          .map((client) => {
-            const index = clients.findIndex((item) => item.id === client.id);
-            const color = battleColors[index] ?? "#c6d1de";
-            return (
-              <article key={client.id} className="py-5">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    {index === 0 ? (
-                      <Trophy className="h-5 w-5 text-[#f59e0b]" />
-                    ) : (
-                      <span className="grid h-5 w-5 place-items-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
-                        {index + 1}
-                      </span>
-                    )}
-                    <h3 className="text-lg font-semibold">{client.name}</h3>
-                    <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
-                      {client.people} {client.people === 1 ? "pessoa" : "pessoas"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="font-medium text-[#167c80]">
+      <div className="grid lg:grid-cols-[19rem_minmax(0,1fr)]">
+        <aside className="border-b bg-muted/20 lg:max-h-[34rem] lg:overflow-y-auto lg:border-b-0 lg:border-r">
+          <p className="px-4 pt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Ranking de clientes
+          </p>
+          <div className="p-2">
+            {clients.map((client, index) => {
+              const active = activeClient === client.id;
+              return (
+                <button
+                  key={client.id}
+                  type="button"
+                  onClick={() => setActiveClient(client.id)}
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors ${active ? "bg-background shadow-sm ring-1 ring-border" : "hover:bg-background/70"}`}
+                >
+                  <span
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold text-white"
+                    style={{ backgroundColor: battleColors[index] ?? "#c6d1de" }}
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{client.name}</span>
+                    <span className="text-xs text-muted-foreground">
                       {client.onTimeRate}% no prazo
                     </span>
-                    <span className="text-lg font-bold tabular-nums">{client.score}/100</span>
+                  </span>
+                  <span className="text-sm font-bold tabular-nums">{client.score}</span>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <div className="divide-y px-5">
+          {clients
+            .filter((client) => client.id === activeClient)
+            .map((client) => {
+              const index = clients.findIndex((item) => item.id === client.id);
+              const color = battleColors[index] ?? "#c6d1de";
+              return (
+                <article key={client.id} className="py-5">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      {index === 0 ? (
+                        <Trophy className="h-5 w-5 text-[#f59e0b]" />
+                      ) : (
+                        <span className="grid h-5 w-5 place-items-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                          {index + 1}
+                        </span>
+                      )}
+                      <h3 className="text-lg font-semibold">{client.name}</h3>
+                      <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                        {client.people} {client.people === 1 ? "pessoa" : "pessoas"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className="font-medium text-[#167c80]">
+                        {client.onTimeRate}% no prazo
+                      </span>
+                      <span className="text-lg font-bold tabular-nums">{client.score}/100</span>
+                    </div>
                   </div>
-                </div>
-                <div className="h-5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full transition-[width]"
-                    style={{ width: `${Math.max(client.score, 1)}%`, backgroundColor: color }}
-                  />
-                </div>
-                <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-                  <p>
-                    <Flame className="mr-1 inline h-4 w-4 text-emerald-600" />
-                    <span className="font-semibold text-emerald-600">Ponto forte:</span>{" "}
-                    {client.strongPoint}
-                  </p>
-                  <p>
-                    <ShieldAlert className="mr-1 inline h-4 w-4 text-rose-500" />
-                    <span className="font-semibold text-rose-500">O que travou:</span>{" "}
-                    {client.blocker}
-                  </p>
-                </div>
-              </article>
-            );
-          })}
+                  <div className="h-5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full transition-[width]"
+                      style={{ width: `${Math.max(client.score, 1)}%`, backgroundColor: color }}
+                    />
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                    <p>
+                      <Flame className="mr-1 inline h-4 w-4 text-emerald-600" />
+                      <span className="font-semibold text-emerald-600">Ponto forte:</span>{" "}
+                      {client.strongPoint}
+                    </p>
+                    <p>
+                      <ShieldAlert className="mr-1 inline h-4 w-4 text-rose-500" />
+                      <span className="font-semibold text-rose-500">O que travou:</span>{" "}
+                      {client.blocker}
+                    </p>
+                  </div>
+                </article>
+              );
+            })}
+        </div>
       </div>
     </section>
   );
