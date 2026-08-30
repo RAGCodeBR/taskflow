@@ -445,7 +445,7 @@ function ReportsPage() {
       >
         {[
           ["summary", "Resumo"],
-          ["clients", "Desempenho dos clientes"],
+          ["clients", "Desempenho por cliente"],
           ["team", "Ranking da equipe"],
           ["risk", "Pessoas em risco"],
         ].map(([id, label]) => (
