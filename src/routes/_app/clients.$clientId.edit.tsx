@@ -311,6 +311,10 @@ function EditClientPage() {
       return;
     }
 
+    if (avatarFile) {
+      window.sessionStorage.removeItem("taskflow-client-avatar-urls");
+    }
+
     if (avatarFile && client.avatar_path && client.avatar_path !== avatarPath) {
       await supabase.storage.from("task-attachments").remove([client.avatar_path]);
     }
@@ -2030,7 +2034,9 @@ function AttachmentsManager({
       )}
       {isAdmin && !employeeId && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
-          <Label htmlFor="client-attachment-owner" className="text-sm">Exibir anexos de</Label>
+          <Label htmlFor="client-attachment-owner" className="text-sm">
+            Exibir anexos de
+          </Label>
           <select
             id="client-attachment-owner"
             value={ownerFilter || user?.id || ""}
@@ -2039,11 +2045,13 @@ function AttachmentsManager({
           >
             <option value={user?.id ?? ""}>Meus anexos</option>
             <option value="all">Todos os usuários</option>
-            {profiles.filter((profile) => profile.id !== user?.id).map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.full_name || profile.email || "Usuário sem nome"}
-              </option>
-            ))}
+            {profiles
+              .filter((profile) => profile.id !== user?.id)
+              .map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.full_name || profile.email || "Usuário sem nome"}
+                </option>
+              ))}
           </select>
         </div>
       )}

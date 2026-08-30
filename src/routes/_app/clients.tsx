@@ -106,9 +106,9 @@ const preloadImage = (src: string) =>
 const CLIENT_AVATAR_CACHE_KEY = "taskflow-client-avatar-urls";
 const CLIENT_AVATAR_CACHE_TTL = 50 * 60 * 1000;
 
-type CachedAvatar = { url: string; expiresAt: number };
+type CachedAvatar = { url: string; expiresAt: number; path?: string };
 
-const getCachedAvatarUrls = (): Record<string, string> => {
+const getCachedAvatarUrls = (paths: Record<string, string> = {}): Record<string, string> => {
   if (typeof window === "undefined") return {};
 
   try {
@@ -118,7 +118,10 @@ const getCachedAvatarUrls = (): Record<string, string> => {
     const now = Date.now();
     const valid = Object.fromEntries(
       Object.entries(cached)
-        .filter(([, entry]) => entry?.url && entry.expiresAt > now)
+        .filter(
+          ([clientId, entry]) =>
+            entry?.url && entry.expiresAt > now && entry.path === paths[clientId],
+        )
         .map(([clientId, entry]) => [clientId, entry.url]),
     );
     window.sessionStorage.setItem(
@@ -135,7 +138,7 @@ const getCachedAvatarUrls = (): Record<string, string> => {
   }
 };
 
-const cacheAvatarUrls = (urls: Record<string, string>) => {
+const cacheAvatarUrls = (urls: Record<string, string>, paths: Record<string, string>) => {
   if (typeof window === "undefined" || Object.keys(urls).length === 0) return;
 
   try {
@@ -144,7 +147,7 @@ const cacheAvatarUrls = (urls: Record<string, string>) => {
     ) as Record<string, CachedAvatar>;
     const expiresAt = Date.now() + CLIENT_AVATAR_CACHE_TTL;
     Object.entries(urls).forEach(([clientId, url]) => {
-      cached[clientId] = { url, expiresAt };
+      cached[clientId] = { url, expiresAt, path: paths[clientId] };
     });
     window.sessionStorage.setItem(CLIENT_AVATAR_CACHE_KEY, JSON.stringify(cached));
   } catch {
@@ -178,7 +181,7 @@ export function ClientsIndexPage() {
   const [responsible, setResponsible] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
-  const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>(getCachedAvatarUrls);
+  const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
   const [avatarsReady, setAvatarsReady] = useState(false);
   const [avatarBatchKey, setAvatarBatchKey] = useState("");
   const [reportClient, setReportClient] = useState<Client | null>(null);
@@ -197,11 +200,14 @@ export function ClientsIndexPage() {
 
     const loadAvatarUrls = async () => {
       const clientsWithAvatar = clients.filter((client) => client.avatar_path);
+      const clientAvatarPaths = Object.fromEntries(
+        clientsWithAvatar.map((client) => [client.id, client.avatar_path!]),
+      );
       const currentBatchKey = clientsWithAvatar
         .map((client) => `${client.id}:${client.avatar_path}`)
         .sort()
         .join("|");
-      const cachedUrls = getCachedAvatarUrls();
+      const cachedUrls = getCachedAvatarUrls(clientAvatarPaths);
       const visibleCachedUrls = Object.fromEntries(
         clientsWithAvatar
           .filter((client) => cachedUrls[client.id])
@@ -249,7 +255,7 @@ export function ClientsIndexPage() {
         const loadedUrls = Object.fromEntries(
           verified.filter((entry): entry is readonly [string, string] => entry !== null),
         );
-        cacheAvatarUrls(loadedUrls);
+        cacheAvatarUrls(loadedUrls, clientAvatarPaths);
         setAvatarUrls({ ...visibleCachedUrls, ...loadedUrls });
         setAvatarsReady(true);
         setAvatarBatchKey(currentBatchKey);
