@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   Check,
   Download,
@@ -34,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FileDropZone } from "@/components/FileDropZone";
 import {
   Dialog,
@@ -633,18 +636,18 @@ function MuralPage() {
               if (!next) setEditingPost(null);
             }}
           >
-            <DialogContent className="max-h-[90dvh] w-[calc(100vw-3rem)] max-w-[104rem] overflow-y-auto border-0 bg-[#ebe9e5] p-8 shadow-2xl">
+            <DialogContent className="max-h-[86dvh] w-[calc(100vw-2rem)] max-w-6xl overflow-y-auto border-0 bg-[#ebe9e5] p-5 shadow-2xl sm:p-6">
               <DialogHeader>
-                <DialogTitle className="text-2xl tracking-tight">
+                <DialogTitle className="text-xl tracking-tight">
                   {editingPost ? "Editar recado no mural" : "Novo recado no mural"}
                 </DialogTitle>
               </DialogHeader>
-              <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
-                <div className="space-y-5">
+              <div className="grid gap-6 md:grid-cols-[1.05fr_0.95fr]">
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Título *</Label>
                     <Input
-                      className="h-[72px] border-[#e3e7ed] bg-transparent text-lg shadow-none"
+                      className="h-12 border-[#e3e7ed] bg-transparent text-base shadow-none"
                       value={form.title}
                       onChange={(event) => setForm({ ...form, title: event.target.value })}
                       placeholder="Ex.: Reunião geral na sexta-feira"
@@ -653,7 +656,7 @@ function MuralPage() {
                   <div className="space-y-2">
                     <Label>Mensagem *</Label>
                     <Textarea
-                      className="min-h-[360px] resize-y border-[#e3e7ed] bg-transparent text-lg shadow-none"
+                      className="min-h-[220px] resize-y border-[#e3e7ed] bg-transparent text-base shadow-none"
                       value={form.content}
                       onChange={(event) => setForm({ ...form, content: event.target.value })}
                       placeholder="Escreva o recado, norma ou aviso..."
@@ -661,12 +664,12 @@ function MuralPage() {
                   </div>
                 </div>
 
-                <div className="space-y-5">
+                <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Categoria</Label>
                       <Select value={form.tag} onValueChange={(tag) => setForm({ ...form, tag })}>
-                        <SelectTrigger className="h-[72px] border-[#e3e7ed] bg-transparent text-lg shadow-none">
+                        <SelectTrigger className="h-12 border-[#e3e7ed] bg-transparent text-base shadow-none">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -682,16 +685,16 @@ function MuralPage() {
                       <Label>Validade</Label>
                       <Input
                         type="date"
-                        className="h-[72px] border-[#e3e7ed] bg-transparent text-lg shadow-none"
+                        className="h-12 border-[#e3e7ed] bg-transparent text-base shadow-none"
                         value={form.expiresAt}
                         onChange={(event) => setForm({ ...form, expiresAt: event.target.value })}
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <Label>Cor do papel</Label>
-                    <div className="flex flex-wrap gap-3" aria-label="Cor do papel">
+                    <div className="flex flex-wrap gap-2.5" aria-label="Cor do papel">
                       {COLORS.map((color) => (
                         <button
                           key={color.value}
@@ -699,7 +702,7 @@ function MuralPage() {
                           aria-label={color.label}
                           aria-pressed={form.color === color.value}
                           onClick={() => setForm({ ...form, color: color.value })}
-                          className={`h-8 w-8 rounded-full border border-black/10 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#287f80] focus-visible:ring-offset-2 ${color.card.split(" ")[0]} ${form.color === color.value ? "ring-2 ring-[#287f80] ring-offset-2" : ""}`}
+                        className={`h-7 w-7 rounded-full border border-black/10 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#287f80] focus-visible:ring-offset-2 ${color.card.split(" ")[0]} ${form.color === color.value ? "ring-2 ring-[#287f80] ring-offset-2" : ""}`}
                         />
                       ))}
                     </div>
@@ -714,7 +717,7 @@ function MuralPage() {
                       }
                     >
                       <SelectTrigger
-                        className="h-[72px] bg-background text-lg"
+                        className="h-12 bg-background text-base"
                         style={textStyleCss(form.textStyle)}
                       >
                         <SelectValue />
@@ -734,11 +737,11 @@ function MuralPage() {
                   </div>
 
                   <div
-                    className={`relative rounded-md p-4 ${colorClass(form.color)}`}
+                    className={`relative rounded-md p-3.5 ${colorClass(form.color)}`}
                     style={textStyleCss(form.textStyle)}
                   >
                     <span className="absolute -top-2 left-1/2 h-5 w-20 -translate-x-1/2 rounded bg-white/35" />
-                    <p className="text-lg font-bold leading-tight">
+                    <p className="text-base font-bold leading-tight">
                       {form.title || "Título do recado"}
                     </p>
                     <p className="mt-2 text-sm leading-relaxed opacity-80">
@@ -746,7 +749,7 @@ function MuralPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-[#d8d5cf] px-1 py-4">
+                  <div className="flex items-center justify-between border-t border-[#d8d5cf] px-1 py-3">
                     <div>
                       <p className="font-medium">Fixar no topo</p>
                       <p className="text-xs text-muted-foreground">
@@ -758,7 +761,7 @@ function MuralPage() {
                       onCheckedChange={(isPinned) => setForm({ ...form, isPinned })}
                     />
                   </div>
-                  <div className="flex items-center justify-between border-t border-[#d8d5cf] px-1 py-4">
+                  <div className="flex items-center justify-between border-t border-[#d8d5cf] px-1 py-3">
                     <div>
                       <p className="font-medium">Marcar como destaque</p>
                       <p className="text-xs text-muted-foreground">
@@ -952,8 +955,15 @@ function MuralPage() {
                 (attachment) => attachment.post_id === post.id,
               );
               const postReactions = reactions.filter((reaction) => reaction.post_id === post.id);
-              const authorName =
-                profiles.find((profile) => profile.id === post.created_by)?.full_name ?? "Usuário";
+              const author = profiles.find((profile) => profile.id === post.created_by);
+              const authorName = author?.full_name ?? "Usuário";
+              const authorInitials = authorName
+                .split(" ")
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((name) => name[0])
+                .join("")
+                .toUpperCase();
               return (
                 <article
                   key={post.id}
@@ -1196,17 +1206,19 @@ function MuralPage() {
                   {!post.image_url && !post.content && post.checklist.length === 0 && (
                     <ImageIcon className="mt-8 h-5 w-5 opacity-25" />
                   )}
-                  <div className="mt-4 flex items-center justify-between gap-2">
-                    {post.tag ? (
-                      <span className="inline-flex rounded bg-white/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                        {post.tag}
-                      </span>
-                    ) : (
-                      <span />
-                    )}
-                    <p className="text-right text-[10px] font-medium opacity-60">
-                      Por {authorName}
-                    </p>
+                  <div className="mt-4 flex items-center justify-between gap-3 border-t border-foreground/10 pt-3 font-sans text-xs text-current/70">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Avatar className="h-7 w-7 shrink-0 border border-white/70 shadow-sm">
+                        {author?.avatar_url && <AvatarImage src={author.avatar_url} alt={authorName} />}
+                        <AvatarFallback className="bg-white/65 text-[9px] font-semibold text-current">
+                          {authorInitials || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate font-medium">{authorName}</span>
+                    </div>
+                    <time className="shrink-0 text-[11px]" dateTime={post.created_at}>
+                      {format(new Date(post.created_at), "d 'de' MMM.", { locale: ptBR })}
+                    </time>
                   </div>
                 </article>
               );
