@@ -204,7 +204,7 @@ function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
     <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-5">
         <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-          <Swords className="h-5 w-5 text-[#167c80]" /> Desempenho dos clientes
+          <Swords className="h-5 w-5 text-[#167c80]" /> Desempenho por cliente
         </h2>
         <p className="text-sm text-muted-foreground">
           Score composto de entregas, prazo e pendências — evita que só o volume distorça a leitura.
