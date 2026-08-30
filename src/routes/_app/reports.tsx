@@ -86,13 +86,12 @@ type ClientPerformance = {
   score: number;
   strongPoint: string;
   blocker: string;
+  contributors: Array<{ name: string; done: number; pending: number; overdue: number }>;
 };
 
 const battleColors = ["#167c80", "#2d5c91", "#53739e", "#7a91ad", "#a4b3c5", "#c6d1de"];
 
 function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
-  const [activeClient, setActiveClient] = useState<string | null>(clients[0]?.id ?? null);
-
   if (clients.length === 0) return null;
 
   return (
@@ -106,91 +105,71 @@ function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-[19rem_minmax(0,1fr)]">
-        <aside className="border-b bg-muted/20 lg:max-h-[34rem] lg:overflow-y-auto lg:border-b-0 lg:border-r">
-          <p className="px-4 pt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Ranking de clientes
-          </p>
-          <div className="p-2">
-            {clients.map((client, index) => {
-              const active = activeClient === client.id;
-              return (
-                <button
-                  key={client.id}
-                  type="button"
-                  onClick={() => setActiveClient(client.id)}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors ${active ? "bg-background shadow-sm ring-1 ring-border" : "hover:bg-background/70"}`}
-                >
-                  <span
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold text-white"
-                    style={{ backgroundColor: battleColors[index] ?? "#c6d1de" }}
-                  >
-                    {index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{client.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {client.onTimeRate}% no prazo
+      <div className="divide-y px-5">
+        {clients.map((client, index) => {
+          const color = battleColors[index] ?? "#c6d1de";
+          return (
+            <article key={client.id} className="py-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  {index === 0 ? (
+                    <Trophy className="h-5 w-5 text-[#f59e0b]" />
+                  ) : (
+                    <span className="grid h-5 w-5 place-items-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                      {index + 1}
                     </span>
+                  )}
+                  <h3 className="text-lg font-semibold">{client.name}</h3>
+                  <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                    {client.people} {client.people === 1 ? "pessoa" : "pessoas"}
                   </span>
-                  <span className="text-sm font-bold tabular-nums">{client.score}</span>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
-        <div className="divide-y px-5">
-          {clients
-            .filter((client) => client.id === activeClient)
-            .map((client) => {
-              const index = clients.findIndex((item) => item.id === client.id);
-              const color = battleColors[index] ?? "#c6d1de";
-              return (
-                <article key={client.id} className="py-5">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      {index === 0 ? (
-                        <Trophy className="h-5 w-5 text-[#f59e0b]" />
-                      ) : (
-                        <span className="grid h-5 w-5 place-items-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
-                          {index + 1}
-                        </span>
-                      )}
-                      <h3 className="text-lg font-semibold">{client.name}</h3>
-                      <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
-                        {client.people} {client.people === 1 ? "pessoa" : "pessoas"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-sm">
-                      <span className="font-medium text-[#167c80]">
-                        {client.onTimeRate}% no prazo
-                      </span>
-                      <span className="text-lg font-bold tabular-nums">{client.score}/100</span>
-                    </div>
-                  </div>
-                  <div className="h-5 overflow-hidden rounded-full bg-muted">
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="font-medium text-[#167c80]">{client.onTimeRate}% no prazo</span>
+                  <span className="text-lg font-bold tabular-nums">{client.score}/100</span>
+                </div>
+              </div>
+              <div className="h-5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full transition-[width]"
+                  style={{ width: `${Math.max(client.score, 1)}%`, backgroundColor: color }}
+                />
+              </div>
+              <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                <p>
+                  <Flame className="mr-1 inline h-4 w-4 text-emerald-600" />
+                  <span className="font-semibold text-emerald-600">Ponto forte:</span>{" "}
+                  {client.strongPoint}
+                </p>
+                <p>
+                  <ShieldAlert className="mr-1 inline h-4 w-4 text-rose-500" />
+                  <span className="font-semibold text-rose-500">O que travou:</span>{" "}
+                  {client.blocker}
+                </p>
+              </div>
+              <div className="mt-4 rounded-md border bg-muted/20 px-3 py-2">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Participação por consultor
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {client.contributors.map((contributor) => (
                     <div
-                      className="h-full rounded-full transition-[width]"
-                      style={{ width: `${Math.max(client.score, 1)}%`, backgroundColor: color }}
-                    />
-                  </div>
-                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-                    <p>
-                      <Flame className="mr-1 inline h-4 w-4 text-emerald-600" />
-                      <span className="font-semibold text-emerald-600">Ponto forte:</span>{" "}
-                      {client.strongPoint}
-                    </p>
-                    <p>
-                      <ShieldAlert className="mr-1 inline h-4 w-4 text-rose-500" />
-                      <span className="font-semibold text-rose-500">O que travou:</span>{" "}
-                      {client.blocker}
-                    </p>
-                  </div>
-                </article>
-              );
-            })}
-        </div>
+                      key={contributor.name}
+                      className="rounded-md bg-background px-3 py-2 text-sm"
+                    >
+                      <p className="truncate font-medium">{contributor.name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        <span className="text-emerald-600">{contributor.done} concluídas</span> ·{" "}
+                        <span className="text-amber-600">{contributor.pending} pendentes</span> ·{" "}
+                        <span className="text-rose-600">{contributor.overdue} atrasadas</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
@@ -363,6 +342,22 @@ function ReportsPage() {
           : pending
             ? `${pending} ${pending === 1 ? "tarefa pendente" : "tarefas pendentes"}.`
             : "Nenhum bloqueio identificado no período.";
+      const contributors = Array.from(
+        new Set(clientTasks.map((task) => task.assignee_id ?? "__unassigned__")),
+      )
+        .map((assigneeId) => {
+          const consultantTasks = clientTasks.filter(
+            (task) => (task.assignee_id ?? "__unassigned__") === assigneeId,
+          );
+          const profile = profiles.find((item) => item.id === assigneeId);
+          return {
+            name: profile?.full_name || profile?.email || "Sem responsável",
+            done: consultantTasks.filter((task) => task.status === "done").length,
+            pending: consultantTasks.filter((task) => task.status !== "done").length,
+            overdue: consultantTasks.filter((task) => matchDateFilter(task, "overdue")).length,
+          };
+        })
+        .sort((a, b) => b.done + b.pending - (a.done + a.pending));
 
       return {
         id: client.id,
@@ -377,6 +372,7 @@ function ReportsPage() {
         score,
         strongPoint,
         blocker,
+        contributors,
       };
     })
     .filter((client): client is ClientPerformance => Boolean(client))
