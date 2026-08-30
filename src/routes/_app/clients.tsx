@@ -630,7 +630,7 @@ export function ClientsIndexPage() {
           {shouldWaitForLogos ? (
             <div className="grid min-h-72 place-items-center border-b border-border/60 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
-                <LoaderCircle className="h-4 w-4 animate-spin" /> Carregando clientes e logos…
+                <LoaderCircle className="h-4 w-4 animate-spin" /> Carregando clientes…
               </div>
             </div>
           ) : (
