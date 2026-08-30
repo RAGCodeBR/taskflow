@@ -37,6 +37,8 @@ import {
   ShieldAlert,
   Swords,
   Trophy,
+  Crown,
+  Activity,
 } from "lucide-react";
 import { isAfter, parseISO } from "date-fns";
 
@@ -90,6 +92,110 @@ type ClientPerformance = {
 };
 
 const battleColors = ["#167c80", "#2d5c91", "#53739e", "#7a91ad", "#a4b3c5", "#c6d1de"];
+
+function TeamRankingPanel({ members }: { members: any[] }) {
+  const ranked = [...members]
+    .map((member) => ({
+      ...member,
+      score: Math.max(
+        0,
+        Math.min(
+          100,
+          Math.round(member.onTimeRate * 0.55 + Math.min(25, member.done * 5) - member.overdue * 8),
+        ),
+      ),
+    }))
+    .sort((a, b) => b.score - a.score || b.done - a.done || a.overdue - b.overdue);
+  const podiumColors = ["#f59e0b", "#94a3b8", "#b87333"];
+
+  if (!ranked.length)
+    return (
+      <Card className="p-5 text-sm text-muted-foreground">Nenhum colaborador no filtro atual.</Card>
+    );
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(19rem,0.8fr)_minmax(0,1.6fr)]">
+      <Card className="overflow-hidden">
+        <div className="flex items-center gap-2 border-b px-5 py-5">
+          <Crown className="h-5 w-5 text-[#f59e0b]" />
+          <h2 className="text-xl font-semibold">Pódio da performance</h2>
+        </div>
+        <div className="space-y-3 p-4">
+          {ranked.slice(0, 3).map((member, index) => (
+            <div
+              key={member.id}
+              className={`rounded-lg border p-4 ${index === 0 ? "border-amber-300 bg-amber-50/70 dark:bg-amber-950/15" : "bg-muted/20"}`}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold text-white"
+                  style={{ backgroundColor: podiumColors[index] }}
+                >
+                  {index === 0 ? <Crown className="h-5 w-5" /> : index + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{member.fullName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {member.done} concluídas · {member.onTimeRate}% no prazo
+                  </p>
+                </div>
+                <span className="text-2xl font-bold tabular-nums">{member.score}</span>
+              </div>
+              <div className="mt-3 border-t pt-3 text-sm">
+                <p className="text-emerald-600">
+                  <span className="font-semibold">Destaque:</span> {member.done} entregas
+                  concluídas.
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  <span className="font-semibold">A evoluir:</span>{" "}
+                  {member.overdue ? `${member.overdue} atrasada(s).` : "nenhum atraso no período."}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="flex items-center gap-2 border-b px-5 py-5">
+          <Activity className="h-5 w-5 text-[#167c80]" />
+          <h2 className="text-xl font-semibold">Ranking completo — equipe</h2>
+        </div>
+        <div className="space-y-3 p-4">
+          {ranked.map((member, index) => (
+            <div key={member.id} className="rounded-lg border p-4">
+              <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truncate font-semibold">{member.fullName}</p>
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-bold tabular-nums">
+                      {member.score}/100
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-[#167c80]"
+                      style={{ width: `${Math.max(member.score, 1)}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    <span className="text-emerald-600">{member.done} concluídas</span> ·{" "}
+                    <span className="text-amber-600">{member.pending} pendentes</span> ·{" "}
+                    <span className="text-rose-600">{member.overdue} atrasadas</span> ·{" "}
+                    {member.onTimeRate}% no prazo
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
 
 function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
   if (clients.length === 0) return null;
@@ -560,6 +666,7 @@ function ReportsPage() {
       </div>
 
       <div className={reportView === "team" ? "space-y-4" : "hidden"}>
+        <TeamRankingPanel members={perUser} />
         <UserTable title="Administradores" icon={ShieldCheck} rows={admins} />
         <UserTable title="Colaboradores" rows={members} icon={UserIcon} />
       </div>
