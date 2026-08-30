@@ -6,6 +6,7 @@ import { useTasks, useProfiles, useClients, useTaskStatuses } from "@/hooks/use-
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -107,6 +108,11 @@ function TeamRankingPanel({ members }: { members: any[] }) {
     }))
     .sort((a, b) => b.score - a.score || b.done - a.done || a.overdue - b.overdue);
   const podiumColors = ["#f59e0b", "#94a3b8", "#b87333"];
+  const podiumBackgrounds = [
+    "border-amber-300 bg-amber-50/80 dark:bg-amber-950/15",
+    "border-slate-300 bg-slate-50/70 dark:bg-slate-900/25",
+    "border-orange-300 bg-orange-50/70 dark:bg-orange-950/15",
+  ];
 
   if (!ranked.length)
     return (
@@ -122,13 +128,14 @@ function TeamRankingPanel({ members }: { members: any[] }) {
         </div>
         <div className="space-y-3 p-4">
           {ranked.slice(0, 3).map((member, index) => (
-            <div
-              key={member.id}
-              className={`rounded-lg border p-4 ${index === 0 ? "border-amber-300 bg-amber-50/70 dark:bg-amber-950/15" : "bg-muted/20"}`}
-            >
+            <div key={member.id} className={`rounded-lg border p-4 ${podiumBackgrounds[index]}`}>
               <div className="flex items-center gap-3">
+                <Avatar className="h-14 w-14 border-2 border-background shadow-sm">
+                  <AvatarImage src={member.avatarUrl || undefined} alt={member.fullName} />
+                  <AvatarFallback>{member.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
                 <span
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold text-white"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold text-white"
                   style={{ backgroundColor: podiumColors[index] }}
                 >
                   {index === 0 ? <Crown className="h-5 w-5" /> : index + 1}
@@ -164,10 +171,14 @@ function TeamRankingPanel({ members }: { members: any[] }) {
         <div className="space-y-3 p-4">
           {ranked.map((member, index) => (
             <div key={member.id} className="rounded-lg border p-4">
-              <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+              <div className="grid gap-3 sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-center">
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
                   {index + 1}
                 </span>
+                <Avatar className="h-12 w-12 border shadow-sm">
+                  <AvatarImage src={member.avatarUrl || undefined} alt={member.fullName} />
+                  <AvatarFallback>{member.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
                 <div className="min-w-0">
                   <div className="flex items-center justify-between gap-3">
                     <p className="truncate font-semibold">{member.fullName}</p>
@@ -486,6 +497,10 @@ function ReportsPage() {
 
   const admins = perUser.filter((u) => u.isAdmin);
   const members = perUser.filter((u) => !u.isAdmin);
+  const teamRanking = perUser.map((person) => ({
+    ...person,
+    avatarUrl: profiles.find((profile) => profile.id === person.id)?.avatar_url ?? null,
+  }));
 
   const unassignedTasks = filteredTasks.filter((t) => !t.assignee_id);
   const unassignedRow =
@@ -666,7 +681,7 @@ function ReportsPage() {
       </div>
 
       <div className={reportView === "team" ? "space-y-4" : "hidden"}>
-        <TeamRankingPanel members={perUser} />
+        <TeamRankingPanel members={teamRanking} />
         <UserTable title="Administradores" icon={ShieldCheck} rows={admins} />
         <UserTable title="Colaboradores" rows={members} icon={UserIcon} />
       </div>
