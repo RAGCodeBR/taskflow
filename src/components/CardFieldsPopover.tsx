@@ -94,7 +94,7 @@ export function CardFieldsPopover() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
+        <Button variant="outline" size="sm" className="gap-1.5 rounded-full">
           <Settings2 className="h-3.5 w-3.5" />
           Configurar card
         </Button>

@@ -1161,21 +1161,21 @@ function KanbanPage() {
       <header className="shrink-0 border-b bg-background px-3 py-2">
         <div className="flex items-center justify-end gap-2">
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setFilesOpen(true)}>
+            <Button variant="outline" className="rounded-full" onClick={() => setFilesOpen(true)}>
               <FolderOpen className="mr-2 h-4 w-4" />
               Arquivos Cliente
             </Button>
-            <Button variant="outline" onClick={() => setTagsOpen(true)}>
+            <Button variant="outline" className="rounded-full" onClick={() => setTagsOpen(true)}>
               Etiquetas
             </Button>
             {isAdmin && (
-              <Button variant="outline" onClick={addColumn}>
+              <Button variant="outline" className="rounded-full" onClick={addColumn}>
                 <Plus className="mr-2 h-4 w-4" />
                 Coluna
               </Button>
             )}
             <Button
-              className="h-9 rounded-md px-4 shadow-sm"
+              className="h-9 rounded-full px-5 shadow-sm"
               onClick={() => {
                 setEditTask(null);
                 setDefaultCol(columns[0]?.id ?? null);
@@ -1193,7 +1193,7 @@ function KanbanPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 gap-1"
+                className="h-7 gap-1 rounded-full"
                 onClick={switchOrientation}
                 disabled={updatePrefs.isPending}
                 title={
@@ -1210,7 +1210,7 @@ function KanbanPage() {
               <Button
                 size="sm"
                 variant={minimalCards ? "default" : "outline"}
-                className="h-7 gap-1"
+                className="h-7 gap-1 rounded-full"
                 onClick={toggleMinimalCards}
                 title={minimalCards ? "Exibir cards completos" : "Exibir cards minimalistas"}
               >
@@ -1231,14 +1231,14 @@ function KanbanPage() {
                 onChange={(e) =>
                   setCompletedRange((range) => ({ ...range, start: e.target.value }))
                 }
-                className="h-7 w-36"
+                className="h-7 w-36 rounded-full"
               />
               <span>até</span>
               <Input
                 type="date"
                 value={completedRange.end}
                 onChange={(e) => setCompletedRange((range) => ({ ...range, end: e.target.value }))}
-                className="h-7 w-36"
+                className="h-7 w-36 rounded-full"
               />
               {completedRange.start || completedRange.end ? (
                 <Button
@@ -1257,7 +1257,7 @@ function KanbanPage() {
                 value={sort.field}
                 onValueChange={(v) => setSort((s) => ({ ...s, field: v as SortField }))}
               >
-                <SelectTrigger className="h-7 w-40">
+                <SelectTrigger className="h-7 w-40 rounded-full">
                   <SelectValue placeholder="Escolher critério" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1269,7 +1269,7 @@ function KanbanPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7"
+                className="h-7 rounded-full"
                 onClick={() =>
                   setSort((s) => ({ ...s, direction: s.direction === "asc" ? "desc" : "asc" }))
                 }
