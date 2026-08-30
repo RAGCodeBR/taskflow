@@ -26,11 +26,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { FileDropZone } from "@/components/FileDropZone";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -87,7 +94,16 @@ const COLORS = [
 ] as const;
 
 type CardSize = "compact" | "normal" | "large";
-type TextStyle = "clean" | "handwritten" | "editorial" | "typewriter";
+type TextStyle =
+  | "clean"
+  | "handwritten"
+  | "pen"
+  | "marker"
+  | "casual"
+  | "scribble"
+  | "architect"
+  | "editorial"
+  | "typewriter";
 
 const CARD_SIZES: { value: CardSize; label: string }[] = [
   { value: "compact", label: "Compacto" },
@@ -96,20 +112,37 @@ const CARD_SIZES: { value: CardSize; label: string }[] = [
 ];
 
 const TEXT_STYLES: { value: TextStyle; label: string; css: CSSProperties }[] = [
-  { value: "clean", label: "Editorial", css: { fontFamily: "Inter, system-ui, sans-serif" } },
+  { value: "handwritten", label: "Manuscrito (Caveat)", css: { fontFamily: "Caveat, cursive" } },
+  { value: "pen", label: "Caneta (Kalam)", css: { fontFamily: "Kalam, cursive" } },
   {
-    value: "handwritten",
-    label: "Manual",
-    css: { fontFamily: "cursive", letterSpacing: "0.01em" },
+    value: "marker",
+    label: "Marcador (Patrick Hand)",
+    css: { fontFamily: "Patrick Hand, cursive" },
+  },
+  { value: "casual", label: "Casual (Indie Flower)", css: { fontFamily: "Indie Flower, cursive" } },
+  {
+    value: "scribble",
+    label: "Rabisco (Shadows Into Light)",
+    css: { fontFamily: "Shadows Into Light, cursive" },
+  },
+  {
+    value: "architect",
+    label: "Arquiteto (Architects Daughter)",
+    css: { fontFamily: "Architects Daughter, cursive" },
+  },
+  {
+    value: "clean",
+    label: "Padrão (Sem serifa)",
+    css: { fontFamily: "Inter, system-ui, sans-serif" },
   },
   {
     value: "editorial",
-    label: "Elegante",
+    label: "Clássico (Serifa)",
     css: { fontFamily: "Georgia, 'Times New Roman', serif" },
   },
   {
     value: "typewriter",
-    label: "Máquina",
+    label: "Máquina (Mono)",
     css: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.92em" },
   },
 ];
@@ -133,6 +166,7 @@ const emptyForm = {
   color: "sky",
   cardSize: "normal" as CardSize,
   textStyle: "clean" as TextStyle,
+  isPinned: false,
 };
 
 function colorClass(color: string) {
@@ -255,6 +289,7 @@ function MuralPage() {
         checklist,
         card_size: form.cardSize,
         text_style: form.textStyle,
+        is_pinned: form.isPinned,
       };
       const newPostPosition = editingPost ? null : findAvailableCanvasPosition(form.cardSize);
       const { data, error } = editingPost
@@ -388,6 +423,7 @@ function MuralPage() {
       color: post.color,
       cardSize: post.card_size ?? "normal",
       textStyle: post.text_style ?? "clean",
+      isPinned: post.is_pinned,
     });
     setOpen(true);
   };
@@ -583,134 +619,186 @@ function MuralPage() {
               if (!next) setEditingPost(null);
             }}
           >
-            <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="max-h-[90dvh] overflow-y-auto border-0 bg-[#ebe9e5] p-6 sm:max-w-4xl">
               <DialogHeader>
-                <DialogTitle>{editingPost ? "Editar post-it" : "Novo post-it"}</DialogTitle>
-                <DialogDescription>
-                  {editingPost
-                    ? "Atualize o recado compartilhado com a equipe."
-                    : "Crie um aviso visual para o mural da equipe."}
-                </DialogDescription>
+                <DialogTitle className="text-2xl tracking-tight">
+                  {editingPost ? "Editar recado no mural" : "Novo recado no mural"}
+                </DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Título</Label>
-                  <Input
-                    value={form.title}
-                    onChange={(event) => setForm({ ...form, title: event.target.value })}
-                    placeholder="Ex.: Ideias para a próxima reunião"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Mensagem</Label>
-                  <Textarea
-                    value={form.content}
-                    onChange={(event) => setForm({ ...form, content: event.target.value })}
-                    placeholder="Escreva um recado para a equipe"
-                  />
-                  <div className="flex flex-wrap gap-1.5" aria-label="Adicionar emoji à mensagem">
-                    {QUICK_EMOJIS.map((emoji) => (
-                      <Button
-                        key={emoji}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 min-w-7 px-1.5 text-sm"
-                        onClick={() =>
-                          setForm((current) => ({
-                            ...current,
-                            content: `${current.content}${current.content ? " " : ""}${emoji}`,
-                          }))
-                        }
-                      >
-                        {emoji}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-5">
                   <div className="space-y-2">
-                    <Label>Etiqueta</Label>
+                    <Label>Título *</Label>
                     <Input
-                      value={form.tag}
-                      onChange={(event) => setForm({ ...form, tag: event.target.value })}
-                      placeholder="Ex.: Importante"
+                      className="h-[72px] bg-background text-lg"
+                      value={form.title}
+                      onChange={(event) => setForm({ ...form, title: event.target.value })}
+                      placeholder="Ex.: Reunião geral na sexta-feira"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Cor</Label>
-                    <select
-                      className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                      value={form.color}
-                      onChange={(event) => setForm({ ...form, color: event.target.value })}
-                    >
-                      {COLORS.map((color) => (
-                        <option key={color.value} value={color.value}>
-                          {color.label}
-                        </option>
-                      ))}
-                    </select>
+                    <Label>Mensagem *</Label>
+                    <Textarea
+                      className="min-h-[280px] resize-y bg-background text-lg"
+                      value={form.content}
+                      onChange={(event) => setForm({ ...form, content: event.target.value })}
+                      placeholder="Escreva o recado, norma ou aviso..."
+                    />
                   </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Tamanho no mural</Label>
-                    <div className="grid grid-cols-3 gap-1">
-                      {CARD_SIZES.map((size) => (
-                        <Button
-                          key={size.value}
+
+                <div className="space-y-5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Categoria</Label>
+                      <Input
+                        className="h-[72px] bg-background text-lg"
+                        value={form.tag}
+                        onChange={(event) => setForm({ ...form, tag: event.target.value })}
+                        placeholder="Aviso"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tamanho</Label>
+                      <Select
+                        value={form.cardSize}
+                        onValueChange={(cardSize) =>
+                          setForm({ ...form, cardSize: cardSize as CardSize })
+                        }
+                      >
+                        <SelectTrigger className="h-[72px] bg-background text-lg">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CARD_SIZES.map((size) => (
+                            <SelectItem key={size.value} value={size.value}>
+                              {size.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label>Cor do papel</Label>
+                    <div className="flex flex-wrap gap-3" aria-label="Cor do papel">
+                      {COLORS.map((color) => (
+                        <button
+                          key={color.value}
                           type="button"
+                          aria-label={color.label}
+                          aria-pressed={form.color === color.value}
+                          onClick={() => setForm({ ...form, color: color.value })}
+                          className={`h-8 w-8 rounded-full border border-black/10 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#287f80] focus-visible:ring-offset-2 ${color.card.split(" ")[0]} ${form.color === color.value ? "ring-2 ring-[#287f80] ring-offset-2" : ""}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Estilo de letra</Label>
+                    <Select
+                      value={form.textStyle}
+                      onValueChange={(textStyle) =>
+                        setForm({ ...form, textStyle: textStyle as TextStyle })
+                      }
+                    >
+                      <SelectTrigger
+                        className="h-[72px] bg-background text-lg"
+                        style={textStyleCss(form.textStyle)}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-80">
+                        {TEXT_STYLES.map((style) => (
+                          <SelectItem
+                            key={style.value}
+                            value={style.value}
+                            style={textStyleCss(style.value)}
+                          >
+                            {style.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div
+                    className={`rounded-md p-4 ${colorClass(form.color)}`}
+                    style={textStyleCss(form.textStyle)}
+                  >
+                    <p className="text-lg font-bold leading-tight">
+                      {form.title || "Título do recado"}
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed opacity-80">
+                      {form.content || "A mensagem aparecerá assim no mural."}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-md bg-white/55 px-3 py-3">
+                    <div>
+                      <p className="font-medium">Fixar no topo</p>
+                      <p className="text-xs text-muted-foreground">
+                        Mantém este recado sempre visível
+                      </p>
+                    </div>
+                    <Switch
+                      checked={form.isPinned}
+                      onCheckedChange={(isPinned) => setForm({ ...form, isPinned })}
+                    />
+                  </div>
+                </div>
+              </div>
+              <details className="rounded-md border border-black/10 bg-white/45 px-4 py-3">
+                <summary className="cursor-pointer font-medium">Opções avançadas</summary>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>
+                      Checklist{" "}
+                      <span className="font-normal text-muted-foreground">(um item por linha)</span>
+                    </Label>
+                    <Textarea
+                      value={form.checklist}
+                      onChange={(event) => setForm({ ...form, checklist: event.target.value })}
+                      placeholder={"Preparar pauta\nConfirmar participantes"}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>
+                        Imagem{" "}
+                        <span className="font-normal text-muted-foreground">(link opcional)</span>
+                      </Label>
+                      <Input
+                        type="url"
+                        value={form.imageUrl}
+                        onChange={(event) => setForm({ ...form, imageUrl: event.target.value })}
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5" aria-label="Adicionar emoji à mensagem">
+                      {QUICK_EMOJIS.map((emoji) => (
+                        <Button
+                          key={emoji}
+                          type="button"
+                          variant="outline"
                           size="sm"
-                          variant={form.cardSize === size.value ? "default" : "outline"}
-                          className="px-1 text-xs"
-                          onClick={() => setForm({ ...form, cardSize: size.value })}
+                          className="h-7 min-w-7 bg-background px-1.5 text-sm"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              content: `${current.content}${current.content ? " " : ""}${emoji}`,
+                            }))
+                          }
                         >
-                          {size.label}
+                          {emoji}
                         </Button>
                       ))}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Estilo de escrita</Label>
-                    <select
-                      className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                      value={form.textStyle}
-                      onChange={(event) =>
-                        setForm({ ...form, textStyle: event.target.value as TextStyle })
-                      }
-                    >
-                      {TEXT_STYLES.map((style) => (
-                        <option key={style.value} value={style.value}>
-                          {style.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>
-                    Checklist{" "}
-                    <span className="font-normal text-muted-foreground">(um item por linha)</span>
-                  </Label>
-                  <Textarea
-                    value={form.checklist}
-                    onChange={(event) => setForm({ ...form, checklist: event.target.value })}
-                    placeholder={"Preparar pauta\nConfirmar participantes"}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>
-                    Imagem{" "}
-                    <span className="font-normal text-muted-foreground">(link opcional)</span>
-                  </Label>
-                  <Input
-                    type="url"
-                    value={form.imageUrl}
-                    onChange={(event) => setForm({ ...form, imageUrl: event.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
-              </div>
+              </details>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
