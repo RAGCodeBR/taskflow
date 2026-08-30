@@ -62,6 +62,8 @@ type MuralPost = {
   created_at: string;
   completed_at: string | null;
   is_pinned: boolean;
+  is_featured: boolean;
+  expires_at: string | null;
   card_size: CardSize;
   text_style: TextStyle;
   canvas_x: number;
@@ -92,6 +94,8 @@ const COLORS = [
   { value: "red", label: "Vermelho", card: "bg-red-100 text-red-950" },
   { value: "stone", label: "Cinza", card: "bg-slate-100 text-slate-950" },
 ] as const;
+
+const POST_CATEGORIES = ["Aviso", "Notícia", "Norma", "Regulamento", "Evento"];
 
 type CardSize = "compact" | "normal" | "large";
 type TextStyle =
@@ -160,13 +164,15 @@ const cardFallbackSize = (size: CardSize) => ({
 const emptyForm = {
   title: "",
   content: "",
-  tag: "",
+  tag: "Aviso",
   imageUrl: "",
   checklist: "",
   color: "sky",
   cardSize: "normal" as CardSize,
   textStyle: "clean" as TextStyle,
   isPinned: false,
+  isFeatured: false,
+  expiresAt: "",
 };
 
 function colorClass(color: string) {
@@ -222,6 +228,8 @@ function MuralPage() {
         ...post,
         checklist: Array.isArray(post.checklist) ? post.checklist : [],
         is_pinned: !!post.is_pinned,
+        is_featured: !!post.is_featured,
+        expires_at: post.expires_at ?? null,
         card_size: post.card_size ?? "normal",
         text_style: post.text_style ?? "clean",
         canvas_x: post.canvas_x ?? 520,
@@ -290,6 +298,8 @@ function MuralPage() {
         card_size: form.cardSize,
         text_style: form.textStyle,
         is_pinned: form.isPinned,
+        is_featured: form.isFeatured,
+        expires_at: form.expiresAt || null,
       };
       const newPostPosition = editingPost ? null : findAvailableCanvasPosition(form.cardSize);
       const { data, error } = editingPost
@@ -397,12 +407,14 @@ function MuralPage() {
   const orderedPosts = useMemo(() => {
     return posts
       .filter((post) => {
+        if (post.expires_at && new Date(`${post.expires_at}T23:59:59`) < new Date()) return false;
         if (postFilter === "pinned") return post.is_pinned;
         if (postFilter === "open") return !post.completed_at;
         if (postFilter === "completed") return !!post.completed_at;
         return !post.completed_at;
       })
       .sort((a, b) => {
+        if (a.is_featured !== b.is_featured) return a.is_featured ? -1 : 1;
         if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
@@ -417,13 +429,15 @@ function MuralPage() {
     setForm({
       title: post.title,
       content: post.content ?? "",
-      tag: post.tag ?? "",
+      tag: POST_CATEGORIES.includes(post.tag ?? "") ? (post.tag ?? "Aviso") : "Aviso",
       imageUrl: post.image_url ?? "",
       checklist: post.checklist.map((item) => item.text).join("\n"),
       color: post.color,
       cardSize: post.card_size ?? "normal",
       textStyle: post.text_style ?? "clean",
       isPinned: post.is_pinned,
+      isFeatured: post.is_featured,
+      expiresAt: post.expires_at ?? "",
     });
     setOpen(true);
   };
@@ -619,18 +633,18 @@ function MuralPage() {
               if (!next) setEditingPost(null);
             }}
           >
-            <DialogContent className="max-h-[90dvh] overflow-y-auto border-0 bg-[#ebe9e5] p-6 sm:max-w-4xl">
+            <DialogContent className="max-h-[90dvh] w-[calc(100vw-3rem)] max-w-[104rem] overflow-y-auto border-0 bg-[#ebe9e5] p-8 shadow-2xl">
               <DialogHeader>
                 <DialogTitle className="text-2xl tracking-tight">
                   {editingPost ? "Editar recado no mural" : "Novo recado no mural"}
                 </DialogTitle>
               </DialogHeader>
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <Label>Título *</Label>
                     <Input
-                      className="h-[72px] bg-background text-lg"
+                      className="h-[72px] border-[#e3e7ed] bg-transparent text-lg shadow-none"
                       value={form.title}
                       onChange={(event) => setForm({ ...form, title: event.target.value })}
                       placeholder="Ex.: Reunião geral na sexta-feira"
@@ -639,7 +653,7 @@ function MuralPage() {
                   <div className="space-y-2">
                     <Label>Mensagem *</Label>
                     <Textarea
-                      className="min-h-[280px] resize-y bg-background text-lg"
+                      className="min-h-[360px] resize-y border-[#e3e7ed] bg-transparent text-lg shadow-none"
                       value={form.content}
                       onChange={(event) => setForm({ ...form, content: event.target.value })}
                       placeholder="Escreva o recado, norma ou aviso..."
@@ -651,32 +665,27 @@ function MuralPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Categoria</Label>
-                      <Input
-                        className="h-[72px] bg-background text-lg"
-                        value={form.tag}
-                        onChange={(event) => setForm({ ...form, tag: event.target.value })}
-                        placeholder="Aviso"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Tamanho</Label>
-                      <Select
-                        value={form.cardSize}
-                        onValueChange={(cardSize) =>
-                          setForm({ ...form, cardSize: cardSize as CardSize })
-                        }
-                      >
-                        <SelectTrigger className="h-[72px] bg-background text-lg">
+                      <Select value={form.tag} onValueChange={(tag) => setForm({ ...form, tag })}>
+                        <SelectTrigger className="h-[72px] border-[#e3e7ed] bg-transparent text-lg shadow-none">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {CARD_SIZES.map((size) => (
-                            <SelectItem key={size.value} value={size.value}>
-                              {size.label}
+                          {POST_CATEGORIES.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Validade</Label>
+                      <Input
+                        type="date"
+                        className="h-[72px] border-[#e3e7ed] bg-transparent text-lg shadow-none"
+                        value={form.expiresAt}
+                        onChange={(event) => setForm({ ...form, expiresAt: event.target.value })}
+                      />
                     </div>
                   </div>
 
@@ -725,9 +734,10 @@ function MuralPage() {
                   </div>
 
                   <div
-                    className={`rounded-md p-4 ${colorClass(form.color)}`}
+                    className={`relative rounded-md p-4 ${colorClass(form.color)}`}
                     style={textStyleCss(form.textStyle)}
                   >
+                    <span className="absolute -top-2 left-1/2 h-5 w-20 -translate-x-1/2 rounded bg-white/35" />
                     <p className="text-lg font-bold leading-tight">
                       {form.title || "Título do recado"}
                     </p>
@@ -736,7 +746,7 @@ function MuralPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-md bg-white/55 px-3 py-3">
+                  <div className="flex items-center justify-between border-t border-[#d8d5cf] px-1 py-4">
                     <div>
                       <p className="font-medium">Fixar no topo</p>
                       <p className="text-xs text-muted-foreground">
@@ -748,11 +758,43 @@ function MuralPage() {
                       onCheckedChange={(isPinned) => setForm({ ...form, isPinned })}
                     />
                   </div>
+                  <div className="flex items-center justify-between border-t border-[#d8d5cf] px-1 py-4">
+                    <div>
+                      <p className="font-medium">Marcar como destaque</p>
+                      <p className="text-xs text-muted-foreground">
+                        Aparece em evidência no topo do mural
+                      </p>
+                    </div>
+                    <Switch
+                      checked={form.isFeatured}
+                      onCheckedChange={(isFeatured) => setForm({ ...form, isFeatured })}
+                    />
+                  </div>
                 </div>
               </div>
-              <details className="rounded-md border border-black/10 bg-white/45 px-4 py-3">
+              <details className="border-t border-[#d8d5cf] px-1 py-3">
                 <summary className="cursor-pointer font-medium">Opções avançadas</summary>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Tamanho no mural</Label>
+                    <Select
+                      value={form.cardSize}
+                      onValueChange={(cardSize) =>
+                        setForm({ ...form, cardSize: cardSize as CardSize })
+                      }
+                    >
+                      <SelectTrigger className="bg-transparent shadow-none">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CARD_SIZES.map((size) => (
+                          <SelectItem key={size.value} value={size.value}>
+                            {size.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <Label>
                       Checklist{" "}
@@ -799,11 +841,15 @@ function MuralPage() {
                   </div>
                 </div>
               </details>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>
+              <DialogFooter className="pt-2">
+                <Button variant="ghost" className="rounded-full" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button disabled={savePost.isPending} onClick={() => savePost.mutate()}>
+                <Button
+                  className="rounded-full px-6"
+                  disabled={savePost.isPending}
+                  onClick={() => savePost.mutate()}
+                >
                   {savePost.isPending
                     ? "Salvando..."
                     : editingPost
