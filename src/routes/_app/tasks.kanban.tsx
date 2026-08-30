@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   DndContext,
   type CollisionDetection,
@@ -390,6 +390,16 @@ function KanbanPage() {
     setMinimalCards(next);
     if (typeof window !== "undefined")
       window.localStorage.setItem(minimalCardsStorageKey, String(next));
+  };
+
+  const switchOrientation = () => {
+    if (updatePrefs.isPending) return;
+    // A troca de estratégia do dnd-kit durante um arraste pode manter uma
+    // medição antiga de coluna. Cancelamos o overlay antes de remontar o quadro.
+    setActiveTask(null);
+    updatePrefs.mutate({
+      kanban_orientation: orientation === "horizontal" ? "vertical" : "horizontal",
+    });
   };
 
   const subtaskAssigneeTaskIds = useMemo(() => {
@@ -1184,11 +1194,8 @@ function KanbanPage() {
                 size="sm"
                 variant="outline"
                 className="h-7 gap-1"
-                onClick={() =>
-                  updatePrefs.mutate({
-                    kanban_orientation: orientation === "horizontal" ? "vertical" : "horizontal",
-                  })
-                }
+                onClick={switchOrientation}
+                disabled={updatePrefs.isPending}
                 title={
                   orientation === "horizontal" ? "Mudar para vertical" : "Mudar para horizontal"
                 }
@@ -1282,6 +1289,7 @@ function KanbanPage() {
 
       <KanbanScrollArea orientation={orientation}>
         <DndContext
+          key={orientation}
           sensors={sensors}
           collisionDetection={collisionDetectionStrategy}
           autoScroll={{ layoutShiftCompensation: false, threshold: { x: 0.15, y: 0.15 } }}
@@ -1547,6 +1555,20 @@ function KanbanScrollArea({
   const mainRef = useRef<HTMLDivElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
   const topScrollContentRef = useRef<HTMLDivElement>(null);
+  const previousOrientationRef = useRef(orientation);
+
+  // Cada orientação usa dimensões e estratégias de ordenação diferentes.
+  // Ao voltar para a lista vertical, elimina uma posição horizontal residual
+  // antes da pintura para evitar cortes ou colunas parcialmente fora da tela.
+  useLayoutEffect(() => {
+    const main = mainRef.current;
+    const previousOrientation = previousOrientationRef.current;
+    previousOrientationRef.current = orientation;
+    if (!main || previousOrientation === orientation) return;
+
+    main.scrollLeft = 0;
+    if (orientation === "vertical") main.scrollTop = 0;
+  }, [orientation]);
 
   // A barra nativa do navegador sempre fica no rodapé do elemento rolável.
   // Esta área auxiliar, acima do quadro, mantém uma barra superior sincronizada.
@@ -1621,7 +1643,9 @@ function KanbanScrollArea({
       )}
       <div
         ref={mainRef}
-        className="kanban-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4"
+        className={`kanban-scroll min-h-0 flex-1 overflow-y-auto p-4 ${
+          orientation === "horizontal" ? "overflow-x-auto" : "overflow-x-hidden"
+        }`}
       >
         {children}
       </div>
