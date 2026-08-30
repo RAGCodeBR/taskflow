@@ -154,16 +154,20 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={n.to}
                 to={n.to}
-                className={`flex items-center gap-3 rounded-lg transition ${
+                className={`flex items-center gap-3 rounded-full transition ${
                   sidebarOpen ? "px-3 py-2 text-sm" : "justify-center px-2 py-2 text-sm"
                 } ${
                   Active
-                    ? "text-sidebar-foreground font-medium"
+                    ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"
                 }`}
                 title={sidebarOpen ? undefined : n.label}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <span
+                  className={`grid shrink-0 place-items-center ${Active ? "h-7 w-7 rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : "h-7 w-7"}`}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
                 {sidebarOpen && <span className="truncate">{n.label}</span>}
                 {n.to === "/mural" && muralUnreadCount > 0 && (
                   <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
@@ -276,13 +280,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                     key={n.to}
                     to={n.to}
                     onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                    className={`flex items-center gap-3 rounded-full px-3 py-2 text-sm transition ${
                       Active
-                        ? "text-sidebar-foreground font-medium"
+                        ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm"
                         : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
+                    <span
+                      className={`grid h-7 w-7 shrink-0 place-items-center ${Active ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
                     {n.label}
                     {n.to === "/mural" && muralUnreadCount > 0 && (
                       <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
@@ -368,17 +376,21 @@ function PortalNavGroup({
     return (
       <div
         title="Portal do Cliente"
-        className={`flex justify-center rounded-lg px-2 py-2 ${active ? "text-sidebar-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
+        className={`flex justify-center rounded-full px-2 py-2 ${active ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground shadow-sm" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
       >
-        <PanelsTopLeft className="h-4 w-4" />
+        <span className={`grid h-7 w-7 place-items-center ${active ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
+          <PanelsTopLeft className="h-4 w-4" />
+        </span>
       </div>
     );
   return (
     <Collapsible defaultOpen={active} className="space-y-1">
       <CollapsibleTrigger
-        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${active ? "text-sidebar-foreground font-medium" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
+        className={`flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm transition ${active ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
       >
-        <PanelsTopLeft className="h-4 w-4" />
+        <span className={`grid h-7 w-7 shrink-0 place-items-center ${active ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
+          <PanelsTopLeft className="h-4 w-4" />
+        </span>
         <span className="flex-1 text-left">Portal do Cliente</span>
         <ChevronDown className="h-4 w-4" />
       </CollapsibleTrigger>
