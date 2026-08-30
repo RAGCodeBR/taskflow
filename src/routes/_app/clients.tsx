@@ -180,6 +180,7 @@ export function ClientsIndexPage() {
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
   const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>(getCachedAvatarUrls);
   const [avatarsReady, setAvatarsReady] = useState(false);
+  const [avatarBatchKey, setAvatarBatchKey] = useState("");
   const [reportClient, setReportClient] = useState<Client | null>(null);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("all");
   const [reportScope, setReportScope] = useState<"completed" | "all">("completed");
@@ -196,6 +197,10 @@ export function ClientsIndexPage() {
 
     const loadAvatarUrls = async () => {
       const clientsWithAvatar = clients.filter((client) => client.avatar_path);
+      const currentBatchKey = clientsWithAvatar
+        .map((client) => `${client.id}:${client.avatar_path}`)
+        .sort()
+        .join("|");
       const cachedUrls = getCachedAvatarUrls();
       const visibleCachedUrls = Object.fromEntries(
         clientsWithAvatar
@@ -210,12 +215,16 @@ export function ClientsIndexPage() {
         if (!cancelled) {
           setAvatarUrls({});
           setAvatarsReady(true);
+          setAvatarBatchKey(currentBatchKey);
         }
         return;
       }
 
       if (clientsToLoad.length === 0) {
-        if (!cancelled) setAvatarsReady(true);
+        if (!cancelled) {
+          setAvatarsReady(true);
+          setAvatarBatchKey(currentBatchKey);
+        }
         return;
       }
 
@@ -243,6 +252,7 @@ export function ClientsIndexPage() {
         cacheAvatarUrls(loadedUrls);
         setAvatarUrls({ ...visibleCachedUrls, ...loadedUrls });
         setAvatarsReady(true);
+        setAvatarBatchKey(currentBatchKey);
       }
     };
 
@@ -264,6 +274,13 @@ export function ClientsIndexPage() {
         client.description?.toLocaleLowerCase("pt-BR").includes(term))
     );
   });
+  const currentAvatarBatchKey = clients
+    .filter((client) => client.avatar_path)
+    .map((client) => `${client.id}:${client.avatar_path}`)
+    .sort()
+    .join("|");
+  const shouldWaitForLogos =
+    Boolean(currentAvatarBatchKey) && (!avatarsReady || avatarBatchKey !== currentAvatarBatchKey);
 
   const onOpen = (c: Client | null) => {
     setEdit(c);
@@ -604,93 +621,94 @@ export function ClientsIndexPage() {
             <span>Informações</span>
             <span className="text-right">Ações</span>
           </div>
-          {filteredClients.map((c) => {
-            const count = tasks.filter((t) => t.client_id === c.id).length;
-            const isActive = c.is_active !== false;
-            return (
-              <article
-                key={c.id}
-                className={`grid gap-4 border-b border-border/60 px-2 py-4 transition-colors hover:bg-muted/35 md:grid-cols-[minmax(280px,1.4fr)_minmax(140px,.7fr)_minmax(250px,1fr)_auto] md:items-center md:gap-6 md:px-4 ${isActive ? "" : "opacity-65"}`}
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  {avatarUrls[c.id] ? (
-                    <img
-                      src={avatarUrls[c.id]}
-                      alt={`Logo de ${c.name}`}
-                      className="block h-11 w-11 shrink-0 rounded-xl border border-border bg-muted object-contain p-0.5"
-                    />
-                  ) : c.avatar_path && !avatarsReady ? (
-                    <div
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/70"
-                      aria-label={`Carregando logo de ${c.name}`}
-                    >
-                      <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                    <div
-                      className="h-11 w-11 shrink-0 rounded-xl shadow-sm"
-                      style={{ background: c.color || "#1e3a8a" }}
-                    />
-                  )}
-                  <div className="min-w-0">
-                    <h2 className="truncate font-semibold">{c.name}</h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {isActive ? "Cliente ativo" : "Cliente inativo"}
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-lg font-semibold tabular-nums">{count}</span>
-                  <span className="ml-1 text-xs text-muted-foreground">
-                    tarefa{count === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <p className="line-clamp-2 text-sm text-muted-foreground">
-                  {c.description || c.responsible || c.email || "Sem informações adicionais."}
-                </p>
-                <div className="flex items-center gap-0.5 md:justify-end">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    title="Gerar relatório PDF"
-                    onClick={() => openReport(c)}
-                  >
-                    <FileDown className="h-4 w-4 text-primary" />
-                  </Button>
-                  <Button asChild size="icon" variant="ghost" title="Relatório IA">
-                    <Link to="/client-report/$clientId" params={{ clientId: c.id }}>
-                      <Sparkles className="h-4 w-4 text-primary" />
-                    </Link>
-                  </Button>
-                  <Button asChild size="icon" variant="ghost" title="Editar cliente">
-                    <Link to="/clients/$clientId/edit" params={{ clientId: c.id }}>
-                      <Pencil className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => void setClientActive(c, !isActive)}
-                    title={isActive ? "Inativar cliente" : "Reativar cliente"}
-                  >
-                    {isActive ? (
-                      <Archive className="h-4 w-4" />
+          {shouldWaitForLogos ? (
+            <div className="grid min-h-72 place-items-center border-b border-border/60 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <LoaderCircle className="h-4 w-4 animate-spin" /> Carregando clientes e logos…
+              </div>
+            </div>
+          ) : (
+            filteredClients.map((c) => {
+              const count = tasks.filter((t) => t.client_id === c.id).length;
+              const isActive = c.is_active !== false;
+              return (
+                <article
+                  key={c.id}
+                  className={`grid gap-4 border-b border-border/60 px-2 py-4 transition-colors hover:bg-muted/35 md:grid-cols-[minmax(280px,1.4fr)_minmax(140px,.7fr)_minmax(250px,1fr)_auto] md:items-center md:gap-6 md:px-4 ${isActive ? "" : "opacity-65"}`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    {avatarUrls[c.id] ? (
+                      <img
+                        src={avatarUrls[c.id]}
+                        alt={`Logo de ${c.name}`}
+                        className="block h-11 w-11 shrink-0 rounded-xl border border-border bg-muted object-contain p-0.5"
+                      />
                     ) : (
-                      <ArchiveRestore className="h-4 w-4 text-primary" />
+                      <div
+                        className="h-11 w-11 shrink-0 rounded-xl shadow-sm"
+                        style={{ background: c.color || "#1e3a8a" }}
+                      />
                     )}
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    title="Excluir cliente"
-                    onClick={() => remove(c)}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </article>
-            );
-          })}
+                    <div className="min-w-0">
+                      <h2 className="truncate font-semibold">{c.name}</h2>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {isActive ? "Cliente ativo" : "Cliente inativo"}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-lg font-semibold tabular-nums">{count}</span>
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      tarefa{count === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <p className="line-clamp-2 text-sm text-muted-foreground">
+                    {c.description || c.responsible || c.email || "Sem informações adicionais."}
+                  </p>
+                  <div className="flex items-center gap-0.5 md:justify-end">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Gerar relatório PDF"
+                      onClick={() => openReport(c)}
+                    >
+                      <FileDown className="h-4 w-4 text-primary" />
+                    </Button>
+                    <Button asChild size="icon" variant="ghost" title="Relatório IA">
+                      <Link to="/client-report/$clientId" params={{ clientId: c.id }}>
+                        <Sparkles className="h-4 w-4 text-primary" />
+                      </Link>
+                    </Button>
+                    <Button asChild size="icon" variant="ghost" title="Editar cliente">
+                      <Link to="/clients/$clientId/edit" params={{ clientId: c.id }}>
+                        <Pencil className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => void setClientActive(c, !isActive)}
+                      title={isActive ? "Inativar cliente" : "Reativar cliente"}
+                    >
+                      {isActive ? (
+                        <Archive className="h-4 w-4" />
+                      ) : (
+                        <ArchiveRestore className="h-4 w-4 text-primary" />
+                      )}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Excluir cliente"
+                      onClick={() => remove(c)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </article>
+              );
+            })
+          )}
           {clients.length === 0 && (
             <div className="py-16 text-center text-sm text-muted-foreground">
               Nenhum cliente cadastrado. Crie um para começar a organizar tarefas.
