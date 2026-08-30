@@ -77,13 +77,13 @@ type MuralReaction = {
 };
 
 const COLORS = [
-  { value: "sky", label: "Azul", card: "bg-[#d9eff7] text-[#263b42]" },
-  { value: "amber", label: "Amarelo", card: "bg-[#fff6a8] text-[#423b1b]" },
-  { value: "violet", label: "Lilás", card: "bg-[#e9e1ff] text-[#39344f]" },
-  { value: "green", label: "Verde", card: "bg-[#caffdf] text-[#294438]" },
-  { value: "rose", label: "Rosa", card: "bg-[#ffe1f0] text-[#4c3543]" },
-  { value: "red", label: "Vermelho", card: "bg-[#ffdcd5] text-[#553832]" },
-  { value: "stone", label: "Cinza", card: "bg-[#f0eee9] text-[#343330]" },
+  { value: "sky", label: "Azul", card: "bg-sky-100 text-sky-950" },
+  { value: "amber", label: "Amarelo", card: "bg-amber-100 text-amber-950" },
+  { value: "violet", label: "Lilás", card: "bg-violet-100 text-violet-950" },
+  { value: "green", label: "Verde", card: "bg-green-100 text-green-950" },
+  { value: "rose", label: "Rosa", card: "bg-pink-100 text-pink-950" },
+  { value: "red", label: "Vermelho", card: "bg-red-100 text-red-950" },
+  { value: "stone", label: "Cinza", card: "bg-slate-100 text-slate-950" },
 ] as const;
 
 type CardSize = "compact" | "normal" | "large";
@@ -96,7 +96,7 @@ const CARD_SIZES: { value: CardSize; label: string }[] = [
 ];
 
 const TEXT_STYLES: { value: TextStyle; label: string; css: CSSProperties }[] = [
-  { value: "clean", label: "Editorial", css: { fontFamily: "Georgia, 'Times New Roman', serif" } },
+  { value: "clean", label: "Editorial", css: { fontFamily: "Inter, system-ui, sans-serif" } },
   {
     value: "handwritten",
     label: "Manual",
@@ -811,7 +811,7 @@ function MuralPage() {
         </div>
       ) : (
         <section>
-          <div ref={canvasRef} className="grid auto-rows-auto gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div ref={canvasRef} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {orderedPosts.map((post, index) => {
               const canEdit = isAdmin || post.created_by === user?.id;
               const postAttachments = attachments.filter(
@@ -827,14 +827,11 @@ function MuralPage() {
                     if (node) postRefs.current.set(post.id, node);
                     else postRefs.current.delete(post.id);
                   }}
-                  className={`group relative min-w-0 self-start overflow-hidden rounded-sm border border-black/[0.035] p-4 shadow-[0_9px_18px_-14px_rgb(46_57_48_/_0.7)] transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:translate-x-1 hover:shadow-[0_16px_26px_-15px_rgb(46_57_48_/_0.78)] ${index % 5 === 0 ? "rotate-[-0.7deg] hover:rotate-[0.15deg]" : index % 5 === 1 ? "rotate-[0.45deg] hover:rotate-[-0.25deg]" : index % 5 === 2 ? "rotate-[-0.3deg] hover:rotate-[0.45deg]" : index % 5 === 3 ? "rotate-[0.72deg] hover:rotate-[0.05deg]" : "rotate-[-0.12deg] hover:rotate-[-0.5deg]"} ${post.card_size === "large" ? "md:col-span-2 p-6" : post.card_size === "compact" ? "max-w-xs p-3" : ""} ${post.is_pinned ? "ring-1 ring-[#287f80]/45" : ""} ${draggingId === post.id ? "opacity-75 shadow-xl" : ""} ${colorClass(post.color)}`}
+                  className={`group relative flex min-w-0 self-start flex-col rounded-md p-4 shadow-[0_1px_2px_rgba(0,0,0,0.05),0_8px_20px_rgba(0,0,0,0.07)] transition-transform duration-300 hover:-translate-y-0.5 hover:rotate-0 ${index % 3 === 0 ? "-rotate-1" : index % 3 === 1 ? "rotate-1" : "rotate-[0.5deg]"} ${post.card_size === "large" ? "min-h-[220px] md:col-span-2 p-6" : post.card_size === "compact" ? "min-h-[180px] max-w-xs p-3" : "min-h-[180px]"} ${post.is_pinned ? "ring-1 ring-[#287f80]/45" : ""} ${draggingId === post.id ? "opacity-75 shadow-xl" : ""} ${colorClass(post.color)}`}
                   style={{
                     ...textStyleCss(post.text_style),
                   }}
                 >
-                  <span
-                    className={`absolute -top-1 left-1/2 h-5 w-20 -translate-x-1/2 rounded-[2px] opacity-70 shadow-sm ${post.color === "amber" ? "bg-[#ffe363]" : post.color === "sky" ? "bg-[#8dd6ee]" : post.color === "green" ? "bg-[#65e7ba]" : post.color === "rose" ? "bg-[#ffa7d0]" : "bg-[#c9b7fa]"}`}
-                  />
                   {index === 4 && <span className="sr-only">Mural</span>}
                   {post.image_url && (
                     <img
@@ -846,13 +843,13 @@ function MuralPage() {
                       }}
                     />
                   )}
-                  <div className="flex items-start gap-2 pt-1">
+                  <div className="mb-2 flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.11em] opacity-60">
+                      <p className="mb-2 inline-flex rounded-full bg-white/60 px-2.5 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wide">
                         {post.tag || "Aviso"}
                       </p>
                       <h2
-                        className={`font-bold leading-snug ${post.card_size === "large" ? "text-xl" : "text-base"}`}
+                        className={`font-sans font-bold leading-tight ${post.card_size === "large" ? "text-xl" : "text-lg"}`}
                       >
                         {post.title}
                       </h2>
