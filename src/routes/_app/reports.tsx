@@ -127,39 +127,52 @@ function TeamRankingPanel({ members }: { members: any[] }) {
           <h2 className="text-xl font-semibold">Pódio da performance</h2>
         </div>
         <div className="space-y-3 p-4">
-          {ranked.slice(0, 3).map((member, index) => (
-            <div key={member.id} className={`rounded-lg border p-4 ${podiumBackgrounds[index]}`}>
-              <div className="flex items-center gap-3">
-                <Avatar className="h-14 w-14 border-2 border-background shadow-sm">
-                  <AvatarImage src={member.avatarUrl || undefined} alt={member.fullName} />
-                  <AvatarFallback>{member.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <span
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold text-white"
-                  style={{ backgroundColor: podiumColors[index] }}
-                >
-                  {index === 0 ? <Crown className="h-5 w-5" /> : index + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{member.fullName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {member.done} concluídas · {member.onTimeRate}% no prazo
+          {ranked.slice(0, 3).map((member, index) => {
+            const Medal = index === 0 ? Crown : Trophy;
+            return (
+              <div
+                key={member.id}
+                className={`rounded-[1.35rem] border p-5 ${podiumBackgrounds[index]}`}
+              >
+                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4">
+                  <Avatar className="h-20 w-20 border-4 border-background shadow-md">
+                    <AvatarImage src={member.avatarUrl || undefined} alt={member.fullName} />
+                    <AvatarFallback className="text-lg">
+                      {member.fullName.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Medal className="h-5 w-5" style={{ color: podiumColors[index] }} />
+                      {index + 1}º lugar
+                    </p>
+                    <p className="truncate text-xl font-bold">{member.fullName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {member.done} entregas · {member.onTimeRate}% no prazo
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-4xl font-bold tabular-nums">{member.score}</p>
+                    <p className="text-sm text-muted-foreground">/ 100</p>
+                  </div>
+                </div>
+                <div className="mt-4 border-t pt-4 text-sm leading-6">
+                  <p className="text-emerald-600">
+                    <span className="font-semibold">Por que está no pódio:</span> {member.done}{" "}
+                    entregas concluídas e {member.onTimeRate}% no prazo.
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    <span className="font-semibold">Ponto a evoluir:</span>{" "}
+                    {member.overdue
+                      ? `${member.overdue} tarefa(s) atrasada(s).`
+                      : member.pending
+                        ? `${member.pending} tarefa(s) pendente(s).`
+                        : "manter a consistência das entregas."}
                   </p>
                 </div>
-                <span className="text-2xl font-bold tabular-nums">{member.score}</span>
               </div>
-              <div className="mt-3 border-t pt-3 text-sm">
-                <p className="text-emerald-600">
-                  <span className="font-semibold">Destaque:</span> {member.done} entregas
-                  concluídas.
-                </p>
-                <p className="mt-1 text-muted-foreground">
-                  <span className="font-semibold">A evoluir:</span>{" "}
-                  {member.overdue ? `${member.overdue} atrasada(s).` : "nenhum atraso no período."}
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 
