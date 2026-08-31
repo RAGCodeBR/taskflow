@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // released as soon as the session was restored, while this sequence was
     // still running.  During that interval `permissions` was empty and the
     // entire sidebar was filtered out for client accounts.
-    const [profileResult, authResult, rolesResult, linkResult, permissionsResult, membershipsResult] =
+    const [profileResult, authResult, rolesResult, linkResult, permissionsResult, membershipsResult, workspaceResult] =
       await Promise.all([
         supabase
           .from("profiles")
@@ -78,18 +78,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq("user_id", uid)
           .maybeSingle(),
         (supabase.from("workspace_memberships") as any)
-          .select("workspace_id, role, permissions, workspaces(id, slug, name)")
+          .select("workspace_id, role, permissions")
           .eq("user_id", uid),
+        (supabase.from("workspaces") as any).select("id, slug, name"),
       ]);
     const prof = profileResult.data;
     const roles = rolesResult.data;
     const link = linkResult.data;
     const access = permissionsResult.data;
+    // Fetch memberships and workspace metadata independently.  The nested
+    // select can be cached by PostgREST under the relation name and, in that
+    // case, made both cards point to the last workspace returned.  Joining in
+    // memory by workspace_id keeps Consultoria and Marketing unambiguous.
+    const workspaceById = new Map(
+      ((workspaceResult.data ?? []) as Array<any>).map((workspace) => [workspace.id, workspace]),
+    );
     const memberships = ((membershipsResult.data ?? []) as Array<any>)
       .map((membership) => {
-        const workspace = Array.isArray(membership.workspaces)
-          ? membership.workspaces[0]
-          : membership.workspaces;
+        const workspace = workspaceById.get(membership.workspace_id);
         if (!workspace?.id || (workspace.slug !== "consultoria" && workspace.slug !== "marketing")) return null;
         return {
           id: workspace.id,
@@ -214,9 +220,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user || !workspaces.some((workspace) => workspace.id === workspaceId)) {
       throw new Error("Você não tem acesso a este ambiente.");
     }
-    const { error } = await (supabase.from("profiles") as any)
-      .update({ active_workspace_id: workspaceId })
-      .eq("id", user.id);
+    // This RPC is deliberately used instead of a direct profile update:
+    // profile RLS can silently affect zero rows, which made the old screen
+    // reload into Consultoria even after the user chose Marketing.
+    const { error } = await (supabase as any).rpc("select_active_workspace", {
+      target_workspace_id: workspaceId,
+    });
     if (error) throw error;
     // A full navigation drops every cached query from the other environment.
     // This prevents a previously rendered client or task from briefly appearing
