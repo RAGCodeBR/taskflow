@@ -21,7 +21,15 @@ function Environments() {
     try {
       await setActiveWorkspace(workspaceId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível trocar o ambiente.");
+      // PostgREST errors are plain objects, not instances of Error. Show the
+      // database message so an access or migration problem is actionable.
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error && "message" in error && typeof error.message === "string"
+            ? error.message
+            : "Não foi possível trocar o ambiente.";
+      toast.error(message);
     } finally {
       setSwitchingId(null);
     }
