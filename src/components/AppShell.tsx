@@ -144,6 +144,20 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="sidebar-nav min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
+          {workspaces.length > 1 && (
+            <Link
+              to="/ambientes"
+              className={`mb-3 flex items-center gap-3 rounded-full border border-sidebar-primary/45 bg-sidebar-primary/10 transition hover:bg-sidebar-primary/20 ${
+                sidebarOpen ? "px-3 py-2 text-sm" : "justify-center px-2 py-2 text-sm"
+              }`}
+              title={sidebarOpen ? undefined : "Trocar ambiente"}
+            >
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
+                <Layers3 className="h-4 w-4" />
+              </span>
+              {sidebarOpen && <span className="truncate font-medium">Trocar: {activeWorkspace?.name ?? "Ambiente"}</span>}
+            </Link>
+          )}
           {nav.map((n) => {
             if (n.to === "/portal")
               return (
@@ -269,6 +283,18 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Button>
             </div>
             <nav className="flex-1 space-y-1 px-3">
+              {workspaces.length > 1 && (
+                <Link
+                  to="/ambientes"
+                  onClick={() => setSidebarOpen(false)}
+                  className="mb-3 flex items-center gap-3 rounded-full border border-sidebar-primary/45 bg-sidebar-primary/10 px-3 py-2 text-sm font-medium transition hover:bg-sidebar-primary/20"
+                >
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
+                    <Layers3 className="h-4 w-4" />
+                  </span>
+                  Trocar: {activeWorkspace?.name ?? "Ambiente"}
+                </Link>
+              )}
               {nav.map((n) => {
                 if (n.to === "/portal")
                   return (
