@@ -8,6 +8,15 @@ interface Profile {
   email: string | null;
   avatar_url: string | null;
   theme_preferences: Record<string, unknown> | null;
+  active_workspace_id?: string | null;
+}
+
+export interface WorkspaceMembership {
+  id: string;
+  slug: "consultoria" | "marketing";
+  name: string;
+  role: string;
+  permissions: string[];
 }
 
 interface AuthCtx {
@@ -19,6 +28,9 @@ interface AuthCtx {
   isClient: boolean;
   clientId: string | null;
   permissions: string[];
+  workspaces: WorkspaceMembership[];
+  activeWorkspace: WorkspaceMembership | null;
+  setActiveWorkspace: (workspaceId: string) => Promise<void>;
   hasPermission: (permission: string) => boolean;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -36,6 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isClient, setIsClient] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [workspaces, setWorkspaces] = useState<WorkspaceMembership[]>([]);
+  const [activeWorkspace, setActiveWorkspaceState] = useState<WorkspaceMembership | null>(null);
   const [loading, setLoading] = useState(true);
   const loadedUserIdRef = useRef<string | null>(null);
 
@@ -46,11 +60,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // released as soon as the session was restored, while this sequence was
     // still running.  During that interval `permissions` was empty and the
     // entire sidebar was filtered out for client accounts.
-    const [profileResult, authResult, rolesResult, linkResult, permissionsResult] =
+    const [profileResult, authResult, rolesResult, linkResult, permissionsResult, membershipsResult] =
       await Promise.all([
         supabase
           .from("profiles")
-          .select("id, full_name, avatar_url, theme_preferences")
+          .select("id, full_name, avatar_url, theme_preferences, active_workspace_id")
           .eq("id", uid)
           .maybeSingle(),
         supabase.auth.getUser(),
@@ -63,11 +77,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .select("permissions")
           .eq("user_id", uid)
           .maybeSingle(),
+        (supabase.from("workspace_memberships") as any)
+          .select("workspace_id, role, permissions, workspaces(id, slug, name)")
+          .eq("user_id", uid),
       ]);
     const prof = profileResult.data;
     const roles = rolesResult.data;
     const link = linkResult.data;
     const access = permissionsResult.data;
+    const memberships = ((membershipsResult.data ?? []) as Array<any>)
+      .map((membership) => {
+        const workspace = Array.isArray(membership.workspaces)
+          ? membership.workspaces[0]
+          : membership.workspaces;
+        if (!workspace?.id || (workspace.slug !== "consultoria" && workspace.slug !== "marketing")) return null;
+        return {
+          id: workspace.id,
+          slug: workspace.slug,
+          name: workspace.name,
+          role: membership.role,
+          permissions: Array.isArray(membership.permissions) ? membership.permissions : [],
+        } as WorkspaceMembership;
+      })
+      .filter(Boolean) as WorkspaceMembership[];
     setProfile(prof ? ({ ...prof, email: authResult.data.user?.email ?? null } as Profile) : null);
     // Admin-only pages are controlled by public.user_roles, not by hardcoded emails.
     const admin = !!roles?.some((r: { role: string }) => r.role === "admin");
@@ -77,9 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsCollaborator(collaborator);
     setIsClient(client);
     setClientId(link?.client_id ?? null);
-    setPermissions(
-      admin
-        ? [
+    const systemPermissions = [
             "dashboard",
             "tasks",
             "requests",
@@ -93,11 +123,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             "users",
             "trash",
             "settings",
-          ]
-        : Array.isArray(access?.permissions)
-          ? access.permissions
-          : [],
-    );
+          ];
+    const selectedWorkspace = memberships.find((workspace) => workspace.id === prof?.active_workspace_id) ?? memberships[0] ?? null;
+    setWorkspaces(memberships);
+    setActiveWorkspaceState(selectedWorkspace);
+    setPermissions(admin ? systemPermissions : selectedWorkspace?.permissions ?? (Array.isArray(access?.permissions) ? access.permissions : []));
   };
 
   useEffect(() => {
@@ -125,6 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsClient(false);
         setClientId(null);
         setPermissions([]);
+        setWorkspaces([]);
+        setActiveWorkspaceState(null);
       }
     });
     // Initial page load: restore any saved session from localStorage.
@@ -178,6 +210,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = async () => {
     if (user) await loadProfile(user.id);
   };
+  const setActiveWorkspace = async (workspaceId: string) => {
+    if (!user || !workspaces.some((workspace) => workspace.id === workspaceId)) {
+      throw new Error("Você não tem acesso a este ambiente.");
+    }
+    const { error } = await (supabase.from("profiles") as any)
+      .update({ active_workspace_id: workspaceId })
+      .eq("id", user.id);
+    if (error) throw error;
+    // A full navigation drops every cached query from the other environment.
+    // This prevents a previously rendered client or task from briefly appearing
+    // during the environment transition.
+    window.location.assign("/dashboard");
+  };
   const hasPermission = (permission: string) => isAdmin || permissions.includes(permission);
 
   return (
@@ -191,6 +236,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isClient,
         clientId,
         permissions,
+        workspaces,
+        activeWorkspace,
+        setActiveWorkspace,
         hasPermission,
         loading,
         signOut,

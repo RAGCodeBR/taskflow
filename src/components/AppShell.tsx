@@ -70,7 +70,7 @@ const allNav: readonly NavItem[] = [
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { profile, user, signOut, isAdmin, hasPermission } = useAuth();
+  const { profile, user, signOut, isAdmin, hasPermission, workspaces, activeWorkspace } = useAuth();
   const muralUnreadCount = useMuralUnreadCount();
   const requestUnreadCount = useRequestUnreadCount();
   const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
@@ -359,11 +359,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:pt-0 pt-12">
         <div className="hidden md:flex sticky top-0 z-30 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
-          {isAdmin && (
+          {workspaces.length > 1 && (
             <Button asChild variant="ghost" size="sm" className="rounded-full text-muted-foreground">
               <Link to="/ambientes">
                 <Layers3 className="h-4 w-4" />
-                Ambientes
+                {activeWorkspace?.name ?? "Ambientes"}
               </Link>
             </Button>
           )}
