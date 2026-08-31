@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { ArrowRight, Megaphone, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,8 @@ function Environments() {
     setSwitchingId(workspaceId);
     try {
       await setActiveWorkspace(workspaceId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível trocar o ambiente.");
     } finally {
       setSwitchingId(null);
     }
