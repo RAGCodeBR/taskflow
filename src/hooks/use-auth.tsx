@@ -130,7 +130,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             "trash",
             "settings",
           ];
-    const selectedWorkspace = memberships.find((workspace) => workspace.id === prof?.active_workspace_id) ?? memberships[0] ?? null;
+    // Never silently fall back to the first membership if the server returned
+    // an unknown active id. A fallback can label the UI "Consultoria" while
+    // RLS still authorizes Marketing data. The next refresh will resolve it.
+    const selectedWorkspace = prof?.active_workspace_id
+      ? memberships.find((workspace) => workspace.id === prof.active_workspace_id) ?? null
+      : memberships[0] ?? null;
     setWorkspaces(memberships);
     setActiveWorkspaceState(selectedWorkspace);
     setPermissions(admin ? systemPermissions : selectedWorkspace?.permissions ?? (Array.isArray(access?.permissions) ? access.permissions : []));
@@ -227,6 +232,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       target_workspace_id: workspaceId,
     });
     if (error) throw error;
+    // Confirm the database state before leaving this screen. This guards
+    // against a stale RPC schema or a policy that acknowledged a call but
+    // did not persist the profile preference.
+    const { data: confirmedProfile, error: confirmError } = await supabase
+      .from("profiles")
+      .select("active_workspace_id")
+      .eq("id", user.id)
+      .single();
+    if (confirmError) throw confirmError;
+    if (confirmedProfile.active_workspace_id !== workspaceId) {
+      throw new Error("O ambiente não foi confirmado. Tente novamente.");
+    }
+    setProfile((current) => (current ? { ...current, active_workspace_id: workspaceId } : current));
+    setActiveWorkspaceState(workspaces.find((workspace) => workspace.id === workspaceId) ?? null);
     // A full navigation drops every cached query from the other environment.
     // This prevents a previously rendered client or task from briefly appearing
     // during the environment transition.
