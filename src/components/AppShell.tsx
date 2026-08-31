@@ -146,20 +146,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="sidebar-nav min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
-          {canSwitchEnvironments && workspaces.length > 1 && (
-            <Link
-              to="/ambientes"
-              className={`mb-3 flex items-center gap-3 rounded-full border border-sidebar-primary/45 bg-sidebar-primary/10 transition hover:bg-sidebar-primary/20 ${
-                sidebarOpen ? "px-3 py-2 text-sm" : "justify-center px-2 py-2 text-sm"
-              }`}
-              title={sidebarOpen ? undefined : "Trocar ambiente"}
-            >
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
-                <Layers3 className="h-4 w-4" />
-              </span>
-              {sidebarOpen && <span className="truncate font-medium">Trocar: {activeWorkspace?.name ?? "Ambiente"}</span>}
-            </Link>
-          )}
           {nav.map((n) => {
             if (n.to === "/portal")
               return (
@@ -259,7 +245,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <PanelLeft className="h-5 w-5" />
         </Button>
         <span className="font-semibold">TaskFlow</span>
-        <NotificationBell />
+        <div className="flex items-center gap-1">
+          {canSwitchEnvironments && workspaces.length > 1 && (
+            <Button asChild variant="ghost" size="icon" title="Trocar ambiente">
+              <Link to="/ambientes"><Layers3 className="h-5 w-5" /></Link>
+            </Button>
+          )}
+          <NotificationBell />
+        </div>
       </div>
 
       {/* Mobile overlay sidebar */}
@@ -285,18 +278,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Button>
             </div>
             <nav className="flex-1 space-y-1 px-3">
-              {canSwitchEnvironments && workspaces.length > 1 && (
-                <Link
-                  to="/ambientes"
-                  onClick={() => setSidebarOpen(false)}
-                  className="mb-3 flex items-center gap-3 rounded-full border border-sidebar-primary/45 bg-sidebar-primary/10 px-3 py-2 text-sm font-medium transition hover:bg-sidebar-primary/20"
-                >
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
-                    <Layers3 className="h-4 w-4" />
-                  </span>
-                  Trocar: {activeWorkspace?.name ?? "Ambiente"}
-                </Link>
-              )}
               {nav.map((n) => {
                 if (n.to === "/portal")
                   return (
@@ -387,6 +368,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:pt-0 pt-12">
         <div className="hidden md:flex sticky top-0 z-30 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
+          {canSwitchEnvironments && workspaces.length > 1 && (
+            <Button asChild variant="ghost" className="h-9 gap-2 rounded-full px-3 text-sm" title="Trocar ambiente">
+              <Link to="/ambientes">
+                <Layers3 className="h-4 w-4" />
+                <span>{activeWorkspace?.name ?? "Ambiente"}</span>
+              </Link>
+            </Button>
+          )}
           <NotificationBell />
         </div>
         {children}
