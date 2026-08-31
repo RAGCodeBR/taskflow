@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppAgendaRouteImport } from './routes/_app/agenda'
+import { Route as AppAmbientesRouteImport } from './routes/_app/ambientes'
 import { Route as AppClientsRouteImport } from './routes/_app/clients'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppImportAtaRouteImport } from './routes/_app/import-ata'
@@ -52,6 +53,11 @@ const AuthRoute = AuthRouteImport.update({
 const AppAgendaRoute = AppAgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAmbientesRoute = AppAmbientesRouteImport.update({
+  id: '/ambientes',
+  path: '/ambientes',
   getParentRoute: () => AppRoute,
 } as any)
 const AppClientsRoute = AppClientsRouteImport.update({
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/agenda': typeof AppAgendaRoute
+  '/ambientes': typeof AppAmbientesRoute
   '/clients': typeof AppClientsRouteWithChildren
   '/dashboard': typeof AppDashboardRoute
   '/import-ata': typeof AppImportAtaRoute
@@ -190,6 +197,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/agenda': typeof AppAgendaRoute
+  '/ambientes': typeof AppAmbientesRoute
   '/dashboard': typeof AppDashboardRoute
   '/import-ata': typeof AppImportAtaRoute
   '/mural': typeof AppMuralRoute
@@ -216,6 +224,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/_app/agenda': typeof AppAgendaRoute
+  '/_app/ambientes': typeof AppAmbientesRoute
   '/_app/clients': typeof AppClientsRouteWithChildren
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/import-ata': typeof AppImportAtaRoute
@@ -244,6 +253,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/agenda'
+    | '/ambientes'
     | '/clients'
     | '/dashboard'
     | '/import-ata'
@@ -270,6 +280,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/agenda'
+    | '/ambientes'
     | '/dashboard'
     | '/import-ata'
     | '/mural'
@@ -295,6 +306,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/auth'
     | '/_app/agenda'
+    | '/_app/ambientes'
     | '/_app/clients'
     | '/_app/dashboard'
     | '/_app/import-ata'
@@ -352,6 +364,13 @@ declare module '@tanstack/react-router' {
       path: '/agenda'
       fullPath: '/agenda'
       preLoaderRoute: typeof AppAgendaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ambientes': {
+      id: '/_app/ambientes'
+      path: '/ambientes'
+      fullPath: '/ambientes'
+      preLoaderRoute: typeof AppAmbientesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/clients': {
@@ -540,6 +559,7 @@ const AppTasksRouteWithChildren = AppTasksRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppAgendaRoute: typeof AppAgendaRoute
+  AppAmbientesRoute: typeof AppAmbientesRoute
   AppClientsRoute: typeof AppClientsRouteWithChildren
   AppDashboardRoute: typeof AppDashboardRoute
   AppImportAtaRoute: typeof AppImportAtaRoute
@@ -558,6 +578,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAgendaRoute: AppAgendaRoute,
+  AppAmbientesRoute: AppAmbientesRoute,
   AppClientsRoute: AppClientsRouteWithChildren,
   AppDashboardRoute: AppDashboardRoute,
   AppImportAtaRoute: AppImportAtaRoute,
