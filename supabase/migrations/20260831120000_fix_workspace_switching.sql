@@ -40,3 +40,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.select_active_workspace(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.select_active_workspace(UUID) TO authenticated;
+
+-- The REST API keeps a schema cache for RPC discovery. Reload it explicitly
+-- so the switch is available immediately after this migration is applied.
+NOTIFY pgrst, 'reload schema';
