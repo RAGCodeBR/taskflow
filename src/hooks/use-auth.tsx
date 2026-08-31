@@ -60,13 +60,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // released as soon as the session was restored, while this sequence was
     // still running.  During that interval `permissions` was empty and the
     // entire sidebar was filtered out for client accounts.
-    const [profileResult, authResult, rolesResult, linkResult, permissionsResult, membershipsResult, workspaceResult] =
+    const [profileResult, activeWorkspaceResult, authResult, rolesResult, linkResult, permissionsResult, membershipsResult, workspaceResult] =
       await Promise.all([
         supabase
           .from("profiles")
-          .select("id, full_name, avatar_url, theme_preferences, active_workspace_id")
+          // `active_workspace_id` has its own database permission because it
+          // was introduced after profile-field grants. Keep profile identity
+          // independent of that field so a workspace permission issue can
+          // never make a user's name and photo disappear from the UI.
+          .select("id, full_name, avatar_url, theme_preferences")
           .eq("id", uid)
           .maybeSingle(),
+        (supabase as any).rpc("current_workspace_id"),
         supabase.auth.getUser(),
         supabase.from("user_roles").select("role").eq("user_id", uid),
         (supabase.from("client_user_links" as any) as any)
@@ -82,7 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq("user_id", uid),
         (supabase.from("workspaces") as any).select("id, slug, name"),
       ]);
-    const prof = profileResult.data;
+    const profileWorkspaceId = activeWorkspaceResult.error ? null : activeWorkspaceResult.data ?? null;
+    const prof = profileResult.data
+      ? { ...profileResult.data, active_workspace_id: profileWorkspaceId }
+      : null;
     const roles = rolesResult.data;
     const link = linkResult.data;
     const access = permissionsResult.data;
@@ -235,13 +243,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Confirm the database state before leaving this screen. This guards
     // against a stale RPC schema or a policy that acknowledged a call but
     // did not persist the profile preference.
-    const { data: confirmedProfile, error: confirmError } = await supabase
-      .from("profiles")
-      .select("active_workspace_id")
-      .eq("id", user.id)
-      .single();
+    const { data: confirmedWorkspaceId, error: confirmError } = await (supabase as any).rpc("current_workspace_id");
     if (confirmError) throw confirmError;
-    if (confirmedProfile.active_workspace_id !== workspaceId) {
+    if (confirmedWorkspaceId !== workspaceId) {
       throw new Error("O ambiente não foi confirmado. Tente novamente.");
     }
     setProfile((current) => (current ? { ...current, active_workspace_id: workspaceId } : current));
