@@ -29,6 +29,12 @@ import { AssignmentPopup } from "@/components/AssignmentPopup";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import businessMentoringLogo from "@/assets/la-business-mentoring.png";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useMuralUnreadCount } from "@/hooks/use-mural-unread";
 import { useRequestUnreadCount } from "@/hooks/use-request-unread";
 
@@ -144,6 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={n.to}
                   expanded={sidebarOpen}
                   active={pathname.startsWith("/portal/")}
+                  pathname={pathname}
                   canAccessDeliveries={canAccessDeliveries}
                   canAccessFinance={canAccessFinance}
                 />
@@ -268,6 +275,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       key={n.to}
                       expanded
                       active={pathname.startsWith("/portal/")}
+                      pathname={pathname}
                       canAccessDeliveries={canAccessDeliveries}
                       canAccessFinance={canAccessFinance}
                       onNavigate={() => setSidebarOpen(false)}
@@ -362,46 +370,76 @@ export function AppShell({ children }: { children: ReactNode }) {
 function PortalNavGroup({
   expanded,
   active,
+  pathname,
   canAccessDeliveries,
   canAccessFinance,
   onNavigate,
 }: {
   expanded: boolean;
   active: boolean;
+  pathname: string;
   canAccessDeliveries: boolean;
   canAccessFinance: boolean;
   onNavigate?: () => void;
 }) {
+  const deliveriesActive = pathname.startsWith("/portal/entregas");
+  const financeActive = pathname.startsWith("/portal/financeiro");
+
   if (!expanded)
     return (
-      <div
-        title="Portal do Cliente"
-        className={`flex justify-center rounded-full px-2 py-2 ${active ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground shadow-sm" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
-      >
-        <span className={`grid h-7 w-7 place-items-center ${active ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
-          <PanelsTopLeft className="h-4 w-4" />
-        </span>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            title="Portal do Cliente"
+            className={`flex w-full justify-center rounded-full px-2 py-2 transition ${active ? "bg-sidebar-primary/10 text-sidebar-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
+          >
+            <span className={`grid h-7 w-7 place-items-center ${active ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
+              <PanelsTopLeft className="h-4 w-4" />
+            </span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" className="min-w-56 p-1.5">
+          {canAccessDeliveries && (
+            <DropdownMenuItem asChild>
+              <Link to="/portal/entregas" className={deliveriesActive ? "bg-sidebar-primary/10 text-sidebar-primary" : ""}>
+                <CalendarCog className="h-4 w-4" />
+                Calendário de Entregas
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {canAccessFinance && (
+            <DropdownMenuItem asChild>
+              <Link to="/portal/financeiro" className={financeActive ? "bg-sidebar-primary/10 text-sidebar-primary" : ""}>
+                <CircleDollarSign className="h-4 w-4" />
+                Financeiro
+              </Link>
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   return (
     <Collapsible defaultOpen={active} className="space-y-1">
       <CollapsibleTrigger
-        className={`flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm transition ${active ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
+        className={`flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm transition ${active ? "bg-sidebar-primary/10 text-sidebar-primary font-medium" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
       >
-        <span className={`grid h-7 w-7 shrink-0 place-items-center ${active ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
+        <span className="grid h-7 w-7 shrink-0 place-items-center">
           <PanelsTopLeft className="h-4 w-4" />
         </span>
         <span className="flex-1 text-left">Portal do Cliente</span>
         <ChevronDown className="h-4 w-4" />
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-1 pl-4">
+      <CollapsibleContent className="relative ml-6 space-y-1 border-l border-sidebar-primary/25 pl-3">
         {canAccessDeliveries && (
           <Link
             to="/portal/entregas"
             onClick={onNavigate}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"
+            className={`flex items-center gap-3 rounded-full px-3 py-2 text-sm transition ${deliveriesActive ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
           >
-            <CalendarCog className="h-4 w-4" />
+            <span className={`grid h-7 w-7 shrink-0 place-items-center ${deliveriesActive ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
+              <CalendarCog className="h-4 w-4" />
+            </span>
             Calendário de Entregas
           </Link>
         )}
@@ -409,9 +447,11 @@ function PortalNavGroup({
           <Link
             to="/portal/financeiro"
             onClick={onNavigate}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"
+            className={`flex items-center gap-3 rounded-full px-3 py-2 text-sm transition ${financeActive ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
           >
-            <CircleDollarSign className="h-4 w-4" />
+            <span className={`grid h-7 w-7 shrink-0 place-items-center ${financeActive ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
+              <CircleDollarSign className="h-4 w-4" />
+            </span>
             Financeiro
           </Link>
         )}
