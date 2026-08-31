@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useMuralUnreadCount } from "@/hooks/use-mural-unread";
 import { useRequestUnreadCount } from "@/hooks/use-request-unread";
+import { canSwitchTaskFlowEnvironment } from "@/lib/environment-access";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -75,6 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const requestUnreadCount = useRequestUnreadCount();
   const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
   const canAccessFinance = hasPermission("portal_financeiro") || hasPermission("portal");
+  const canSwitchEnvironments = canSwitchTaskFlowEnvironment(user?.email);
   const nav = useMemo(() => {
     const accessByPath: Record<string, string> = {
       "/dashboard": "dashboard",
@@ -144,7 +146,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="sidebar-nav min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
-          {workspaces.length > 1 && (
+          {canSwitchEnvironments && workspaces.length > 1 && (
             <Link
               to="/ambientes"
               className={`mb-3 flex items-center gap-3 rounded-full border border-sidebar-primary/45 bg-sidebar-primary/10 transition hover:bg-sidebar-primary/20 ${
@@ -283,7 +285,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Button>
             </div>
             <nav className="flex-1 space-y-1 px-3">
-              {workspaces.length > 1 && (
+              {canSwitchEnvironments && workspaces.length > 1 && (
                 <Link
                   to="/ambientes"
                   onClick={() => setSidebarOpen(false)}
