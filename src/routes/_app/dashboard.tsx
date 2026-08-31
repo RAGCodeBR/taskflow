@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useTasks, useClients, useAssignableProfiles, useColumns } from "@/hooks/use-data";
+import { type Task, useTasks, useClients, useAssignableProfiles, useColumns } from "@/hooks/use-data";
 import { DateFilterBar } from "@/components/DateFilterBar";
-import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
+import { matchDateFilter, priorityLabels, statusLabels, type DateFilter } from "@/lib/task-utils";
 import { Card } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { CheckCircle2, ListTodo, AlertTriangle, Clock } from "lucide-react";
+import { CheckCircle2, ListTodo, AlertTriangle, Clock, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,8 +14,33 @@ export const Route = createFileRoute("/_app/dashboard")({
   component: Dashboard,
 });
 
-function Stat({ label, value, icon: Icon, color }: { label: string; value: number; icon: typeof Clock; color: string }) {
-  return (
+type DashboardMetric = "total" | "done" | "pending" | "overdue" | "today" | "week" | "month";
+
+type Detail = {
+  label: string;
+  description: string;
+  tasks: Task[];
+  accent: string;
+};
+
+const isTaskDone = (task: Task) => task.status === "done" || !!task.completed_at;
+
+function Stat({
+  label,
+  value,
+  icon: Icon,
+  color,
+  active = false,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  icon: typeof Clock;
+  color: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  const card = (
     <Card className="p-5">
       <div className="flex items-center justify-between">
         <div>
@@ -26,6 +51,106 @@ function Stat({ label, value, icon: Icon, color }: { label: string; value: numbe
           <Icon className="h-5 w-5" />
         </div>
       </div>
+    </Card>
+  );
+
+  if (!onClick) return card;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`w-full rounded-xl text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+        active ? "ring-2 ring-primary ring-offset-2" : "hover:-translate-y-0.5 hover:shadow-md"
+      }`}
+      title={`Ver detalhamento: ${label}`}
+    >
+      {card}
+    </button>
+  );
+}
+
+function TaskDetailPanel({
+  detail,
+  clientsById,
+  profilesById,
+  onClose,
+}: {
+  detail: Detail;
+  clientsById: Map<string, string>;
+  profilesById: Map<string, string>;
+  onClose: () => void;
+}) {
+  const orderedTasks = useMemo(
+    () =>
+      [...detail.tasks].sort((a, b) =>
+        b.created_at.localeCompare(a.created_at),
+      ),
+    [detail.tasks],
+  );
+
+  return (
+    <Card className="overflow-hidden border-primary/20">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/20 px-5 py-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: detail.accent }} />
+            <h2 className="font-semibold">{detail.label}</h2>
+            <span className="rounded-full bg-background px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+              {detail.tasks.length}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{detail.description}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          title="Fechar detalhamento"
+          aria-label="Fechar detalhamento"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {orderedTasks.length === 0 ? (
+        <p className="p-5 text-sm text-muted-foreground">Nenhuma tarefa neste recorte.</p>
+      ) : (
+        <div className="max-h-[26rem] divide-y overflow-y-auto">
+          {orderedTasks.map((task) => {
+            const clientName = task.client_id ? clientsById.get(task.client_id) : null;
+            const assigneeName = task.assignee_id ? profilesById.get(task.assignee_id) : null;
+            const done = isTaskDone(task);
+            const date = done ? task.completed_at : task.due_date;
+            return (
+              <div key={task.id} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 px-5 py-3 text-sm hover:bg-muted/30">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{task.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {[clientName, assigneeName].filter(Boolean).join(" · ") || "Sem cliente ou responsável"}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 text-xs">
+                  {task.priority && (
+                    <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">
+                      {priorityLabels[task.priority]}
+                    </span>
+                  )}
+                  <span className={`rounded-full px-2 py-1 ${done ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/35 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}>
+                    {done ? "Concluída" : statusLabels[task.status ?? "todo"]}
+                  </span>
+                  {date && (
+                    <span className={done ? "text-muted-foreground" : "text-foreground"}>
+                      {done ? "Concluída " : "Prazo "}{format(parseISO(date), "dd/MM/yyyy", { locale: ptBR })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
@@ -39,6 +164,7 @@ function Dashboard() {
   const { data: assignableProfiles = [] } = useAssignableProfiles();
   useColumns();
   const [filter, setFilter] = useState<DateFilter>("all");
+  const [selectedMetric, setSelectedMetric] = useState<DashboardMetric | null>(null);
 
   const greetingName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
 
@@ -46,7 +172,7 @@ function Dashboard() {
   const filtered = useMemo(() => tasks.filter(t => matchDateFilter(t, filter)), [tasks, filter]);
   const stats = useMemo(() => {
     const total = filtered.length;
-    const done = filtered.filter(t => t.status === "done").length;
+    const done = filtered.filter(isTaskDone).length;
     const pending = total - done;
     const overdue = filtered.filter(t => matchDateFilter(t, "overdue")).length;
     const today = filtered.filter(t => matchDateFilter(t, "today")).length;
@@ -59,7 +185,7 @@ function Dashboard() {
       clients
         .map((client) => {
           const clientTasks = filtered.filter((task) => task.client_id === client.id);
-          const concluded = clientTasks.filter((task) => task.status === "done").length;
+          const concluded = clientTasks.filter(isTaskDone).length;
           const overdue = clientTasks.filter((task) => matchDateFilter(task, "overdue")).length;
           return {
             name: client.name,
@@ -75,18 +201,54 @@ function Dashboard() {
   );
   const byUser = useMemo(() => assignableProfiles.map(p => ({
     name: (p.full_name || p.email || "?").slice(0, 12),
-    feitas: filtered.filter(t => t.assignee_id === p.id && t.status === "done").length,
-    pendentes: filtered.filter(t => t.assignee_id === p.id && t.status !== "done").length,
+    feitas: filtered.filter(t => t.assignee_id === p.id && isTaskDone(t)).length,
+    pendentes: filtered.filter(t => t.assignee_id === p.id && !isTaskDone(t)).length,
   })), [assignableProfiles, filtered]);
+  const clientsById = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
+  const profilesById = useMemo(
+    () => new Map(assignableProfiles.map((profile) => [profile.id, profile.full_name || profile.email || "Sem responsável"])),
+    [assignableProfiles],
+  );
+  const details = useMemo<Record<DashboardMetric, Detail>>(
+    () => ({
+      total: { label: "Total de tarefas", description: "Todas as tarefas do período selecionado.", tasks: filtered, accent: "#2563eb" },
+      done: { label: "Concluídas", description: "Tarefas já finalizadas no período selecionado.", tasks: filtered.filter(isTaskDone), accent: "#059669" },
+      pending: { label: "Pendentes", description: "Tarefas que ainda precisam de andamento ou conclusão.", tasks: filtered.filter((task) => !isTaskDone(task)), accent: "#f59e0b" },
+      overdue: { label: "Atrasadas", description: "Tarefas abertas cujo prazo já passou.", tasks: filtered.filter((task) => matchDateFilter(task, "overdue")), accent: "#dc2626" },
+      today: { label: "Hoje", description: "Tarefas com prazo para hoje.", tasks: filtered.filter((task) => matchDateFilter(task, "today")), accent: "#1e3a8a" },
+      week: { label: "Esta semana", description: "Tarefas com prazo até o fim desta semana.", tasks: filtered.filter((task) => matchDateFilter(task, "this_week")), accent: "#7c3aed" },
+      month: { label: "Este mês", description: "Tarefas com prazo neste mês.", tasks: filtered.filter((task) => matchDateFilter(task, "this_month")), accent: "#0891b2" },
+    }),
+    [filtered],
+  );
+
+  const toggleDetail = (metric: DashboardMetric) => {
+    setSelectedMetric((current) => (current === metric ? null : metric));
+  };
+  const memberTasks = useMemo(
+    () => tasks.filter((task) => task.assignee_id === user?.id || task.created_by === user?.id),
+    [tasks, user?.id],
+  );
+  const memberDetails = useMemo<Record<DashboardMetric, Detail>>(
+    () => ({
+      total: { label: "Minhas tarefas", description: "Todas as tarefas vinculadas a você.", tasks: memberTasks, accent: "#2563eb" },
+      done: { label: "Minhas concluídas", description: "Tarefas suas já finalizadas.", tasks: memberTasks.filter(isTaskDone), accent: "#059669" },
+      pending: { label: "Minhas pendentes", description: "Tarefas suas que ainda precisam de andamento ou conclusão.", tasks: memberTasks.filter((task) => !isTaskDone(task)), accent: "#f59e0b" },
+      overdue: { label: "Minhas atrasadas", description: "Tarefas suas abertas cujo prazo já passou.", tasks: memberTasks.filter((task) => matchDateFilter(task, "overdue")), accent: "#dc2626" },
+      today: { label: "Para hoje", description: "Tarefas suas com prazo para hoje.", tasks: memberTasks.filter((task) => matchDateFilter(task, "today")), accent: "#1e3a8a" },
+      week: { label: "Esta semana", description: "Tarefas suas com prazo até o fim da semana.", tasks: memberTasks.filter((task) => matchDateFilter(task, "this_week")), accent: "#7c3aed" },
+      month: { label: "Este mês", description: "Tarefas suas com prazo neste mês.", tasks: memberTasks.filter((task) => matchDateFilter(task, "this_month")), accent: "#0891b2" },
+    }),
+    [memberTasks],
+  );
 
 
   // Member dashboard — only own pending/overdue tasks
   if (!isAdmin) {
-    const myTasks = tasks.filter(t => t.assignee_id === user?.id || t.created_by === user?.id);
-    const myPending = myTasks.filter(t => t.status !== "done");
-    const myOverdue = myTasks.filter(t => matchDateFilter(t, "overdue"));
-    const myToday = myTasks.filter(t => matchDateFilter(t, "today"));
-    const myWeek = myTasks.filter(t => matchDateFilter(t, "this_week"));
+    const myPending = memberDetails.pending.tasks;
+    const myOverdue = memberDetails.overdue.tasks;
+    const myToday = memberDetails.today.tasks;
+    const myWeek = memberDetails.week.tasks;
 
     return (
       <div className="space-y-6 p-6">
@@ -96,43 +258,13 @@ function Dashboard() {
         </header>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Minhas pendentes" value={myPending.length} icon={Clock} color="#f59e0b" />
-          <Stat label="Atrasadas" value={myOverdue.length} icon={AlertTriangle} color="#dc2626" />
-          <Stat label="Para hoje" value={myToday.length} icon={Clock} color="#1e3a8a" />
-          <Stat label="Esta semana" value={myWeek.length} icon={Clock} color="#7c3aed" />
+          <Stat label="Minhas pendentes" value={myPending.length} icon={Clock} color="#f59e0b" active={selectedMetric === "pending"} onClick={() => toggleDetail("pending")} />
+          <Stat label="Atrasadas" value={myOverdue.length} icon={AlertTriangle} color="#dc2626" active={selectedMetric === "overdue"} onClick={() => toggleDetail("overdue")} />
+          <Stat label="Para hoje" value={myToday.length} icon={Clock} color="#1e3a8a" active={selectedMetric === "today"} onClick={() => toggleDetail("today")} />
+          <Stat label="Esta semana" value={myWeek.length} icon={Clock} color="#7c3aed" active={selectedMetric === "week"} onClick={() => toggleDetail("week")} />
         </div>
 
-        <Card className="p-5">
-          <h3 className="mb-3 font-semibold text-red-600">Atrasadas ({myOverdue.length})</h3>
-          {myOverdue.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nada atrasado. 🎉</p>
-          ) : (
-            <ul className="space-y-2">
-              {myOverdue.map(t => (
-                <li key={t.id} className="flex items-center justify-between rounded border border-red-200 bg-red-50 p-2 text-sm dark:bg-red-950/30">
-                  <span className="truncate">{t.title}</span>
-                  {t.due_date && <span className="text-xs text-red-600">{format(parseISO(t.due_date), "dd/MM", { locale: ptBR })}</span>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card className="p-5">
-          <h3 className="mb-3 font-semibold">Pendentes ({myPending.length})</h3>
-          {myPending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sem tarefas pendentes.</p>
-          ) : (
-            <ul className="space-y-2">
-              {myPending.slice(0, 20).map(t => (
-                <li key={t.id} className="flex items-center justify-between rounded border bg-muted/30 p-2 text-sm">
-                  <span className="truncate">{t.title}</span>
-                  {t.due_date && <span className="text-xs text-muted-foreground">{format(parseISO(t.due_date), "dd/MM", { locale: ptBR })}</span>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+        {selectedMetric && <TaskDetailPanel detail={memberDetails[selectedMetric]} clientsById={clientsById} profilesById={profilesById} onClose={() => setSelectedMetric(null)} />}
       </div>
     );
   }
@@ -149,17 +281,19 @@ function Dashboard() {
       <DateFilterBar value={filter} onChange={setFilter} hideToday />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Total de tarefas" value={stats.total} icon={ListTodo} color="#2563eb" />
-        <Stat label="Concluídas" value={stats.done} icon={CheckCircle2} color="#059669" />
-        <Stat label="Pendentes" value={stats.pending} icon={Clock} color="#f59e0b" />
-        <Stat label="Atrasadas" value={stats.overdue} icon={AlertTriangle} color="#dc2626" />
+        <Stat label="Total de tarefas" value={stats.total} icon={ListTodo} color="#2563eb" active={selectedMetric === "total"} onClick={() => toggleDetail("total")} />
+        <Stat label="Concluídas" value={stats.done} icon={CheckCircle2} color="#059669" active={selectedMetric === "done"} onClick={() => toggleDetail("done")} />
+        <Stat label="Pendentes" value={stats.pending} icon={Clock} color="#f59e0b" active={selectedMetric === "pending"} onClick={() => toggleDetail("pending")} />
+        <Stat label="Atrasadas" value={stats.overdue} icon={AlertTriangle} color="#dc2626" active={selectedMetric === "overdue"} onClick={() => toggleDetail("overdue")} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Hoje" value={stats.today} icon={Clock} color="#1e3a8a" />
-        <Stat label="Esta semana" value={stats.week} icon={Clock} color="#7c3aed" />
-        <Stat label="Este mês" value={stats.month} icon={Clock} color="#0891b2" />
+        <Stat label="Hoje" value={stats.today} icon={Clock} color="#1e3a8a" active={selectedMetric === "today"} onClick={() => toggleDetail("today")} />
+        <Stat label="Esta semana" value={stats.week} icon={Clock} color="#7c3aed" active={selectedMetric === "week"} onClick={() => toggleDetail("week")} />
+        <Stat label="Este mês" value={stats.month} icon={Clock} color="#0891b2" active={selectedMetric === "month"} onClick={() => toggleDetail("month")} />
       </div>
+
+      {selectedMetric && <TaskDetailPanel detail={details[selectedMetric]} clientsById={clientsById} profilesById={profilesById} onClose={() => setSelectedMetric(null)} />}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
