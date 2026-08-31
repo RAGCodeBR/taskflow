@@ -201,16 +201,14 @@ export function useAgendaEvents(rangeStart?: string, rangeEnd?: string) {
   return useQuery({
     queryKey: ["agenda_events", rangeStart, rangeEnd],
     queryFn: async () => {
-      // Uses the same authenticated Edge Function proven by the Google sync.
-      // It bypasses browser-side RLS filtering while preserving team access.
-      const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
-        // Loading the grid must be quick; remote Google sync remains an
-        // explicit action and this path reads the already imported records.
-        body: { action: "list_events", rangeStart, rangeEnd },
-      });
+      // Read through the authenticated client so the active workspace RLS
+      // policy is enforced. Google sync remains an explicit server action.
+      let query = (supabase.from("calendar_events" as any) as any).select("*").order("starts_at");
+      if (rangeStart) query = query.gte("starts_at", rangeStart);
+      if (rangeEnd) query = query.lte("starts_at", rangeEnd);
+      const { data, error } = await query;
       if (error) throw error;
-      if (!data?.ok) throw new Error(data?.error ?? "Não foi possível carregar a Agenda.");
-      return (data.events ?? []) as AgendaEvent[];
+      return (data ?? []) as AgendaEvent[];
     },
     enabled: !loadingAuth && !!user,
     refetchOnMount: "always",
