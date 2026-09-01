@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -163,6 +169,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
 
   const [subDueChanges, setSubDueChanges] = useState<Record<string, SubtaskDueChange[]>>({});
   const [subDueOpen, setSubDueOpen] = useState<Record<string, boolean>>({});
+  const [subDueReason, setSubDueReason] = useState<{
+    open: boolean;
+    subtask: Subtask | null;
+    next: string | null;
+    reason: string;
+  }>({ open: false, subtask: null, next: null, reason: "" });
+  const [subDueSaving, setSubDueSaving] = useState(false);
   const [subExpanded, setSubExpanded] = useState<Record<string, boolean>>({});
   const [subAttachments, setSubAttachments] = useState<Record<string, SubtaskAttachment[]>>({});
   const [comments, setComments] = useState<Comment[]>([]);
@@ -644,32 +657,49 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     );
     setEditingSubtaskId((current) => (current === subtask.id ? null : current));
   };
-  const updateSubtaskDue = async (st: Subtask, isoOrEmpty: string, reason?: string) => {
-    const next = deadlineToIso(isoOrEmpty);
+  const applySubtaskDue = async (st: Subtask, next: string | null, reason?: string) => {
     const prev = st.due_date;
-    if (next === prev) return;
-    const justification = prev
-      ? reason?.trim() ||
-        window.prompt("Justificativa obrigatória para mudar o prazo da subtarefa:")?.trim()
-      : null;
-    if (prev && !justification) {
-      toast.error("Informe a justificativa para alterar o prazo da subtarefa.");
-      return;
-    }
+    setSubDueSaving(true);
     const { error } = await supabase.from("subtasks").update({ due_date: next }).eq("id", st.id);
-    if (error) return toast.error(error.message);
-    setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, due_date: next } : s)));
+    if (error) {
+      setSubDueSaving(false);
+      toast.error(`Não foi possível salvar o prazo: ${error.message}`);
+      return false;
+    }
+
+    setSubtasks((current) =>
+      current.map((subtask) =>
+        subtask.id === st.id ? { ...subtask, due_date: next } : subtask,
+      ),
+    );
     if (user) {
-      await supabase.from("subtask_due_date_changes").insert({
+      const { error: historyError } = await supabase.from("subtask_due_date_changes").insert({
         subtask_id: st.id,
         old_due_date: prev,
         new_due_date: next,
-        reason: justification,
+        reason: reason?.trim() || null,
         user_id: user.id,
       });
-      // refresh history if open
+      if (historyError) {
+        toast.warning("Prazo atualizado, mas não foi possível registrar a justificativa.");
+      }
       if (subDueOpen[st.id]) void loadSubDueChanges(st.id);
     }
+    setSubDueSaving(false);
+    void qc.invalidateQueries({ queryKey: ["subtasks"] });
+    toast.success("Prazo da subtarefa atualizado");
+    return true;
+  };
+
+  const updateSubtaskDue = async (st: Subtask, isoOrEmpty: string) => {
+    const next = deadlineToIso(isoOrEmpty);
+    const prev = st.due_date;
+    if (next === prev) return;
+    if (!prev) {
+      await applySubtaskDue(st, next);
+      return;
+    }
+    setSubDueReason({ open: true, subtask: st, next, reason: "" });
   };
   const loadSubDueChanges = async (subtaskId: string) => {
     const { data } = await supabase
@@ -1300,11 +1330,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2 text-xs text-muted-foreground"
-                            onClick={() => {
-                              const reason =
-                                window.prompt("Motivo para remover o prazo? (opcional)") ?? "";
-                              void updateSubtaskDue(s, "", reason);
-                            }}
+                            onClick={() => void updateSubtaskDue(s, "")}
                           >
                             Indefinido
                           </Button>
@@ -1753,6 +1779,79 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
           }}
           onSaved={handleSubtaskDialogSaved}
         />
+        <Dialog
+          open={subDueReason.open}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen && !subDueSaving) {
+              setSubDueReason({ open: false, subtask: null, next: null, reason: "" });
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Justificar alteração do prazo</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                <p>
+                  <strong>Prazo anterior:</strong>{" "}
+                  {subDueReason.subtask?.due_date
+                    ? format(new Date(subDueReason.subtask.due_date), "dd/MM/yyyy")
+                    : "sem prazo"}
+                </p>
+                <p>
+                  <strong>Novo prazo:</strong>{" "}
+                  {subDueReason.next
+                    ? format(new Date(subDueReason.next), "dd/MM/yyyy")
+                    : "sem prazo"}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="subtask-due-reason">Justificativa *</Label>
+                <Textarea
+                  id="subtask-due-reason"
+                  value={subDueReason.reason}
+                  onChange={(event) =>
+                    setSubDueReason((current) => ({ ...current, reason: event.target.value }))
+                  }
+                  placeholder="Explique o motivo da alteração"
+                  rows={3}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={subDueSaving}
+                onClick={() =>
+                  setSubDueReason({ open: false, subtask: null, next: null, reason: "" })
+                }
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={subDueSaving || !subDueReason.reason.trim()}
+                onClick={async () => {
+                  const subtask = subDueReason.subtask;
+                  if (!subtask) return;
+                  const saved = await applySubtaskDue(
+                    subtask,
+                    subDueReason.next,
+                    subDueReason.reason,
+                  );
+                  if (saved) {
+                    setSubDueReason({ open: false, subtask: null, next: null, reason: "" });
+                  }
+                }}
+              >
+                {subDueSaving ? "Salvando..." : "Salvar alteração"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
