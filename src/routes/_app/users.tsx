@@ -20,6 +20,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { canManageMarketingAccess } from "@/lib/environment-access";
 import { toast } from "sonner";
 import {
   Archive,
@@ -445,14 +446,16 @@ function UsersPage() {
   };
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
   if (!isAdmin) return <Navigate to="/mural" />;
+  const isMarketingManager = canManageMarketingAccess(user?.email);
   const renderProfile = (p: any) => {
     const role = (roles.find((r: { user_id: string; role: string }) => r.user_id === p.id)?.role ??
       "collaborator") as Role;
     const self = p.id === user?.id;
     const marketingMembership = marketingMembers.find((member) => member.user_id === p.id);
-    const ownerOfMarketing = p.email?.trim().toLowerCase() === "reinangrupoahouse@gmail.com";
+    const ownerOfMarketing = canManageMarketingAccess(p.email);
     const canManageMarketing = role === "admin" || role === "collaborator";
-    const canToggleMarketing = canManageMarketing && !ownerOfMarketing;
+    const canToggleMarketing = isMarketingManager && canManageMarketing && !ownerOfMarketing;
+    const canManageAdminRecord = isMarketingManager || role !== "admin";
     return (
       <Card key={p.id} className="p-4">
         <div className="flex items-center gap-3">
@@ -503,17 +506,25 @@ function UsersPage() {
                 >
                   {marketingMembership ? "Remover" : "Liberar"}
                 </Button>
+              ) : ownerOfMarketing ? (
+                <Badge variant="secondary">Responsável</Badge>
               ) : (
-                <Badge variant="secondary">Liberado</Badge>
+                <Badge variant="secondary">Gerenciado</Badge>
               )}
             </div>
           </div>
         )}
         <div className="mt-3 border-t pt-3">
-          <Button size="sm" variant="outline" className="w-full" onClick={() => openEdit(p.id)}>
-            Definir categoria e acessos
-          </Button>
-          {!self && (
+          {canManageAdminRecord ? (
+            <Button size="sm" variant="outline" className="w-full" onClick={() => openEdit(p.id)}>
+              Definir categoria e acessos
+            </Button>
+          ) : (
+            <p className="text-center text-xs text-muted-foreground">
+              Acesso administrativo gerenciado pelo responsável.
+            </p>
+          )}
+          {!self && canManageAdminRecord && (
             <>
               <Button
                 size="sm"

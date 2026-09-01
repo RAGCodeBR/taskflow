@@ -1,10 +1,11 @@
-const ENVIRONMENT_SWITCHER_EMAIL = "reinangrupoahouse@gmail.com";
+export const MARKETING_MANAGER_EMAIL = "reinangrupoahouse@gmail.com";
 
-/**
- * Environment switching is temporarily restricted while the Marketing area is
- * being configured. Keeping the check in one place prevents the selector from
- * appearing in one navigation surface while remaining reachable in another.
- */
-export function canSwitchTaskFlowEnvironment(email?: string | null) {
-  return email?.trim().toLowerCase() === ENVIRONMENT_SWITCHER_EMAIL;
+/** A person can switch only when they actually belong to both environments. */
+export function canSwitchTaskFlowEnvironment(workspaceCount: number) {
+  return workspaceCount > 1;
+}
+
+/** Marketing permissions are centrally managed by the responsible account. */
+export function canManageMarketingAccess(email?: string | null) {
+  return email?.trim().toLowerCase() === MARKETING_MANAGER_EMAIL;
 }

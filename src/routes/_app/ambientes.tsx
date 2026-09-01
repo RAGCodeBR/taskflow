@@ -6,15 +6,14 @@ import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { canSwitchTaskFlowEnvironment } from "@/lib/environment-access";
 
 export const Route = createFileRoute("/_app/ambientes")({ component: Environments });
 
 function Environments() {
-  const { user, workspaces, activeWorkspace, setActiveWorkspace } = useAuth();
+  const { workspaces, activeWorkspace, setActiveWorkspace } = useAuth();
   const [switchingId, setSwitchingId] = useState<string | null>(null);
 
-  if (!workspaces.length || !canSwitchTaskFlowEnvironment(user?.email)) {
+  if (!workspaces.length) {
     return <Navigate to="/dashboard" replace />;
   }
 

@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const requestUnreadCount = useRequestUnreadCount();
   const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
   const canAccessFinance = hasPermission("portal_financeiro") || hasPermission("portal");
-  const canSwitchEnvironments = canSwitchTaskFlowEnvironment(user?.email);
+  const canSwitchEnvironments = canSwitchTaskFlowEnvironment(workspaces.length);
   const nav = useMemo(() => {
     const accessByPath: Record<string, string> = {
       "/dashboard": "dashboard",
