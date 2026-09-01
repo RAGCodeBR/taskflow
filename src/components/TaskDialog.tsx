@@ -182,19 +182,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const canDeleteSubtask = (subtask: Subtask) =>
     !!isAdmin || subtask.assignee_id !== user?.id || task?.created_by === user?.id;
 
-  // Recurrence (only used on create)
-  const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
-  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
-  const [recurrenceEnd, setRecurrenceEnd] = useState<string>("");
-  const [recurrenceOffsets, setRecurrenceOffsets] = useState<Record<number, number>>({
-    0: 0,
-    1: 0,
-    2: 0,
-    3: 0,
-    4: 0,
-    5: 0,
-    6: 0,
-  });
   const filteredClients = useMemo(() => {
     const term = clientSearch.trim().toLocaleLowerCase("pt-BR");
     const allClients = clients ?? [];
@@ -275,10 +262,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setNewSubtask("");
       setNewSubtaskDue("");
       setNewSubtaskAssignee("");
-      setRecurrenceEnabled(false);
-      setRecurrenceDays([]);
-      setRecurrenceEnd("");
-      setRecurrenceOffsets({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 });
     }
   }, [open, task, defaultColumnId, user?.id]);
 
@@ -436,7 +419,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       toast.error("Defina um título antes de adicionar itens");
       return null;
     }
-    if (!dueDate && !recurrenceEnabled) {
+    if (!dueDate) {
       toast.error("Defina um prazo antes de criar a tarefa");
       return null;
     }
@@ -514,7 +497,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const authenticated = await getAuthenticatedUser();
     if (!authenticated) return;
     const existingTaskId = currentTaskIdRef.current ?? currentTaskId;
-    if (!existingTaskId && !recurrenceEnabled && !dueDate) {
+    if (!existingTaskId && !dueDate) {
       toast.error("Prazo é obrigatório para criar uma tarefa");
       return;
     }
@@ -549,57 +532,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
           .from("task_history")
           .insert({ task_id: existingTaskId, user_id: authenticated.user.id, action: "updated" });
         if (!(await commitPendingSubtask(existingTaskId))) return;
-      } else if (recurrenceEnabled) {
-        if (newSubtask.trim()) {
-          toast.error(
-            "Para subtarefas com responsável, crie uma tarefa única ou adicione após criar as recorrências.",
-          );
-          return;
-        }
-        if (recurrenceDays.length === 0) {
-          toast.error("Selecione ao menos um dia da semana");
-          setSaving(false);
-          return;
-        }
-        if (!recurrenceEnd) {
-          toast.error("Defina a data final da recorrência");
-          setSaving(false);
-          return;
-        }
-        const start = new Date();
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(recurrenceEnd + "T23:59:59");
-        if (end < start) {
-          toast.error("A data final deve ser futura");
-          setSaving(false);
-          return;
-        }
-        const rows: ReturnType<typeof buildPayload>[] = [];
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          const wd = d.getDay();
-          if (!recurrenceDays.includes(wd)) continue;
-          const due = new Date(d);
-          due.setDate(due.getDate() + (recurrenceOffsets[wd] ?? 0));
-          due.setHours(12, 0, 0, 0);
-          rows.push({ ...payload, due_date: due.toISOString() });
-        }
-        if (rows.length === 0) {
-          toast.error("Nenhuma ocorrência no intervalo");
-          setSaving(false);
-          return;
-        }
-        const tasksToCreate = rows.map((row) => ({
-          id: crypto.randomUUID(),
-          ...row,
-          created_by: authenticated.user.id,
-        }));
-        const { error } = await authenticated.client.from("tasks").insert(tasksToCreate);
-        if (error) throw error;
-        await Promise.all(tasksToCreate.map((createdTask) => syncCollaborators(createdTask.id)));
-        toast.success(`${rows.length} tarefas recorrentes criadas`);
-        qc.invalidateQueries({ queryKey: ["tasks"] });
-        onOpenChange(false);
-        return;
       } else {
         const taskId = crypto.randomUUID();
         const { error } = await authenticated.client.from("tasks").insert({
@@ -1054,7 +986,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
                     className="task-deadline-date h-9 flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0"
-                    required={!task && !recurrenceEnabled}
+                    required={!task}
                   />
                   {dueDate && (
                     <Button
@@ -1267,89 +1199,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
               minHeight={100}
             />
           </div>
-
-          {!currentTaskId && (
-            <div className="space-y-3 rounded-md border bg-muted/20 p-3">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <Checkbox
-                  checked={recurrenceEnabled}
-                  onCheckedChange={(v) => setRecurrenceEnabled(!!v)}
-                />
-                Criar como tarefa recorrente
-              </label>
-              {recurrenceEnabled && (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Dias da semana</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((label, idx) => {
-                        const active = recurrenceDays.includes(idx);
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() =>
-                              setRecurrenceDays(
-                                active
-                                  ? recurrenceDays.filter((d) => d !== idx)
-                                  : [...recurrenceDays, idx].sort(),
-                              )
-                            }
-                            className={`rounded-md border px-3 py-1 text-xs transition ${active ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label className="text-xs">Repetir até</Label>
-                      <Input
-                        type="date"
-                        value={recurrenceEnd}
-                        onChange={(e) => setRecurrenceEnd(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs">
-                      Prazo personalizado por dia (dias após a ocorrência)
-                    </Label>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {recurrenceDays.map((wd) => {
-                        const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-                        return (
-                          <div key={wd} className="flex items-center gap-2">
-                            <span className="w-10 text-xs text-muted-foreground">{labels[wd]}</span>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={30}
-                              value={recurrenceOffsets[wd] ?? 0}
-                              onChange={(e) =>
-                                setRecurrenceOffsets({
-                                  ...recurrenceOffsets,
-                                  [wd]: Math.max(0, Number(e.target.value) || 0),
-                                })
-                              }
-                              className="h-8 w-16"
-                            />
-                            <span className="text-xs text-muted-foreground">d</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Ex.: Seg=1 → tarefa de segunda vence na terça. Use 0 para vencer no próprio
-                      dia.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {
             <Tabs defaultValue="subtasks">

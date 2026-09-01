@@ -126,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const systemPermissions = [
             "dashboard",
             "tasks",
+            "obligations",
             "requests",
             "import_ata",
             "clients",

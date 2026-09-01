@@ -39,6 +39,7 @@ export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 const ACCESS_OPTIONS = [
   ["dashboard", "Dashboard"],
   ["tasks", "Minhas tarefas"],
+  ["obligations", "Obrigações"],
   ["requests", "Solicitações"],
   ["import_ata", "Importar ata"],
   ["clients", "Clientes"],

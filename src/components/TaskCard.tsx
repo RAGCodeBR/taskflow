@@ -615,13 +615,19 @@ export function TaskCard({
     if (diffDays === 0) {
       if (dueHasTime) {
         if (dueMoment && dueMoment.getTime() < now.getTime()) {
-          const overdueHours = Math.max(
+          const overdueMinutes = Math.max(
             1,
-            Math.ceil((now.getTime() - dueMoment.getTime()) / 3_600_000),
+            Math.floor((now.getTime() - dueMoment.getTime()) / 60_000),
           );
+          const overdueHours = Math.floor(overdueMinutes / 60);
+          const remainingMinutes = overdueMinutes % 60;
+          const overdueLabel =
+            overdueHours === 0
+              ? `Atrasado h\u00e1 ${overdueMinutes} min`
+              : `Atrasado h\u00e1 ${overdueHours}h${remainingMinutes ? ` ${remainingMinutes} min` : ""}`;
           return {
             state: "overdue" as const,
-            label: overdueHours === 1 ? "Atrasado 1h" : `Atrasado ${overdueHours}h`,
+            label: overdueLabel,
             days: 0,
             subtext: dueLabel,
           };
