@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { useAssignableProfiles } from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -74,11 +75,13 @@ export function SubtaskDialog({
   onSaved,
 }: SubtaskDialogProps) {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const { data: assignableProfiles = [] } = useAssignableProfiles();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [notes, setNotes] = useState("");
+  const [dueDateReason, setDueDateReason] = useState("");
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
   const defaultTitle = defaults?.title ?? "";
@@ -91,8 +94,12 @@ export function SubtaskDialog({
     setDueDate(toDateInputValue(subtask?.due_date) || defaultDueDate);
     setAssigneeId(subtask?.assignee_id ?? defaultAssigneeId);
     setNotes(subtask?.notes ?? "");
+    setDueDateReason("");
     setDone(subtask?.done ?? false);
   }, [open, subtask, defaultTitle, defaultDueDate, defaultAssigneeId]);
+
+  const dueDateChanged =
+    Boolean(subtask?.due_date) && dueDate !== toDateInputValue(subtask?.due_date);
 
   const save = async () => {
     if (!taskId) {
@@ -101,6 +108,10 @@ export function SubtaskDialog({
     }
     if (!title.trim()) {
       toast.error("Informe o título da subtarefa.");
+      return;
+    }
+    if (dueDateChanged && !dueDateReason.trim()) {
+      toast.error("Informe a justificativa para alterar o prazo da subtarefa.");
       return;
     }
 
@@ -132,6 +143,18 @@ export function SubtaskDialog({
     }
 
     onSaved(data as EditableSubtask);
+    if (subtask && dueDateChanged && user) {
+      const { error: historyError } = await supabase.from("subtask_due_date_changes").insert({
+        subtask_id: subtask.id,
+        old_due_date: subtask.due_date,
+        new_due_date: payload.due_date,
+        reason: dueDateReason.trim(),
+        user_id: user.id,
+      });
+      if (historyError) {
+        toast.warning("Prazo atualizado, mas não foi possível registrar a justificativa.");
+      }
+    }
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["tasks"] }),
       qc.invalidateQueries({ queryKey: ["subtasks"] }),
@@ -185,6 +208,20 @@ export function SubtaskDialog({
                 onChange={(event) => setDueDate(event.target.value)}
               />
             </div>
+            {dueDateChanged && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="subtask-due-date-reason">
+                  Justificativa da alteração de prazo *
+                </Label>
+                <Textarea
+                  id="subtask-due-date-reason"
+                  value={dueDateReason}
+                  onChange={(event) => setDueDateReason(event.target.value)}
+                  placeholder="Explique o motivo da alteração"
+                  rows={3}
+                />
+              </div>
+            )}
             {subtask && (
               <label className="flex items-center gap-2 text-sm sm:col-span-2">
                 <Checkbox checked={done} onCheckedChange={(value) => setDone(value === true)} />

@@ -863,25 +863,31 @@ export function TaskCard({
   const applySubtaskDue = async (s: Subtask, nextIso: string | null, reason?: string) => {
     const prev = s.due_date;
     if (nextIso === prev) return;
-    setSubtasks((c) => c.map((x) => (x.id === s.id ? { ...x, due_date: nextIso } : x)));
     const { error } = await supabase.from("subtasks").update({ due_date: nextIso }).eq("id", s.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(`Não foi possível salvar o prazo: ${error.message}`);
       return;
     }
+    setSubtasks((current) =>
+      current.map((subtask) => (subtask.id === s.id ? { ...subtask, due_date: nextIso } : subtask)),
+    );
     if (user) {
-      await supabase.from("subtask_due_date_changes").insert({
+      const { error: historyError } = await supabase.from("subtask_due_date_changes").insert({
         subtask_id: s.id,
         old_due_date: prev,
         new_due_date: nextIso,
         reason: reason?.trim() || null,
         user_id: user.id,
       });
+      if (historyError) {
+        toast.warning("Prazo atualizado, mas não foi possível registrar a justificativa.");
+      }
     }
+    void qc.invalidateQueries({ queryKey: ["subtasks"] });
   };
 
   const updateSubtaskDue = async (s: Subtask, isoOrEmpty: string) => {
-    const next = isoOrEmpty ? new Date(isoOrEmpty).toISOString() : null;
+    const next = isoOrEmpty ? new Date(`${isoOrEmpty}T12:00:00`).toISOString() : null;
     if (next === s.due_date) return;
     if (!s.due_date) {
       await applySubtaskDue(s, next);
