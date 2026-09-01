@@ -60,6 +60,7 @@ import {
 } from "@/lib/sync-task-attachment-to-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
+import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
 import { CommentAttachments } from "@/components/CommentAttachments";
 import { TaskConversationDialog } from "@/components/TaskConversationDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -98,6 +99,7 @@ interface Subtask {
   due_date: string | null;
   completed_at: string | null;
   assignee_id: string | null;
+  notes: string | null;
 }
 
 interface CardComment {
@@ -197,6 +199,8 @@ export function TaskCard({
   const [commentDraft, setCommentDraft] = useState("");
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [subtaskDraft, setSubtaskDraft] = useState("");
+  const [subtaskDialogOpen, setSubtaskDialogOpen] = useState(false);
+  const [subtaskInDialog, setSubtaskInDialog] = useState<Subtask | null>(null);
   const canDeleteSubtask = (subtask: Subtask) =>
     !!isAdmin || subtask.assignee_id !== user?.id || task.created_by === user?.id;
   const [newSubtask, setNewSubtask] = useState("");
@@ -315,7 +319,7 @@ export function TaskCard({
         supabase
           .from("subtasks")
           .select(
-            "id, task_id, title, done, position, comment_id, due_date, completed_at, assignee_id",
+            "id, task_id, title, done, position, comment_id, due_date, completed_at, assignee_id, notes",
           )
           .eq("task_id", task.id)
           .order("position"),
@@ -759,7 +763,7 @@ export function TaskCard({
         comment_id: commentId,
         due_date: dueOverride ?? null,
       })
-      .select("id, task_id, title, done, position, comment_id, due_date, completed_at, assignee_id")
+      .select("id, task_id, title, done, position, comment_id, due_date, completed_at, assignee_id, notes")
       .single();
     if (error) {
       toast.error(error.message);
@@ -803,7 +807,7 @@ export function TaskCard({
         due_date: subtask.due_date,
         assignee_id: subtask.assignee_id,
       })
-      .select("id, task_id, title, done, position, comment_id, due_date, completed_at, assignee_id")
+      .select("id, task_id, title, done, position, comment_id, due_date, completed_at, assignee_id, notes")
       .single();
     if (error) {
       toast.error(error.message);
@@ -815,7 +819,20 @@ export function TaskCard({
 
   const startEditSubtask = (s: Subtask) => {
     setEditingSubtaskId(s.id);
-    setSubtaskDraft(s.title);
+    setSubtaskDraft(s.title.replace(/<[^>]*>/g, ""));
+  };
+
+  const openSubtaskDialog = (subtask: Subtask) => {
+    setSubtaskInDialog(subtask);
+    setSubtaskDialogOpen(true);
+  };
+
+  const handleSubtaskDialogSaved = (savedSubtask: EditableSubtask) => {
+    setSubtasks((current) =>
+      current.map((subtask) =>
+        subtask.id === savedSubtask.id ? { ...subtask, ...savedSubtask } : subtask,
+      ),
+    );
   };
 
   const saveSubtaskTitle = async () => {
@@ -1494,13 +1511,23 @@ export function TaskCard({
                                       </button>
                                       {editingSubtaskId === s.id ? (
                                         <div className="min-w-0 flex-1">
-                                          <RichTextEditor
+                                          <Input
                                             value={subtaskDraft}
-                                            onChange={setSubtaskDraft}
+                                            onChange={(event) => setSubtaskDraft(event.target.value)}
                                             onBlur={() => void saveSubtaskTitle()}
+                                            onKeyDown={(event) => {
+                                              if (event.key === "Enter") {
+                                                event.preventDefault();
+                                                void saveSubtaskTitle();
+                                              }
+                                              if (event.key === "Escape") {
+                                                setEditingSubtaskId(null);
+                                                setSubtaskDraft("");
+                                              }
+                                            }}
                                             autoFocus
-                                            placeholder="Escreva…"
-                                            minHeight={40}
+                                            placeholder="Título da subtarefa"
+                                            className="h-7 px-1.5 text-xs"
                                           />
                                         </div>
                                       ) : (
@@ -1547,7 +1574,7 @@ export function TaskCard({
                                         </button>
                                         <button
                                           type="button"
-                                          title="Renomear"
+                                          title="Renomear título"
                                           onPointerDown={stop}
                                           onClick={(e) => {
                                             stop(e);
@@ -1556,6 +1583,18 @@ export function TaskCard({
                                           className="rounded p-0.5 hover:bg-muted"
                                         >
                                           <Pencil className="h-3 w-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Abrir detalhes da subtarefa"
+                                          onPointerDown={stop}
+                                          onClick={(e) => {
+                                            stop(e);
+                                            openSubtaskDialog(s);
+                                          }}
+                                          className="rounded p-0.5 hover:bg-muted"
+                                        >
+                                          <FileText className="h-3 w-3" />
                                         </button>
                                         <button
                                           type="button"
@@ -1615,8 +1654,7 @@ export function TaskCard({
                                 );
                               })}
                               {addingSubtask ? (
-                                <div className="flex items-start gap-1.5 px-1">
-                                  <span className="mt-1 h-3.5 w-3.5 shrink-0 rounded border border-muted-foreground/40" />
+                                <div className="flex px-2">
                                   <Textarea
                                     value={newSubtask}
                                     autoFocus
@@ -1646,7 +1684,7 @@ export function TaskCard({
                                     onPointerDown={stop}
                                     onClick={stop}
                                     placeholder="Nova subtarefa (Enter para salvar)"
-                                    className="min-h-[24px] flex-1 resize-none overflow-hidden whitespace-pre-wrap border-none bg-transparent p-0 text-xs leading-snug shadow-none focus-visible:ring-0"
+                                    className="min-h-[24px] min-w-0 flex-1 resize-none overflow-hidden whitespace-pre-wrap border-none bg-transparent px-1 py-0 text-xs leading-snug shadow-none focus-visible:ring-0"
                                   />
                                 </div>
                               ) : (
@@ -2109,6 +2147,15 @@ export function TaskCard({
         open={conversationOpen}
         onOpenChange={setConversationOpen}
         task={task}
+      />
+
+      <SubtaskDialog
+        open={subtaskDialogOpen}
+        onOpenChange={setSubtaskDialogOpen}
+        taskId={task.id}
+        subtask={subtaskInDialog}
+        position={subtaskInDialog?.position ?? subtasks.length}
+        onSaved={handleSubtaskDialogSaved}
       />
 
       {/* Diálogo de justificativa ao mudar prazo */}

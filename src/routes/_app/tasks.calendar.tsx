@@ -21,13 +21,23 @@ import {
   useColumns,
   useSubtasks,
   useTaskCollaborators,
+  useProfiles,
   useTaskStatuses,
   type Task,
+  type Profile,
 } from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { TaskDialog } from "@/components/TaskDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { normalizeTasksWithOpenSubtasks } from "@/lib/task-utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export const Route = createFileRoute("/_app/tasks/calendar")({
   component: CalendarPage,
@@ -39,6 +49,7 @@ function CalendarPage() {
   const { data: columns = [] } = useColumns();
   const { data: subtasks = [] } = useSubtasks();
   const { data: statuses = [] } = useTaskStatuses();
+  const { data: profiles = [] } = useProfiles();
   const { data: collaborators = [] } = useTaskCollaborators();
   const { user, isCollaborator } = useAuth();
   const [cursor, setCursor] = useState(new Date());
@@ -46,13 +57,13 @@ function CalendarPage() {
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [dayListOpen, setDayListOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
     if (isCollaborator) {
-      setFilters((current) =>
-        current.assignee ? { ...current, assignee: undefined } : current,
-      );
+      setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
       return;
     }
     if (didApplyDefaultAssignee.current) return;
@@ -86,7 +97,12 @@ function CalendarPage() {
   }, [subtasks]);
 
   const collaboratorTaskIds = useMemo(
-    () => new Set(collaborators.filter((collaborator) => collaborator.collaborator_id === user?.id).map((collaborator) => collaborator.task_id)),
+    () =>
+      new Set(
+        collaborators
+          .filter((collaborator) => collaborator.collaborator_id === user?.id)
+          .map((collaborator) => collaborator.task_id),
+      ),
     [collaborators, user?.id],
   );
 
@@ -112,7 +128,15 @@ function CalendarPage() {
         subtaskAssigneeTaskIdsByUser,
         restrictToCurrentUserParticipation: isCollaborator,
       }),
-    [taskView, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser],
+    [
+      taskView,
+      filters,
+      user?.id,
+      isCollaborator,
+      subtaskAssigneeTaskIds,
+      collaboratorTaskIds,
+      subtaskAssigneeTaskIdsByUser,
+    ],
   );
 
   const subtaskDueDatesByTask = useMemo(() => {
@@ -139,11 +163,26 @@ function CalendarPage() {
     );
   }, [columns, statuses, taskView]);
 
+  const statusById = useMemo(
+    () => new Map(statuses.map((status) => [status.id, status])),
+    [statuses],
+  );
+  const profileById = useMemo(
+    () => new Map(profiles.map((profile) => [profile.id, profile])),
+    [profiles],
+  );
+  const clientById = useMemo(
+    () => new Map(clients.map((client) => [client.id, client])),
+    [clients],
+  );
+
   const dayTasks = (day: Date) =>
     visible.filter((t) => {
       if (t.due_date && isSameDay(new Date(t.due_date), day)) return true;
       return (subtaskDueDatesByTask.get(t.id) ?? []).some((due) => isSameDay(new Date(due), day));
     });
+
+  const selectedDayTasks = selectedDay ? dayTasks(selectedDay) : [];
 
   return (
     <div className="space-y-4 p-6">
@@ -203,28 +242,36 @@ function CalendarPage() {
                 </div>
                 <div className="space-y-1">
                   {ts.slice(0, 3).map((t) => {
-                    const client = clients.find((c) => c.id === t.client_id);
+                    const status = statusById.get(t.status_id ?? "");
+                    const assignee = profileById.get(t.assignee_id ?? "") ?? null;
+                    const statusColor = status?.color || "#64748b";
+                    const clientColor = clientById.get(t.client_id ?? "")?.color || "#475569";
                     return (
-                      <button
+                      <CalendarTaskItem
                         key={t.id}
+                        task={t}
+                        assignee={assignee}
+                        statusName={status?.name ?? stageNameByTaskId.get(t.id) ?? "A fazer"}
+                        statusColor={statusColor}
+                        backgroundColor={clientColor}
                         onClick={() => {
                           setEdit(t);
                           setOpen(true);
                         }}
-                        className="block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] hover:opacity-80"
-                        style={{
-                          background: (client?.color || t.color || "#1e3a8a") + "22",
-                          color: client?.color || t.color || "#1e3a8a",
-                        }}
-                      >
-                        {`${stageNameByTaskId.get(t.id) ?? "A fazer"} · ${
-                          t.due_time ? `${t.due_time.slice(0, 5)} · ` : ""
-                        }${t.title}`}
-                      </button>
+                      />
                     );
                   })}
                   {ts.length > 3 && (
-                    <div className="text-[10px] text-muted-foreground">+{ts.length - 3} mais</div>
+                    <button
+                      type="button"
+                      className="text-[10px] font-medium text-primary hover:underline"
+                      onClick={() => {
+                        setSelectedDay(day);
+                        setDayListOpen(true);
+                      }}
+                    >
+                      +{ts.length - 3} mais
+                    </button>
                   )}
                 </div>
               </div>
@@ -232,7 +279,122 @@ function CalendarPage() {
           })}
         </div>
       </div>
+      <Dialog open={dayListOpen} onOpenChange={setDayListOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Tarefas de {selectedDay ? format(selectedDay, "d 'de' MMMM", { locale: ptBR }) : ""}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedDayTasks.length} tarefa{selectedDayTasks.length === 1 ? "" : "s"} neste dia.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {selectedDayTasks.map((task) => {
+              const status = statusById.get(task.status_id ?? "");
+              const assignee = profileById.get(task.assignee_id ?? "") ?? null;
+              const clientColor =
+                clientById.get(task.client_id ?? "")?.color || "#475569";
+              return (
+                <CalendarTaskItem
+                  key={task.id}
+                  task={task}
+                  assignee={assignee}
+                  statusName={status?.name ?? stageNameByTaskId.get(task.id) ?? "A fazer"}
+                  statusColor={status?.color || "#64748b"}
+                  backgroundColor={clientColor}
+                  expanded
+                  onClick={() => {
+                    setDayListOpen(false);
+                    setEdit(task);
+                    setOpen(true);
+                  }}
+                />
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
       <TaskDialog open={open} onOpenChange={setOpen} task={edit} />
     </div>
+  );
+}
+
+function readableTextColor(color: string) {
+  const hex = color.trim().replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return "#ffffff";
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+  return luminance > 155 ? "#172033" : "#ffffff";
+}
+
+function CalendarTaskItem({
+  task,
+  assignee,
+  statusName,
+  statusColor,
+  backgroundColor,
+  expanded = false,
+  onClick,
+}: {
+  task: Task;
+  assignee: Profile | null;
+  statusName: string;
+  statusColor: string;
+  backgroundColor: string;
+  expanded?: boolean;
+  onClick: () => void;
+}) {
+  const assigneeName = assignee?.full_name || assignee?.email || "Sem responsável";
+  const initials = assignee
+    ? assigneeName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase()
+    : "?";
+  const textColor = readableTextColor(backgroundColor);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full min-w-0 items-center gap-1.5 rounded-md border text-left shadow-sm transition hover:-translate-y-px hover:brightness-105 hover:shadow ${
+        expanded ? "px-2 py-2" : "px-1 py-1"
+      }`}
+      style={{
+        backgroundColor,
+        borderColor: backgroundColor,
+        color: textColor,
+      }}
+      title={`${statusName} · ${assigneeName} · ${task.title}`}
+    >
+      <Avatar
+        className={`${expanded ? "h-7 w-7" : "h-5 w-5"} shrink-0 border border-white/70 shadow-sm`}
+      >
+        <AvatarImage src={assignee?.avatar_url || undefined} alt={assigneeName} />
+        <AvatarFallback
+          className="bg-white/85 text-[8px] font-semibold text-slate-800"
+          title={assigneeName}
+        >
+          {initials}
+        </AvatarFallback>
+      </Avatar>
+      <span className={`min-w-0 flex-1 truncate font-medium ${expanded ? "text-sm" : "text-[11px]"}`}>
+        {task.title}
+      </span>
+      <span
+        className={`${expanded ? "h-3 w-3" : "h-2.5 w-2.5"} shrink-0 rounded-[2px] border border-black/25 shadow-sm`}
+        style={{ backgroundColor: statusColor }}
+        title={`Status: ${statusName}`}
+        aria-label={`Status: ${statusName}`}
+      />
+      {task.due_time ? (
+        <span className="shrink-0 text-[9px] opacity-80">{task.due_time.slice(0, 5)}</span>
+      ) : null}
+    </button>
   );
 }

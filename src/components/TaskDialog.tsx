@@ -52,6 +52,7 @@ import {
   syncTaskAttachmentToClient,
 } from "@/lib/sync-task-attachment-to-client";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
 
 interface Props {
   open: boolean;
@@ -60,7 +61,7 @@ interface Props {
   defaultColumnId?: string | null;
 }
 
-interface Subtask {
+interface Subtask extends EditableSubtask {
   id: string;
   title: string;
   done: boolean;
@@ -68,6 +69,7 @@ interface Subtask {
   due_date: string | null;
   assignee_id: string | null;
   notes: string | null;
+  completed_at: string | null;
 }
 interface SubtaskAttachment {
   id: string;
@@ -154,6 +156,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [newSubtask, setNewSubtask] = useState("");
   const [newSubtaskDue, setNewSubtaskDue] = useState("");
   const [newSubtaskAssignee, setNewSubtaskAssignee] = useState<string>("");
+  const [subtaskDialogOpen, setSubtaskDialogOpen] = useState(false);
+  const [subtaskInDialog, setSubtaskInDialog] = useState<Subtask | null>(null);
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [subtaskTitleDraft, setSubtaskTitleDraft] = useState("");
 
@@ -476,7 +480,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         due_date: deadlineToIso(due),
         assignee_id: assignee || null,
       } as any)
-      .select("id, title, done, position, due_date, assignee_id, notes")
+      .select("id, title, done, position, due_date, assignee_id, notes, completed_at")
       .single();
 
     if (error) {
@@ -645,6 +649,30 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const tid = await ensureTask();
     if (!tid) return;
     await commitPendingSubtask(tid);
+  };
+
+  const openNewSubtaskDialog = async () => {
+    const tid = await ensureTask();
+    if (!tid) return;
+    setSubtaskInDialog(null);
+    setSubtaskDialogOpen(true);
+  };
+
+  const openSubtaskDialog = (subtask: Subtask) => {
+    setSubtaskInDialog(subtask);
+    setSubtaskDialogOpen(true);
+  };
+
+  const handleSubtaskDialogSaved = (savedSubtask: EditableSubtask) => {
+    setSubtasks((current) => {
+      const exists = current.some((subtask) => subtask.id === savedSubtask.id);
+      return exists
+        ? current.map((subtask) => (subtask.id === savedSubtask.id ? savedSubtask : subtask))
+        : [...current, savedSubtask];
+    });
+    setNewSubtask("");
+    setNewSubtaskDue("");
+    setNewSubtaskAssignee("");
   };
 
   const toggleSubtask = async (st: Subtask) => {
@@ -1480,22 +1508,35 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                         <div className="ml-6 space-y-2 border-l pl-3">
                           <div className="space-y-1">
                             <Label className="text-[10px] text-muted-foreground">Responsável</Label>
-                            <Select
-                              value={s.assignee_id || "none"}
-                              onValueChange={(v) => updateSubtaskAssignee(s, v)}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="Ninguém" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Ninguém</SelectItem>
-                                {assignableProfiles.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>
-                                    {p.full_name || p.email}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex gap-1.5">
+                              <Select
+                                value={s.assignee_id || "none"}
+                                onValueChange={(v) => updateSubtaskAssignee(s, v)}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder="Ninguém" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Ninguém</SelectItem>
+                                  {assignableProfiles.map((p) => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      {p.full_name || p.email}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                title="Abrir subtarefa"
+                                onClick={() => openSubtaskDialog(s)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                <span className="sr-only">Abrir subtarefa</span>
+                              </Button>
+                            </div>
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px] text-muted-foreground">Anotações</Label>
@@ -1581,22 +1622,35 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                     className="w-52"
                     title="Prazo (opcional)"
                   />
-                  <Select
-                    value={newSubtaskAssignee || "none"}
-                    onValueChange={(v) => setNewSubtaskAssignee(v === "none" ? "" : v)}
-                  >
-                    <SelectTrigger className="w-44" title="Responsável (opcional)">
-                      <SelectValue placeholder="Responsável" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem responsável</SelectItem>
-                      {assignableProfiles.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.full_name || p.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-1.5">
+                    <Select
+                      value={newSubtaskAssignee || "none"}
+                      onValueChange={(v) => setNewSubtaskAssignee(v === "none" ? "" : v)}
+                    >
+                      <SelectTrigger className="w-44" title="Responsável (opcional)">
+                        <SelectValue placeholder="Responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem responsável</SelectItem>
+                        {assignableProfiles.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.full_name || p.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      title="Abrir editor completo da subtarefa"
+                      onClick={() => void openNewSubtaskDialog()}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      <span className="sr-only">Abrir editor completo da subtarefa</span>
+                    </Button>
+                  </div>
                   <Button onClick={addSubtask} size="icon">
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -1836,6 +1890,19 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
             if (!open) setPreviewAttachment(null);
           }}
           attachment={previewAttachment}
+        />
+        <SubtaskDialog
+          open={subtaskDialogOpen}
+          onOpenChange={setSubtaskDialogOpen}
+          taskId={currentTaskId}
+          subtask={subtaskInDialog}
+          position={subtasks.length}
+          defaults={{
+            title: newSubtask,
+            dueDate: newSubtaskDue,
+            assigneeId: newSubtaskAssignee,
+          }}
+          onSaved={handleSubtaskDialogSaved}
         />
       </DialogContent>
     </Dialog>
