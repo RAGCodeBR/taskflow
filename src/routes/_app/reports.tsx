@@ -14,8 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DateFilterBar } from "@/components/DateFilterBar";
-import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   BarChart,
   Bar,
@@ -40,8 +40,30 @@ import {
   Trophy,
   Crown,
   Activity,
+  CalendarRange,
+  RotateCcw,
+  TrendingUp,
+  UsersRound,
+  Gauge,
+  ArrowDownUp,
+  TicketCheck,
+  Timer,
+  Sparkles,
+  Target,
 } from "lucide-react";
-import { isAfter, parseISO } from "date-fns";
+import {
+  endOfDay,
+  endOfMonth,
+  format,
+  isAfter,
+  isBefore,
+  isWithinInterval,
+  parseISO,
+  startOfDay,
+  startOfMonth,
+  subDays,
+} from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export const Route = createFileRoute("/_app/reports")({
   component: ReportsPage,
@@ -93,6 +115,17 @@ type ClientPerformance = {
 };
 
 const battleColors = ["#167c80", "#2d5c91", "#53739e", "#7a91ad", "#a4b3c5", "#c6d1de"];
+
+const currentMonthPeriod = () => {
+  const today = new Date();
+  return {
+    start: format(startOfMonth(today), "yyyy-MM-dd"),
+    end: format(endOfMonth(today), "yyyy-MM-dd"),
+  };
+};
+
+const dateIsInPeriod = (value: string | null | undefined, start: Date, end: Date) =>
+  Boolean(value && isWithinInterval(parseISO(value), { start, end }));
 
 function TeamRankingPanel({ members }: { members: any[] }) {
   const ranked = [...members]
@@ -305,12 +338,286 @@ function ClientBattlePanel({ clients }: { clients: ClientPerformance[] }) {
   );
 }
 
+function MonthlyBriefingPanel({
+  periodLabel,
+  totals,
+  created,
+  previousCompleted,
+  team,
+  clients,
+  peopleWithoutDeadline,
+}: {
+  periodLabel: string;
+  totals: { done: number; pending: number; overdue: number };
+  created: number;
+  previousCompleted: number;
+  team: any[];
+  clients: ClientPerformance[];
+  peopleWithoutDeadline: Array<{ id: string; name: string; tasks: any[] }>;
+}) {
+  const topDelivery = [...team].sort((a, b) => b.done - a.done)[0];
+  const highestLoad = [...team].sort((a, b) => b.pending - a.pending)[0];
+  const strongestClient = clients[0];
+  const attentionClient = [...clients].sort((a, b) => a.score - b.score)[0];
+  const change = totals.done - previousCompleted;
+
+  return (
+    <div className="space-y-4">
+      <Card className="overflow-hidden border-[#167c80]/20 bg-[linear-gradient(135deg,rgba(22,124,128,0.12),rgba(255,255,255,0.9)_55%,rgba(37,99,235,0.08))] p-6 dark:bg-[linear-gradient(135deg,rgba(22,124,128,0.2),rgba(15,23,42,0.85)_55%,rgba(37,99,235,0.12))]">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-3xl">
+            <Badge className="mb-3 bg-[#167c80] hover:bg-[#167c80]">
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Briefing executivo
+            </Badge>
+            <h2 className="text-2xl font-bold tracking-tight">
+              Leitura da operação — {periodLabel}
+            </h2>
+            <p className="mt-3 text-base leading-7 text-muted-foreground">
+              Foram concluídas <strong className="text-foreground">{totals.done} entregas</strong> e
+              criadas {created} novas tarefas.{" "}
+              {change === 0
+                ? "O volume de entregas ficou estável em relação ao período anterior."
+                : change > 0
+                  ? `Isso representa ${change} entrega(s) a mais que no período anterior.`
+                  : `Isso representa ${Math.abs(change)} entrega(s) a menos que no período anterior.`}{" "}
+              {totals.overdue
+                ? `Há ${totals.overdue} tarefa(s) atrasada(s) que exigem atenção imediata.`
+                : "Não há tarefas atrasadas no recorte atual."}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-[#167c80]/20 bg-background/70 px-5 py-4 text-right shadow-sm backdrop-blur">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Foco imediato
+            </p>
+            <p className="mt-1 text-3xl font-bold text-[#167c80]">
+              {totals.overdue +
+                peopleWithoutDeadline.reduce((sum, person) => sum + person.tasks.length, 0)}
+            </p>
+            <p className="text-sm text-muted-foreground">pontos de atenção</p>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card className="p-5">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <TrendingUp className="h-4 w-4 text-emerald-600" /> Equipe
+          </p>
+          {topDelivery ? (
+            <div className="mt-4 space-y-3 text-sm">
+              <p>
+                <span className="text-muted-foreground">Maior volume de entregas:</span>
+                <br />
+                <strong className="text-base">{topDelivery.fullName}</strong> · {topDelivery.done}{" "}
+                concluída(s).
+              </p>
+              <p>
+                <span className="text-muted-foreground">Maior carga aberta:</span>
+                <br />
+                <strong className="text-base">{highestLoad?.fullName}</strong> ·{" "}
+                {highestLoad?.pending ?? 0} pendente(s).
+              </p>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Ainda não há dados de equipe no período.
+            </p>
+          )}
+        </Card>
+        <Card className="p-5">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <Trophy className="h-4 w-4 text-amber-500" /> Clientes
+          </p>
+          {strongestClient ? (
+            <div className="mt-4 space-y-3 text-sm">
+              <p>
+                <span className="text-muted-foreground">Melhor desempenho:</span>
+                <br />
+                <strong className="text-base">{strongestClient.name}</strong> ·{" "}
+                {strongestClient.onTimeRate}% no prazo.
+              </p>
+              <p>
+                <span className="text-muted-foreground">Cliente para acompanhar:</span>
+                <br />
+                <strong className="text-base">{attentionClient?.name}</strong> ·{" "}
+                {attentionClient?.blocker}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Ainda não há clientes com demandas no período.
+            </p>
+          )}
+        </Card>
+        <Card className="p-5">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <Target className="h-4 w-4 text-rose-600" /> Próximas ações
+          </p>
+          <ul className="mt-4 space-y-2.5 text-sm text-muted-foreground">
+            {totals.overdue ? <li>Priorizar as {totals.overdue} tarefa(s) atrasada(s).</li> : null}
+            {peopleWithoutDeadline.length ? (
+              <li>
+                Definir prazo com {peopleWithoutDeadline.length} pessoa(s) que têm tarefas sem data.
+              </li>
+            ) : null}
+            {highestLoad?.pending ? <li>Revisar a carga de {highestLoad.fullName}.</li> : null}
+            {!totals.overdue && !peopleWithoutDeadline.length ? (
+              <li>Manter a cadência e acompanhar as {totals.pending} pendência(s) abertas.</li>
+            ) : null}
+          </ul>
+        </Card>
+      </div>
+
+      <section>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-2 text-lg font-semibold">
+              <UsersRound className="h-5 w-5 text-[#167c80]" /> Leitura por consultor
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Quem entregou, onde existe acúmulo e qual é o principal ponto de atenção de cada
+              pessoa.
+            </p>
+          </div>
+          <Badge variant="outline">{team.length} consultor(es) no período</Badge>
+        </div>
+        {team.length ? (
+          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {team.map((person) => {
+              const withoutDeadline =
+                peopleWithoutDeadline.find((item) => item.id === person.id)?.tasks.length ?? 0;
+              const attention = person.overdue
+                ? `${person.overdue} tarefa(s) atrasada(s)`
+                : withoutDeadline
+                  ? `${withoutDeadline} tarefa(s) sem prazo`
+                  : person.pending
+                    ? `${person.pending} tarefa(s) em aberto`
+                    : "Nenhum risco imediato";
+              return (
+                <Card key={person.id} className="overflow-hidden">
+                  <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{person.fullName}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {person.isAdmin ? "Administrador" : "Consultor"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-[#167c80]/10 px-2.5 py-1 text-sm font-bold text-[#167c80]">
+                      {person.onTimeRate}% no prazo
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 divide-x text-center">
+                    <div className="p-3">
+                      <p className="text-xl font-bold text-emerald-600">{person.done}</p>
+                      <p className="text-[11px] text-muted-foreground">entregas</p>
+                    </div>
+                    <div className="p-3">
+                      <p className="text-xl font-bold text-amber-600">{person.pending}</p>
+                      <p className="text-[11px] text-muted-foreground">abertas</p>
+                    </div>
+                    <div className="p-3">
+                      <p className="text-xl font-bold text-rose-600">{person.overdue}</p>
+                      <p className="text-[11px] text-muted-foreground">atrasadas</p>
+                    </div>
+                  </div>
+                  <div className="bg-muted/30 px-5 py-3 text-sm">
+                    <span className="font-medium">Leitura:</span>{" "}
+                    <span
+                      className={
+                        person.overdue || withoutDeadline
+                          ? "text-rose-700"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {attention}.
+                    </span>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Card className="p-5 text-sm text-muted-foreground">
+            Não há dados de consultores neste período.
+          </Card>
+        )}
+      </section>
+
+      <section>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-2 text-lg font-semibold">
+              <Swords className="h-5 w-5 text-[#167c80]" /> Leitura por cliente
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Visão compacta da saúde de cada conta, sem precisar abrir cliente por cliente.
+            </p>
+          </div>
+          <Badge variant="outline">{clients.length} cliente(s) com demanda</Badge>
+        </div>
+        {clients.length ? (
+          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {clients.map((client) => (
+              <Card key={client.id} className="overflow-hidden">
+                <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{client.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {client.people} pessoa(s) envolvida(s)
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-[#167c80]">{client.score}</p>
+                    <p className="text-[11px] text-muted-foreground">saúde / 100</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 divide-x text-center">
+                  <div className="p-3">
+                    <p className="text-xl font-bold text-emerald-600">{client.done}</p>
+                    <p className="text-[11px] text-muted-foreground">entregas</p>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-xl font-bold text-amber-600">{client.pending}</p>
+                    <p className="text-[11px] text-muted-foreground">abertas</p>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-xl font-bold text-rose-600">{client.overdue}</p>
+                    <p className="text-[11px] text-muted-foreground">atrasadas</p>
+                  </div>
+                </div>
+                <div className="space-y-1.5 bg-muted/30 px-5 py-3 text-sm">
+                  <p>
+                    <span className="font-medium text-emerald-700">Ponto forte:</span>{" "}
+                    {client.strongPoint}
+                  </p>
+                  <p>
+                    <span className="font-medium text-rose-700">Atenção:</span> {client.blocker}
+                  </p>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="p-5 text-sm text-muted-foreground">
+            Não há clientes com demandas neste período.
+          </Card>
+        )}
+      </section>
+
+      <p className="px-1 text-xs text-muted-foreground">
+        Prévia do briefing automático mensal. No fechamento, a IA usará essas métricas para produzir
+        uma análise editorial salva do período.
+      </p>
+    </div>
+  );
+}
+
 function ReportsPage() {
   const { isAdmin, hasPermission, loading } = useAuth();
   const { data: tasks = [] } = useTasks();
   const { data: profiles = [] } = useProfiles();
   const { data: clients = [] } = useClients();
-  useTaskStatuses();
+  const { data: statuses = [] } = useTaskStatuses();
   const { data: subtasks = [] } = useQuery({
     queryKey: ["subtasks_all"],
     queryFn: async () => {
@@ -323,11 +630,33 @@ function ReportsPage() {
     queryKey: ["roles"],
     queryFn: async () => (await supabase.from("user_roles").select("user_id, role")).data ?? [],
   });
+  const { data: dueDateChanges = [] } = useQuery({
+    queryKey: ["task_due_date_changes_report"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("task_due_date_changes")
+        .select("id, task_id, created_at");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: serviceRequests = [] } = useQuery({
+    queryKey: ["service_requests_report"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("service_requests")
+        .select("id, status, priority, due_date, created_at, resolved_at");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-  const [filter, setFilter] = useState<DateFilter>("all");
+  const [period, setPeriod] = useState(currentMonthPeriod);
   const [userFilter, setUserFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
-  const [reportView, setReportView] = useState<"summary" | "clients" | "team" | "risk">("clients");
+  const [reportView, setReportView] = useState<
+    "briefing" | "summary" | "operations" | "clients" | "team"
+  >("briefing");
 
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
   if (!hasPermission("reports")) return <Navigate to="/mural" />;
@@ -348,10 +677,51 @@ function ReportsPage() {
     .filter((profile) => !clientUserIds.has(profile.id));
   const visibleIds = new Set(visibleProfiles.map((p) => p.id));
 
-  const filteredTasks = tasks
-    .filter((t) => matchDateFilter(t, filter))
-    .filter((t) => userFilter === "all" || t.assignee_id === userFilter)
-    .filter((t) => !t.assignee_id || visibleIds.has(t.assignee_id));
+  const periodStart = startOfDay(parseISO(period.start));
+  const periodEnd = endOfDay(parseISO(period.end));
+  const isDone = (task: { status: string | null; completed_at: string | null }) =>
+    task.status === "done" || Boolean(task.completed_at);
+  const isOverdue = (task: {
+    due_date: string | null;
+    status: string | null;
+    completed_at: string | null;
+  }) =>
+    Boolean(
+      task.due_date && !isDone(task) && isBefore(parseISO(task.due_date), startOfDay(new Date())),
+    );
+
+  // Deliveries are counted by completion date; open work is counted by its
+  // deadline. That makes the team ranking reflect what was actually delivered
+  // in the selected period instead of only what was due then.
+  const taskBelongsToPeriod = (task: any) =>
+    isDone(task)
+      ? dateIsInPeriod(task.completed_at, periodStart, periodEnd)
+      : dateIsInPeriod(task.due_date, periodStart, periodEnd);
+  const periodTasks = tasks
+    .filter(taskBelongsToPeriod)
+    .filter((task) => !task.assignee_id || visibleIds.has(task.assignee_id));
+  const filteredTasks = periodTasks.filter(
+    (task) => userFilter === "all" || task.assignee_id === userFilter,
+  );
+  const periodDays = Math.max(
+    1,
+    Math.round((periodEnd.getTime() - periodStart.getTime()) / (24 * 60 * 60 * 1000)) + 1,
+  );
+  const previousStart = startOfDay(subDays(periodStart, periodDays));
+  const previousEnd = endOfDay(subDays(periodStart, 1));
+  const previousTasks = tasks.filter((task) =>
+    isDone(task)
+      ? dateIsInPeriod(task.completed_at, previousStart, previousEnd)
+      : dateIsInPeriod(task.due_date, previousStart, previousEnd),
+  );
+
+  // Tasks without a deadline are scoped by their creation date. This keeps the
+  // risk view inside the chosen period while still showing the responsible people.
+  const noDueTasks = tasks
+    .filter((task) => !isDone(task) && !task.due_date)
+    .filter((task) => dateIsInPeriod(task.created_at, periodStart, periodEnd))
+    .filter((task) => userFilter === "all" || task.assignee_id === userFilter)
+    .filter((task) => !task.assignee_id || visibleIds.has(task.assignee_id));
 
   const subtasksByTask = (() => {
     const m = new Map<string, { total: number; done: number }>();
@@ -381,46 +751,49 @@ function ReportsPage() {
     total: filteredTasks.length,
     done: filteredTasks.filter((t) => t.status === "done").length,
     pending: filteredTasks.filter((t) => t.status !== "done").length,
-    overdue: filteredTasks.filter((t) => matchDateFilter(t, "overdue")).length,
+    overdue: filteredTasks.filter(isOverdue).length,
     subtasks: sumSubtasks(filteredTasks),
   };
 
-  const perUser = visibleProfiles.map((p) => {
-    const userTasks = tasks
-      .filter((t) => t.assignee_id === p.id)
-      .filter((t) => matchDateFilter(t, filter));
-    const done = userTasks.filter((t) => t.status === "done");
-    const overdue = userTasks.filter((t) => matchDateFilter(t, "overdue"));
-    const onTime = done.filter(
-      (t) =>
-        t.due_date && t.completed_at && !isAfter(parseISO(t.completed_at), parseISO(t.due_date)),
-    ).length;
-    const isAdminRole = roles.some(
-      (r: { user_id: string; role: string }) => r.user_id === p.id && r.role === "admin",
-    );
-    const sub = sumSubtasks(userTasks);
-    return {
-      id: p.id,
-      name: (p.full_name || p.email || "?").slice(0, 14),
-      fullName: p.full_name || p.email,
-      isAdmin: isAdminRole,
-      isActive: (p as any).is_active !== false,
-      total: userTasks.length,
-      done: done.length,
-      pending: userTasks.length - done.length,
-      overdue: overdue.length,
-      onTime,
-      onTimeRate: done.length ? Math.round((onTime / done.length) * 100) : 0,
-      subtasksDone: sub.done,
-      subtasksTotal: sub.total,
-    };
-  });
+  const perUser = visibleProfiles
+    .filter((profile) => userFilter === "all" || profile.id === userFilter)
+    .map((p) => {
+      const userTasks = periodTasks.filter((t) => t.assignee_id === p.id);
+      const done = userTasks.filter((t) => t.status === "done");
+      const overdue = userTasks.filter(isOverdue);
+      const completedWithDeadline = done.filter((t) => t.due_date && t.completed_at);
+      const onTime = completedWithDeadline.filter(
+        (t) =>
+          t.due_date && t.completed_at && !isAfter(parseISO(t.completed_at), parseISO(t.due_date)),
+      ).length;
+      const isAdminRole = roles.some(
+        (r: { user_id: string; role: string }) => r.user_id === p.id && r.role === "admin",
+      );
+      const sub = sumSubtasks(userTasks);
+      return {
+        id: p.id,
+        name: (p.full_name || p.email || "?").slice(0, 14),
+        fullName: p.full_name || p.email,
+        isAdmin: isAdminRole,
+        isActive: (p as any).is_active !== false,
+        total: userTasks.length,
+        done: done.length,
+        pending: userTasks.length - done.length,
+        overdue: overdue.length,
+        onTime,
+        onTimeRate: completedWithDeadline.length
+          ? Math.round((onTime / completedWithDeadline.length) * 100)
+          : 0,
+        subtasksDone: sub.done,
+        subtasksTotal: sub.total,
+      };
+    });
 
   const byClient = clients
     .map((client) => {
       const clientTasks = filteredTasks.filter((task) => task.client_id === client.id);
       const concluded = clientTasks.filter((task) => task.status === "done").length;
-      const overdue = clientTasks.filter((task) => matchDateFilter(task, "overdue")).length;
+      const overdue = clientTasks.filter(isOverdue).length;
       return {
         name: client.name,
         concluídas: concluded,
@@ -438,16 +811,19 @@ function ReportsPage() {
       if (clientTasks.length === 0) return null;
 
       const doneTasks = clientTasks.filter((task) => task.status === "done");
-      const overdue = clientTasks.filter((task) => matchDateFilter(task, "overdue")).length;
+      const overdue = clientTasks.filter(isOverdue).length;
       const unassigned = clientTasks.filter((task) => !task.assignee_id).length;
       const people = new Set(clientTasks.map((task) => task.assignee_id).filter(Boolean)).size;
-      const onTime = doneTasks.filter(
+      const completedWithDeadline = doneTasks.filter((task) => task.due_date && task.completed_at);
+      const onTime = completedWithDeadline.filter(
         (task) =>
           task.due_date &&
           task.completed_at &&
           !isAfter(parseISO(task.completed_at), parseISO(task.due_date)),
       ).length;
-      const onTimeRate = doneTasks.length ? Math.round((onTime / doneTasks.length) * 100) : 0;
+      const onTimeRate = completedWithDeadline.length
+        ? Math.round((onTime / completedWithDeadline.length) * 100)
+        : 0;
       const completionRate = Math.round((doneTasks.length / clientTasks.length) * 100);
       const score = Math.max(
         0,
@@ -484,7 +860,7 @@ function ReportsPage() {
             name: profile?.full_name || profile?.email || "Sem responsável",
             done: consultantTasks.filter((task) => task.status === "done").length,
             pending: consultantTasks.filter((task) => task.status !== "done").length,
-            overdue: consultantTasks.filter((task) => matchDateFilter(task, "overdue")).length,
+            overdue: consultantTasks.filter(isOverdue).length,
           };
         })
         .sort((a, b) => b.done + b.pending - (a.done + a.pending));
@@ -515,31 +891,113 @@ function ReportsPage() {
     avatarUrl: profiles.find((profile) => profile.id === person.id)?.avatar_url ?? null,
   }));
 
-  const unassignedTasks = filteredTasks.filter((t) => !t.assignee_id);
-  const unassignedRow =
-    unassignedTasks.length > 0
-      ? {
-          id: "__unassigned__",
-          name: "Sem responsável",
-          fullName: "Sem responsável",
-          isAdmin: false,
-          isActive: true,
-          total: unassignedTasks.length,
-          done: unassignedTasks.filter((t) => t.status === "done").length,
-          pending: unassignedTasks.filter((t) => t.status !== "done").length,
-          overdue: unassignedTasks.filter((t) => matchDateFilter(t, "overdue")).length,
-          onTime: 0,
-          onTimeRate: 0,
-        }
-      : null;
+  const peopleWithoutDeadline = Array.from(
+    new Set(noDueTasks.map((task) => task.assignee_id ?? "__unassigned__")),
+  )
+    .map((assigneeId) => {
+      const personTasks = noDueTasks.filter(
+        (task) => (task.assignee_id ?? "__unassigned__") === assigneeId,
+      );
+      const profile = profiles.find((candidate) => candidate.id === assigneeId);
+      return {
+        id: assigneeId,
+        name: profile?.full_name || profile?.email || "Sem responsável",
+        tasks: personTasks,
+      };
+    })
+    .sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name));
 
+  const statusFlow = statuses
+    .map((status) => ({
+      name: status.name,
+      total: filteredTasks.filter((task) => task.status_id === status.id).length,
+      color: status.color || "#64748b",
+    }))
+    .filter((item) => item.total > 0);
+  const priorityData = [
+    {
+      name: "Urgente",
+      value: filteredTasks.filter((task) => !isDone(task) && task.priority === "urgent").length,
+      color: "#dc2626",
+    },
+    {
+      name: "Alta",
+      value: filteredTasks.filter((task) => !isDone(task) && task.priority === "high").length,
+      color: "#f59e0b",
+    },
+    {
+      name: "Média",
+      value: filteredTasks.filter((task) => !isDone(task) && task.priority === "medium").length,
+      color: "#2563eb",
+    },
+    {
+      name: "Baixa",
+      value: filteredTasks.filter((task) => !isDone(task) && task.priority === "low").length,
+      color: "#64748b",
+    },
+  ];
+  const capacityRows = perUser
+    .map((person) => {
+      const personTasks = filteredTasks.filter(
+        (task) => task.assignee_id === person.id && !isDone(task),
+      );
+      return {
+        ...person,
+        open: personTasks.length,
+        critical: personTasks.filter(
+          (task) => task.priority === "urgent" || task.priority === "high",
+        ).length,
+      };
+    })
+    .sort((a, b) => b.open - a.open || b.critical - a.critical);
+  const dueDateChangesInPeriod = dueDateChanges.filter((change) =>
+    dateIsInPeriod(change.created_at, periodStart, periodEnd),
+  ).length;
+  const completedInPreviousPeriod = previousTasks.filter(isDone).length;
+  const createdInPeriod = tasks.filter((task) =>
+    dateIsInPeriod(task.created_at, periodStart, periodEnd),
+  ).length;
+  const createdInPreviousPeriod = tasks.filter((task) =>
+    dateIsInPeriod(task.created_at, previousStart, previousEnd),
+  ).length;
+  const requestMetrics = (() => {
+    const created = serviceRequests.filter((request) =>
+      dateIsInPeriod(request.created_at, periodStart, periodEnd),
+    );
+    const resolved = serviceRequests.filter((request) =>
+      dateIsInPeriod(request.resolved_at, periodStart, periodEnd),
+    );
+    const overdue = serviceRequests.filter(
+      (request) =>
+        request.status !== "resolved" &&
+        request.due_date &&
+        isBefore(parseISO(request.due_date), startOfDay(new Date())),
+    );
+    const resolutionHours = resolved
+      .filter((request) => request.resolved_at)
+      .map(
+        (request) =>
+          (parseISO(request.resolved_at!).getTime() - parseISO(request.created_at).getTime()) /
+          3_600_000,
+      );
+    return {
+      created: created.length,
+      resolved: resolved.length,
+      overdue: overdue.length,
+      averageHours: resolutionHours.length
+        ? Math.round(
+            resolutionHours.reduce((sum, hours) => sum + hours, 0) / resolutionHours.length,
+          )
+        : null,
+    };
+  })();
   return (
     <div className="space-y-6 p-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Relatórios</h1>
           <p className="text-sm text-muted-foreground">
-            Indicadores detalhados por usuário e papel
+            Visão macro de entregas, pendências e riscos da operação
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -570,7 +1028,51 @@ function ReportsPage() {
         </div>
       </header>
 
-      <DateFilterBar value={filter} onChange={setFilter} />
+      <Card className="flex flex-wrap items-end justify-between gap-3 p-4">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <CalendarRange className="h-4 w-4 text-[#167c80]" /> Período analisado
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {format(periodStart, "d 'de' MMMM 'de' yyyy", { locale: ptBR })} até{" "}
+            {format(periodEnd, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="space-y-1 text-xs text-muted-foreground">
+            Início
+            <Input
+              type="date"
+              value={period.start}
+              max={period.end}
+              onChange={(event) =>
+                setPeriod((current) => ({ ...current, start: event.target.value }))
+              }
+              className="h-9 w-36"
+            />
+          </label>
+          <label className="space-y-1 text-xs text-muted-foreground">
+            Fim
+            <Input
+              type="date"
+              value={period.end}
+              min={period.start}
+              onChange={(event) =>
+                setPeriod((current) => ({ ...current, end: event.target.value }))
+              }
+              className="h-9 w-36"
+            />
+          </label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setPeriod(currentMonthPeriod)}
+          >
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Mês vigente
+          </Button>
+        </div>
+      </Card>
 
       <div
         className="flex max-w-full overflow-x-auto border-b"
@@ -578,10 +1080,11 @@ function ReportsPage() {
         aria-label="Visões dos relatórios"
       >
         {[
+          ["briefing", "Briefing mensal"],
           ["summary", "Resumo"],
+          ["operations", "Operação"],
           ["clients", "Desempenho por cliente"],
           ["team", "Ranking da equipe"],
-          ["risk", "Pessoas em risco"],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -614,8 +1117,199 @@ function ReportsPage() {
         />
       </div>
 
+      <div className={reportView === "briefing" ? "block" : "hidden"}>
+        <MonthlyBriefingPanel
+          periodLabel={format(periodStart, "MMMM 'de' yyyy", { locale: ptBR })}
+          totals={totals}
+          created={createdInPeriod}
+          previousCompleted={completedInPreviousPeriod}
+          team={perUser}
+          clients={clientPerformance}
+          peopleWithoutDeadline={peopleWithoutDeadline}
+        />
+      </div>
+
       <div className={reportView === "clients" ? "block" : "hidden"}>
         <ClientBattlePanel clients={clientPerformance} />
+      </div>
+
+      <div className={reportView === "operations" ? "space-y-4" : "hidden"}>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Kpi
+            label="Entradas no período"
+            value={createdInPeriod}
+            icon={ArrowDownUp}
+            color="#2563eb"
+          />
+          <Kpi label="Entregas no período" value={totals.done} icon={TrendingUp} color="#059669" />
+          <Kpi
+            label="Alterações de prazo"
+            value={dueDateChangesInPeriod}
+            icon={Clock}
+            color="#d97706"
+          />
+          <Kpi
+            label="Solicitações vencidas"
+            value={requestMetrics.overdue}
+            icon={TicketCheck}
+            color="#dc2626"
+          />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card className="p-5">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="flex items-center gap-2 font-semibold">
+                  <ArrowDownUp className="h-4 w-4 text-[#167c80]" /> Entrada × saída
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Compara o período selecionado com o período imediatamente anterior de mesma
+                  duração.
+                </p>
+              </div>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer>
+                <BarChart
+                  data={[
+                    {
+                      period: "Anterior",
+                      entradas: createdInPreviousPeriod,
+                      entregas: completedInPreviousPeriod,
+                    },
+                    { period: "Selecionado", entradas: createdInPeriod, entregas: totals.done },
+                  ]}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="period" fontSize={11} />
+                  <YAxis allowDecimals={false} fontSize={11} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar
+                    dataKey="entradas"
+                    name="Tarefas criadas"
+                    fill="#2563eb"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="entregas"
+                    name="Tarefas concluídas"
+                    fill="#059669"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="flex items-center gap-2 font-semibold">
+              <Gauge className="h-4 w-4 text-[#167c80]" /> Fluxo atual por etapa
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Volume de trabalho que está em cada etapa no período.
+            </p>
+            <div className="mt-5 space-y-4">
+              {statusFlow.length ? (
+                statusFlow.map((item) => (
+                  <div key={item.name}>
+                    <div className="mb-1.5 flex justify-between text-sm">
+                      <span>{item.name}</span>
+                      <span className="font-semibold">{item.total}</span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(4, (item.total / Math.max(filteredTasks.length, 1)) * 100)}%`,
+                          backgroundColor: item.color,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhuma tarefa no período.</p>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+          <Card className="overflow-hidden">
+            <div className="border-b px-5 py-4">
+              <h2 className="flex items-center gap-2 font-semibold">
+                <UsersRound className="h-4 w-4 text-[#167c80]" /> Capacidade da equipe
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Carga aberta no período, destacando prioridades alta e urgente.
+              </p>
+            </div>
+            <div className="divide-y">
+              {capacityRows.map((person) => (
+                <div
+                  key={person.id}
+                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 px-5 py-3.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{person.fullName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {person.done} entrega(s) concluída(s)
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold">{person.open}</p>
+                    <p className="text-xs text-muted-foreground">em aberto</p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={
+                      person.critical
+                        ? "border-rose-200 bg-rose-50 text-rose-700"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {person.critical} crítica(s)
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="flex items-center gap-2 font-semibold">
+              <Flame className="h-4 w-4 text-[#dc2626]" /> Prioridades abertas
+            </h2>
+            <div className="mt-5 space-y-4">
+              {priorityData.map((item) => (
+                <div key={item.name} className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 text-sm">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    {item.name}
+                  </span>
+                  <span className="text-xl font-bold">{item.value}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 border-t pt-4 text-sm text-muted-foreground">
+              <p className="flex items-center gap-2 font-medium text-foreground">
+                <Timer className="h-4 w-4 text-[#167c80]" /> Solicitações
+              </p>
+              <p className="mt-2">
+                {requestMetrics.created} abertas · {requestMetrics.resolved} resolvidas
+              </p>
+              <p className="mt-1">
+                {requestMetrics.averageHours === null
+                  ? "Ainda não há tempo médio de resolução no período."
+                  : `Tempo médio até solução: ${requestMetrics.averageHours}h.`}
+              </p>
+            </div>
+          </Card>
+        </div>
       </div>
 
       <div className={reportView === "summary" ? "grid gap-4 lg:grid-cols-2" : "hidden"}>
@@ -697,23 +1391,6 @@ function ReportsPage() {
         <TeamRankingPanel members={teamRanking} />
         <UserTable title="Administradores" icon={ShieldCheck} rows={admins} />
         <UserTable title="Colaboradores" rows={members} icon={UserIcon} />
-      </div>
-
-      <div className={reportView === "risk" ? "block" : "hidden"}>
-        {unassignedRow ? (
-          <Card className="p-4">
-            <h3 className="mb-3 font-semibold text-amber-700">Tarefas sem responsável</h3>
-            <p className="mb-2 text-xs text-muted-foreground">
-              Existem {unassignedRow.total} tarefa(s) sem responsável atribuído (
-              {unassignedRow.done} concluída(s), {unassignedRow.pending} pendente(s)). Atribua um
-              responsável para que apareçam nos relatórios por usuário.
-            </p>
-          </Card>
-        ) : (
-          <Card className="p-4 text-sm text-muted-foreground">
-            Nenhuma tarefa sem responsável no período.
-          </Card>
-        )}
       </div>
 
       <div className={reportView === "summary" ? "block" : "hidden"}>
