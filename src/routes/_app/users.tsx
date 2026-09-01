@@ -57,6 +57,7 @@ type FormState = {
   role: Role;
   permissions: string[];
   clientId: string;
+  marketingAccess: boolean;
 };
 const defaults: FormState = {
   fullName: "",
@@ -78,6 +79,7 @@ const defaults: FormState = {
     "settings",
   ],
   clientId: "",
+  marketingAccess: false,
 };
 const roleLabel: Record<Role, string> = {
   admin: "Administrador",
@@ -138,6 +140,7 @@ function AccessForm({
                 e.target.value === "client"
                   ? ["portal_entregas", "portal_financeiro"]
                   : value.permissions,
+              marketingAccess: e.target.value === "client" ? false : value.marketingAccess,
             })
           }
         >
@@ -146,6 +149,26 @@ function AccessForm({
           <option value="admin">Administrador</option>
         </select>
       </div>
+      {includeCredentials && (
+        <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border p-3">
+          <span>
+            <span className="block text-sm font-medium">Liberar ambiente Marketing</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              {value.role === "client"
+                ? "Contas de cliente permanecem vinculadas à Consultoria."
+                : "O novo usuário entra somente no Marketing, sem acesso à Consultoria."}
+            </span>
+          </span>
+          <Checkbox
+            className="mt-0.5"
+            checked={value.marketingAccess}
+            disabled={value.role === "client"}
+            onCheckedChange={(checked) =>
+              onChange({ ...value, marketingAccess: checked === true })
+            }
+          />
+        </label>
+      )}
       {value.role === "client" && (
         <div className="space-y-2">
           <Label>Cliente vinculado</Label>
@@ -254,6 +277,27 @@ function UsersPage() {
       ((await (supabase.from("user_permissions") as any).select("user_id, permissions")).data ??
         []) as { user_id: string; permissions: string[] }[],
   });
+  const { data: workspaceRows = [] } = useQuery({
+    queryKey: ["workspaces_for_access"],
+    queryFn: async () =>
+      ((await (supabase.from("workspaces") as any).select("id, slug, name")).data ?? []) as Array<{
+        id: string;
+        slug: string;
+        name: string;
+      }>,
+  });
+  const marketingWorkspace = workspaceRows.find((workspace) => workspace.slug === "marketing");
+  const { data: marketingMembers = [] } = useQuery({
+    queryKey: ["marketing_members", marketingWorkspace?.id],
+    enabled: !!marketingWorkspace?.id,
+    queryFn: async () =>
+      ((await (supabase.from("workspace_memberships") as any)
+        .select("user_id, access_grant")
+        .eq("workspace_id", marketingWorkspace!.id)).data ?? []) as Array<{
+        user_id: string;
+        access_grant: "manual" | "admin_policy";
+      }>,
+  });
   const invokeAccessManager = async (
     action: "create" | "update" | "delete",
     data: Record<string, unknown>,
@@ -287,6 +331,7 @@ function UsersPage() {
     qc.invalidateQueries({ queryKey: ["roles"] });
     qc.invalidateQueries({ queryKey: ["user_permissions"] });
     qc.invalidateQueries({ queryKey: ["client_user_links"] });
+    qc.invalidateQueries({ queryKey: ["marketing_members"] });
   };
   const createMutation = useMutation({
     mutationFn: () => invokeAccessManager("create", form),
@@ -314,6 +359,23 @@ function UsersPage() {
       toast.success("Acessos atualizados.");
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao atualizar acessos"),
+  });
+  const refreshMarketingAccess = () => {
+    qc.invalidateQueries({ queryKey: ["marketing_members"] });
+  };
+  const setMarketingAccess = useMutation({
+    mutationFn: async ({ userId, enabled }: { userId: string; enabled: boolean }) => {
+      const { error } = await (supabase as any).rpc("set_marketing_user_access", {
+        target_user_id: userId,
+        enabled,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      refreshMarketingAccess();
+      toast.success(variables.enabled ? "Marketing liberado para este usuário." : "Marketing removido deste usuário.");
+    },
+    onError: (error: any) => toast.error(error?.message ?? "Não foi possível atualizar o acesso ao Marketing."),
   });
   const setActive = useMutation({
     mutationFn: async ({ userId, active }: { userId: string; active: boolean }) => {
@@ -387,6 +449,10 @@ function UsersPage() {
     const role = (roles.find((r: { user_id: string; role: string }) => r.user_id === p.id)?.role ??
       "collaborator") as Role;
     const self = p.id === user?.id;
+    const marketingMembership = marketingMembers.find((member) => member.user_id === p.id);
+    const ownerOfMarketing = p.email?.trim().toLowerCase() === "reinangrupoahouse@gmail.com";
+    const canManageMarketing = role === "admin" || role === "collaborator";
+    const canToggleMarketing = canManageMarketing && !ownerOfMarketing;
     return (
       <Card key={p.id} className="p-4">
         <div className="flex items-center gap-3">
@@ -413,6 +479,36 @@ function UsersPage() {
           <Badge variant={role === "admin" ? "default" : "secondary"}>{roleLabel[role]}</Badge>
           {self && <Badge variant="outline">Você</Badge>}
         </div>
+        {canManageMarketing && (
+          <div className="mt-3 rounded-xl border bg-muted/20 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Ambiente Marketing</p>
+                <p className="text-xs text-muted-foreground">
+                  {ownerOfMarketing
+                    ? "Responsável pelo ambiente"
+                    : marketingMembership
+                      ? "Acesso liberado individualmente"
+                      : "Sem acesso a este ambiente"}
+                </p>
+              </div>
+              {canToggleMarketing ? (
+                <Button
+                  size="sm"
+                  variant={marketingMembership ? "outline" : "default"}
+                  disabled={setMarketingAccess.isPending}
+                  onClick={() =>
+                    setMarketingAccess.mutate({ userId: p.id, enabled: !marketingMembership })
+                  }
+                >
+                  {marketingMembership ? "Remover" : "Liberar"}
+                </Button>
+              ) : (
+                <Badge variant="secondary">Liberado</Badge>
+              )}
+            </div>
+          </div>
+        )}
         <div className="mt-3 border-t pt-3">
           <Button size="sm" variant="outline" className="w-full" onClick={() => openEdit(p.id)}>
             Definir categoria e acessos

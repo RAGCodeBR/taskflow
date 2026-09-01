@@ -64,7 +64,7 @@ function Environments() {
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 {marketing
-                  ? "Marketing começa limpo, sem os clientes, tarefas ou registros da Consultoria."
+                  ? "Marketing usa a mesma carteira de clientes, mas começa sem tarefas ou registros da Consultoria."
                   : "Todos os registros já existentes do TaskFlow permanecem neste ambiente."}
               </p>
               <div className="mt-6 flex items-center justify-between border-t pt-4 text-sm text-muted-foreground">

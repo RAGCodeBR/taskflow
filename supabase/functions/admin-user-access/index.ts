@@ -9,6 +9,7 @@ const corsHeaders = {
 const allAdminPermissions = [
   "dashboard",
   "tasks",
+  "requests",
   "import_ata",
   "clients",
   "reports",
@@ -24,6 +25,7 @@ const clientPermissions = ["portal_entregas", "portal_financeiro"];
 const validPermissions = new Set([
   "dashboard",
   "tasks",
+  "requests",
   "import_ata",
   "clients",
   "reports",
@@ -88,6 +90,8 @@ Deno.serve(async (request) => {
       return response({ error: "Categoria de acesso inválida." }, 400);
     if (action !== "delete" && role === "client" && !validUuid(data.clientId))
       return response({ error: "Selecione o cliente que será vinculado a este acesso." }, 400);
+    if (action === "create" && data.marketingAccess === true && role === "client")
+      return response({ error: "O acesso de cliente deve permanecer vinculado à Consultoria." }, 400);
     const permissions =
       action === "delete"
         ? []
@@ -149,6 +153,43 @@ Deno.serve(async (request) => {
           .from("client_user_links")
           .upsert({ user_id: created.user.id, client_id: data.clientId });
         if (linkError) throw linkError;
+      }
+      if (data.marketingAccess === true) {
+        const { data: marketingWorkspace, error: marketingWorkspaceError } = await admin
+          .from("workspaces")
+          .select("id")
+          .eq("slug", "marketing")
+          .single();
+        if (marketingWorkspaceError || !marketingWorkspace) {
+          throw marketingWorkspaceError ?? new Error("Ambiente Marketing não encontrado.");
+        }
+        const { data: consultoriaWorkspace, error: consultoriaWorkspaceError } = await admin
+          .from("workspaces")
+          .select("id")
+          .eq("slug", "consultoria")
+          .single();
+        if (consultoriaWorkspaceError || !consultoriaWorkspace) {
+          throw consultoriaWorkspaceError ?? new Error("Ambiente Consultoria não encontrado.");
+        }
+        const { error: membershipError } = await admin.from("workspace_memberships").upsert({
+          workspace_id: marketingWorkspace.id,
+          user_id: created.user.id,
+          role,
+          permissions,
+          access_grant: "manual",
+        });
+        if (membershipError) throw membershipError;
+        const { error: removeConsultoriaMembershipError } = await admin
+          .from("workspace_memberships")
+          .delete()
+          .eq("workspace_id", consultoriaWorkspace.id)
+          .eq("user_id", created.user.id);
+        if (removeConsultoriaMembershipError) throw removeConsultoriaMembershipError;
+        const { error: activeWorkspaceError } = await admin
+          .from("profiles")
+          .update({ active_workspace_id: marketingWorkspace.id })
+          .eq("id", created.user.id);
+        if (activeWorkspaceError) throw activeWorkspaceError;
       }
       return response({ userId: created.user.id });
     }

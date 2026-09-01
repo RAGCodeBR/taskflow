@@ -118,6 +118,9 @@ ALTER TABLE public.workspace_memberships ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.workspaces, public.workspace_memberships TO authenticated;
 GRANT ALL ON public.workspaces, public.workspace_memberships TO service_role;
 
+DROP POLICY IF EXISTS workspaces_select_member ON public.workspaces;
+DROP POLICY IF EXISTS memberships_select_own_or_admin ON public.workspace_memberships;
+DROP POLICY IF EXISTS memberships_admin_manage ON public.workspace_memberships;
 CREATE POLICY workspaces_select_member ON public.workspaces FOR SELECT TO authenticated
   USING (EXISTS (SELECT 1 FROM public.workspace_memberships m WHERE m.workspace_id = id AND m.user_id = auth.uid()));
 CREATE POLICY memberships_select_own_or_admin ON public.workspace_memberships FOR SELECT TO authenticated

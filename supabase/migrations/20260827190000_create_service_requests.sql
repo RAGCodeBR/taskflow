@@ -119,6 +119,23 @@ ALTER TABLE public.service_request_attachments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.service_request_activity ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.service_requests, public.service_request_messages, public.service_request_participants, public.service_request_assignees, public.service_request_attachments, public.service_request_activity TO authenticated;
 
+DROP POLICY IF EXISTS service_requests_read ON public.service_requests;
+DROP POLICY IF EXISTS service_requests_create ON public.service_requests;
+DROP POLICY IF EXISTS service_requests_update ON public.service_requests;
+DROP POLICY IF EXISTS service_requests_delete ON public.service_requests;
+DROP POLICY IF EXISTS service_request_messages_read ON public.service_request_messages;
+DROP POLICY IF EXISTS service_request_messages_create ON public.service_request_messages;
+DROP POLICY IF EXISTS service_request_messages_delete ON public.service_request_messages;
+DROP POLICY IF EXISTS service_request_participants_read ON public.service_request_participants;
+DROP POLICY IF EXISTS service_request_participants_write ON public.service_request_participants;
+DROP POLICY IF EXISTS service_request_assignees_read ON public.service_request_assignees;
+DROP POLICY IF EXISTS service_request_assignees_write ON public.service_request_assignees;
+DROP POLICY IF EXISTS service_request_attachments_read ON public.service_request_attachments;
+DROP POLICY IF EXISTS service_request_attachments_create ON public.service_request_attachments;
+DROP POLICY IF EXISTS service_request_attachments_delete ON public.service_request_attachments;
+DROP POLICY IF EXISTS service_request_activity_read ON public.service_request_activity;
+DROP POLICY IF EXISTS service_request_activity_create ON public.service_request_activity;
+
 CREATE POLICY service_requests_read ON public.service_requests FOR SELECT TO authenticated USING (public.can_access_service_request(id));
 -- `created_by` is assigned by trg_service_requests_creator.  The RLS check
 -- only needs to assert that this is an authenticated application request;
@@ -145,6 +162,9 @@ CREATE POLICY service_request_activity_create ON public.service_request_activity
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
 VALUES ('service-request-attachments', 'service-request-attachments', false, 52428800)
 ON CONFLICT (id) DO UPDATE SET file_size_limit = EXCLUDED.file_size_limit;
+DROP POLICY IF EXISTS service_request_files_read ON storage.objects;
+DROP POLICY IF EXISTS service_request_files_upload ON storage.objects;
+DROP POLICY IF EXISTS service_request_files_delete ON storage.objects;
 CREATE POLICY service_request_files_read ON storage.objects FOR SELECT TO authenticated
 USING (bucket_id = 'service-request-attachments');
 CREATE POLICY service_request_files_upload ON storage.objects FOR INSERT TO authenticated
