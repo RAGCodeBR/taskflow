@@ -80,12 +80,14 @@ Deno.serve(async (request) => {
     if (roleError) throw roleError;
     if (!callerRoles?.some((item) => item.role === "admin"))
       return response({ error: "Somente administradores podem gerenciar acessos." }, 403);
+    const isMarketingManager = authData.user.email?.trim().toLowerCase() === marketingManagerEmail;
+    if (!isMarketingManager)
+      return response({ error: "Somente o responsável pode gerenciar os acessos de usuários." }, 403);
 
     const payload = await request.json();
     const action = payload?.action;
     const data = payload?.data ?? {};
     const role = data.role;
-    const isMarketingManager = authData.user.email?.trim().toLowerCase() === marketingManagerEmail;
     if (!["create", "update", "delete"].includes(action))
       return response({ error: "Ação inválida." }, 400);
     if (action !== "delete" && !["admin", "collaborator", "client"].includes(role))
@@ -94,23 +96,6 @@ Deno.serve(async (request) => {
       return response({ error: "Selecione o cliente que será vinculado a este acesso." }, 400);
     if (action === "create" && data.marketingAccess === true && role === "client")
       return response({ error: "O acesso de cliente deve permanecer vinculado à Consultoria." }, 400);
-    if (action === "create" && role === "admin" && !isMarketingManager)
-      return response({ error: "Somente o responsável pode criar acessos de administrador." }, 403);
-
-    // Other administrators may manage collaborators and clients, but they must
-    // never be able to promote, edit, deactivate, or delete another admin.
-    if ((action === "update" || action === "delete") && !isMarketingManager) {
-      if (!validUuid(data.userId)) return response({ error: "Usuário inválido." }, 400);
-      const { data: targetRoles, error: targetRoleError } = await admin
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", data.userId);
-      if (targetRoleError) throw targetRoleError;
-      const targetIsAdmin = targetRoles?.some((item) => item.role === "admin");
-      if (targetIsAdmin || (action === "update" && role === "admin")) {
-        return response({ error: "Somente o responsável pode alterar acessos de administrador." }, 403);
-      }
-    }
     const permissions =
       action === "delete"
         ? []

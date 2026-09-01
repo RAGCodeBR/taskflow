@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useClients, useProfiles } from "@/hooks/use-data";
 import { Card } from "@/components/ui/card";
@@ -455,7 +455,7 @@ function UsersPage() {
     const ownerOfMarketing = canManageMarketingAccess(p.email);
     const canManageMarketing = role === "admin" || role === "collaborator";
     const canToggleMarketing = isMarketingManager && canManageMarketing && !ownerOfMarketing;
-    const canManageAdminRecord = isMarketingManager || role !== "admin";
+    const canManageUser = isMarketingManager;
     return (
       <Card key={p.id} className="p-4">
         <div className="flex items-center gap-3">
@@ -515,16 +515,20 @@ function UsersPage() {
           </div>
         )}
         <div className="mt-3 border-t pt-3">
-          {canManageAdminRecord ? (
+          {canManageUser ? (
             <Button size="sm" variant="outline" className="w-full" onClick={() => openEdit(p.id)}>
               Definir categoria e acessos
             </Button>
+          ) : self ? (
+            <Button asChild size="sm" variant="outline" className="w-full">
+              <Link to="/settings">Editar meu perfil</Link>
+            </Button>
           ) : (
             <p className="text-center text-xs text-muted-foreground">
-              Acesso administrativo gerenciado pelo responsável.
+              Acessos são gerenciados pelo responsável.
             </p>
           )}
-          {!self && canManageAdminRecord && (
+          {!self && canManageUser && (
             <>
               <Button
                 size="sm"
@@ -562,28 +566,30 @@ function UsersPage() {
             Crie logins e defina os acessos de cada usuário.
           </p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> Novo usuário
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Criar acesso</DialogTitle>
-              <DialogDescription>
-                O usuário receberá um convite por e-mail para criar a própria senha e ativar o
-                acesso.
-              </DialogDescription>
-            </DialogHeader>
-            <AccessForm value={form} onChange={setForm} includeCredentials />
-            <DialogFooter>
-              <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
-                {createMutation.isPending ? "Enviando…" : "Enviar convite"}
+        {isMarketingManager && (
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> Novo usuário
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Criar acesso</DialogTitle>
+                <DialogDescription>
+                  O usuário receberá um convite por e-mail para criar a própria senha e ativar o
+                  acesso.
+                </DialogDescription>
+              </DialogHeader>
+              <AccessForm value={form} onChange={setForm} includeCredentials />
+              <DialogFooter>
+                <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
+                  {createMutation.isPending ? "Enviando…" : "Enviar convite"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </header>
       <div className="space-y-3">
         {activeProfilesByRole.map(({ role, label, profiles: roleProfiles }) => (
@@ -612,7 +618,7 @@ function UsersPage() {
           </Collapsible>
         ))}
       </div>
-      {inactiveProfiles.length > 0 && (
+      {isMarketingManager && inactiveProfiles.length > 0 && (
         <div>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
             <Archive className="h-4 w-4" /> Desativados ({inactiveProfiles.length})
