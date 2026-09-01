@@ -92,10 +92,12 @@ function AccessForm({
   value,
   onChange,
   includeCredentials = false,
+  marketingOnly = false,
 }: {
   value: FormState;
   onChange: (next: FormState) => void;
   includeCredentials?: boolean;
+  marketingOnly?: boolean;
 }) {
   const { data: clients = [] } = useClients();
   const toggle = (permission: string) =>
@@ -133,6 +135,7 @@ function AccessForm({
         <select
           className="h-10 w-full rounded-md border bg-background px-3 text-sm"
           value={value.role}
+          disabled={marketingOnly}
           onChange={(e) =>
             onChange({
               ...value,
@@ -145,12 +148,12 @@ function AccessForm({
             })
           }
         >
-          <option value="collaborator">Colaboradores</option>
-          <option value="client">Cliente</option>
-          <option value="admin">Administrador</option>
+          <option value="collaborator">Colaborador</option>
+          {!marketingOnly && <option value="client">Cliente</option>}
+          {!marketingOnly && <option value="admin">Administrador</option>}
         </select>
       </div>
-      {includeCredentials && (
+      {includeCredentials && !marketingOnly && (
         <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border p-3">
           <span>
             <span className="block text-sm font-medium">Liberar ambiente Marketing</span>
@@ -248,7 +251,8 @@ function UserDetailsForm({
 }
 
 function UsersPage() {
-  const { isAdmin, user, loading } = useAuth();
+  const { isAdmin, user, loading, activeWorkspace } = useAuth();
+  const inMarketing = activeWorkspace?.slug === "marketing";
   const qc = useQueryClient();
   const { data: profiles = [] } = useProfiles();
   const { data: profileEmails = [] } = useQuery({
@@ -299,12 +303,20 @@ function UsersPage() {
         access_grant: "manual" | "admin_policy";
       }>,
   });
+  const { data: currentWorkspaceMembers = [] } = useQuery({
+    queryKey: ["current_workspace_members", activeWorkspace?.id],
+    enabled: !!activeWorkspace?.id,
+    queryFn: async () =>
+      ((await (supabase.from("workspace_memberships") as any)
+        .select("user_id")
+        .eq("workspace_id", activeWorkspace!.id)).data ?? []) as Array<{ user_id: string }>,
+  });
   const invokeAccessManager = async (
     action: "create" | "update" | "delete",
     data: Record<string, unknown>,
   ) => {
     const { data: result, error } = await supabase.functions.invoke("admin-user-access", {
-      body: { action, data },
+      body: { action, data: { ...data, workspaceSlug: activeWorkspace?.slug } },
     });
     if (error) {
       const details = await error.context
@@ -333,9 +345,14 @@ function UsersPage() {
     qc.invalidateQueries({ queryKey: ["user_permissions"] });
     qc.invalidateQueries({ queryKey: ["client_user_links"] });
     qc.invalidateQueries({ queryKey: ["marketing_members"] });
+    qc.invalidateQueries({ queryKey: ["current_workspace_members"] });
   };
   const createMutation = useMutation({
-    mutationFn: () => invokeAccessManager("create", form),
+    mutationFn: () =>
+      invokeAccessManager(
+        "create",
+        inMarketing ? { ...form, role: "collaborator", marketingAccess: true } : form,
+      ),
     onSuccess: () => {
       refresh();
       setCreateOpen(false);
@@ -363,6 +380,7 @@ function UsersPage() {
   });
   const refreshMarketingAccess = () => {
     qc.invalidateQueries({ queryKey: ["marketing_members"] });
+    qc.invalidateQueries({ queryKey: ["current_workspace_members"] });
   };
   const setMarketingAccess = useMutation({
     mutationFn: async ({ userId, enabled }: { userId: string; enabled: boolean }) => {
@@ -405,13 +423,23 @@ function UsersPage() {
     );
     return profiles.map((profile) => ({ ...profile, email: emailsById.get(profile.id) ?? null }));
   }, [profiles, profileEmails]);
+  const workspaceMemberIds = useMemo(
+    () => new Set(currentWorkspaceMembers.map((member) => member.user_id)),
+    [currentWorkspaceMembers],
+  );
   const activeProfiles = useMemo(
-    () => profilesWithEmails.filter((p) => (p as any).is_active !== false),
-    [profilesWithEmails],
+    () =>
+      profilesWithEmails.filter(
+        (p) => workspaceMemberIds.has(p.id) && (p as any).is_active !== false,
+      ),
+    [profilesWithEmails, workspaceMemberIds],
   );
   const inactiveProfiles = useMemo(
-    () => profilesWithEmails.filter((p) => (p as any).is_active === false),
-    [profilesWithEmails],
+    () =>
+      profilesWithEmails.filter(
+        (p) => workspaceMemberIds.has(p.id) && (p as any).is_active === false,
+      ),
+    [profilesWithEmails, workspaceMemberIds],
   );
   const activeProfilesByRole = useMemo(() => {
     const byRole: Record<Role, any[]> = { admin: [], collaborator: [], client: [] };
@@ -452,10 +480,11 @@ function UsersPage() {
       "collaborator") as Role;
     const self = p.id === user?.id;
     const marketingMembership = marketingMembers.find((member) => member.user_id === p.id);
-    const ownerOfMarketing = canManageMarketingAccess(p.email);
     const canManageMarketing = role === "admin" || role === "collaborator";
-    const canToggleMarketing = isMarketingManager && canManageMarketing && !ownerOfMarketing;
-    const canManageUser = isMarketingManager;
+    const canToggleMarketing = inMarketing && role === "collaborator";
+    const canEditUser = isMarketingManager || (inMarketing && role === "collaborator");
+    const canDeactivateUser = isMarketingManager;
+    const canDeleteUser = isMarketingManager || (inMarketing && role === "collaborator");
     return (
       <Card key={p.id} className="p-4">
         <div className="flex items-center gap-3">
@@ -482,16 +511,16 @@ function UsersPage() {
           <Badge variant={role === "admin" ? "default" : "secondary"}>{roleLabel[role]}</Badge>
           {self && <Badge variant="outline">Você</Badge>}
         </div>
-        {canManageMarketing && (
+        {inMarketing && canManageMarketing && (
           <div className="mt-3 rounded-xl border bg-muted/20 px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium">Ambiente Marketing</p>
                 <p className="text-xs text-muted-foreground">
-                  {ownerOfMarketing
-                    ? "Responsável pelo ambiente"
+                  {role === "admin"
+                    ? "Acesso administrativo obrigatório"
                     : marketingMembership
-                      ? "Acesso liberado individualmente"
+                      ? "Colaborador próprio do Marketing"
                       : "Sem acesso a este ambiente"}
                 </p>
               </div>
@@ -506,8 +535,8 @@ function UsersPage() {
                 >
                   {marketingMembership ? "Remover" : "Liberar"}
                 </Button>
-              ) : ownerOfMarketing ? (
-                <Badge variant="secondary">Responsável</Badge>
+              ) : role === "admin" ? (
+                <Badge variant="secondary">Administrador</Badge>
               ) : (
                 <Badge variant="secondary">Gerenciado</Badge>
               )}
@@ -515,7 +544,7 @@ function UsersPage() {
           </div>
         )}
         <div className="mt-3 border-t pt-3">
-          {canManageUser ? (
+          {canEditUser ? (
             <Button size="sm" variant="outline" className="w-full" onClick={() => openEdit(p.id)}>
               Definir categoria e acessos
             </Button>
@@ -528,7 +557,7 @@ function UsersPage() {
               Acessos são gerenciados pelo responsável.
             </p>
           )}
-          {!self && canManageUser && (
+          {!self && canDeactivateUser && (
             <>
               <Button
                 size="sm"
@@ -538,7 +567,10 @@ function UsersPage() {
               >
                 <UserX className="mr-1 h-3 w-3" /> Desativar acesso
               </Button>
-              <Button
+            </>
+          )}
+          {!self && canDeleteUser && (
+            <Button
                 size="sm"
                 variant="outline"
                 className="mt-2 w-full text-destructive hover:text-destructive"
@@ -551,7 +583,6 @@ function UsersPage() {
               >
                 <Trash2 className="mr-1 h-3 w-3" /> Excluir acesso
               </Button>
-            </>
           )}
         </div>
       </Card>
@@ -566,7 +597,7 @@ function UsersPage() {
             Crie logins e defina os acessos de cada usuário.
           </p>
         </div>
-        {isMarketingManager && (
+        {(isMarketingManager || inMarketing) && (
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -581,7 +612,12 @@ function UsersPage() {
                   acesso.
                 </DialogDescription>
               </DialogHeader>
-              <AccessForm value={form} onChange={setForm} includeCredentials />
+              <AccessForm
+                value={inMarketing ? { ...form, role: "collaborator", marketingAccess: true } : form}
+                onChange={setForm}
+                includeCredentials
+                marketingOnly={inMarketing}
+              />
               <DialogFooter>
                 <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
                   {createMutation.isPending ? "Enviando…" : "Enviar convite"}

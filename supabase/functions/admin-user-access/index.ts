@@ -81,13 +81,12 @@ Deno.serve(async (request) => {
     if (!callerRoles?.some((item) => item.role === "admin"))
       return response({ error: "Somente administradores podem gerenciar acessos." }, 403);
     const isMarketingManager = authData.user.email?.trim().toLowerCase() === marketingManagerEmail;
-    if (!isMarketingManager)
-      return response({ error: "Somente o responsável pode gerenciar os acessos de usuários." }, 403);
 
     const payload = await request.json();
     const action = payload?.action;
     const data = payload?.data ?? {};
     const role = data.role;
+    const managesMarketing = data.workspaceSlug === "marketing";
     if (!["create", "update", "delete"].includes(action))
       return response({ error: "Ação inválida." }, 400);
     if (action !== "delete" && !["admin", "collaborator", "client"].includes(role))
@@ -96,6 +95,38 @@ Deno.serve(async (request) => {
       return response({ error: "Selecione o cliente que será vinculado a este acesso." }, 400);
     if (action === "create" && data.marketingAccess === true && role === "client")
       return response({ error: "O acesso de cliente deve permanecer vinculado à Consultoria." }, 400);
+
+    // In Marketing, every administrator can manage only Marketing's own
+    // collaborators. Consultoria users and administrator accounts remain
+    // centrally managed by the responsible account.
+    if (!isMarketingManager) {
+      if (!managesMarketing)
+        return response({ error: "Você pode alterar apenas seu próprio perfil fora do Marketing." }, 403);
+      if (action === "create") {
+        if (role !== "collaborator" || data.marketingAccess !== true)
+          return response({ error: "No Marketing, crie somente colaboradores próprios do ambiente." }, 403);
+      } else {
+        if (!validUuid(data.userId)) return response({ error: "Usuário inválido." }, 400);
+        const { data: targetRoles, error: targetRoleError } = await admin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.userId)
+          .maybeSingle();
+        if (targetRoleError) throw targetRoleError;
+        const { data: memberships, error: membershipsError } = await admin
+          .from("workspace_memberships")
+          .select("workspace_id, workspaces!inner(slug)")
+          .eq("user_id", data.userId);
+        if (membershipsError) throw membershipsError;
+        const membershipSlugs = (memberships ?? []).map((membership: any) => membership.workspaces?.slug);
+        const onlyMarketingCollaborator =
+          targetRoles?.role === "collaborator" &&
+          membershipSlugs.includes("marketing") &&
+          !membershipSlugs.includes("consultoria");
+        if (!onlyMarketingCollaborator || (action === "update" && role !== "collaborator"))
+          return response({ error: "Você pode alterar somente colaboradores próprios do Marketing." }, 403);
+      }
+    }
     const permissions =
       action === "delete"
         ? []
