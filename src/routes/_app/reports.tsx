@@ -62,6 +62,7 @@ import {
   startOfDay,
   startOfMonth,
   subDays,
+  subMonths,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -121,6 +122,14 @@ const currentMonthPeriod = () => {
   return {
     start: format(startOfMonth(today), "yyyy-MM-dd"),
     end: format(endOfMonth(today), "yyyy-MM-dd"),
+  };
+};
+
+const previousMonthPeriod = () => {
+  const previousMonth = subMonths(new Date(), 1);
+  return {
+    start: format(startOfMonth(previousMonth), "yyyy-MM-dd"),
+    end: format(endOfMonth(previousMonth), "yyyy-MM-dd"),
   };
 };
 
@@ -651,7 +660,7 @@ function ReportsPage() {
     },
   });
 
-  const [period, setPeriod] = useState(currentMonthPeriod);
+  const [period, setPeriod] = useState(previousMonthPeriod);
   const [userFilter, setUserFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
   const [reportView, setReportView] = useState<
