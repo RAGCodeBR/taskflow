@@ -17,6 +17,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -136,19 +143,33 @@ const previousMonthPeriod = () => {
 const dateIsInPeriod = (value: string | null | undefined, start: Date, end: Date) =>
   Boolean(value && isWithinInterval(parseISO(value), { start, end }));
 
-function TeamRankingPanel({ members }: { members: any[] }) {
-  const ranked = [...members]
-    .map((member) => ({
-      ...member,
-      score: Math.max(
-        0,
-        Math.min(
-          100,
-          Math.round(member.onTimeRate * 0.55 + Math.min(25, member.done * 5) - member.overdue * 8),
-        ),
-      ),
-    }))
-    .sort((a, b) => b.score - a.score || b.done - a.done || a.overdue - b.overdue);
+const formatReportDate = (value: string | null | undefined) =>
+  value ? format(parseISO(value), "dd/MM/yyyy", { locale: ptBR }) : "Sem prazo";
+
+const completedAfterDueDate = (
+  completedAt: string | null | undefined,
+  dueDate: string | null | undefined,
+) => Boolean(completedAt && dueDate && isAfter(parseISO(completedAt), endOfDay(parseISO(dueDate))));
+
+function TeamRankingPanel({
+  members,
+  onViewLateTasks,
+}: {
+  members: any[];
+  onViewLateTasks: (member: any) => void;
+}) {
+  const ranked = members
+    .filter((member) => member.done > 0 || member.lateCount > 0)
+    .sort((a, b) => {
+      return (
+        b.deliveryBalance - a.deliveryBalance ||
+        b.onTime - a.onTime ||
+        b.done - a.done ||
+        a.lateCount - b.lateCount ||
+        a.fullName.localeCompare(b.fullName, "pt-BR")
+      );
+    });
+  const maxOnTime = Math.max(...ranked.map((member) => member.onTime), 1);
   const podiumColors = ["#f59e0b", "#94a3b8", "#b87333"];
   const podiumBackgrounds = [
     "border-amber-300 bg-amber-50/80 dark:bg-amber-950/15",
@@ -190,26 +211,36 @@ function TeamRankingPanel({ members }: { members: any[] }) {
                     </p>
                     <p className="truncate text-xl font-bold">{member.fullName}</p>
                     <p className="text-sm text-muted-foreground">
-                      {member.done} entregas · {member.onTimeRate}% no prazo
+                      {member.done} entregas · {member.onTime} no prazo · {member.lateCount} fora do
+                      prazo
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-4xl font-bold tabular-nums">{member.score}</p>
-                    <p className="text-sm text-muted-foreground">/ 100</p>
+                    <p className="text-2xl font-bold tabular-nums">{member.done}</p>
+                    <p className="text-sm text-muted-foreground">entregas</p>
                   </div>
                 </div>
                 <div className="mt-4 border-t pt-4 text-sm leading-6">
                   <p className="text-emerald-600">
                     <span className="font-semibold">Por que está no pódio:</span> {member.done}{" "}
-                    entregas concluídas e {member.onTimeRate}% no prazo.
+                    entregas concluídas, com {member.onTime} entregue(s) no prazo.
                   </p>
                   <p className="mt-1 text-muted-foreground">
                     <span className="font-semibold">Ponto a evoluir:</span>{" "}
-                    {member.overdue
-                      ? `${member.overdue} tarefa(s) atrasada(s).`
-                      : member.pending
-                        ? `${member.pending} tarefa(s) pendente(s).`
-                        : "manter a consistência das entregas."}
+                    {member.lateCount ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onViewLateTasks(member)}
+                          className="font-medium underline decoration-dotted underline-offset-4 hover:text-foreground"
+                        >
+                          {member.lateCount} tarefa(s) fora do prazo
+                        </button>{" "}
+                        descontam posição.
+                      </>
+                    ) : (
+                      "manter as entregas no prazo."
+                    )}
                   </p>
                 </div>
               </div>
@@ -221,45 +252,130 @@ function TeamRankingPanel({ members }: { members: any[] }) {
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2 border-b px-5 py-5">
           <Activity className="h-5 w-5 text-[#167c80]" />
-          <h2 className="text-xl font-semibold">Ranking completo — equipe</h2>
+          <div>
+            <h2 className="text-xl font-semibold">Ranking completo — equipe</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Entregas no prazo e concluídas fazem subir; cada item fora do prazo desconta posição.
+            </p>
+          </div>
         </div>
         <div className="space-y-3 p-4">
-          {ranked.map((member, index) => (
-            <div key={member.id} className="rounded-lg border p-4">
-              <div className="grid gap-3 sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-center">
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
-                  {index + 1}
-                </span>
-                <Avatar className="h-12 w-12 border shadow-sm">
-                  <AvatarImage src={member.avatarUrl || undefined} alt={member.fullName} />
-                  <AvatarFallback>{member.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="truncate font-semibold">{member.fullName}</p>
-                    <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-bold tabular-nums">
-                      {member.score}/100
-                    </span>
+          {ranked.map((member, index) => {
+            return (
+              <div key={member.id} className="rounded-lg border p-4">
+                <div className="grid gap-3 sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-center">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  <Avatar className="h-12 w-12 border shadow-sm">
+                    <AvatarImage src={member.avatarUrl || undefined} alt={member.fullName} />
+                    <AvatarFallback>{member.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="truncate font-semibold">{member.fullName}</p>
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-bold tabular-nums">
+                        {member.done} entregas
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs font-medium text-muted-foreground">
+                      <span>Entregas concluídas no prazo</span>
+                      <span className="tabular-nums">{member.onTime}</span>
+                    </div>
+                    <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-[#167c80]"
+                        style={{ width: `${(member.onTime / maxOnTime) * 100}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      <span className="text-emerald-600">{member.done} concluídas</span> ·{" "}
+                      <span>{member.onTime} no prazo</span> ·{" "}
+                      {member.lateCount ? (
+                        <button
+                          type="button"
+                          onClick={() => onViewLateTasks(member)}
+                          className="underline decoration-dotted underline-offset-4 hover:text-foreground"
+                        >
+                          {member.lateCount} fora do prazo
+                        </button>
+                      ) : (
+                        "0 fora do prazo"
+                      )}
+                    </p>
                   </div>
-                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-[#167c80]"
-                      style={{ width: `${Math.max(member.score, 1)}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    <span className="text-emerald-600">{member.done} concluídas</span> ·{" "}
-                    <span className="text-amber-600">{member.pending} pendentes</span> ·{" "}
-                    <span className="text-rose-600">{member.overdue} atrasadas</span> ·{" "}
-                    {member.onTimeRate}% no prazo
-                  </p>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
     </div>
+  );
+}
+
+function LateTasksDialog({
+  member,
+  open,
+  onOpenChange,
+}: {
+  member: any | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const lateTasks = member?.lateTasks ?? [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Cards fora do prazo — {member?.fullName}</DialogTitle>
+          <DialogDescription>
+            O prazo final é sempre o vigente no card. Alterações justificadas aparecem abaixo.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {lateTasks.map((task: any) => (
+            <article key={task.id} className="rounded-2xl border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="font-semibold">{task.title}</p>
+                <Badge variant="outline">{task.kind}</Badge>
+              </div>
+              <div className="mt-3 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+                <p>
+                  Prazo final:{" "}
+                  <span className="font-medium text-foreground">{task.dueDateLabel}</span>
+                </p>
+                <p>
+                  {task.completedAtLabel ? (
+                    <>
+                      Concluída:{" "}
+                      <span className="font-medium text-foreground">{task.completedAtLabel}</span>
+                    </>
+                  ) : (
+                    "Ainda em aberto"
+                  )}
+                </p>
+              </div>
+              {task.deadlineChange && (
+                <div className="mt-3 rounded-xl bg-muted/70 p-3 text-sm">
+                  <p className="font-medium">Prazo reprogramado</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {task.deadlineChange.oldDueDateLabel} → {task.deadlineChange.newDueDateLabel}
+                  </p>
+                  {task.deadlineChange.reason && (
+                    <p className="mt-1 text-muted-foreground">
+                      Justificativa: {task.deadlineChange.reason}
+                    </p>
+                  )}
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -644,7 +760,8 @@ function ReportsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("task_due_date_changes")
-        .select("id, task_id, created_at");
+        .select("id, task_id, old_due_date, new_due_date, reason, created_at")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
@@ -666,6 +783,7 @@ function ReportsPage() {
   const [reportView, setReportView] = useState<
     "briefing" | "summary" | "operations" | "clients" | "team"
   >("briefing");
+  const [lateTasksMember, setLateTasksMember] = useState<any | null>(null);
 
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
   if (!hasPermission("reports")) return <Navigate to="/mural" />;
@@ -712,6 +830,12 @@ function ReportsPage() {
   const filteredTasks = periodTasks.filter(
     (task) => userFilter === "all" || task.assignee_id === userFilter,
   );
+  const latestDueDateChangeByTask = new Map<string, any>();
+  dueDateChanges.forEach((change: any) => {
+    if (!latestDueDateChangeByTask.has(change.task_id)) {
+      latestDueDateChangeByTask.set(change.task_id, change);
+    }
+  });
   const periodDays = Math.max(
     1,
     Math.round((periodEnd.getTime() - periodStart.getTime()) / (24 * 60 * 60 * 1000)) + 1,
@@ -772,9 +896,48 @@ function ReportsPage() {
       const overdue = userTasks.filter(isOverdue);
       const completedWithDeadline = done.filter((t) => t.due_date && t.completed_at);
       const onTime = completedWithDeadline.filter(
-        (t) =>
-          t.due_date && t.completed_at && !isAfter(parseISO(t.completed_at), parseISO(t.due_date)),
+        (t) => t.due_date && t.completed_at && !completedAfterDueDate(t.completed_at, t.due_date),
       ).length;
+      const lateCompleted = completedWithDeadline.filter(
+        (t) => t.due_date && t.completed_at && completedAfterDueDate(t.completed_at, t.due_date),
+      );
+      const lateTasks = [
+        ...lateCompleted.map((task) => {
+          const change = latestDueDateChangeByTask.get(task.id);
+          return {
+            id: task.id,
+            title: task.title || "Card sem título",
+            kind: "Concluída após o prazo",
+            dueDateLabel: formatReportDate(task.due_date),
+            completedAtLabel: formatReportDate(task.completed_at),
+            deadlineChange: change
+              ? {
+                  oldDueDateLabel: formatReportDate(change.old_due_date),
+                  newDueDateLabel: formatReportDate(change.new_due_date),
+                  reason: change.reason,
+                }
+              : null,
+          };
+        }),
+        ...overdue.map((task) => {
+          const change = latestDueDateChangeByTask.get(task.id);
+          return {
+            id: task.id,
+            title: task.title || "Card sem título",
+            kind: "Em aberto após o prazo",
+            dueDateLabel: formatReportDate(task.due_date),
+            completedAtLabel: null,
+            deadlineChange: change
+              ? {
+                  oldDueDateLabel: formatReportDate(change.old_due_date),
+                  newDueDateLabel: formatReportDate(change.new_due_date),
+                  reason: change.reason,
+                }
+              : null,
+          };
+        }),
+      ];
+      const lateCount = lateTasks.length;
       const isAdminRole = roles.some(
         (r: { user_id: string; role: string }) => r.user_id === p.id && r.role === "admin",
       );
@@ -790,6 +953,9 @@ function ReportsPage() {
         pending: userTasks.length - done.length,
         overdue: overdue.length,
         onTime,
+        lateCount,
+        deliveryBalance: onTime - lateCount,
+        lateTasks,
         onTimeRate: completedWithDeadline.length
           ? Math.round((onTime / completedWithDeadline.length) * 100)
           : 0,
@@ -828,7 +994,7 @@ function ReportsPage() {
         (task) =>
           task.due_date &&
           task.completed_at &&
-          !isAfter(parseISO(task.completed_at), parseISO(task.due_date)),
+          !completedAfterDueDate(task.completed_at, task.due_date),
       ).length;
       const onTimeRate = completedWithDeadline.length
         ? Math.round((onTime / completedWithDeadline.length) * 100)
@@ -1397,7 +1563,7 @@ function ReportsPage() {
       </div>
 
       <div className={reportView === "team" ? "space-y-4" : "hidden"}>
-        <TeamRankingPanel members={teamRanking} />
+        <TeamRankingPanel members={teamRanking} onViewLateTasks={setLateTasksMember} />
         <UserTable title="Administradores" icon={ShieldCheck} rows={admins} />
         <UserTable title="Colaboradores" rows={members} icon={UserIcon} />
       </div>
@@ -1405,6 +1571,12 @@ function ReportsPage() {
       <div className={reportView === "summary" ? "block" : "hidden"}>
         <ClientByUserTable clients={clients} users={perUser} tasks={filteredTasks} />
       </div>
+
+      <LateTasksDialog
+        member={lateTasksMember}
+        open={Boolean(lateTasksMember)}
+        onOpenChange={(open) => !open && setLateTasksMember(null)}
+      />
     </div>
   );
 }
