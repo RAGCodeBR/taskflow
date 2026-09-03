@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { useDeletedTasks, useClients, useProfiles } from "@/hooks/use-data";
+import { useClients, useProfiles } from "@/hooks/use-data";
+import { useWorkspaceDeletedTasks } from "@/hooks/use-workspace-tasks";
 import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_app/trash")({
@@ -14,7 +15,7 @@ export const Route = createFileRoute("/_app/trash")({
 
 function TrashPage() {
   const qc = useQueryClient();
-  const { data: tasks = [], isLoading } = useDeletedTasks();
+  const { data: tasks = [], isLoading } = useWorkspaceDeletedTasks();
   const { data: clients = [] } = useClients();
   const { data: profiles = [] } = useProfiles();
   const { user, isAdmin } = useAuth();

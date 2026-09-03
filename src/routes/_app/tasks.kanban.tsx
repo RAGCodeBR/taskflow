@@ -1,5 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   DndContext,
   type CollisionDetection,
@@ -86,11 +94,13 @@ import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task
 import { TaskDialog } from "@/components/TaskDialog";
 import { TagManagerDialog } from "@/components/TagManagerDialog";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
+import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { CardFieldsPopover } from "@/components/CardFieldsPopover";
 import { useBoardPreferences, useUpdateBoardPreferences } from "@/hooks/use-board-preferences";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { matchDateFilter, normalizeTasksWithOpenSubtasks, type DateFilter } from "@/lib/task-utils";
+import { isTaskFromAnotherWorkspace, splitTasksByWorkspace } from "@/lib/workspace-tasks";
 
 export const Route = createFileRoute("/_app/tasks/kanban")({
   component: KanbanPage,
@@ -109,11 +119,15 @@ function SortableTaskCard({
   collaborators,
   orientation,
   minimal,
+  disabled,
 }: any) {
+  // Tarefa espelhada de outro ambiente aparece na coluna normal, mas não
+  // arrasta: a coluna de destino seria deste quadro, e a tarefa mora no outro.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: "task", colId: colId ?? task.column_id },
     animateLayoutChanges: () => false,
+    disabled,
   });
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -143,7 +157,7 @@ function SortableTaskCard({
         onEdit={onEdit}
         onDuplicate={onDuplicate}
         minimal={minimal}
-        dragHandleProps={{ ...attributes, ...listeners }}
+        dragHandleProps={disabled ? undefined : { ...attributes, ...listeners }}
       />
     </div>
   );
@@ -354,7 +368,7 @@ function SortableColumn({
 
 function KanbanPage() {
   const qc = useQueryClient();
-  const { user, isAdmin, isCollaborator } = useAuth();
+  const { user, isAdmin, isCollaborator, activeWorkspace } = useAuth();
   const { data: tasks = [] } = useTasks();
   const { data: rawColumns = [] } = useColumns();
   const { data: userColOrder = [] } = useUserColumnOrder();
@@ -540,6 +554,7 @@ function KanbanPage() {
     endToday.setHours(23, 59, 59, 999);
     const hasRange = !!(completedRange.start || completedRange.end);
     let all = taskView.filter((t) => {
+      if (isTaskFromAnotherWorkspace(t, activeWorkspace?.id)) return false;
       if (t.status !== "done" && !t.completed_at) return false;
       const ref = t.completed_at ? new Date(t.completed_at) : new Date(t.updated_at);
       if (hasRange) {
@@ -606,6 +621,7 @@ function KanbanPage() {
     return all;
   }, [
     taskView,
+    activeWorkspace?.id,
     filters,
     sort,
     tagNameForTask,
@@ -637,6 +653,7 @@ function KanbanPage() {
     return r;
   }, [
     taskView,
+    activeWorkspace?.id,
     filters,
     user?.id,
     subtaskAssigneeTaskIds,
@@ -720,6 +737,15 @@ function KanbanPage() {
     });
     return r;
   }, [filtered, sort, tagNameForTask, userTaskPos, statuses, user?.id]);
+
+  // Tarefas que você lançou para o outro ambiente entram no quadro junto das
+  // demais. Elas caem na primeira coluna, porque a coluna real delas pertence
+  // ao outro quadro — por isso ficam sem arrastar.
+  const sharedTaskIds = useMemo(
+    () =>
+      new Set(splitTasksByWorkspace(taskView, activeWorkspace?.id).shared.map((task) => task.id)),
+    [taskView, activeWorkspace?.id],
+  );
 
   const tasksByCol = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -1189,7 +1215,11 @@ function KanbanPage() {
         </div>
         <div className="mt-2 space-y-1">
           <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator}>
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <WorkspaceTaskFilter
+                value={filters.workspace}
+                onChange={(workspace) => setFilters({ ...filters, workspace })}
+              />
               <Button
                 size="sm"
                 variant="outline"
@@ -1340,6 +1370,7 @@ function KanbanPage() {
                         key={t.id}
                         task={t}
                         orientation={orientation}
+                        disabled={sharedTaskIds.has(t.id)}
                         clients={clients}
                         profiles={profiles}
                         columns={columns}

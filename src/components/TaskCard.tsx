@@ -67,6 +67,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useAssignableProfiles,
+  useRelatedClients,
   type Client,
   type KanbanColumn,
   type Profile,
@@ -344,9 +345,15 @@ export function TaskCard({
     () => tagIds.map((id) => tags.find((t) => t.id === id)).filter(Boolean) as TaskTag[],
     [tagIds, tags],
   );
+  // O cliente pode ser do outro ambiente, quando a tarefa foi lançada para lá.
+  // Nesse caso ele não está na lista do ambiente ativo, e o nome vem da consulta
+  // de exibição.
+  const { data: relatedClients } = useRelatedClients();
   const client = useMemo(
-    () => clients.find((c) => c.id === task.client_id),
-    [clients, task.client_id],
+    () =>
+      clients.find((c) => c.id === task.client_id) ??
+      relatedClients?.find((c) => c.id === task.client_id),
+    [clients, relatedClients, task.client_id],
   );
   const assignee = useMemo(
     () => profiles.find((p) => p.id === task.assignee_id),

@@ -36,6 +36,8 @@ interface Filters {
   assignee?: string;
   priority?: string;
   status?: string;
+  /** Id do ambiente. Só aparece para quem pertence a mais de um. */
+  workspace?: string;
 }
 
 const DATE_OPTIONS: DateFilter[] = [
@@ -373,6 +375,7 @@ export function applyTaskFilters<
     due_date: string | null;
     status: string | null;
     completed_at: string | null;
+    workspace_id?: string | null;
   },
 >(
   tasks: T[],
@@ -437,6 +440,7 @@ export function applyTaskFilters<
         return false;
       }
     }
+    if (f.workspace && t.workspace_id !== f.workspace) return false;
     if (f.priority && t.priority !== f.priority) return false;
     if (f.status === COMPLETED_STATUS_FILTER && t.status !== "done" && !t.completed_at)
       return false;

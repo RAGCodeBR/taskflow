@@ -40,6 +40,8 @@ interface SubtaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   taskId: string | null;
+  /** Ambiente da tarefa dona. A lista de pessoas segue a tarefa, não quem abriu. */
+  workspaceId?: string | null;
   subtask?: EditableSubtask | null;
   position: number;
   defaults?: {
@@ -69,6 +71,7 @@ export function SubtaskDialog({
   open,
   onOpenChange,
   taskId,
+  workspaceId,
   subtask,
   position,
   defaults,
@@ -76,7 +79,7 @@ export function SubtaskDialog({
 }: SubtaskDialogProps) {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const { data: assignableProfiles = [] } = useAssignableProfiles();
+  const { data: assignableProfiles = [] } = useAssignableProfiles(workspaceId);
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [assigneeId, setAssigneeId] = useState("");

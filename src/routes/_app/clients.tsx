@@ -34,7 +34,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useClients, useProfiles, useSubtasks, useTasks, type Client } from "@/hooks/use-data";
+import { useClients, useProfiles, useSubtasks, type Client } from "@/hooks/use-data";
+import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { toast } from "sonner";
 
 type ReportPeriod =
@@ -163,7 +164,7 @@ export function ClientsIndexPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { data: clients = [] } = useClients();
-  const { data: tasks = [] } = useTasks();
+  const { data: tasks = [] } = useWorkspaceTasks();
   const { data: subtasks = [] } = useSubtasks();
   const { data: profiles = [] } = useProfiles();
   const [open, setOpen] = useState(false);

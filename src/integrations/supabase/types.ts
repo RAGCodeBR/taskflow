@@ -1057,6 +1057,7 @@ export type Database = {
           tag_id: string | null
           title: string
           updated_at: string
+          workspace_id: string | null
         }
         Insert: {
           assignee_id?: string | null
@@ -1083,6 +1084,7 @@ export type Database = {
           tag_id?: string | null
           title: string
           updated_at?: string
+          workspace_id?: string | null
         }
         Update: {
           assignee_id?: string | null
@@ -1109,6 +1111,7 @@ export type Database = {
           tag_id?: string | null
           title?: string
           updated_at?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {

@@ -37,6 +37,8 @@ export interface Task {
   created_at: string;
   updated_at: string;
   card_width: number | null;
+  /** Ambiente dono da tarefa. Diverge do ativo quando ela chega por participação. */
+  workspace_id?: string | null;
 }
 export interface TaskStatus {
   id: string;
@@ -126,6 +128,8 @@ export interface Profile {
   email: string | null;
   avatar_url: string | null;
   is_active?: boolean;
+  /** Slugs dos ambientes da pessoa; só vem de list_task_assignees. */
+  workspace_slugs?: string[];
 }
 
 export interface AgendaEvent {
@@ -378,6 +382,23 @@ export function useUserTaskOrder() {
   });
 }
 
+/**
+ * Nome e cor dos clientes de todos os ambientes a que a pessoa pertence.
+ * Serve apenas para exibição: uma tarefa lançada para o outro ambiente aponta
+ * para o cliente de lá, que useClients() — restrito ao ambiente ativo — não
+ * alcança. Os seletores continuam usando useClients(), de propósito.
+ */
+export function useRelatedClients() {
+  return useQuery({
+    queryKey: ["related-clients"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc("list_related_client_names") as any);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string; color: string | null }>;
+    },
+  });
+}
+
 export function useClients() {
   return useQuery({
     queryKey: ["clients"],
@@ -422,13 +443,27 @@ export function useUserRoles() {
   });
 }
 
-export function useAssignableProfiles() {
+export function useAssignableProfiles(targetWorkspaceId?: string | null) {
   return useQuery({
-    queryKey: ["assignable-profiles"],
+    queryKey: ["assignable-profiles", targetWorkspaceId ?? null],
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc("list_task_assignees") as any);
-      if (error) throw error;
-      return [...((data ?? []) as Profile[])].sort((a, b) =>
+      // A versão de list_task_assignees que aceita ambiente só passa a existir
+      // com a migration 20260903122000. Enquanto ela não for aplicada, chamar
+      // com argumento devolve erro de função inexistente e a tela ficaria sem
+      // nome nenhum — então a chamada sem argumento é a rede de proteção.
+      let rows: Profile[] | null = null;
+      if (targetWorkspaceId) {
+        const scoped = await (supabase.rpc("list_task_assignees", {
+          target_workspace_id: targetWorkspaceId,
+        }) as any);
+        if (!scoped.error) rows = (scoped.data ?? []) as Profile[];
+      }
+      if (rows === null) {
+        const { data, error } = await (supabase.rpc("list_task_assignees") as any);
+        if (error) throw error;
+        rows = (data ?? []) as Profile[];
+      }
+      return [...rows].sort((a, b) =>
         (a.full_name ?? "").localeCompare(b.full_name ?? "", "pt-BR", {
           sensitivity: "base",
         }),

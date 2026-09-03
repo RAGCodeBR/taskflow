@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   type Task,
-  useTasks,
   useClients,
   useAssignableProfiles,
   useColumns,
 } from "@/hooks/use-data";
+import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { DateFilterBar } from "@/components/DateFilterBar";
 import { matchDateFilter, priorityLabels, statusLabels, type DateFilter } from "@/lib/task-utils";
 import { Card } from "@/components/ui/card";
@@ -309,7 +309,7 @@ function TaskDetailPanel({
 
 function Dashboard() {
   const { profile, user, isAdmin } = useAuth();
-  const { data: tasks = [] } = useTasks();
+  const { data: tasks = [] } = useWorkspaceTasks();
   const { data: clients = [] } = useClients();
   // The chart only includes users eligible to receive tasks (admins and collaborators).
   // The database query excludes client accounts, including future ones.

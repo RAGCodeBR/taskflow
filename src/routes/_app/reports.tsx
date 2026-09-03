@@ -2,7 +2,8 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useTasks, useProfiles, useClients, useTaskStatuses } from "@/hooks/use-data";
+import { useProfiles, useClients, useTaskStatuses } from "@/hooks/use-data";
+import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -739,7 +740,7 @@ function MonthlyBriefingPanel({
 
 function ReportsPage() {
   const { isAdmin, hasPermission, loading } = useAuth();
-  const { data: tasks = [] } = useTasks();
+  const { data: tasks = [] } = useWorkspaceTasks();
   const { data: profiles = [] } = useProfiles();
   const { data: clients = [] } = useClients();
   const { data: statuses = [] } = useTaskStatuses();

@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, startOfMonth, startOfWeek, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { type Task, useClients, useTasks } from "@/hooks/use-data";
+import { type Task, useClients } from "@/hooks/use-data";
+import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/_app/portal/entregas")({ component: Clien
 function ClientDeliveriesPage() {
   const { data: clients = [] } = useClients();
   const { isClient, clientId: linkedClientId } = useAuth();
-  const { data: tasks = [] } = useTasks();
+  const { data: tasks = [] } = useWorkspaceTasks();
   const [clientId, setClientId] = useState("");
   const [month, setMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));

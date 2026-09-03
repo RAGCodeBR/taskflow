@@ -132,13 +132,34 @@ const storageObjectName = () => `arquivo-${Date.now()}-${crypto.randomUUID()}`;
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/**
+ * Nome da pessoa nos seletores de atribuição. A lista já vem filtrada pelo
+ * ambiente escolhido, então marcar a origem de cada nome seria repetir a mesma
+ * informação em todas as linhas.
+ */
+function AssigneeOption({
+  profile,
+}: {
+  profile: { full_name: string | null; email: string | null };
+}) {
+  return (
+    <span className="min-w-0 truncate">
+      {profile.full_name || profile.email || "Usuário sem nome"}
+    </span>
+  );
+}
+
 export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props) {
   const qc = useQueryClient();
-  const { user, profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin, activeWorkspace, workspaces } = useAuth();
   const { data: cols } = useColumns();
   const { data: clients } = useClients();
   const { data: profiles } = useProfiles();
-  const { data: assignableProfiles = [] } = useAssignableProfiles();
+  const [targetWorkspaceId, setTargetWorkspaceId] = useState<string>("");
+  // Ao lançar a tarefa em outro ambiente, só as pessoas de lá podem assumi-la.
+  const { data: assignableProfiles = [] } = useAssignableProfiles(
+    targetWorkspaceId || activeWorkspace?.id,
+  );
   const { data: statuses = [] } = useTaskStatuses();
 
   const [title, setTitle] = useState("");
@@ -244,6 +265,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setStatus(task.status === "done" || task.completed_at ? "done" : (task.status ?? "todo"));
       setPriority(task.priority);
       setColumnId(task.column_id ?? "");
+      setTargetWorkspaceId(task.workspace_id ?? activeWorkspace?.id ?? "");
       setClientId(task.client_id ?? "");
       setAssigneeId(task.assignee_id ?? "");
       void loadCollaborators(task.id);
@@ -262,6 +284,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setStatus("todo");
       setPriority("medium");
       setColumnId(defaultColumnId ?? "");
+      setTargetWorkspaceId(activeWorkspace?.id ?? "");
       setClientId("");
       setAssigneeId(user?.id ?? "");
       setCollaboratorIds([]);
@@ -278,7 +301,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setNewSubtaskDue("");
       setNewSubtaskAssignee("");
     }
-  }, [open, task, defaultColumnId, user?.id]);
+  }, [open, task, defaultColumnId, user?.id, activeWorkspace?.id]);
 
   const loadRelated = async (taskId: string) => {
     const [s, c, a] = await Promise.all([
@@ -368,6 +391,18 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     );
   };
 
+  // Trocar o ambiente troca o elenco disponível. Em vez de limpar tudo na hora,
+  // espera a lista do novo ambiente chegar e descarta apenas quem não existe
+  // lá — assim você não perde a si mesmo como responsável ao lançar numa
+  // equipe da qual também faz parte. Só vale na criação: numa tarefa que já
+  // existe, um responsável fora da lista (inativo, por exemplo) é preservado.
+  useEffect(() => {
+    if (task || !open || assignableProfiles.length === 0) return;
+    const disponiveis = new Set(assignableProfiles.map((profile) => profile.id));
+    setAssigneeId((atual) => (atual && !disponiveis.has(atual) ? "" : atual));
+    setCollaboratorIds((atuais) => atuais.filter((id) => disponiveis.has(id)));
+  }, [assignableProfiles, task, open]);
+
   const buildPayload = () => {
     const matchingStatus = statuses.find((item) =>
       status === "done" ? item.is_completed : !item.is_completed,
@@ -446,6 +481,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const { error } = await authenticated.client.from("tasks").insert({
       id: taskId,
       ...buildPayload(),
+      workspace_id: targetWorkspaceId || null,
       created_by: authenticated.user.id,
     });
     if (error) {
@@ -552,6 +588,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         const { error } = await authenticated.client.from("tasks").insert({
           id: taskId,
           ...payload,
+          workspace_id: targetWorkspaceId || null,
           created_by: authenticated.user.id,
         });
         if (error) throw error;
@@ -988,6 +1025,28 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
             />
           </div>
 
+          {!task && isAdmin && workspaces.length > 1 ? (
+            <div className="space-y-2 rounded-md border border-amber-300/70 bg-amber-50/60 p-3 dark:border-amber-800/60 dark:bg-amber-950/25">
+              <Label className="text-xs">Ambiente</Label>
+              <Select value={targetWorkspaceId} onValueChange={setTargetWorkspaceId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o ambiente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workspaces.map((workspace) => (
+                    <SelectItem key={workspace.id} value={workspace.id}>
+                      {workspace.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                A tarefa é lançada neste ambiente. Ao trocar, a lista passa a mostrar apenas as
+                pessoas de lá, e quem já estava escolhido só é removido se não existir no destino.
+              </p>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 gap-3 rounded-md border bg-muted/15 p-4 sm:grid-cols-2 md:grid-cols-3">
             <div className="order-1 space-y-2">
               <Label className="text-xs">Prioridade</Label>
@@ -1093,7 +1152,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   <div className="max-h-56 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
                     {assignableProfiles.map((profile) => {
                       const selected = collaboratorIds.includes(profile.id);
-                      const name = profile.full_name || profile.email || "Usuário sem nome";
                       return (
                         <label
                           key={profile.id}
@@ -1103,7 +1161,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                             checked={selected}
                             onCheckedChange={() => toggleCollaborator(profile.id)}
                           />
-                          <span className="truncate">{name}</span>
+                          <AssigneeOption profile={profile} />
                         </label>
                       );
                     })}
@@ -1208,7 +1266,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   <SelectItem value="none">Ninguém</SelectItem>
                   {assignableProfiles.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.full_name || p.email}
+                      <AssigneeOption profile={p} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1398,7 +1456,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                                   <SelectItem value="none">Ninguém</SelectItem>
                                   {assignableProfiles.map((p) => (
                                     <SelectItem key={p.id} value={p.id}>
-                                      {p.full_name || p.email}
+                                      <AssigneeOption profile={p} />
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -1512,7 +1570,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                         <SelectItem value="none">Sem responsável</SelectItem>
                         {assignableProfiles.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.full_name || p.email}
+                            <AssigneeOption profile={p} />
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1773,6 +1831,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
           open={subtaskDialogOpen}
           onOpenChange={setSubtaskDialogOpen}
           taskId={currentTaskId}
+          workspaceId={targetWorkspaceId || activeWorkspace?.id}
           subtask={subtaskInDialog}
           position={subtasks.length}
           defaults={{

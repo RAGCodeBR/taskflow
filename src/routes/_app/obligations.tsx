@@ -42,11 +42,11 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   useClients,
   useProfiles,
-  useTasks,
   type Client,
   type Profile,
   type Task,
 } from "@/hooks/use-data";
+import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import {
   useObligationOccurrences,
   useObligations,
@@ -110,7 +110,7 @@ function ObligationsPage() {
   } = useObligationOccurrences();
   const { data: clients = [] } = useClients();
   const { data: profiles = [] } = useProfiles();
-  const { data: tasks = [] } = useTasks();
+  const { data: tasks = [] } = useWorkspaceTasks();
   const materializedWorkspace = useRef<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingObligation, setEditingObligation] = useState<Obligation | null>(null);

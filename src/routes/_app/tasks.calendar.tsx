@@ -28,6 +28,7 @@ import {
 } from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
+import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
 import {
   Dialog,
@@ -215,6 +216,10 @@ function CalendarPage() {
           </Button>
         </div>
       </header>
+      <WorkspaceTaskFilter
+        value={filters.workspace}
+        onChange={(workspace) => setFilters({ ...filters, workspace })}
+      />
       <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator} />
 
       <div className="overflow-hidden rounded-lg border bg-card">
