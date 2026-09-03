@@ -197,10 +197,12 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
 
   const filteredClients = useMemo(() => {
     const term = clientSearch.trim().toLocaleLowerCase("pt-BR");
-    const allClients = clients ?? [];
+    const activeClients = (clients ?? []).filter((client) => client.is_active);
     return term
-      ? allClients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term))
-      : allClients;
+      ? activeClients.filter((client) =>
+          client.name.toLocaleLowerCase("pt-BR").includes(term),
+        )
+      : activeClients;
   }, [clients, clientSearch]);
   const selectedClient = clients?.find((client) => client.id === clientId);
   const mentionableProfiles = useMemo(
