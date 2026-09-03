@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { Mark, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -20,6 +20,8 @@ import {
   Link as LinkIcon,
   Undo2,
   Redo2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +59,10 @@ interface Props {
   placeholder?: string;
   className?: string;
   minHeight?: number;
+  /** Caps the editing area; content scrolls inside so the footer stays reachable. */
+  maxHeight?: number;
+  /** Shows a footer button that copies the written content to the clipboard. */
+  copyable?: boolean;
 }
 
 function ToolbarBtn({
@@ -86,6 +92,69 @@ function ToolbarBtn({
     >
       {children}
     </button>
+  );
+}
+
+function CopyButton({ editor }: { editor: Editor }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const text = editor.getText();
+  const empty = !text.trim();
+
+  const copy = async () => {
+    if (empty) return;
+    const html = editor.getHTML();
+    try {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        // Keeps the formatting when pasted into a rich editor, plain text elsewhere.
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" }),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(text);
+      }
+      setCopied(true);
+    } catch {
+      // Fallback for contexts without the async clipboard API (http, older browsers).
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(area);
+      setCopied(ok);
+    }
+  };
+
+  return (
+    <div
+      className="flex justify-end border-t bg-muted/30 px-1 py-0.5"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={copy}
+        disabled={empty}
+        title={empty ? "Escreva algo para copiar" : "Copiar texto da descrição"}
+        className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+      >
+        {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+        {copied ? "Copiado!" : "Copiar"}
+      </button>
+    </div>
   );
 }
 
@@ -189,6 +258,8 @@ export function RichTextEditor({
   placeholder,
   className,
   minHeight = 60,
+  maxHeight = 320,
+  copyable = false,
 }: Props) {
   const editor = useEditor({
     extensions: [
@@ -202,7 +273,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "tiptap prose prose-sm dark:prose-invert max-w-none px-2 py-2 text-xs leading-snug focus:outline-none",
+          "tiptap prose prose-sm dark:prose-invert max-w-none px-2 py-2 text-xs leading-snug [overflow-wrap:anywhere] focus:outline-none",
           className,
         ),
         style: `min-height:${minHeight}px;`,
@@ -234,7 +305,13 @@ export function RichTextEditor({
       {placeholder && editor.isEmpty ? (
         <div className="pointer-events-none absolute px-2 py-2 text-xs text-muted-foreground/60">{placeholder}</div>
       ) : null}
-      <EditorContent editor={editor} />
+      <div
+        className="overflow-y-auto overscroll-contain"
+        style={{ maxHeight: Math.max(minHeight, maxHeight) }}
+      >
+        <EditorContent editor={editor} />
+      </div>
+      {copyable ? <CopyButton editor={editor} /> : null}
     </div>
   );
 }

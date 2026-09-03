@@ -1227,6 +1227,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
               onChange={setDescription}
               placeholder="Descreva a tarefa..."
               minHeight={100}
+              copyable
             />
           </div>
 
@@ -1270,7 +1271,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                             type="button"
                             onClick={() => startEditingSubtaskTitle(s)}
                             className={`min-w-0 flex-1 truncate text-left text-sm hover:text-primary ${s.done ? "line-through text-muted-foreground" : ""}`}
-                            title="Editar título da subtarefa"
+                            title={`${s.title} — clique para editar`}
                           >
                             {s.title}
                           </button>
