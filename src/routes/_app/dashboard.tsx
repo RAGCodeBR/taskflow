@@ -5,10 +5,17 @@ import {
   useClients,
   useAssignableProfiles,
   useColumns,
+  useSubtasks,
 } from "@/hooks/use-data";
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { DateFilterBar } from "@/components/DateFilterBar";
 import { matchDateFilter, priorityLabels, statusLabels, type DateFilter } from "@/lib/task-utils";
+import {
+  countCompletedSubtasks,
+  subtaskStatus,
+  subtaskStatusLabels,
+  type SubtaskStatus,
+} from "@/lib/subtask-status";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +69,20 @@ type Detail = {
 
 const isTaskDone = (task: Task) => task.status === "done" || !!task.completed_at;
 
+const SUBTASK_DOT: Record<SubtaskStatus, string> = {
+  concluida: "bg-emerald-500",
+  atrasada: "bg-rose-500",
+  sem_prazo: "bg-slate-400",
+  pendente: "bg-amber-500",
+};
+
+const SUBTASK_BADGE: Record<SubtaskStatus, string> = {
+  concluida: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/35 dark:text-emerald-300",
+  atrasada: "bg-rose-50 text-rose-700 dark:bg-rose-950/35 dark:text-rose-300",
+  sem_prazo: "bg-muted text-muted-foreground",
+  pendente: "bg-amber-50 text-amber-800 dark:bg-amber-950/35 dark:text-amber-300",
+};
+
 function TaskPreviewDialog({
   task,
   clientsById,
@@ -73,6 +94,15 @@ function TaskPreviewDialog({
   profilesById: Map<string, string>;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { data: allSubtasks } = useSubtasks();
+  // O hook fica acima do early return de propósito: chamá-lo depois mudaria a
+  // quantidade de hooks entre um render e outro quando o diálogo fecha.
+  const subtasks = useMemo(
+    () => (allSubtasks ?? []).filter((subtask) => subtask.task_id === task?.id),
+    [allSubtasks, task?.id],
+  );
+  const contagem = countCompletedSubtasks(subtasks);
+
   if (!task) return null;
 
   const done = isTaskDone(task);
@@ -144,6 +174,59 @@ function TaskPreviewDialog({
             <RichTextView html={task.description} className="mt-2 text-sm leading-6 [&_p]:my-2" />
           ) : (
             <p className="mt-2 text-sm text-muted-foreground">Esta tarefa não possui descrição.</p>
+          )}
+        </div>
+
+        <div className="border-t pt-5">
+          <p className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Subtarefas
+            {subtasks.length > 0 ? (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal">
+                {contagem.done} de {contagem.total} concluídas
+              </span>
+            ) : null}
+          </p>
+          {subtasks.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">Esta tarefa não possui subtarefas.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {subtasks.map((subtask) => {
+                const situacao = subtaskStatus(subtask);
+                const responsavel = subtask.assignee_id
+                  ? profilesById.get(subtask.assignee_id)
+                  : null;
+                return (
+                  <li
+                    key={subtask.id}
+                    className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border bg-muted/20 px-3 py-2"
+                  >
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${SUBTASK_DOT[situacao]}`} />
+                    <span
+                      className={`min-w-0 flex-1 break-words text-sm ${
+                        subtask.done ? "text-muted-foreground line-through" : ""
+                      }`}
+                    >
+                      {subtask.title}
+                    </span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${SUBTASK_BADGE[situacao]}`}
+                    >
+                      {subtaskStatusLabels[situacao]}
+                    </span>
+                    {subtask.due_date ? (
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {formatDate(subtask.due_date)}
+                      </span>
+                    ) : null}
+                    {responsavel ? (
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {responsavel}
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       </DialogContent>
