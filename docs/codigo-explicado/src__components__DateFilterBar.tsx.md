@@ -26,29 +26,33 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 18 | `export function DateFilterBar({` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
 | 19 | `  value,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 20 | `  onChange,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 21 | `}: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 22 | `  value: DateFilter;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 23 | `  onChange: (v: DateFilter) => void;` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 24 | `}) {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 25 | `  return (` | Devolve o resultado da funcao ou renderiza a interface do componente. |
-| 26 | `    <div className="flex flex-wrap gap-2">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 27 | `      {items.map((it) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 28 | `        const Icon = it.icon;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 29 | `        const active = value === it.value;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 30 | `        return (` | Devolve o resultado da funcao ou renderiza a interface do componente. |
-| 31 | `          <Button` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 32 | `            key={it.value}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 33 | `            size="sm"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 34 | `            variant={active ? "default" : "outline"}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 35 | `            onClick={() => onChange(it.value)}` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 36 | `            className="h-8"` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 37 | `          >` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 38 | `            <Icon className="mr-1.5 h-3.5 w-3.5" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 39 | `            {dateFilterLabels[it.value]}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 40 | `          </Button>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 41 | `        );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 42 | `      })}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 43 | `    </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 44 | `  );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 45 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 46 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 21 | `  hideToday = false,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 22 | `}: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 23 | `  value: DateFilter;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 24 | `  onChange: (v: DateFilter) => void;` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 25 | `  hideToday?: boolean;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 26 | `}) {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 27 | `  const visibleItems = hideToday ? items.filter((it) => it.value !== "today") : items;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 28 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 29 | `  return (` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 30 | `    <div className="flex flex-wrap gap-2">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 31 | `      {visibleItems.map((it) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 32 | `        const Icon = it.icon;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 33 | `        const active = value === it.value;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 34 | `        return (` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 35 | `          <Button` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 36 | `            key={it.value}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 37 | `            size="sm"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 38 | `            variant={active ? "default" : "outline"}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 39 | `            onClick={() => onChange(it.value)}` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 40 | `            className="h-8"` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 41 | `          >` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 42 | `            <Icon className="mr-1.5 h-3.5 w-3.5" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 43 | `            {dateFilterLabels[it.value]}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 44 | `          </Button>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 45 | `        );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 46 | `      })}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 47 | `    </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 48 | `  );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 49 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 50 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

@@ -12,7 +12,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 4 | `import { cn } from "@/lib/utils";` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
 | 5 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 6 | `const badgeVariants = cva(` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 7 | `  "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 7 | `  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 8 | `  {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 9 | `    variants: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 10 | `      variant: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |

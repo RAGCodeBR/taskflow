@@ -14,7 +14,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 6 | `export default defineConfig({` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
 | 7 | `  // GitHub Pages serves project sites under /<repo-name>/.` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
 | 8 | `  // Keep this in sync with the repository name, otherwise asset URLs break and the page opens blank.` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 9 | `  base: "/task-flow-supabase-clean/",` | Interage com o cliente Supabase para autenticar ou acessar o banco. |
+| 9 | `  base: "/task-flow/",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 10 | `  define: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 11 | `    // The app uses this flag to avoid TanStack Start server behavior in the static GitHub Pages build.` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
 | 12 | `    "import.meta.env.VITE_GITHUB_PAGES": JSON.stringify("true"),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |

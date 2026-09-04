@@ -16,7 +16,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 8 | `      <input` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
 | 9 | `        type={type}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 10 | `        className={cn(` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 11 | `          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 11 | `          "flex h-9 w-full rounded-full border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 12 | `          className,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 13 | `        )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 14 | `        ref={ref}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |

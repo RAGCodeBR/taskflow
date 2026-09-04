@@ -20,5 +20,6 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 12 | `    return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Carregando…</div>;` | Devolve o resultado da funcao ou renderiza a interface do componente. |
 | 13 | `  }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
 | 14 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 15 | `  return <Navigate to={user ? "/dashboard" : "/auth"} replace />;` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 15 | `  return <Navigate to={user ? "/mural" : "/auth"} replace />;` | Devolve o resultado da funcao ou renderiza a interface do componente. |
 | 16 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 17 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

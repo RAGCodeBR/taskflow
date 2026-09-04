@@ -19,9 +19,9 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 11 | `  throw new Error("Root element not found");` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 12 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
 | 13 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 14 | `// GitHub Pages hosts this clean copy under /task-flow-supabase-clean.` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 15 | `// The router basepath must match vite.pages.config.ts, otherwise redirects point to the old copy.` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 16 | `const router = getRouter("/task-flow-supabase-clean");` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 14 | `// GitHub Pages hosts this repository under /task-flow.` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 15 | `// The router basepath must match vite.pages.config.ts.` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 16 | `const router = getRouter("/task-flow");` | Cria uma variavel ou constante usada pela logica deste trecho. |
 | 17 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 18 | `createRoot(rootElement).render(` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 19 | `  <StrictMode>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |

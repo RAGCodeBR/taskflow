@@ -28,149 +28,155 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 20 | `  created_at: string;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 21 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
 | 22 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 23 | `export function NotificationBell() {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 24 | `  const { user } = useAuth();` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 25 | `  const navigate = useNavigate();` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 26 | `  const qc = useQueryClient();` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 27 | `  const [items, setItems] = useState<Notification[]>([]);` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 28 | `  const [open, setOpen] = useState(false);` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 29 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 30 | `  const refreshAssignedWork = () => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 31 | `    qc.invalidateQueries({ queryKey: ["tasks"] });` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 32 | `    qc.invalidateQueries({ queryKey: ["subtasks"] });` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 33 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 34 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 35 | `  const load = async () => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 36 | `    if (!user) return;` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 37 | `    const { data } = await (supabase.from("notifications") as any)` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 38 | `      .select("*")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 39 | `      .eq("user_id", user.id)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 40 | `      .order("created_at", { ascending: false })` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 41 | `      .limit(30);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 42 | `    const next = (data ?? []) as Notification[];` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 43 | `    if (next.some((n) => n.type === "assignment" || n.type === "subtask_assignment")) {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 44 | `      refreshAssignedWork();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 45 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 46 | `    setItems(next);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 47 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 48 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 49 | `  useEffect(() => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 50 | `    if (!user) return;` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 51 | `    load();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 52 | `    const poll = window.setInterval(() => void load(), 15_000);` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 53 | `    const channel = supabase` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 54 | `      .channel(\`notifications-${user.id}-${Math.random().toString(36).slice(2)}\`)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 55 | `      .on(` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 56 | `        "postgres_changes",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 57 | `        { event: "*", schema: "public", table: "notifications", filter: \`user_id=eq.${user.id}\` },` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 58 | `        (payload: any) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 59 | `          const type = payload.new?.type ?? payload.old?.type;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 60 | `          if (type === "assignment" || type === "subtask_assignment") refreshAssignedWork();` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 61 | `          void load();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 62 | `        },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 63 | `      )` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 64 | `      .subscribe();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 65 | `    return () => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 66 | `      window.clearInterval(poll);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 67 | `      supabase.removeChannel(channel);` | Interage com o cliente Supabase para autenticar ou acessar o banco. |
-| 68 | `    };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 69 | `    // eslint-disable-next-line react-hooks/exhaustive-deps` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 70 | `  }, [user?.id]);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 71 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 72 | `  const unread = items.filter((n) => !n.is_read).length;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 73 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 74 | `  const markRead = async (id: string) => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 75 | `    await (supabase.from("notifications") as any).update({ is_read: true }).eq("id", id);` | Espera uma operacao assincrona terminar, como chamada ao Supabase ou processamento externo. |
-| 76 | `    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 77 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 78 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 79 | `  const markAllRead = async () => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 80 | `    if (!user) return;` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 81 | `    await (supabase.from("notifications") as any)` | Espera uma operacao assincrona terminar, como chamada ao Supabase ou processamento externo. |
-| 82 | `      .update({ is_read: true })` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 83 | `      .eq("user_id", user.id)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 84 | `      .eq("is_read", false);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 85 | `    setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 86 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 87 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 88 | `  const remove = async (id: string) => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 89 | `    await (supabase.from("notifications") as any).delete().eq("id", id);` | Espera uma operacao assincrona terminar, como chamada ao Supabase ou processamento externo. |
-| 90 | `    setItems((prev) => prev.filter((n) => n.id !== id));` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 91 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 92 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 93 | `  const openNotification = async (n: Notification) => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 94 | `    if (!n.is_read) await markRead(n.id);` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 95 | `    setOpen(false);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 96 | `    if (n.task_id) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 97 | `      navigate({ to: "/tasks/list", search: { task: n.task_id, mine: true } as any });` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 98 | `    } else {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 99 | `      navigate({ to: "/tasks/list", search: { mine: true } as any });` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 100 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 101 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 102 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 103 | `  if (!user) return null;` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 104 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 105 | `  return (` | Devolve o resultado da funcao ou renderiza a interface do componente. |
-| 106 | `    <Popover open={open} onOpenChange={setOpen}>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 107 | `      <PopoverTrigger asChild>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 108 | `        <Button size="icon" variant="ghost" className="relative h-9 w-9" title="Notificações">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 109 | `          <Bell className="h-5 w-5" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 110 | `          {unread > 0 && (` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 111 | `            <span className="absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 112 | `              {unread > 99 ? "99+" : unread}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 113 | `            </span>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 114 | `          )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 115 | `        </Button>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 116 | `      </PopoverTrigger>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 117 | `      <PopoverContent align="end" className="w-96 p-0">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 118 | `        <div className="flex items-center justify-between border-b px-4 py-3">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 119 | `          <div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 120 | `            <p className="text-sm font-semibold">Notificações</p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 121 | `            <p className="text-xs text-muted-foreground">{unread > 0 ? \`${unread} não lidas\` : "Tudo em dia"}</p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 122 | `          </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 123 | `          <Button size="sm" variant="ghost" disabled={unread === 0} onClick={markAllRead}>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 124 | `            <Check className="mr-1 h-3.5 w-3.5" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 125 | `            Marcar todas` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 126 | `          </Button>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 127 | `        </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 128 | `        <div className="max-h-[420px] overflow-y-auto">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 129 | `          {items.length === 0 && (` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 130 | `            <p className="px-4 py-8 text-center text-sm text-muted-foreground">Sem notificações</p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 131 | `          )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 132 | `          {items.map((n) => (` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 133 | `            <div` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 134 | `              key={n.id}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 135 | `              className={\`group relative flex cursor-pointer gap-3 border-b px-4 py-3 text-sm transition hover:bg-muted/50 ${` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 136 | `                !n.is_read ? "bg-primary/5" : ""` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 137 | `              }\`}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 138 | `              onClick={() => openNotification(n)}` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 139 | `            >` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 140 | `              {!n.is_read && (` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 141 | `                <span className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-primary" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 142 | `              )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 143 | `              <div className="min-w-0 flex-1">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 144 | `                <p className="font-medium leading-tight">{n.title}</p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 145 | `                {n.body && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.body}</p>}` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 146 | `                <p className="mt-1 text-[11px] text-muted-foreground">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 147 | `                  {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ptBR })}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 148 | `                </p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 149 | `              </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 150 | `              <Button` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 151 | `                size="icon"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 152 | `                variant="ghost"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 153 | `                className="h-7 w-7 opacity-0 group-hover:opacity-100"` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 154 | `                onClick={(e) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 155 | `                  e.stopPropagation();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 156 | `                  remove(n.id);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 157 | `                }}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 158 | `              >` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 159 | `                <Trash2 className="h-3.5 w-3.5" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 160 | `              </Button>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 161 | `            </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 162 | `          ))}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 163 | `        </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 164 | `      </PopoverContent>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 165 | `    </Popover>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 166 | `  );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 167 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 168 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 23 | `const MURAL_NOTIFICATION_TYPES = new Set(["mural_post", "mural_reaction"]);` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 24 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 25 | `export function NotificationBell() {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 26 | `  const { user } = useAuth();` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 27 | `  const navigate = useNavigate();` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 28 | `  const qc = useQueryClient();` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 29 | `  const [items, setItems] = useState<Notification[]>([]);` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 30 | `  const [open, setOpen] = useState(false);` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 31 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 32 | `  const refreshAssignedWork = () => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 33 | `    qc.invalidateQueries({ queryKey: ["tasks"] });` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 34 | `    qc.invalidateQueries({ queryKey: ["subtasks"] });` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 35 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 36 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 37 | `  const load = async () => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 38 | `    if (!user) return;` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 39 | `    const { data } = await (supabase.from("notifications") as any)` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 40 | `      .select("*")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 41 | `      .eq("user_id", user.id)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 42 | `      .order("created_at", { ascending: false })` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 43 | `      .limit(30);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 44 | `    // Mural activity has its own per-user badge in the navigation. Keeping it` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 45 | `    // out of the global bell avoids two independent unread queues for the same event.` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 46 | `    const next = ((data ?? []) as Notification[]).filter(` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 47 | `      (notification) => !MURAL_NOTIFICATION_TYPES.has(notification.type),` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 48 | `    );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 49 | `    if (next.some((n) => n.type === "assignment" || n.type === "subtask_assignment" || n.type === "collaborator_assignment")) {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 50 | `      refreshAssignedWork();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 51 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 52 | `    setItems(next);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 53 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 54 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 55 | `  useEffect(() => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 56 | `    if (!user) return;` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 57 | `    load();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 58 | `    const poll = window.setInterval(() => void load(), 15_000);` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 59 | `    const channel = supabase` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 60 | `      .channel(\`notifications-${user.id}-${Math.random().toString(36).slice(2)}\`)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 61 | `      .on(` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 62 | `        "postgres_changes",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 63 | `        { event: "*", schema: "public", table: "notifications", filter: \`user_id=eq.${user.id}\` },` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 64 | `        (payload: any) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 65 | `          const type = payload.new?.type ?? payload.old?.type;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 66 | `          if (type === "assignment" || type === "subtask_assignment" || type === "collaborator_assignment") refreshAssignedWork();` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 67 | `          void load();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 68 | `        },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 69 | `      )` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 70 | `      .subscribe();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 71 | `    return () => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 72 | `      window.clearInterval(poll);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 73 | `      supabase.removeChannel(channel);` | Interage com o cliente Supabase para autenticar ou acessar o banco. |
+| 74 | `    };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 75 | `    // eslint-disable-next-line react-hooks/exhaustive-deps` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 76 | `  }, [user?.id]);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 77 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 78 | `  const unread = items.filter((n) => !n.is_read).length;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 79 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 80 | `  const markRead = async (id: string) => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 81 | `    await (supabase.from("notifications") as any).update({ is_read: true }).eq("id", id);` | Espera uma operacao assincrona terminar, como chamada ao Supabase ou processamento externo. |
+| 82 | `    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 83 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 84 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 85 | `  const markAllRead = async () => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 86 | `    if (!user) return;` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 87 | `    await (supabase.from("notifications") as any)` | Espera uma operacao assincrona terminar, como chamada ao Supabase ou processamento externo. |
+| 88 | `      .update({ is_read: true })` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 89 | `      .eq("user_id", user.id)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 90 | `      .eq("is_read", false);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 91 | `    setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 92 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 93 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 94 | `  const remove = async (id: string) => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 95 | `    await (supabase.from("notifications") as any).delete().eq("id", id);` | Espera uma operacao assincrona terminar, como chamada ao Supabase ou processamento externo. |
+| 96 | `    setItems((prev) => prev.filter((n) => n.id !== id));` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 97 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 98 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 99 | `  const openNotification = async (n: Notification) => {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 100 | `    if (!n.is_read) await markRead(n.id);` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 101 | `    setOpen(false);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 102 | `    if (n.task_id) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 103 | `      navigate({ to: "/tasks/list", search: { task: n.task_id, mine: true } as any });` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 104 | `    } else {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 105 | `      navigate({ to: "/tasks/list", search: { mine: true } as any });` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 106 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 107 | `  };` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 108 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 109 | `  if (!user) return null;` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 110 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 111 | `  return (` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 112 | `    <Popover open={open} onOpenChange={setOpen}>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 113 | `      <PopoverTrigger asChild>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 114 | `        <Button size="icon" variant="ghost" className="relative h-9 w-9" title="Notificações">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 115 | `          <Bell className="h-5 w-5" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 116 | `          {unread > 0 && (` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 117 | `            <span className="absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 118 | `              {unread > 99 ? "99+" : unread}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 119 | `            </span>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 120 | `          )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 121 | `        </Button>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 122 | `      </PopoverTrigger>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 123 | `      <PopoverContent align="end" className="w-96 p-0">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 124 | `        <div className="flex items-center justify-between border-b px-4 py-3">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 125 | `          <div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 126 | `            <p className="text-sm font-semibold">Notificações</p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 127 | `            <p className="text-xs text-muted-foreground">{unread > 0 ? \`${unread} não lidas\` : "Tudo em dia"}</p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 128 | `          </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 129 | `          <Button size="sm" variant="ghost" disabled={unread === 0} onClick={markAllRead}>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 130 | `            <Check className="mr-1 h-3.5 w-3.5" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 131 | `            Marcar todas` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 132 | `          </Button>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 133 | `        </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 134 | `        <div className="max-h-[420px] overflow-y-auto">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 135 | `          {items.length === 0 && (` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 136 | `            <p className="px-4 py-8 text-center text-sm text-muted-foreground">Sem notificações</p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 137 | `          )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 138 | `          {items.map((n) => (` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 139 | `            <div` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 140 | `              key={n.id}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 141 | `              className={\`group relative flex cursor-pointer gap-3 border-b px-4 py-3 text-sm transition hover:bg-muted/50 ${` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 142 | `                !n.is_read ? "bg-primary/5" : ""` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 143 | `              }\`}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 144 | `              onClick={() => openNotification(n)}` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 145 | `            >` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 146 | `              {!n.is_read && (` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 147 | `                <span className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-primary" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 148 | `              )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 149 | `              <div className="min-w-0 flex-1">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 150 | `                <p className="font-medium leading-tight">{n.title}</p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 151 | `                {n.body && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.body}</p>}` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 152 | `                <p className="mt-1 text-[11px] text-muted-foreground">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 153 | `                  {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ptBR })}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 154 | `                </p>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 155 | `              </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 156 | `              <Button` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 157 | `                size="icon"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 158 | `                variant="ghost"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 159 | `                className="h-7 w-7 opacity-0 group-hover:opacity-100"` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 160 | `                onClick={(e) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 161 | `                  e.stopPropagation();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 162 | `                  remove(n.id);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 163 | `                }}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 164 | `              >` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 165 | `                <Trash2 className="h-3.5 w-3.5" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 166 | `              </Button>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 167 | `            </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 168 | `          ))}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 169 | `        </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 170 | `      </PopoverContent>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 171 | `    </Popover>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 172 | `  );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 173 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 174 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

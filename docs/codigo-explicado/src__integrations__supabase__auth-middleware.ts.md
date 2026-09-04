@@ -14,76 +14,93 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 6 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 7 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 8 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 9 | `export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 10 | `  async ({ next }) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 11 | `    ` | Separa blocos de codigo para melhorar a leitura. |
-| 12 | `    const SUPABASE_URL = process.env.SUPABASE_URL;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 13 | `    const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 14 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 15 | `    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 16 | `      const missing = [` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 17 | `        ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 18 | `        ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 19 | `      ];` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 20 | `      const message = \`Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.\`;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 21 | `      console.error(\`[Supabase] ${message}\`);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 22 | `      throw new Error(message);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 23 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 24 | `    ` | Separa blocos de codigo para melhorar a leitura. |
-| 25 | `    const request = getRequest();` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 26 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 27 | `    if (!request?.headers) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 28 | `      throw new Error('Unauthorized: No request headers available');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 29 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 9 | `function createFallbackSupabaseAuthClient() {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 10 | `  const error = new Error('Supabase is not configured. Authentication will be unavailable until credentials are provided.');` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 11 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 12 | `  return {` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 13 | `    auth: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 14 | `      getClaims: () => Promise.resolve({ data: { claims: null }, error }),` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 15 | `    },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 16 | `  } as any;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 17 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 18 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 19 | `type AuthContext = {` | Declara um contrato de tipos TypeScript para deixar os dados mais seguros e previsiveis. |
+| 20 | `  supabase: any;` | Interage com o cliente Supabase para autenticar ou acessar o banco. |
+| 21 | `  userId: string | null;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 22 | `  claims: any;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 23 | `};` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 24 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 25 | `export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server<AuthContext>(` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 26 | `  async ({ next }) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 27 | `    ` | Separa blocos de codigo para melhorar a leitura. |
+| 28 | `    const SUPABASE_URL = process.env.SUPABASE_URL;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 29 | `    const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;` | Cria uma variavel ou constante usada pela logica deste trecho. |
 | 30 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 31 | `    const authHeader = request.headers.get('authorization');` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 32 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 33 | `    if (!authHeader) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 34 | `      throw new Error('Unauthorized: No authorization header provided');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 35 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 36 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 37 | `    if (!authHeader.startsWith('Bearer ')) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 38 | `      throw new Error('Unauthorized: Only Bearer tokens are supported');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 39 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 40 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 41 | `    const token = authHeader.replace('Bearer ', '');` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 42 | `    if (!token) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 43 | `      throw new Error('Unauthorized: No token provided');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 44 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 45 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 46 | `    const supabase = createClient<Database>(` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 47 | `      SUPABASE_URL!,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 48 | `      SUPABASE_PUBLISHABLE_KEY!,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 49 | `      {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 50 | `        global: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 51 | `          headers: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 52 | `            Authorization: \`Bearer ${token}\`,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 53 | `          },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 54 | `        },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 55 | `        auth: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 56 | `          storage: undefined,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 57 | `          persistSession: false,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 58 | `          autoRefreshToken: false,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 59 | `        },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 60 | `      }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 61 | `    );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 31 | `    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 32 | `      console.warn('[Supabase] Missing credentials. Bypassing auth middleware for local development.');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 33 | `      return next<AuthContext>({` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 34 | `        context: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 35 | `          supabase: createFallbackSupabaseAuthClient(),` | Interage com o cliente Supabase para autenticar ou acessar o banco. |
+| 36 | `          userId: null,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 37 | `          claims: null,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 38 | `        },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 39 | `      });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 40 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 41 | `    ` | Separa blocos de codigo para melhorar a leitura. |
+| 42 | `    const request = getRequest();` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 43 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 44 | `    if (!request?.headers) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 45 | `      throw new Error('Unauthorized: No request headers available');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 46 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 47 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 48 | `    const authHeader = request.headers.get('authorization');` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 49 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 50 | `    if (!authHeader) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 51 | `      throw new Error('Unauthorized: No authorization header provided');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 52 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 53 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 54 | `    if (!authHeader.startsWith('Bearer ')) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 55 | `      throw new Error('Unauthorized: Only Bearer tokens are supported');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 56 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 57 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 58 | `    const token = authHeader.replace('Bearer ', '');` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 59 | `    if (!token) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 60 | `      throw new Error('Unauthorized: No token provided');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 61 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
 | 62 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 63 | `    const { data, error } = await supabase.auth.getClaims(token);` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 64 | `    if (error || !data?.claims) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 65 | `      throw new Error('Unauthorized: Invalid token');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 66 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 67 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 68 | `    if (!data.claims.sub) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 69 | `      throw new Error('Unauthorized: No user ID found in token');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 70 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 71 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 72 | `    return next({` | Devolve o resultado da funcao ou renderiza a interface do componente. |
-| 73 | `      context: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 74 | `        supabase,` | Interage com o cliente Supabase para autenticar ou acessar o banco. |
-| 75 | `        userId: data.claims.sub,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 76 | `        claims: data.claims,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 77 | `      },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 78 | `    });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 79 | `  },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 80 | `);` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 81 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 63 | `    const supabase = createClient<Database>(` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 64 | `      SUPABASE_URL!,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 65 | `      SUPABASE_PUBLISHABLE_KEY!,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 66 | `      {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 67 | `        global: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 68 | `          headers: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 69 | `            Authorization: \`Bearer ${token}\`,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 70 | `          },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 71 | `        },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 72 | `        auth: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 73 | `          storage: undefined,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 74 | `          persistSession: false,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 75 | `          autoRefreshToken: false,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 76 | `        },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 77 | `      }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 78 | `    );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 79 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 80 | `    const { data, error } = await supabase.auth.getClaims(token);` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 81 | `    if (error || !data?.claims) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 82 | `      throw new Error('Unauthorized: Invalid token');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 83 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 84 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 85 | `    if (!data.claims.sub) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 86 | `      throw new Error('Unauthorized: No user ID found in token');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 87 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 88 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 89 | `    return next<AuthContext>({` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 90 | `      context: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 91 | `        supabase,` | Interage com o cliente Supabase para autenticar ou acessar o banco. |
+| 92 | `        userId: data.claims.sub,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 93 | `        claims: data.claims,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 94 | `      },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 95 | `    });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 96 | `  },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 97 | `);` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 98 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

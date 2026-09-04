@@ -1,0 +1,19 @@
+# supabase/migrations/20260728140000_add_employee_person_type.sql
+
+Tipo: Migration SQL do Supabase.
+
+Este documento foi gerado para estudo e manutencao. Ele preserva o codigo original e explica linha por linha sem alterar o comportamento do sistema publicado.
+
+| Linha | Codigo original | Explicacao |
+| ---: | --- | --- |
+| 1 | `ALTER TABLE public.client_department_employees` | Altera uma tabela existente, normalmente adicionando campos, chaves ou politicas. |
+| 2 | `  ADD COLUMN IF NOT EXISTS person_type text NOT NULL DEFAULT 'individual',` | Executa parte da mudanca estrutural ou de seguranca do banco. |
+| 3 | `  ADD COLUMN IF NOT EXISTS document text;` | Executa parte da mudanca estrutural ou de seguranca do banco. |
+| 4 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 5 | `ALTER TABLE public.client_department_employees` | Altera uma tabela existente, normalmente adicionando campos, chaves ou politicas. |
+| 6 | `  DROP CONSTRAINT IF EXISTS client_department_employees_person_type_check,` | Remove objeto antigo para permitir recriacao ou limpeza controlada. |
+| 7 | `  ADD CONSTRAINT client_department_employees_person_type_check` | Executa parte da mudanca estrutural ou de seguranca do banco. |
+| 8 | `    CHECK (person_type IN ('individual', 'company'));` | Executa parte da mudanca estrutural ou de seguranca do banco. |
+| 9 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 10 | `NOTIFY pgrst, 'reload schema';` | Executa parte da mudanca estrutural ou de seguranca do banco. |
+| 11 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

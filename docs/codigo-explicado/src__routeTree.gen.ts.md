@@ -17,66 +17,66 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 9 | `// Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
 | 10 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 11 | `import { Route as rootRouteImport } from './routes/__root'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 12 | `import { Route as AuthRouteImport } from './routes/auth'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 12 | `import { Route as IndexRouteImport } from './routes/index'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
 | 13 | `import { Route as AppRouteImport } from './routes/_app'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 14 | `import { Route as IndexRouteImport } from './routes/index'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 15 | `import { Route as AppUsersRouteImport } from './routes/_app/users'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 16 | `import { Route as AppTrashRouteImport } from './routes/_app/trash'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 17 | `import { Route as AppTasksRouteImport } from './routes/_app/tasks'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 18 | `import { Route as AppSettingsRouteImport } from './routes/_app/settings'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 19 | `import { Route as AppReportsRouteImport } from './routes/_app/reports'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 20 | `import { Route as AppNotesRouteImport } from './routes/_app/notes'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 21 | `import { Route as AppImportAtaRouteImport } from './routes/_app/import-ata'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 22 | `import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 23 | `import { Route as AppClientsRouteImport } from './routes/_app/clients'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 24 | `import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks.index'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 25 | `import { Route as AppTasksListRouteImport } from './routes/_app/tasks.list'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 26 | `import { Route as AppTasksKanbanRouteImport } from './routes/_app/tasks.kanban'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 27 | `import { Route as AppTasksCalendarRouteImport } from './routes/_app/tasks.calendar'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 28 | `import { Route as AppClientReportClientIdRouteImport } from './routes/_app/client-report.$clientId'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 29 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 30 | `const AuthRoute = AuthRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 31 | `  id: '/auth',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 32 | `  path: '/auth',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 33 | `  getParentRoute: () => rootRouteImport,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 34 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 35 | `const AppRoute = AppRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 36 | `  id: '/_app',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 37 | `  getParentRoute: () => rootRouteImport,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 38 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 39 | `const IndexRoute = IndexRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 40 | `  id: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 41 | `  path: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 42 | `  getParentRoute: () => rootRouteImport,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 43 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 44 | `const AppUsersRoute = AppUsersRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 45 | `  id: '/users',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 46 | `  path: '/users',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 47 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 14 | `import { Route as AuthRouteImport } from './routes/auth'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 15 | `import { Route as AppAgendaRouteImport } from './routes/_app/agenda'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 16 | `import { Route as AppAmbientesRouteImport } from './routes/_app/ambientes'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 17 | `import { Route as AppClientsRouteImport } from './routes/_app/clients'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 18 | `import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 19 | `import { Route as AppImportAtaRouteImport } from './routes/_app/import-ata'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 20 | `import { Route as AppMuralRouteImport } from './routes/_app/mural'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 21 | `import { Route as AppNotesRouteImport } from './routes/_app/notes'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 22 | `import { Route as AppObligationsRouteImport } from './routes/_app/obligations'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 23 | `import { Route as AppReportsRouteImport } from './routes/_app/reports'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 24 | `import { Route as AppRequestsRouteImport } from './routes/_app/requests'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 25 | `import { Route as AppSettingsRouteImport } from './routes/_app/settings'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 26 | `import { Route as AppTasksRouteImport } from './routes/_app/tasks'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 27 | `import { Route as AppTrashRouteImport } from './routes/_app/trash'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 28 | `import { Route as AppUsersRouteImport } from './routes/_app/users'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 29 | `import { Route as AppClientReportClientIdRouteImport } from './routes/_app/client-report.$clientId'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 30 | `import { Route as AppClientsIndexRouteImport } from './routes/_app/clients.index'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 31 | `import { Route as AppClientsNewRouteImport } from './routes/_app/clients.new'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 32 | `import { Route as AppPortalEntregasRouteImport } from './routes/_app/portal.entregas'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 33 | `import { Route as AppPortalFinanceiroRouteImport } from './routes/_app/portal.financeiro'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 34 | `import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks.index'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 35 | `import { Route as AppTasksCalendarRouteImport } from './routes/_app/tasks.calendar'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 36 | `import { Route as AppTasksKanbanRouteImport } from './routes/_app/tasks.kanban'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 37 | `import { Route as AppTasksListRouteImport } from './routes/_app/tasks.list'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 38 | `import { Route as AppClientsClientIdEditRouteImport } from './routes/_app/clients.$clientId.edit'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 39 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 40 | `const IndexRoute = IndexRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 41 | `  id: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 42 | `  path: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 43 | `  getParentRoute: () => rootRouteImport,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 44 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 45 | `const AppRoute = AppRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 46 | `  id: '/_app',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 47 | `  getParentRoute: () => rootRouteImport,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 48 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 49 | `const AppTrashRoute = AppTrashRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 50 | `  id: '/trash',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 51 | `  path: '/trash',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 52 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 49 | `const AuthRoute = AuthRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 50 | `  id: '/auth',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 51 | `  path: '/auth',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 52 | `  getParentRoute: () => rootRouteImport,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 53 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 54 | `const AppTasksRoute = AppTasksRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 55 | `  id: '/tasks',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 56 | `  path: '/tasks',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 54 | `const AppAgendaRoute = AppAgendaRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 55 | `  id: '/agenda',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 56 | `  path: '/agenda',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 57 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 58 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 59 | `const AppSettingsRoute = AppSettingsRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 60 | `  id: '/settings',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 61 | `  path: '/settings',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 59 | `const AppAmbientesRoute = AppAmbientesRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 60 | `  id: '/ambientes',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 61 | `  path: '/ambientes',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 62 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 63 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 64 | `const AppReportsRoute = AppReportsRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 65 | `  id: '/reports',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 66 | `  path: '/reports',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 64 | `const AppClientsRoute = AppClientsRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 65 | `  id: '/clients',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 66 | `  path: '/clients',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 67 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 68 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 69 | `const AppNotesRoute = AppNotesRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 70 | `  id: '/notes',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 71 | `  path: '/notes',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 69 | `const AppDashboardRoute = AppDashboardRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 70 | `  id: '/dashboard',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 71 | `  path: '/dashboard',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 72 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 73 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 74 | `const AppImportAtaRoute = AppImportAtaRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
@@ -84,336 +84,564 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 76 | `  path: '/import-ata',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 77 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 78 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 79 | `const AppDashboardRoute = AppDashboardRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 80 | `  id: '/dashboard',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 81 | `  path: '/dashboard',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 79 | `const AppMuralRoute = AppMuralRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 80 | `  id: '/mural',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 81 | `  path: '/mural',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 82 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 83 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 84 | `const AppClientsRoute = AppClientsRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 85 | `  id: '/clients',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 86 | `  path: '/clients',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 84 | `const AppNotesRoute = AppNotesRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 85 | `  id: '/notes',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 86 | `  path: '/notes',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 87 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 88 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 89 | `const AppTasksIndexRoute = AppTasksIndexRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 90 | `  id: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 91 | `  path: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 92 | `  getParentRoute: () => AppTasksRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 89 | `const AppObligationsRoute = AppObligationsRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 90 | `  id: '/obligations',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 91 | `  path: '/obligations',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 92 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 93 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 94 | `const AppTasksListRoute = AppTasksListRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 95 | `  id: '/list',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 96 | `  path: '/list',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 97 | `  getParentRoute: () => AppTasksRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 94 | `const AppReportsRoute = AppReportsRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 95 | `  id: '/reports',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 96 | `  path: '/reports',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 97 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 98 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 99 | `const AppTasksKanbanRoute = AppTasksKanbanRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 100 | `  id: '/kanban',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 101 | `  path: '/kanban',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 102 | `  getParentRoute: () => AppTasksRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 99 | `const AppRequestsRoute = AppRequestsRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 100 | `  id: '/requests',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 101 | `  path: '/requests',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 102 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 103 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 104 | `const AppTasksCalendarRoute = AppTasksCalendarRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 105 | `  id: '/calendar',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 106 | `  path: '/calendar',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 107 | `  getParentRoute: () => AppTasksRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 104 | `const AppSettingsRoute = AppSettingsRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 105 | `  id: '/settings',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 106 | `  path: '/settings',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 107 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 108 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 109 | `const AppClientReportClientIdRoute = AppClientReportClientIdRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 110 | `  id: '/client-report/$clientId',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 111 | `  path: '/client-report/$clientId',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 109 | `const AppTasksRoute = AppTasksRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 110 | `  id: '/tasks',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 111 | `  path: '/tasks',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 112 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 113 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 114 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 115 | `export interface FileRoutesByFullPath {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 116 | `  '/': typeof IndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 117 | `  '/auth': typeof AuthRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 118 | `  '/clients': typeof AppClientsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 119 | `  '/dashboard': typeof AppDashboardRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 120 | `  '/import-ata': typeof AppImportAtaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 121 | `  '/notes': typeof AppNotesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 122 | `  '/reports': typeof AppReportsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 123 | `  '/settings': typeof AppSettingsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 124 | `  '/tasks': typeof AppTasksRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 125 | `  '/trash': typeof AppTrashRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 126 | `  '/users': typeof AppUsersRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 127 | `  '/client-report/$clientId': typeof AppClientReportClientIdRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 128 | `  '/tasks/calendar': typeof AppTasksCalendarRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 129 | `  '/tasks/kanban': typeof AppTasksKanbanRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 130 | `  '/tasks/list': typeof AppTasksListRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 131 | `  '/tasks/': typeof AppTasksIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 132 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 133 | `export interface FileRoutesByTo {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 134 | `  '/': typeof IndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 135 | `  '/auth': typeof AuthRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 136 | `  '/clients': typeof AppClientsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 137 | `  '/dashboard': typeof AppDashboardRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 138 | `  '/import-ata': typeof AppImportAtaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 139 | `  '/notes': typeof AppNotesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 140 | `  '/reports': typeof AppReportsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 141 | `  '/settings': typeof AppSettingsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 142 | `  '/trash': typeof AppTrashRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 143 | `  '/users': typeof AppUsersRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 144 | `  '/client-report/$clientId': typeof AppClientReportClientIdRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 145 | `  '/tasks/calendar': typeof AppTasksCalendarRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 146 | `  '/tasks/kanban': typeof AppTasksKanbanRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 147 | `  '/tasks/list': typeof AppTasksListRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 148 | `  '/tasks': typeof AppTasksIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 149 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 150 | `export interface FileRoutesById {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 151 | `  __root__: typeof rootRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 152 | `  '/': typeof IndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 153 | `  '/_app': typeof AppRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 154 | `  '/auth': typeof AuthRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 155 | `  '/_app/clients': typeof AppClientsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 156 | `  '/_app/dashboard': typeof AppDashboardRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 157 | `  '/_app/import-ata': typeof AppImportAtaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 158 | `  '/_app/notes': typeof AppNotesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 159 | `  '/_app/reports': typeof AppReportsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 160 | `  '/_app/settings': typeof AppSettingsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 161 | `  '/_app/tasks': typeof AppTasksRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 162 | `  '/_app/trash': typeof AppTrashRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 163 | `  '/_app/users': typeof AppUsersRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 164 | `  '/_app/client-report/$clientId': typeof AppClientReportClientIdRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 165 | `  '/_app/tasks/calendar': typeof AppTasksCalendarRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 166 | `  '/_app/tasks/kanban': typeof AppTasksKanbanRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 167 | `  '/_app/tasks/list': typeof AppTasksListRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 168 | `  '/_app/tasks/': typeof AppTasksIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 169 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 170 | `export interface FileRouteTypes {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 171 | `  fileRoutesByFullPath: FileRoutesByFullPath` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 172 | `  fullPaths:` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 173 | `    | '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 174 | `    | '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 175 | `    | '/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 176 | `    | '/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 177 | `    | '/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 178 | `    | '/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 179 | `    | '/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 180 | `    | '/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 181 | `    | '/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 182 | `    | '/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 183 | `    | '/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 184 | `    | '/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 185 | `    | '/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 186 | `    | '/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 187 | `    | '/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 188 | `    | '/tasks/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 189 | `  fileRoutesByTo: FileRoutesByTo` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 190 | `  to:` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 191 | `    | '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 192 | `    | '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 193 | `    | '/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 194 | `    | '/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 195 | `    | '/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 196 | `    | '/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 197 | `    | '/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 198 | `    | '/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 199 | `    | '/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 200 | `    | '/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 201 | `    | '/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 202 | `    | '/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 203 | `    | '/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 204 | `    | '/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 205 | `    | '/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 206 | `  id:` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 207 | `    | '__root__'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 208 | `    | '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 209 | `    | '/_app'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 210 | `    | '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 211 | `    | '/_app/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 212 | `    | '/_app/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 213 | `    | '/_app/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 214 | `    | '/_app/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 215 | `    | '/_app/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 216 | `    | '/_app/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 217 | `    | '/_app/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 218 | `    | '/_app/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 219 | `    | '/_app/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 220 | `    | '/_app/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 221 | `    | '/_app/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 222 | `    | '/_app/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 223 | `    | '/_app/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 224 | `    | '/_app/tasks/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 225 | `  fileRoutesById: FileRoutesById` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 226 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 227 | `export interface RootRouteChildren {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 228 | `  IndexRoute: typeof IndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 229 | `  AppRoute: typeof AppRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 230 | `  AuthRoute: typeof AuthRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 231 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 232 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 233 | `declare module '@tanstack/react-router' {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 234 | `  interface FileRoutesByPath {` | Declara um contrato de tipos TypeScript para deixar os dados mais seguros e previsiveis. |
-| 235 | `    '/auth': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 236 | `      id: '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 237 | `      path: '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 238 | `      fullPath: '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 239 | `      preLoaderRoute: typeof AuthRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 240 | `      parentRoute: typeof rootRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 241 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 242 | `    '/_app': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 243 | `      id: '/_app'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 244 | `      path: ''` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 245 | `      fullPath: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 246 | `      preLoaderRoute: typeof AppRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 247 | `      parentRoute: typeof rootRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 248 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 249 | `    '/': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 250 | `      id: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 251 | `      path: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 252 | `      fullPath: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 253 | `      preLoaderRoute: typeof IndexRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 254 | `      parentRoute: typeof rootRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 255 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 256 | `    '/_app/users': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 257 | `      id: '/_app/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 258 | `      path: '/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 259 | `      fullPath: '/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 260 | `      preLoaderRoute: typeof AppUsersRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 261 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 262 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 263 | `    '/_app/trash': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 264 | `      id: '/_app/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 265 | `      path: '/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 266 | `      fullPath: '/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 267 | `      preLoaderRoute: typeof AppTrashRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 268 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 269 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 270 | `    '/_app/tasks': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 271 | `      id: '/_app/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 272 | `      path: '/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 273 | `      fullPath: '/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 274 | `      preLoaderRoute: typeof AppTasksRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 275 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 276 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 277 | `    '/_app/settings': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 278 | `      id: '/_app/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 279 | `      path: '/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 280 | `      fullPath: '/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 281 | `      preLoaderRoute: typeof AppSettingsRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 282 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 283 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 284 | `    '/_app/reports': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 285 | `      id: '/_app/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 286 | `      path: '/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 287 | `      fullPath: '/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 288 | `      preLoaderRoute: typeof AppReportsRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 289 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 290 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 291 | `    '/_app/notes': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 292 | `      id: '/_app/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 293 | `      path: '/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 294 | `      fullPath: '/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 295 | `      preLoaderRoute: typeof AppNotesRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 296 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 297 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 298 | `    '/_app/import-ata': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 299 | `      id: '/_app/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 300 | `      path: '/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 301 | `      fullPath: '/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 302 | `      preLoaderRoute: typeof AppImportAtaRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 303 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 304 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 305 | `    '/_app/dashboard': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 306 | `      id: '/_app/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 307 | `      path: '/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 308 | `      fullPath: '/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 309 | `      preLoaderRoute: typeof AppDashboardRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 310 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 311 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 312 | `    '/_app/clients': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 313 | `      id: '/_app/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 314 | `      path: '/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 315 | `      fullPath: '/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 316 | `      preLoaderRoute: typeof AppClientsRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 317 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 318 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 319 | `    '/_app/tasks/': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 320 | `      id: '/_app/tasks/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 321 | `      path: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 322 | `      fullPath: '/tasks/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 323 | `      preLoaderRoute: typeof AppTasksIndexRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 324 | `      parentRoute: typeof AppTasksRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 325 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 326 | `    '/_app/tasks/list': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 327 | `      id: '/_app/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 328 | `      path: '/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 329 | `      fullPath: '/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 330 | `      preLoaderRoute: typeof AppTasksListRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 331 | `      parentRoute: typeof AppTasksRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 332 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 333 | `    '/_app/tasks/kanban': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 334 | `      id: '/_app/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 335 | `      path: '/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 336 | `      fullPath: '/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 337 | `      preLoaderRoute: typeof AppTasksKanbanRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 338 | `      parentRoute: typeof AppTasksRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 339 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 340 | `    '/_app/tasks/calendar': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 341 | `      id: '/_app/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 342 | `      path: '/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 343 | `      fullPath: '/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 344 | `      preLoaderRoute: typeof AppTasksCalendarRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 345 | `      parentRoute: typeof AppTasksRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 346 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 347 | `    '/_app/client-report/$clientId': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 348 | `      id: '/_app/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 349 | `      path: '/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 350 | `      fullPath: '/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 351 | `      preLoaderRoute: typeof AppClientReportClientIdRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 352 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 353 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 354 | `  }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 355 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 356 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 357 | `interface AppTasksRouteChildren {` | Declara um contrato de tipos TypeScript para deixar os dados mais seguros e previsiveis. |
-| 358 | `  AppTasksCalendarRoute: typeof AppTasksCalendarRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 359 | `  AppTasksKanbanRoute: typeof AppTasksKanbanRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 360 | `  AppTasksListRoute: typeof AppTasksListRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 361 | `  AppTasksIndexRoute: typeof AppTasksIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 362 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 363 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 364 | `const AppTasksRouteChildren: AppTasksRouteChildren = {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 365 | `  AppTasksCalendarRoute: AppTasksCalendarRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 366 | `  AppTasksKanbanRoute: AppTasksKanbanRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 367 | `  AppTasksListRoute: AppTasksListRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 368 | `  AppTasksIndexRoute: AppTasksIndexRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 369 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 370 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 371 | `const AppTasksRouteWithChildren = AppTasksRoute._addFileChildren(` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 372 | `  AppTasksRouteChildren,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 373 | `)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 374 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 375 | `interface AppRouteChildren {` | Declara um contrato de tipos TypeScript para deixar os dados mais seguros e previsiveis. |
-| 376 | `  AppClientsRoute: typeof AppClientsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 377 | `  AppDashboardRoute: typeof AppDashboardRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 378 | `  AppImportAtaRoute: typeof AppImportAtaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 379 | `  AppNotesRoute: typeof AppNotesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 380 | `  AppReportsRoute: typeof AppReportsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 381 | `  AppSettingsRoute: typeof AppSettingsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 382 | `  AppTasksRoute: typeof AppTasksRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 383 | `  AppTrashRoute: typeof AppTrashRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 384 | `  AppUsersRoute: typeof AppUsersRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 385 | `  AppClientReportClientIdRoute: typeof AppClientReportClientIdRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 386 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 387 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 388 | `const AppRouteChildren: AppRouteChildren = {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 389 | `  AppClientsRoute: AppClientsRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 390 | `  AppDashboardRoute: AppDashboardRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 391 | `  AppImportAtaRoute: AppImportAtaRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 392 | `  AppNotesRoute: AppNotesRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 393 | `  AppReportsRoute: AppReportsRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 394 | `  AppSettingsRoute: AppSettingsRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 395 | `  AppTasksRoute: AppTasksRouteWithChildren,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 396 | `  AppTrashRoute: AppTrashRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 397 | `  AppUsersRoute: AppUsersRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 398 | `  AppClientReportClientIdRoute: AppClientReportClientIdRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 399 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 400 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 401 | `const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 402 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 403 | `const rootRouteChildren: RootRouteChildren = {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 404 | `  IndexRoute: IndexRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 405 | `  AppRoute: AppRouteWithChildren,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 406 | `  AuthRoute: AuthRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 407 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 408 | `export const routeTree = rootRouteImport` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 409 | `  ._addFileChildren(rootRouteChildren)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 410 | `  ._addFileTypes<FileRouteTypes>()` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 411 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 114 | `const AppTrashRoute = AppTrashRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 115 | `  id: '/trash',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 116 | `  path: '/trash',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 117 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 118 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 119 | `const AppUsersRoute = AppUsersRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 120 | `  id: '/users',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 121 | `  path: '/users',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 122 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 123 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 124 | `const AppClientReportClientIdRoute = AppClientReportClientIdRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 125 | `  id: '/client-report/$clientId',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 126 | `  path: '/client-report/$clientId',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 127 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 128 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 129 | `const AppClientsIndexRoute = AppClientsIndexRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 130 | `  id: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 131 | `  path: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 132 | `  getParentRoute: () => AppClientsRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 133 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 134 | `const AppClientsNewRoute = AppClientsNewRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 135 | `  id: '/new',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 136 | `  path: '/new',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 137 | `  getParentRoute: () => AppClientsRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 138 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 139 | `const AppPortalEntregasRoute = AppPortalEntregasRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 140 | `  id: '/portal/entregas',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 141 | `  path: '/portal/entregas',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 142 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 143 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 144 | `const AppPortalFinanceiroRoute = AppPortalFinanceiroRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 145 | `  id: '/portal/financeiro',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 146 | `  path: '/portal/financeiro',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 147 | `  getParentRoute: () => AppRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 148 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 149 | `const AppTasksIndexRoute = AppTasksIndexRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 150 | `  id: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 151 | `  path: '/',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 152 | `  getParentRoute: () => AppTasksRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 153 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 154 | `const AppTasksCalendarRoute = AppTasksCalendarRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 155 | `  id: '/calendar',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 156 | `  path: '/calendar',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 157 | `  getParentRoute: () => AppTasksRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 158 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 159 | `const AppTasksKanbanRoute = AppTasksKanbanRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 160 | `  id: '/kanban',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 161 | `  path: '/kanban',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 162 | `  getParentRoute: () => AppTasksRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 163 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 164 | `const AppTasksListRoute = AppTasksListRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 165 | `  id: '/list',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 166 | `  path: '/list',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 167 | `  getParentRoute: () => AppTasksRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 168 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 169 | `const AppClientsClientIdEditRoute = AppClientsClientIdEditRouteImport.update({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 170 | `  id: '/$clientId/edit',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 171 | `  path: '/$clientId/edit',` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 172 | `  getParentRoute: () => AppClientsRoute,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 173 | `} as any)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 174 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 175 | `export interface FileRoutesByFullPath {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 176 | `  '/': typeof IndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 177 | `  '/auth': typeof AuthRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 178 | `  '/agenda': typeof AppAgendaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 179 | `  '/ambientes': typeof AppAmbientesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 180 | `  '/clients': typeof AppClientsRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 181 | `  '/dashboard': typeof AppDashboardRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 182 | `  '/import-ata': typeof AppImportAtaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 183 | `  '/mural': typeof AppMuralRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 184 | `  '/notes': typeof AppNotesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 185 | `  '/obligations': typeof AppObligationsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 186 | `  '/reports': typeof AppReportsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 187 | `  '/requests': typeof AppRequestsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 188 | `  '/settings': typeof AppSettingsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 189 | `  '/tasks': typeof AppTasksRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 190 | `  '/trash': typeof AppTrashRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 191 | `  '/users': typeof AppUsersRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 192 | `  '/client-report/$clientId': typeof AppClientReportClientIdRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 193 | `  '/clients/new': typeof AppClientsNewRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 194 | `  '/portal/entregas': typeof AppPortalEntregasRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 195 | `  '/portal/financeiro': typeof AppPortalFinanceiroRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 196 | `  '/tasks/calendar': typeof AppTasksCalendarRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 197 | `  '/tasks/kanban': typeof AppTasksKanbanRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 198 | `  '/tasks/list': typeof AppTasksListRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 199 | `  '/clients/': typeof AppClientsIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 200 | `  '/tasks/': typeof AppTasksIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 201 | `  '/clients/$clientId/edit': typeof AppClientsClientIdEditRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 202 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 203 | `export interface FileRoutesByTo {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 204 | `  '/': typeof IndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 205 | `  '/auth': typeof AuthRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 206 | `  '/agenda': typeof AppAgendaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 207 | `  '/ambientes': typeof AppAmbientesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 208 | `  '/dashboard': typeof AppDashboardRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 209 | `  '/import-ata': typeof AppImportAtaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 210 | `  '/mural': typeof AppMuralRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 211 | `  '/notes': typeof AppNotesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 212 | `  '/obligations': typeof AppObligationsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 213 | `  '/reports': typeof AppReportsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 214 | `  '/requests': typeof AppRequestsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 215 | `  '/settings': typeof AppSettingsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 216 | `  '/trash': typeof AppTrashRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 217 | `  '/users': typeof AppUsersRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 218 | `  '/client-report/$clientId': typeof AppClientReportClientIdRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 219 | `  '/clients/new': typeof AppClientsNewRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 220 | `  '/portal/entregas': typeof AppPortalEntregasRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 221 | `  '/portal/financeiro': typeof AppPortalFinanceiroRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 222 | `  '/tasks/calendar': typeof AppTasksCalendarRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 223 | `  '/tasks/kanban': typeof AppTasksKanbanRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 224 | `  '/tasks/list': typeof AppTasksListRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 225 | `  '/clients': typeof AppClientsIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 226 | `  '/tasks': typeof AppTasksIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 227 | `  '/clients/$clientId/edit': typeof AppClientsClientIdEditRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 228 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 229 | `export interface FileRoutesById {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 230 | `  __root__: typeof rootRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 231 | `  '/': typeof IndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 232 | `  '/_app': typeof AppRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 233 | `  '/auth': typeof AuthRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 234 | `  '/_app/agenda': typeof AppAgendaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 235 | `  '/_app/ambientes': typeof AppAmbientesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 236 | `  '/_app/clients': typeof AppClientsRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 237 | `  '/_app/dashboard': typeof AppDashboardRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 238 | `  '/_app/import-ata': typeof AppImportAtaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 239 | `  '/_app/mural': typeof AppMuralRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 240 | `  '/_app/notes': typeof AppNotesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 241 | `  '/_app/obligations': typeof AppObligationsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 242 | `  '/_app/reports': typeof AppReportsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 243 | `  '/_app/requests': typeof AppRequestsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 244 | `  '/_app/settings': typeof AppSettingsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 245 | `  '/_app/tasks': typeof AppTasksRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 246 | `  '/_app/trash': typeof AppTrashRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 247 | `  '/_app/users': typeof AppUsersRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 248 | `  '/_app/client-report/$clientId': typeof AppClientReportClientIdRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 249 | `  '/_app/clients/new': typeof AppClientsNewRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 250 | `  '/_app/portal/entregas': typeof AppPortalEntregasRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 251 | `  '/_app/portal/financeiro': typeof AppPortalFinanceiroRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 252 | `  '/_app/tasks/calendar': typeof AppTasksCalendarRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 253 | `  '/_app/tasks/kanban': typeof AppTasksKanbanRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 254 | `  '/_app/tasks/list': typeof AppTasksListRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 255 | `  '/_app/clients/': typeof AppClientsIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 256 | `  '/_app/tasks/': typeof AppTasksIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 257 | `  '/_app/clients/$clientId/edit': typeof AppClientsClientIdEditRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 258 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 259 | `export interface FileRouteTypes {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 260 | `  fileRoutesByFullPath: FileRoutesByFullPath` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 261 | `  fullPaths:` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 262 | `    | '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 263 | `    | '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 264 | `    | '/agenda'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 265 | `    | '/ambientes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 266 | `    | '/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 267 | `    | '/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 268 | `    | '/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 269 | `    | '/mural'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 270 | `    | '/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 271 | `    | '/obligations'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 272 | `    | '/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 273 | `    | '/requests'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 274 | `    | '/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 275 | `    | '/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 276 | `    | '/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 277 | `    | '/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 278 | `    | '/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 279 | `    | '/clients/new'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 280 | `    | '/portal/entregas'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 281 | `    | '/portal/financeiro'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 282 | `    | '/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 283 | `    | '/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 284 | `    | '/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 285 | `    | '/clients/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 286 | `    | '/tasks/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 287 | `    | '/clients/$clientId/edit'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 288 | `  fileRoutesByTo: FileRoutesByTo` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 289 | `  to:` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 290 | `    | '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 291 | `    | '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 292 | `    | '/agenda'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 293 | `    | '/ambientes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 294 | `    | '/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 295 | `    | '/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 296 | `    | '/mural'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 297 | `    | '/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 298 | `    | '/obligations'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 299 | `    | '/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 300 | `    | '/requests'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 301 | `    | '/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 302 | `    | '/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 303 | `    | '/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 304 | `    | '/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 305 | `    | '/clients/new'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 306 | `    | '/portal/entregas'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 307 | `    | '/portal/financeiro'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 308 | `    | '/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 309 | `    | '/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 310 | `    | '/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 311 | `    | '/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 312 | `    | '/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 313 | `    | '/clients/$clientId/edit'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 314 | `  id:` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 315 | `    | '__root__'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 316 | `    | '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 317 | `    | '/_app'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 318 | `    | '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 319 | `    | '/_app/agenda'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 320 | `    | '/_app/ambientes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 321 | `    | '/_app/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 322 | `    | '/_app/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 323 | `    | '/_app/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 324 | `    | '/_app/mural'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 325 | `    | '/_app/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 326 | `    | '/_app/obligations'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 327 | `    | '/_app/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 328 | `    | '/_app/requests'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 329 | `    | '/_app/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 330 | `    | '/_app/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 331 | `    | '/_app/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 332 | `    | '/_app/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 333 | `    | '/_app/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 334 | `    | '/_app/clients/new'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 335 | `    | '/_app/portal/entregas'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 336 | `    | '/_app/portal/financeiro'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 337 | `    | '/_app/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 338 | `    | '/_app/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 339 | `    | '/_app/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 340 | `    | '/_app/clients/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 341 | `    | '/_app/tasks/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 342 | `    | '/_app/clients/$clientId/edit'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 343 | `  fileRoutesById: FileRoutesById` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 344 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 345 | `export interface RootRouteChildren {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 346 | `  IndexRoute: typeof IndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 347 | `  AppRoute: typeof AppRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 348 | `  AuthRoute: typeof AuthRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 349 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 350 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 351 | `declare module '@tanstack/react-router' {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 352 | `  interface FileRoutesByPath {` | Declara um contrato de tipos TypeScript para deixar os dados mais seguros e previsiveis. |
+| 353 | `    '/': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 354 | `      id: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 355 | `      path: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 356 | `      fullPath: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 357 | `      preLoaderRoute: typeof IndexRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 358 | `      parentRoute: typeof rootRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 359 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 360 | `    '/_app': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 361 | `      id: '/_app'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 362 | `      path: ''` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 363 | `      fullPath: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 364 | `      preLoaderRoute: typeof AppRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 365 | `      parentRoute: typeof rootRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 366 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 367 | `    '/auth': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 368 | `      id: '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 369 | `      path: '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 370 | `      fullPath: '/auth'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 371 | `      preLoaderRoute: typeof AuthRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 372 | `      parentRoute: typeof rootRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 373 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 374 | `    '/_app/agenda': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 375 | `      id: '/_app/agenda'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 376 | `      path: '/agenda'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 377 | `      fullPath: '/agenda'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 378 | `      preLoaderRoute: typeof AppAgendaRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 379 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 380 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 381 | `    '/_app/ambientes': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 382 | `      id: '/_app/ambientes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 383 | `      path: '/ambientes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 384 | `      fullPath: '/ambientes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 385 | `      preLoaderRoute: typeof AppAmbientesRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 386 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 387 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 388 | `    '/_app/clients': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 389 | `      id: '/_app/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 390 | `      path: '/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 391 | `      fullPath: '/clients'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 392 | `      preLoaderRoute: typeof AppClientsRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 393 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 394 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 395 | `    '/_app/dashboard': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 396 | `      id: '/_app/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 397 | `      path: '/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 398 | `      fullPath: '/dashboard'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 399 | `      preLoaderRoute: typeof AppDashboardRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 400 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 401 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 402 | `    '/_app/import-ata': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 403 | `      id: '/_app/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 404 | `      path: '/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 405 | `      fullPath: '/import-ata'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 406 | `      preLoaderRoute: typeof AppImportAtaRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 407 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 408 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 409 | `    '/_app/mural': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 410 | `      id: '/_app/mural'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 411 | `      path: '/mural'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 412 | `      fullPath: '/mural'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 413 | `      preLoaderRoute: typeof AppMuralRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 414 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 415 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 416 | `    '/_app/notes': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 417 | `      id: '/_app/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 418 | `      path: '/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 419 | `      fullPath: '/notes'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 420 | `      preLoaderRoute: typeof AppNotesRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 421 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 422 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 423 | `    '/_app/obligations': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 424 | `      id: '/_app/obligations'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 425 | `      path: '/obligations'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 426 | `      fullPath: '/obligations'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 427 | `      preLoaderRoute: typeof AppObligationsRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 428 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 429 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 430 | `    '/_app/reports': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 431 | `      id: '/_app/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 432 | `      path: '/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 433 | `      fullPath: '/reports'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 434 | `      preLoaderRoute: typeof AppReportsRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 435 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 436 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 437 | `    '/_app/requests': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 438 | `      id: '/_app/requests'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 439 | `      path: '/requests'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 440 | `      fullPath: '/requests'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 441 | `      preLoaderRoute: typeof AppRequestsRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 442 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 443 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 444 | `    '/_app/settings': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 445 | `      id: '/_app/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 446 | `      path: '/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 447 | `      fullPath: '/settings'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 448 | `      preLoaderRoute: typeof AppSettingsRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 449 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 450 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 451 | `    '/_app/tasks': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 452 | `      id: '/_app/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 453 | `      path: '/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 454 | `      fullPath: '/tasks'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 455 | `      preLoaderRoute: typeof AppTasksRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 456 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 457 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 458 | `    '/_app/trash': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 459 | `      id: '/_app/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 460 | `      path: '/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 461 | `      fullPath: '/trash'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 462 | `      preLoaderRoute: typeof AppTrashRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 463 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 464 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 465 | `    '/_app/users': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 466 | `      id: '/_app/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 467 | `      path: '/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 468 | `      fullPath: '/users'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 469 | `      preLoaderRoute: typeof AppUsersRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 470 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 471 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 472 | `    '/_app/client-report/$clientId': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 473 | `      id: '/_app/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 474 | `      path: '/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 475 | `      fullPath: '/client-report/$clientId'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 476 | `      preLoaderRoute: typeof AppClientReportClientIdRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 477 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 478 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 479 | `    '/_app/clients/': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 480 | `      id: '/_app/clients/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 481 | `      path: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 482 | `      fullPath: '/clients/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 483 | `      preLoaderRoute: typeof AppClientsIndexRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 484 | `      parentRoute: typeof AppClientsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 485 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 486 | `    '/_app/clients/new': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 487 | `      id: '/_app/clients/new'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 488 | `      path: '/new'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 489 | `      fullPath: '/clients/new'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 490 | `      preLoaderRoute: typeof AppClientsNewRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 491 | `      parentRoute: typeof AppClientsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 492 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 493 | `    '/_app/portal/entregas': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 494 | `      id: '/_app/portal/entregas'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 495 | `      path: '/portal/entregas'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 496 | `      fullPath: '/portal/entregas'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 497 | `      preLoaderRoute: typeof AppPortalEntregasRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 498 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 499 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 500 | `    '/_app/portal/financeiro': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 501 | `      id: '/_app/portal/financeiro'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 502 | `      path: '/portal/financeiro'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 503 | `      fullPath: '/portal/financeiro'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 504 | `      preLoaderRoute: typeof AppPortalFinanceiroRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 505 | `      parentRoute: typeof AppRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 506 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 507 | `    '/_app/tasks/': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 508 | `      id: '/_app/tasks/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 509 | `      path: '/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 510 | `      fullPath: '/tasks/'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 511 | `      preLoaderRoute: typeof AppTasksIndexRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 512 | `      parentRoute: typeof AppTasksRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 513 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 514 | `    '/_app/tasks/calendar': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 515 | `      id: '/_app/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 516 | `      path: '/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 517 | `      fullPath: '/tasks/calendar'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 518 | `      preLoaderRoute: typeof AppTasksCalendarRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 519 | `      parentRoute: typeof AppTasksRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 520 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 521 | `    '/_app/tasks/kanban': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 522 | `      id: '/_app/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 523 | `      path: '/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 524 | `      fullPath: '/tasks/kanban'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 525 | `      preLoaderRoute: typeof AppTasksKanbanRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 526 | `      parentRoute: typeof AppTasksRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 527 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 528 | `    '/_app/tasks/list': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 529 | `      id: '/_app/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 530 | `      path: '/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 531 | `      fullPath: '/tasks/list'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 532 | `      preLoaderRoute: typeof AppTasksListRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 533 | `      parentRoute: typeof AppTasksRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 534 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 535 | `    '/_app/clients/$clientId/edit': {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 536 | `      id: '/_app/clients/$clientId/edit'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 537 | `      path: '/$clientId/edit'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 538 | `      fullPath: '/clients/$clientId/edit'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 539 | `      preLoaderRoute: typeof AppClientsClientIdEditRouteImport` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 540 | `      parentRoute: typeof AppClientsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 541 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 542 | `  }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 543 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 544 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 545 | `interface AppClientsRouteChildren {` | Declara um contrato de tipos TypeScript para deixar os dados mais seguros e previsiveis. |
+| 546 | `  AppClientsNewRoute: typeof AppClientsNewRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 547 | `  AppClientsIndexRoute: typeof AppClientsIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 548 | `  AppClientsClientIdEditRoute: typeof AppClientsClientIdEditRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 549 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 550 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 551 | `const AppClientsRouteChildren: AppClientsRouteChildren = {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 552 | `  AppClientsNewRoute: AppClientsNewRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 553 | `  AppClientsIndexRoute: AppClientsIndexRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 554 | `  AppClientsClientIdEditRoute: AppClientsClientIdEditRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 555 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 556 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 557 | `const AppClientsRouteWithChildren = AppClientsRoute._addFileChildren(` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 558 | `  AppClientsRouteChildren,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 559 | `)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 560 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 561 | `interface AppTasksRouteChildren {` | Declara um contrato de tipos TypeScript para deixar os dados mais seguros e previsiveis. |
+| 562 | `  AppTasksCalendarRoute: typeof AppTasksCalendarRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 563 | `  AppTasksKanbanRoute: typeof AppTasksKanbanRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 564 | `  AppTasksListRoute: typeof AppTasksListRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 565 | `  AppTasksIndexRoute: typeof AppTasksIndexRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 566 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 567 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 568 | `const AppTasksRouteChildren: AppTasksRouteChildren = {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 569 | `  AppTasksCalendarRoute: AppTasksCalendarRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 570 | `  AppTasksKanbanRoute: AppTasksKanbanRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 571 | `  AppTasksListRoute: AppTasksListRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 572 | `  AppTasksIndexRoute: AppTasksIndexRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 573 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 574 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 575 | `const AppTasksRouteWithChildren = AppTasksRoute._addFileChildren(` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 576 | `  AppTasksRouteChildren,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 577 | `)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 578 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 579 | `interface AppRouteChildren {` | Declara um contrato de tipos TypeScript para deixar os dados mais seguros e previsiveis. |
+| 580 | `  AppAgendaRoute: typeof AppAgendaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 581 | `  AppAmbientesRoute: typeof AppAmbientesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 582 | `  AppClientsRoute: typeof AppClientsRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 583 | `  AppDashboardRoute: typeof AppDashboardRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 584 | `  AppImportAtaRoute: typeof AppImportAtaRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 585 | `  AppMuralRoute: typeof AppMuralRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 586 | `  AppNotesRoute: typeof AppNotesRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 587 | `  AppObligationsRoute: typeof AppObligationsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 588 | `  AppReportsRoute: typeof AppReportsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 589 | `  AppRequestsRoute: typeof AppRequestsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 590 | `  AppSettingsRoute: typeof AppSettingsRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 591 | `  AppTasksRoute: typeof AppTasksRouteWithChildren` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 592 | `  AppTrashRoute: typeof AppTrashRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 593 | `  AppUsersRoute: typeof AppUsersRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 594 | `  AppClientReportClientIdRoute: typeof AppClientReportClientIdRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 595 | `  AppPortalEntregasRoute: typeof AppPortalEntregasRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 596 | `  AppPortalFinanceiroRoute: typeof AppPortalFinanceiroRoute` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 597 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 598 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 599 | `const AppRouteChildren: AppRouteChildren = {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 600 | `  AppAgendaRoute: AppAgendaRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 601 | `  AppAmbientesRoute: AppAmbientesRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 602 | `  AppClientsRoute: AppClientsRouteWithChildren,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 603 | `  AppDashboardRoute: AppDashboardRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 604 | `  AppImportAtaRoute: AppImportAtaRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 605 | `  AppMuralRoute: AppMuralRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 606 | `  AppNotesRoute: AppNotesRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 607 | `  AppObligationsRoute: AppObligationsRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 608 | `  AppReportsRoute: AppReportsRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 609 | `  AppRequestsRoute: AppRequestsRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 610 | `  AppSettingsRoute: AppSettingsRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 611 | `  AppTasksRoute: AppTasksRouteWithChildren,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 612 | `  AppTrashRoute: AppTrashRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 613 | `  AppUsersRoute: AppUsersRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 614 | `  AppClientReportClientIdRoute: AppClientReportClientIdRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 615 | `  AppPortalEntregasRoute: AppPortalEntregasRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 616 | `  AppPortalFinanceiroRoute: AppPortalFinanceiroRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 617 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 618 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 619 | `const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 620 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 621 | `const rootRouteChildren: RootRouteChildren = {` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 622 | `  IndexRoute: IndexRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 623 | `  AppRoute: AppRouteWithChildren,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 624 | `  AuthRoute: AuthRoute,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 625 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 626 | `export const routeTree = rootRouteImport` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 627 | `  ._addFileChildren(rootRouteChildren)` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 628 | `  ._addFileTypes<FileRouteTypes>()` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 629 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 630 | `import type { getRouter } from './router.tsx'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 631 | `import type { startInstance } from './start.ts'` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 632 | `declare module '@tanstack/react-start' {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 633 | `  interface Register {` | Declara um contrato de tipos TypeScript para deixar os dados mais seguros e previsiveis. |
+| 634 | `    ssr: true` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 635 | `    router: Awaited<ReturnType<typeof getRouter>>` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 636 | `    config: Awaited<ReturnType<typeof startInstance.getOptions>>` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 637 | `  }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 638 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 639 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

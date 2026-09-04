@@ -58,7 +58,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 50 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
 | 51 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 52 | `:root {` | Inicia um bloco de regras CSS para o seletor indicado. |
-| 53 | `  --radius: 0.75rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 53 | `  --radius: 0.875rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
 | 54 | `  /* Azul-marinho escuro como tema base */` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
 | 55 | `  --background: oklch(0.98 0.005 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
 | 56 | `  --foreground: oklch(0.18 0.04 260);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
@@ -94,84 +94,229 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 86 | `  --chart-4: oklch(0.58 0.22 27);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
 | 87 | `  --chart-5: oklch(0.55 0.2 310);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
 | 88 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 89 | `  --sidebar: oklch(0.22 0.07 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 90 | `  --sidebar-foreground: oklch(0.92 0.012 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 91 | `  --sidebar-primary: oklch(0.55 0.18 240);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 89 | `  --sidebar: oklch(0.7 0.008 95);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 90 | `  --sidebar-foreground: oklch(0.29 0.07 260);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 91 | `  --sidebar-primary: oklch(0.33 0.1 260);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
 | 92 | `  --sidebar-primary-foreground: oklch(0.98 0 0);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 93 | `  --sidebar-accent: oklch(0.28 0.08 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 94 | `  --sidebar-accent-foreground: oklch(0.98 0 0);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 95 | `  --sidebar-border: oklch(0.3 0.06 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 96 | `  --sidebar-ring: oklch(0.55 0.18 240);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 93 | `  --sidebar-accent: oklch(0.34 0.09 258);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 94 | `  --sidebar-accent-foreground: oklch(0.98 0.004 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 95 | `  --sidebar-border: oklch(0.59 0.018 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 96 | `  --sidebar-ring: oklch(0.34 0.09 258);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
 | 97 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 98 | `  --gradient-primary: linear-gradient(135deg, var(--primary), var(--primary-glow));` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 99 | `  --gradient-sidebar: linear-gradient(180deg, oklch(0.22 0.07 264), oklch(0.18 0.06 264));` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 99 | `  --gradient-sidebar: linear-gradient(180deg, oklch(0.72 0.008 95), oklch(0.66 0.009 95));` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
 | 100 | `  --shadow-elegant: 0 10px 30px -10px color-mix(in oklab, var(--primary) 30%, transparent);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
 | 101 | `  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
 | 102 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
 | 103 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 104 | `.dark {` | Inicia um bloco de regras CSS para o seletor indicado. |
-| 105 | `  --background: oklch(0.15 0.03 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 106 | `  --foreground: oklch(0.95 0.01 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 107 | `  --card: oklch(0.2 0.05 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 108 | `  --card-foreground: oklch(0.95 0.01 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 109 | `  --popover: oklch(0.2 0.05 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 110 | `  --popover-foreground: oklch(0.95 0.01 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 111 | `  --primary: oklch(0.6 0.18 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 112 | `  --primary-foreground: oklch(0.1 0.03 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 113 | `  --primary-glow: oklch(0.7 0.2 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 114 | `  --secondary: oklch(0.25 0.05 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 115 | `  --secondary-foreground: oklch(0.95 0.01 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 116 | `  --muted: oklch(0.25 0.05 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 117 | `  --muted-foreground: oklch(0.7 0.03 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 118 | `  --accent: oklch(0.3 0.06 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 119 | `  --accent-foreground: oklch(0.95 0.01 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 120 | `  --border: oklch(0.3 0.05 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 121 | `  --input: oklch(0.3 0.05 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 122 | `  --ring: oklch(0.6 0.18 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 123 | `  --sidebar: oklch(0.12 0.03 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 124 | `  --sidebar-foreground: oklch(0.9 0.01 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 125 | `  --sidebar-accent: oklch(0.2 0.05 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 126 | `  --sidebar-border: oklch(0.25 0.05 264);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 127 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
-| 128 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 129 | `@layer base {` | Inicia um bloco de regras CSS para o seletor indicado. |
-| 130 | `  * { border-color: var(--color-border); }` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 131 | `  body {` | Inicia um bloco de regras CSS para o seletor indicado. |
-| 132 | `    background-color: var(--color-background);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 133 | `    color: var(--color-foreground);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 134 | `    font-feature-settings: "ss01", "cv11";` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 135 | `  }` | Fecha o bloco de regras CSS aberto anteriormente. |
-| 136 | `  h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 137 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
-| 138 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 139 | `.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 140 | `.scrollbar-thin::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--muted-foreground) 30%, transparent); border-radius: 999px; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 141 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 142 | `.kanban-scroll { scrollbar-width: thin; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 143 | `.task-overdue { box-shadow: inset 3px 0 0 var(--destructive); }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 144 | `.task-due-soon { box-shadow: inset 3px 0 0 var(--warning); }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 145 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 146 | `[contenteditable][data-placeholder]:empty::before {` | Inicia um bloco de regras CSS para o seletor indicado. |
-| 147 | `  content: attr(data-placeholder);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 148 | `  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 149 | `  pointer-events: none;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 150 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
-| 151 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 152 | `/* Tiptap rich-text editor styles */` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 153 | `.tiptap { cursor: text; outline: none; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 154 | `.tiptap p { margin: 0.25rem 0; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 155 | `.tiptap ul { list-style: disc; padding-left: 1.25rem; margin: 0.25rem 0; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 156 | `.tiptap ol { list-style: decimal; padding-left: 1.5rem; margin: 0.25rem 0; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 157 | `.tiptap ul ul { list-style: circle; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 158 | `.tiptap ul ul ul { list-style: square; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 159 | `.tiptap li { margin: 0.1rem 0; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 160 | `.tiptap li > p { margin: 0; display: inline; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 161 | `.tiptap h2 { font-size: 0.95rem; font-weight: 600; margin: 0.4rem 0 0.2rem; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 162 | `.tiptap h3 { font-size: 0.85rem; font-weight: 600; margin: 0.35rem 0 0.15rem; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 163 | `.tiptap blockquote { border-left: 3px solid var(--border); padding-left: 0.6rem; color: var(--muted-foreground); margin: 0.3rem 0; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 164 | `.tiptap code { background: color-mix(in oklab, var(--muted) 80%, transparent); padding: 0 0.25rem; border-radius: 3px; font-size: 0.85em; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 165 | `.tiptap a { color: var(--primary); text-decoration: underline; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 166 | `.tiptap mark, .prose mark { color: inherit; padding: 0 0.1em; border-radius: 2px; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 167 | `.tiptap-wrapper, .tiptap-wrapper * { cursor: text; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 168 | `.tiptap-wrapper button { cursor: pointer; }` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
-| 169 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 105 | `  color-scheme: dark;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 106 | `  --background: oklch(0.175 0.012 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 107 | `  --foreground: oklch(0.94 0.008 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 108 | `  --card: oklch(0.22 0.014 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 109 | `  --card-foreground: oklch(0.94 0.008 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 110 | `  --popover: oklch(0.235 0.016 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 111 | `  --popover-foreground: oklch(0.94 0.008 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 112 | `  --primary: oklch(0.68 0.11 232);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 113 | `  --primary-foreground: oklch(0.16 0.015 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 114 | `  --primary-glow: oklch(0.75 0.12 232);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 115 | `  --secondary: oklch(0.275 0.016 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 116 | `  --secondary-foreground: oklch(0.94 0.008 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 117 | `  --muted: oklch(0.265 0.014 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 118 | `  --muted-foreground: oklch(0.72 0.014 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 119 | `  --accent: oklch(0.31 0.024 235);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 120 | `  --accent-foreground: oklch(0.95 0.008 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 121 | `  --border: oklch(0.34 0.016 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 122 | `  --input: oklch(0.285 0.014 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 123 | `  --ring: oklch(0.68 0.11 232);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 124 | `  --sidebar: oklch(0.2 0.012 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 125 | `  --sidebar-foreground: oklch(0.93 0.018 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 126 | `  --sidebar-primary: oklch(0.71 0.13 232);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 127 | `  --sidebar-primary-foreground: oklch(0.16 0.015 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 128 | `  --sidebar-accent: oklch(0.32 0.065 255);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 129 | `  --sidebar-accent-foreground: oklch(0.98 0.008 250);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 130 | `  --sidebar-border: oklch(0.36 0.03 252);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 131 | `  --sidebar-ring: oklch(0.71 0.13 232);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 132 | `  --gradient-sidebar: linear-gradient(180deg, oklch(0.215 0.022 250), oklch(0.175 0.018 250));` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 133 | `  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.28), 0 10px 24px -14px rgb(0 0 0 / 0.5);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 134 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 135 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 136 | `/* Os seletores de data são nativos do navegador; force ícones claros no tema escuro. */` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 137 | `.dark input[type="date"]::-webkit-calendar-picker-indicator,` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 138 | `.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 139 | `  filter: invert(1) brightness(2) !important;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 140 | `  opacity: 1 !important;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 141 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 142 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 143 | `.dark ::selection {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 144 | `  background: color-mix(in oklab, var(--primary) 48%, transparent);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 145 | `  color: var(--foreground);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 146 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 147 | `.dark input,` | Participa da definicao visual da interface. |
+| 148 | `.dark textarea,` | Participa da definicao visual da interface. |
+| 149 | `.dark select {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 150 | `  color-scheme: dark;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 151 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 152 | `.dark .mural-la {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 153 | `  background: var(--background);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 154 | `  color: var(--foreground);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 155 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 156 | `.dark .mural-la .mural-subtle {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 157 | `  color: oklch(0.72 0.014 95);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 158 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 159 | `.dark .mural-la .mural-filter {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 160 | `  background: oklch(0.25 0.015 95 / 0.9);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 161 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 162 | `.dark .mural-la .mural-empty {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 163 | `  background: oklch(0.235 0.014 95 / 0.8);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 164 | `  border-color: oklch(0.38 0.014 95);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 165 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 166 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 167 | `@layer base {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 168 | `  * {` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 169 | `    border-color: var(--color-border);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 170 | `  }` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 171 | `  body {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 172 | `    background-color: var(--color-background);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 173 | `    color: var(--color-foreground);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 174 | `    font-feature-settings: "ss01", "cv11";` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 175 | `  }` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 176 | `  h1,` | Participa da definicao visual da interface. |
+| 177 | `  h2,` | Participa da definicao visual da interface. |
+| 178 | `  h3,` | Participa da definicao visual da interface. |
+| 179 | `  h4 {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 180 | `    font-family: var(--font-display);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 181 | `    letter-spacing: -0.02em;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 182 | `  }` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 183 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 184 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 185 | `.scrollbar-thin::-webkit-scrollbar {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 186 | `  width: 6px;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 187 | `  height: 6px;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 188 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 189 | `.scrollbar-thin::-webkit-scrollbar-thumb {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 190 | `  background: color-mix(in oklab, var(--muted-foreground) 30%, transparent);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 191 | `  border-radius: 999px;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 192 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 193 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 194 | `/* O menu lateral pode ter mais itens que a altura da tela. Mantemos a rolagem` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 195 | `   para teclado/trackpad, mas sem expor uma barra visual dentro da navegação. */` | Participa da definicao visual da interface. |
+| 196 | `.sidebar-nav {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 197 | `  -ms-overflow-style: none;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 198 | `  overscroll-behavior: contain;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 199 | `  scrollbar-width: none;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 200 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 201 | `.sidebar-nav::-webkit-scrollbar {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 202 | `  display: none;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 203 | `  height: 0;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 204 | `  width: 0;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 205 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 206 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 207 | `.kanban-scroll {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 208 | `  scrollbar-width: thin;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 209 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 210 | `.kanban-top-scroll {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 211 | `  height: 18px;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 212 | `  scrollbar-width: thin;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 213 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 214 | `.kanban-top-scroll::-webkit-scrollbar {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 215 | `  height: 8px;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 216 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 217 | `.kanban-top-scroll::-webkit-scrollbar-thumb {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 218 | `  background: color-mix(in oklab, var(--muted-foreground) 45%, transparent);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 219 | `  border-radius: 999px;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 220 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 221 | `.task-overdue {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 222 | `  box-shadow: inset 3px 0 0 var(--destructive);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 223 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 224 | `.task-due-soon {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 225 | `  box-shadow: inset 3px 0 0 var(--warning);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 226 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 227 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 228 | `[contenteditable][data-placeholder]:empty::before {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 229 | `  content: attr(data-placeholder);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 230 | `  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 231 | `  pointer-events: none;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 232 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 233 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 234 | `/* Tiptap rich-text editor styles */` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 235 | `.tiptap {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 236 | `  cursor: text;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 237 | `  outline: none;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 238 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 239 | `.tiptap p {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 240 | `  margin: 0.25rem 0;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 241 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 242 | `.tiptap ul {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 243 | `  list-style: disc;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 244 | `  padding-left: 1.25rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 245 | `  margin: 0.25rem 0;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 246 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 247 | `.tiptap ol {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 248 | `  list-style: decimal;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 249 | `  padding-left: 1.5rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 250 | `  margin: 0.25rem 0;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 251 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 252 | `.tiptap ul ul {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 253 | `  list-style: circle;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 254 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 255 | `.tiptap ul ul ul {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 256 | `  list-style: square;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 257 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 258 | `.tiptap li {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 259 | `  margin: 0.1rem 0;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 260 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 261 | `.tiptap li > p {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 262 | `  margin: 0;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 263 | `  display: inline;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 264 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 265 | `.tiptap h2 {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 266 | `  font-size: 0.95rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 267 | `  font-weight: 600;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 268 | `  margin: 0.4rem 0 0.2rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 269 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 270 | `.tiptap h3 {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 271 | `  font-size: 0.85rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 272 | `  font-weight: 600;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 273 | `  margin: 0.35rem 0 0.15rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 274 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 275 | `.tiptap blockquote {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 276 | `  border-left: 3px solid var(--border);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 277 | `  padding-left: 0.6rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 278 | `  color: var(--muted-foreground);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 279 | `  margin: 0.3rem 0;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 280 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 281 | `.tiptap code {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 282 | `  background: color-mix(in oklab, var(--muted) 80%, transparent);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 283 | `  padding: 0 0.25rem;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 284 | `  border-radius: 3px;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 285 | `  font-size: 0.85em;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 286 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 287 | `.tiptap a {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 288 | `  color: var(--primary);` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 289 | `  text-decoration: underline;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 290 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 291 | `.tiptap mark,` | Participa da definicao visual da interface. |
+| 292 | `.prose mark {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 293 | `  color: inherit;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 294 | `  padding: 0 0.1em;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 295 | `  border-radius: 2px;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 296 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 297 | `.dark .tiptap mark,` | Participa da definicao visual da interface. |
+| 298 | `.dark .prose mark {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 299 | `  /* Os marca-textos têm fundos claros; não herdar o texto claro do tema escuro. */` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 300 | `  color: oklch(0.2 0.04 264) !important;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 301 | `  font-weight: 500;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 302 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 303 | `.dark .tiptap mark::selection,` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 304 | `.dark .prose mark::selection {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 305 | `  color: oklch(0.2 0.04 264) !important;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 306 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 307 | `.tiptap-wrapper,` | Participa da definicao visual da interface. |
+| 308 | `.tiptap-wrapper * {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 309 | `  cursor: text;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 310 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 311 | `.tiptap-wrapper button {` | Inicia um bloco de regras CSS para o seletor indicado. |
+| 312 | `  cursor: pointer;` | Define uma propriedade visual, como cor, tamanho, espacamento ou comportamento de layout. |
+| 313 | `}` | Fecha o bloco de regras CSS aberto anteriormente. |
+| 314 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

@@ -13,7 +13,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 5 | `import { cn } from "@/lib/utils";` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
 | 6 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 7 | `const buttonVariants = cva(` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 8 | `  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 8 | `  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 9 | `  {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 10 | `    variants: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 11 | `      variant: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
@@ -27,8 +27,8 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 19 | `      },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
 | 20 | `      size: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 21 | `        default: "h-9 px-4 py-2",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 22 | `        sm: "h-8 rounded-md px-3 text-xs",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 23 | `        lg: "h-10 rounded-md px-8",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 22 | `        sm: "h-8 rounded-full px-3 text-xs",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 23 | `        lg: "h-10 rounded-full px-8",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 24 | `        icon: "h-9 w-9",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 25 | `      },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
 | 26 | `    },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |

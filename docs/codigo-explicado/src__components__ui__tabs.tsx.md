@@ -20,7 +20,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 12 | `  <TabsPrimitive.List` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
 | 13 | `    ref={ref}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 14 | `    className={cn(` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 15 | `      "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 15 | `      "inline-flex h-9 items-center justify-center rounded-full bg-muted p-1 text-muted-foreground",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 16 | `      className,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 17 | `    )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 18 | `    {...props}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
@@ -35,7 +35,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 27 | `  <TabsPrimitive.Trigger` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
 | 28 | `    ref={ref}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 29 | `    className={cn(` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 30 | `      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 30 | `      "inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium ring-offset-background cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 31 | `      className,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 32 | `    )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 33 | `    {...props}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |

@@ -13,38 +13,118 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 5 | `import { createClient } from '@supabase/supabase-js';` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
 | 6 | `import type { Database } from './types';` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
 | 7 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 8 | `function createSupabaseAdminClient() {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 9 | `  const SUPABASE_URL = process.env.SUPABASE_URL;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 10 | `  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 11 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 12 | `  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 13 | `    const missing = [` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 14 | `      ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 15 | `      ...(!SUPABASE_SERVICE_ROLE_KEY ? ['SUPABASE_SERVICE_ROLE_KEY'] : []),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 16 | `    ];` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 17 | `    const message = \`Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.\`;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 18 | `    console.error(\`[Supabase] ${message}\`);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 19 | `    throw new Error(message);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 20 | `  }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 8 | `function createFallbackQueryBuilder(message: string) {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 9 | `  const error = new Error(message);` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 10 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 11 | `  const builder = new Proxy(` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 12 | `    {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 13 | `      data: null,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 14 | `      error,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 15 | `    },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 16 | `    {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 17 | `      get(target, prop, receiver) {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 18 | `        if (prop === 'then') {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 19 | `          return (resolve: (value: unknown) => void) => resolve({ data: null, error });` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 20 | `        }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
 | 21 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 22 | `  return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {` | Devolve o resultado da funcao ou renderiza a interface do componente. |
-| 23 | `    auth: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 24 | `      storage: undefined,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 25 | `      persistSession: false,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 26 | `      autoRefreshToken: false,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 27 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 28 | `  });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 29 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 30 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 31 | `let _supabaseAdmin: ReturnType<typeof createSupabaseAdminClient> | undefined;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 32 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 33 | `// Server-side Supabase client with service role - bypasses RLS` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 34 | `// SECURITY: Only use this for trusted server-side operations, never expose to client code` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 35 | `// Import like: import { supabaseAdmin } from "@/integrations/supabase/client.server";` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 36 | `export const supabaseAdmin = new Proxy({} as ReturnType<typeof createSupabaseAdminClient>, {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 37 | `  get(_, prop, receiver) {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 38 | `    if (!_supabaseAdmin) _supabaseAdmin = createSupabaseAdminClient();` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 39 | `    return Reflect.get(_supabaseAdmin, prop, receiver);` | Devolve o resultado da funcao ou renderiza a interface do componente. |
-| 40 | `  },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 41 | `});` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 42 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 22 | `        if (prop === 'catch') {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 23 | `          return (callback: (error: Error) => unknown) => Promise.resolve({ data: null, error }).catch(callback);` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 24 | `        }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 25 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 26 | `        if (prop === 'finally') {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 27 | `          return (callback: () => void) => Promise.resolve({ data: null, error }).finally(callback);` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 28 | `        }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 29 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 30 | `        if (` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 31 | `          prop === 'select' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 32 | `          prop === 'insert' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 33 | `          prop === 'update' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 34 | `          prop === 'delete' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 35 | `          prop === 'upsert' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 36 | `          prop === 'eq' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 37 | `          prop === 'in' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 38 | `          prop === 'order' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 39 | `          prop === 'limit' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 40 | `          prop === 'range' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 41 | `          prop === 'match' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 42 | `          prop === 'or' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 43 | `          prop === 'filter' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 44 | `          prop === 'not' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 45 | `          prop === 'is' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 46 | `          prop === 'contains' ||` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 47 | `          prop === 'over'` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 48 | `        ) {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 49 | `          return () => builder;` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 50 | `        }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 51 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 52 | `        if (prop === 'single' || prop === 'maybeSingle') {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 53 | `          return () => Promise.resolve({ data: null, error });` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 54 | `        }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 55 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 56 | `        if (prop === 'rpc') {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 57 | `          return () => Promise.resolve({ data: null, error });` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 58 | `        }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 59 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 60 | `        if (prop in target) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 61 | `          return Reflect.get(target, prop, receiver);` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 62 | `        }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 63 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 64 | `        return undefined;` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 65 | `      },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 66 | `    },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 67 | `  );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 68 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 69 | `  return builder as any;` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 70 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 71 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 72 | `function createFallbackSupabaseAdminClient() {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 73 | `  const message = 'Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to enable server-side database access.';` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 74 | `  const error = new Error(message);` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 75 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 76 | `  return {` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 77 | `    auth: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 78 | `      getClaims: () => Promise.resolve({ data: { claims: null }, error }),` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 79 | `    },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 80 | `    from: () => createFallbackQueryBuilder(message),` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 81 | `    storage: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 82 | `      from: () => ({` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 83 | `        upload: () => Promise.resolve({ data: null, error }),` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 84 | `        download: () => Promise.resolve({ data: null, error }),` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 85 | `        remove: () => Promise.resolve({ data: null, error }),` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 86 | `        getPublicUrl: () => ({ data: { publicUrl: '' }, error }),` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 87 | `      }),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 88 | `    },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 89 | `    removeChannel: () => undefined,` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 90 | `  } as any;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 91 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 92 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 93 | `function createSupabaseAdminClient() {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 94 | `  const SUPABASE_URL = process.env.SUPABASE_URL;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 95 | `  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 96 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 97 | `  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 98 | `    console.warn('[Supabase] Missing server credentials. Falling back to a local-safe client.');` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 99 | `    return createFallbackSupabaseAdminClient();` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 100 | `  }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 101 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 102 | `  return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 103 | `    auth: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 104 | `      storage: undefined,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 105 | `      persistSession: false,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 106 | `      autoRefreshToken: false,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 107 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 108 | `  });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 109 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 110 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 111 | `let _supabaseAdmin: ReturnType<typeof createSupabaseAdminClient> | undefined;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 112 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 113 | `// Server-side Supabase client with service role - bypasses RLS` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 114 | `// SECURITY: Only use this for trusted server-side operations, never expose to client code` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 115 | `// Import like: import { supabaseAdmin } from "@/integrations/supabase/client.server";` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 116 | `export const supabaseAdmin = new Proxy({} as ReturnType<typeof createSupabaseAdminClient>, {` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 117 | `  get(_, prop, receiver) {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 118 | `    if (!_supabaseAdmin) _supabaseAdmin = createSupabaseAdminClient();` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 119 | `    return Reflect.get(_supabaseAdmin, prop, receiver);` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 120 | `  },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 121 | `});` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 122 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

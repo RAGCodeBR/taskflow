@@ -22,31 +22,33 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 14 | `  ] as const;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 15 | `  return (` | Devolve o resultado da funcao ou renderiza a interface do componente. |
 | 16 | `    <div className="flex flex-col">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 17 | `      <div className="sticky top-0 z-30 flex items-center gap-2 border-b bg-background/95 px-6 py-3 backdrop-blur">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 18 | `        <span className="mr-2 text-sm font-medium text-muted-foreground">Visualizar como:</span>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 19 | `        <div className="inline-flex rounded-lg border bg-muted/40 p-1">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 20 | `          {views.map((v) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 21 | `            const active = pathname === v.to || pathname.startsWith(v.to + "/");` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 22 | `            const Icon = v.icon;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 23 | `            return (` | Devolve o resultado da funcao ou renderiza a interface do componente. |
-| 24 | `              <Link` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 25 | `                key={v.to}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 26 | `                to={v.to}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 27 | `                className={\`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition ${` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 28 | `                  active` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 29 | `                    ? "bg-background text-foreground shadow-sm"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 30 | `                    : "text-muted-foreground hover:text-foreground"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 31 | `                }\`}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 32 | `              >` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 33 | `                <Icon className="h-4 w-4" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 34 | `                {v.label}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 35 | `              </Link>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 36 | `            );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 37 | `          })}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 38 | `        </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 39 | `      </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 40 | `      <Outlet />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 41 | `    </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 42 | `  );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 43 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 44 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 17 | `      <div className="sticky top-0 z-30 flex items-center gap-3 border-b bg-background/95 px-6 py-2.5 backdrop-blur">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 18 | `        <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 19 | `          Visualizar` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 20 | `        </span>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 21 | `        <div className="inline-flex rounded-md border bg-muted/35 p-0.5">` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 22 | `          {views.map((v) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 23 | `            const active = pathname === v.to || pathname.startsWith(v.to + "/");` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 24 | `            const Icon = v.icon;` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 25 | `            return (` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 26 | `              <Link` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 27 | `                key={v.to}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 28 | `                to={v.to}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 29 | `                className={\`flex items-center gap-2 rounded-sm px-3 py-1.5 text-sm transition ${` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 30 | `                  active` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 31 | `                    ? "bg-background text-foreground shadow-sm"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 32 | `                    : "text-muted-foreground hover:text-foreground"` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 33 | `                }\`}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 34 | `              >` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 35 | `                <Icon className="h-4 w-4" />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 36 | `                {v.label}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 37 | `              </Link>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 38 | `            );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 39 | `          })}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 40 | `        </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 41 | `      </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 42 | `      <Outlet />` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 43 | `    </div>` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 44 | `  );` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 45 | `}` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 46 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

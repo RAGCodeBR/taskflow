@@ -6,7 +6,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 
 | Linha | Codigo original | Explicacao |
 | ---: | --- | --- |
-| 1 | `"use client";` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 1 | `﻿"use client";` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 2 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 3 | `import * as React from "react";` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
 | 4 | `import * as AvatarPrimitive from "@radix-ui/react-avatar";` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
@@ -31,7 +31,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 23 | `>(({ className, ...props }, ref) => (` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 24 | `  <AvatarPrimitive.Image` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
 | 25 | `    ref={ref}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 26 | `    className={cn("aspect-square h-full w-full", className)}` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 26 | `    className={cn("aspect-square h-full w-full object-cover", className)}` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
 | 27 | `    {...props}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 28 | `  />` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 29 | `));` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
@@ -54,3 +54,4 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 46 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 47 | `export { Avatar, AvatarImage, AvatarFallback };` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
 | 48 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 49 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

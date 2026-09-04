@@ -14,7 +14,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 6 | `  ({ className, ...props }, ref) => (` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 7 | `    <div` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
 | 8 | `      ref={ref}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 9 | `      className={cn("rounded-xl border bg-card text-card-foreground shadow", className)}` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
+| 9 | `      className={cn("rounded-2xl border bg-card text-card-foreground shadow", className)}` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
 | 10 | `      {...props}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 11 | `    />` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 12 | `  ),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |

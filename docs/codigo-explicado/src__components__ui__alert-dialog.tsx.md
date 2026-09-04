@@ -42,7 +42,7 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 34 | `    <AlertDialogPrimitive.Content` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
 | 35 | `      ref={ref}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 36 | `      className={cn(` | Renderiza elemento de interface React/JSX e aplica estilos ou propriedades. |
-| 37 | `        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 37 | `        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-3xl",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 38 | `        className,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 39 | `      )}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 40 | `      {...props}` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |

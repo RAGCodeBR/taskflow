@@ -39,3 +39,18 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 31 | `- Nao misture migrations novas no projeto Lovable.` | Item de lista com uma orientacao, decisao ou observacao. |
 | 32 | `- Nao use a URL antiga do banco atual.` | Item de lista com uma orientacao, decisao ou observacao. |
 | 33 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 34 | `## Cadastro somente por convite` | Titulo ou subtitulo usado para organizar a documentacao. |
+| 35 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 36 | `Depois de aplicar a migration \`20260803113000_invite_only_auth.sql\`, cadastros` | Texto explicativo da documentacao. |
+| 37 | `diretos sao recusados pelo banco. Para concluir a configuracao do convite:` | Texto explicativo da documentacao. |
+| 38 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 39 | `1. Publique a funcao \`admin-user-access\` no Supabase.` | Texto explicativo da documentacao. |
+| 40 | `2. Cadastre \`https://seu-dominio.com/auth?invite=1\` em **Auth > URL Configuration > Redirect URLs**.` | Referencia um link externo ou endereco importante. |
+| 41 | `3. Crie o secret da Edge Function \`INVITE_REDIRECT_URL\` com essa mesma URL.` | Texto explicativo da documentacao. |
+| 42 | `4. Em **Auth > Email Templates**, mantenha habilitado o template de convite e` | Texto explicativo da documentacao. |
+| 43 | `   ajuste a validade do token de convite para 24 ou 48 horas, conforme a politica desejada.` | Texto explicativo da documentacao. |
+| 44 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 45 | `O administrador passa a usar **Usuarios > Novo usuario > Enviar convite**. O` | Texto explicativo da documentacao. |
+| 46 | `Supabase envia um link individual ao e-mail indicado e, ao abri-lo, a pessoa` | Texto explicativo da documentacao. |
+| 47 | `define a propria senha. O token e de uso unico e fica vinculado ao destinatario.` | Texto explicativo da documentacao. |
+| 48 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |

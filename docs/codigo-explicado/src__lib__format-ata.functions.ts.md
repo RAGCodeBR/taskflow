@@ -9,22 +9,22 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 1 | `import { createServerFn } from "@tanstack/react-start";` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
 | 2 | `import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
 | 3 | `import { z } from "zod";` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
-| 4 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 5 | `const InputSchema = z.object({` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 6 | `  pdfBase64: z.string().optional(),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 7 | `  text: z.string().optional(),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 8 | `  filename: z.string().optional(),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 9 | `}).refine((d) => !!(d.pdfBase64 || (d.text && d.text.trim())), {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 10 | `  message: "Envie um PDF ou cole o texto da reunião",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 11 | `});` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 12 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 13 | `export const formatAtaWithClaude = createServerFn({ method: "POST" })` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
-| 14 | `  .middleware([requireSupabaseAuth])` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 15 | `  .inputValidator((data: unknown) => InputSchema.parse(data))` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 16 | `  .handler(async ({ data }) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
-| 17 | `    const apiKey = process.env.ANTHROPIC_API_KEY;` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 18 | `    if (!apiKey) throw new Error("ANTHROPIC_API_KEY ausente");` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 19 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 4 | `import { generateGeminiContent } from "@/lib/gemini.server";` | Importa bibliotecas, componentes, tipos ou funcoes usados neste arquivo. |
+| 5 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 6 | `const InputSchema = z` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 7 | `  .object({` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 8 | `    pdfBase64: z.string().optional(),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 9 | `    text: z.string().optional(),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 10 | `    filename: z.string().optional(),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 11 | `  })` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 12 | `  .refine((d) => !!(d.pdfBase64 || (d.text && d.text.trim())), {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 13 | `    message: "Envie um PDF ou cole o texto da reunião",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 14 | `  });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 15 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 16 | `export const formatAtaWithGemini = createServerFn({ method: "POST" })` | Exporta valor, funcao, tipo ou componente para ser usado por outros arquivos. |
+| 17 | `  .middleware([requireSupabaseAuth])` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 18 | `  .inputValidator((data: unknown) => InputSchema.parse(data))` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
+| 19 | `  .handler(async ({ data }) => {` | Define uma funcao ou callback que sera executado quando a aplicacao precisar dessa logica. |
 | 20 | `    const today = new Date().toLocaleDateString("pt-BR");` | Cria uma variavel ou constante usada pela logica deste trecho. |
 | 21 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
 | 22 | `    const systemPrompt = \`Você organiza notas de reunião em uma ATA formal em português, no formato HTML estruturado abaixo. Use APENAS o conteúdo fornecido — não invente fatos. Se um campo não estiver claro, use "—".` | Cria uma variavel ou constante usada pela logica deste trecho. |
@@ -63,51 +63,39 @@ Este documento foi gerado para estudo e manutencao. Ele preserva o codigo origin
 | 55 | `- Não adicione introdução nem encerramento fora do HTML.` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 56 | `- Não use markdown. Apenas HTML simples (h2, h3, p, ul, li, table, tr, td, th, strong, em).\`;` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 57 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 58 | `    const userContent: Array<Record<string, unknown>> = [];` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 59 | `    if (data.pdfBase64) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 60 | `      userContent.push({` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 61 | `        type: "document",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 62 | `        source: { type: "base64", media_type: "application/pdf", data: data.pdfBase64 },` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 63 | `      });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 64 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 65 | `    userContent.push({` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 66 | `      type: "text",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 58 | `    const userContent: Array<` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 59 | `      { text: string } | { inlineData: { mimeType: string; data: string } }` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 60 | `    > = [];` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 61 | `    if (data.pdfBase64) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
+| 62 | `      userContent.push({` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 63 | `        inlineData: { mimeType: "application/pdf", data: data.pdfBase64 },` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 64 | `      });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 65 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 66 | `    userContent.push({` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 67 | `      text: data.text` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 68 | `        ? \`Conteúdo bruto da reunião:\n\n${data.text}\n\nGere a ata formatada em HTML conforme as regras.\`` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 69 | `        : \`Gere a ata formatada da reunião anexa conforme as regras.\`,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
 | 70 | `    });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
 | 71 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 72 | `    const res = await fetch("https://api.anthropic.com/v1/messages", {` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 73 | `      method: "POST",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 74 | `      headers: {` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 75 | `        "Content-Type": "application/json",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 76 | `        "x-api-key": apiKey,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 77 | `        "anthropic-version": "2023-06-01",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 78 | `      },` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 79 | `      body: JSON.stringify({` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 80 | `        model: "claude-sonnet-4-5",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 81 | `        max_tokens: 4096,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 82 | `        system: systemPrompt,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 83 | `        messages: [{ role: "user", content: userContent }],` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 84 | `      }),` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 85 | `    });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 86 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 87 | `    if (!res.ok) {` | Inicia uma decisao condicional para tratar cenarios diferentes. |
-| 88 | `      const t = await res.text();` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 89 | `      throw new Error(\`Claude API ${res.status}: ${t.slice(0, 300)}\`);` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 90 | `    }` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 91 | `    const json = await res.json();` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 92 | `    const raw: string = json?.content?.[0]?.text ?? "";` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 93 | `    const html = raw.replace(/^\`\`\`html\s*/i, "").replace(/^\`\`\`\s*/i, "").replace(/\`\`\`\s*$/i, "").trim();` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 94 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 95 | `    // Extract a plain-text version for the \`content\` column` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
-| 96 | `    const text = html` | Cria uma variavel ou constante usada pela logica deste trecho. |
-| 97 | `      .replace(/<\/(h2|h3|p|li|tr)>/gi, "\n")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 98 | `      .replace(/<br\s*\/?>/gi, "\n")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 99 | `      .replace(/<[^>]+>/g, "")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 100 | `      .replace(/\n{3,}/g, "\n\n")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 101 | `      .trim();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
-| 102 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
-| 103 | `    return { html, text };` | Devolve o resultado da funcao ou renderiza a interface do componente. |
-| 104 | `  });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
-| 105 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 72 | `    const raw = await generateGeminiContent({` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 73 | `      systemInstruction: systemPrompt,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 74 | `      parts: userContent,` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 75 | `      responseMimeType: "text/plain",` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 76 | `    });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 77 | `    const html = raw` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 78 | `      .replace(/^\`\`\`html\s*/i, "")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 79 | `      .replace(/^\`\`\`\s*/i, "")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 80 | `      .replace(/\`\`\`\s*$/i, "")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 81 | `      .trim();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 82 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 83 | `    // Extract a plain-text version for the \`content\` column` | Comentario existente no codigo; registra uma observacao para quem esta lendo ou mantendo o arquivo. |
+| 84 | `    const text = html` | Cria uma variavel ou constante usada pela logica deste trecho. |
+| 85 | `      .replace(/<\/(h2|h3|p|li|tr)>/gi, "\n")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 86 | `      .replace(/<br\s*\/?>/gi, "\n")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 87 | `      .replace(/<[^>]+>/g, "")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 88 | `      .replace(/\n{3,}/g, "\n\n")` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 89 | `      .trim();` | Linha de implementacao que compoe a regra de negocio, a interface ou a configuracao do arquivo. |
+| 90 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
+| 91 | `    return { html, text };` | Devolve o resultado da funcao ou renderiza a interface do componente. |
+| 92 | `  });` | Fecha o bloco, objeto, funcao ou chamada iniciado nas linhas anteriores. |
+| 93 | `(linha em branco)` | Separa blocos de codigo para melhorar a leitura. |
