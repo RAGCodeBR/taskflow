@@ -6,6 +6,43 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const GOOGLE_TIME_ZONE = "America/Sao_Paulo";
+// Fixed palette Google Calendar uses for per-event colors (colorId 1-11).
+// TaskFlow stores free-form hex, so pushing/pulling colors means mapping
+// through this table instead of relying only on the calendar's own color.
+const GOOGLE_EVENT_COLORS: Record<string, string> = {
+  "1": "#7986cb",
+  "2": "#33b679",
+  "3": "#8e24aa",
+  "4": "#e67c73",
+  "5": "#f6bf26",
+  "6": "#f4511e",
+  "7": "#039be5",
+  "8": "#616161",
+  "9": "#3f51b5",
+  "10": "#0b8043",
+  "11": "#d50000",
+};
+
+function hexDistance(a: string, b: string) {
+  const channel = (hex: string, offset: number) => parseInt(hex.slice(offset, offset + 2), 16);
+  return [1, 3, 5]
+    .map((offset) => channel(a, offset) - channel(b, offset))
+    .reduce((total, diff) => total + diff * diff, 0);
+}
+
+function nearestGoogleColorId(hex: string | null | undefined): string | undefined {
+  if (!hex || !/^#[0-9A-Fa-f]{6}$/.test(hex)) return undefined;
+  let bestId: string | undefined;
+  let bestDistance = Infinity;
+  for (const [id, paletteHex] of Object.entries(GOOGLE_EVENT_COLORS)) {
+    const distance = hexDistance(hex, paletteHex);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestId = id;
+    }
+  }
+  return bestId;
+}
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -121,6 +158,10 @@ function localPayload(event: any) {
     description: event.description ?? undefined,
     location: event.location ?? undefined,
     ...googleDate(event),
+    // Best-effort mapping: Google only accepts one of its 11 fixed colorIds
+    // for an event, so the closest match to the hex chosen in TaskFlow is
+    // sent instead of the calendar's default color.
+    colorId: nearestGoogleColorId(event.color),
     extendedProperties: { private: { taskflowEventId: event.id } },
   };
 }
@@ -140,6 +181,12 @@ function googleToLocal(
     startsAt = start.toISOString();
     endsAt = end.toISOString();
   }
+  // An event's own colorId (set by the person directly in Google) takes
+  // priority over the calendar's default color; otherwise fall back to it.
+  const ownColor = event.colorId ? GOOGLE_EVENT_COLORS[event.colorId] : undefined;
+  const calendarColor = /^#[0-9A-Fa-f]{6}$/.test(calendar.backgroundColor ?? "")
+    ? calendar.backgroundColor
+    : "#2563eb";
   return {
     starts_at: startsAt,
     ends_at: endsAt,
@@ -154,9 +201,7 @@ function googleToLocal(
     description: event.description ?? null,
     location: event.location ?? null,
     meeting_url: event.hangoutLink ?? null,
-    color: /^#[0-9A-Fa-f]{6}$/.test(calendar.backgroundColor ?? "")
-      ? calendar.backgroundColor
-      : "#2563eb",
+    color: ownColor ?? calendarColor,
     source: "google",
     sync_status: "synced",
   };
@@ -183,11 +228,16 @@ async function listGoogleEvents(
   let pageToken = "";
   do {
     const query = new URLSearchParams({
-      singleEvents: "false",
+      // Expand recurring events into their real occurrences. With this set
+      // to "false" the API returns one row per recurring series (its first
+      // occurrence only), so weekly/daily meetings would never repeat in
+      // the Agenda grid or appear on other weeks.
+      singleEvents: "true",
       showDeleted: "false",
       maxResults: "2500",
       timeMin: range.start.toISOString(),
       timeMax: range.end.toISOString(),
+      orderBy: "startTime",
     });
     if (pageToken) query.set("pageToken", pageToken);
     const page = await googleRequest(
@@ -212,7 +262,13 @@ async function listAccessibleCalendars(token: string) {
   const calendars: any[] = [];
   let pageToken = "";
   do {
-    const query = new URLSearchParams({ maxResults: "250" });
+    const query = new URLSearchParams({
+      maxResults: "250",
+      // Without this, a calendar the connected account toggled off in its
+      // own Google Calendar sidebar ("Other calendars") silently drops out
+      // of this list entirely — and with it, every event from that person.
+      showHidden: "true",
+    });
     if (pageToken) query.set("pageToken", pageToken);
     const page = await googleRequest(
       token,
@@ -327,7 +383,7 @@ async function sync(request: Request, body: any = {}) {
       const targetCalendarId = event.google_calendar_id ?? calendarId;
       if (targetCalendarId === calendarId && !canWriteSharedCalendar) {
         const message =
-          "Sua conta Google precisa ter a permissÃ£o 'Fazer alteraÃ§Ãµes em eventos' na agenda compartilhada.";
+          "Sua conta Google precisa ter a permissão 'Fazer alterações em eventos' na agenda compartilhada.";
         await admin
           .from("calendar_events")
           .update({

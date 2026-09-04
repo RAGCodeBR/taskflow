@@ -10,6 +10,7 @@ import {
   addDays,
   addMinutes,
   addWeeks,
+  addYears,
   differenceInMinutes,
   endOfDay,
   format,
@@ -17,6 +18,7 @@ import {
   isToday,
   startOfDay,
   startOfWeek,
+  subMonths,
   subWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -120,18 +122,19 @@ function AgendaPage() {
 
   const setCalendarVisibility = async (source: AgendaCalendarSource, isVisible: boolean) => {
     if (!user) return;
-    const previousSources = queryClient.getQueryData<AgendaCalendarSource[]>([
-      "agenda_calendar_sources",
-      user.id,
-    ]);
-    queryClient.setQueryData<AgendaCalendarSource[]>(
-      ["agenda_calendar_sources", user.id],
-      (current = []) =>
-        current.map((item) =>
-          item.google_calendar_id === source.google_calendar_id
-            ? { ...item, is_visible: isVisible }
-            : item,
-        ),
+    const queryKey = ["agenda_calendar_sources", user.id];
+    // A sync running in the background (silent or manual) can resolve after
+    // this optimistic write and overwrite it with the pre-toggle value from
+    // the server, making the checkbox flip back on its own. Cancelling any
+    // in-flight fetch for this key first prevents that race.
+    await queryClient.cancelQueries({ queryKey });
+    const previousSources = queryClient.getQueryData<AgendaCalendarSource[]>(queryKey);
+    queryClient.setQueryData<AgendaCalendarSource[]>(queryKey, (current = []) =>
+      current.map((item) =>
+        item.google_calendar_id === source.google_calendar_id
+          ? { ...item, is_visible: isVisible }
+          : item,
+      ),
     );
     const { data, error: preferenceError } = await supabase.functions.invoke(
       "google-calendar-sync",
@@ -144,7 +147,7 @@ function AgendaPage() {
       },
     );
     if (preferenceError || !data?.ok) {
-      queryClient.setQueryData(["agenda_calendar_sources", user.id], previousSources);
+      queryClient.setQueryData(queryKey, previousSources);
       toast.error("Não foi possível atualizar o filtro da agenda.");
       return;
     }
@@ -205,11 +208,22 @@ function AgendaPage() {
     toast.success("Conta Google desconectada.");
   };
 
-  const syncGoogle = async (silent = false) => {
+  const syncGoogle = async (options: { silent?: boolean; fullRange?: boolean } = {}) => {
+    const { silent = false, fullRange = false } = options;
     if (syncingGoogle) return;
     setSyncingGoogle(true);
+    // The explicit "Sincronizar agora" button backfills a wide, fixed window
+    // instead of only the week currently on screen — otherwise events from
+    // any other week never get pulled unless someone happens to sync while
+    // looking at that exact week.
+    const range = fullRange
+      ? {
+          start: subMonths(new Date(), 3).toISOString(),
+          end: addYears(new Date(), 1).toISOString(),
+        }
+      : { start: agendaRangeStart, end: agendaRangeEnd };
     const { data, error: invokeError } = await supabase.functions.invoke("google-calendar-sync", {
-      body: { rangeStart: agendaRangeStart, rangeEnd: agendaRangeEnd },
+      body: { rangeStart: range.start, rangeEnd: range.end },
     });
     setSyncingGoogle(false);
     if (invokeError || !data?.ok) {
@@ -222,12 +236,22 @@ function AgendaPage() {
       if (!silent) toast.error(errorMessage);
       return;
     }
-    const returnedEvents = Array.isArray(data.events) ? (data.events as AgendaEvent[]) : null;
-    if (returnedEvents) {
-      // A grade recebe a resposta da sincronização imediatamente pelo cache único.
-      queryClient.setQueryData(["agenda_events", agendaRangeStart, agendaRangeEnd], returnedEvents);
-    } else {
+    if (fullRange) {
+      // The response covers a much wider window than the visible week's
+      // query key, so refetch each range from the database instead of
+      // stuffing the wide result into that one cache entry.
       await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
+    } else {
+      const returnedEvents = Array.isArray(data.events) ? (data.events as AgendaEvent[]) : null;
+      if (returnedEvents) {
+        // A grade recebe a resposta da sincronização imediatamente pelo cache único.
+        queryClient.setQueryData(
+          ["agenda_events", agendaRangeStart, agendaRangeEnd],
+          returnedEvents,
+        );
+      } else {
+        await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
+      }
     }
     await queryClient.invalidateQueries({ queryKey: ["agenda_calendar_sources"] });
     if (!silent) {
@@ -304,7 +328,7 @@ function AgendaPage() {
         .eq("id", event.id);
       if (updateError) throw updateError;
       await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
-      void syncGoogle(true);
+      void syncGoogle({ silent: true });
     } catch (updateError) {
       queryClient.setQueryData(agendaQueryKey, previousEvents);
       toast.error("Não foi possível atualizar o evento. A alteração foi desfeita.");
@@ -393,7 +417,7 @@ function AgendaPage() {
           </Button>
         )}
         {!loadingGoogle && googleConnection && (
-          <Button onClick={() => void syncGoogle()} disabled={syncingGoogle}>
+          <Button onClick={() => void syncGoogle({ fullRange: true })} disabled={syncingGoogle}>
             {syncingGoogle ? "Sincronizando…" : "Sincronizar agora"}
           </Button>
         )}
