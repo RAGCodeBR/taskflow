@@ -96,7 +96,13 @@
   --sidebar-ring: oklch(0.34 0.09 258);
 
   --gradient-primary: linear-gradient(135deg, var(--primary), var(--primary-glow));
-  --gradient-sidebar: linear-gradient(180deg, oklch(0.72 0.008 95), oklch(0.66 0.009 95));
+  /* Light mode only: the nav matches the page background instead of its own
+     tan gradient. Dark mode keeps its own gradient below, untouched. */
+  --gradient-sidebar: var(--background);
+  /* A faint hairline is the only thing separating the nav from the page now
+     that they share the same background. Dark mode sets this to transparent
+     below, since its own gradient already reads as a distinct panel. */
+  --sidebar-hairline: oklch(0 0 0 / 0.08);
   --shadow-elegant: 0 10px 30px -10px color-mix(in oklab, var(--primary) 30%, transparent);
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
 }
@@ -130,6 +136,7 @@
   --sidebar-border: oklch(0.36 0.03 252);
   --sidebar-ring: oklch(0.71 0.13 232);
   --gradient-sidebar: linear-gradient(180deg, oklch(0.215 0.022 250), oklch(0.175 0.018 250));
+  --sidebar-hairline: transparent;
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.28), 0 10px 24px -14px rgb(0 0 0 / 0.5);
 }
 

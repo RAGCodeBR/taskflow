@@ -118,7 +118,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         className={`hidden h-dvh shrink-0 flex-col text-sidebar-foreground transition-all duration-300 md:flex ${
           sidebarOpen ? "w-56" : "w-16 items-center"
         }`}
-        style={{ background: "var(--gradient-sidebar)" }}
+        style={{
+          background: "var(--gradient-sidebar)",
+          borderRight: "1px solid var(--sidebar-hairline)",
+        }}
       >
         <div
           className={`flex ${sidebarOpen ? "flex-col items-center gap-3 py-4 px-5" : "items-center justify-center py-5 px-2"}`}
@@ -250,7 +253,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-1">
           {canSwitchEnvironments && workspaces.length > 1 && (
             <Button asChild variant="ghost" size="icon" title="Trocar ambiente">
-              <Link to="/ambientes"><Layers3 className="h-5 w-5" /></Link>
+              <Link to="/ambientes">
+                <Layers3 className="h-5 w-5" />
+              </Link>
             </Button>
           )}
           <NotificationBell />
@@ -371,7 +376,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:pt-0 pt-12">
         <div className="hidden md:flex sticky top-0 z-30 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
           {canSwitchEnvironments && workspaces.length > 1 && (
-            <Button asChild variant="ghost" className="h-9 gap-2 rounded-full px-3 text-sm" title="Trocar ambiente">
+            <Button
+              asChild
+              variant="ghost"
+              className="h-9 gap-2 rounded-full px-3 text-sm"
+              title="Trocar ambiente"
+            >
               <Link to="/ambientes">
                 <Layers3 className="h-4 w-4" />
                 <span>{activeWorkspace?.name ?? "Ambiente"}</span>
@@ -414,7 +424,9 @@ function PortalNavGroup({
             title="Portal do Cliente"
             className={`flex w-full justify-center rounded-full px-2 py-2 transition ${active ? "bg-sidebar-primary/10 text-sidebar-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
           >
-            <span className={`grid h-7 w-7 place-items-center ${active ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
+            <span
+              className={`grid h-7 w-7 place-items-center ${active ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}
+            >
               <PanelsTopLeft className="h-4 w-4" />
             </span>
           </button>
@@ -422,7 +434,10 @@ function PortalNavGroup({
         <DropdownMenuContent side="right" align="start" className="min-w-56 p-1.5">
           {canAccessDeliveries && (
             <DropdownMenuItem asChild>
-              <Link to="/portal/entregas" className={deliveriesActive ? "bg-sidebar-primary/10 text-sidebar-primary" : ""}>
+              <Link
+                to="/portal/entregas"
+                className={deliveriesActive ? "bg-sidebar-primary/10 text-sidebar-primary" : ""}
+              >
                 <CalendarCog className="h-4 w-4" />
                 Calendário de Entregas
               </Link>
@@ -430,7 +445,10 @@ function PortalNavGroup({
           )}
           {canAccessFinance && (
             <DropdownMenuItem asChild>
-              <Link to="/portal/financeiro" className={financeActive ? "bg-sidebar-primary/10 text-sidebar-primary" : ""}>
+              <Link
+                to="/portal/financeiro"
+                className={financeActive ? "bg-sidebar-primary/10 text-sidebar-primary" : ""}
+              >
                 <CircleDollarSign className="h-4 w-4" />
                 Financeiro
               </Link>
@@ -457,7 +475,9 @@ function PortalNavGroup({
             onClick={onNavigate}
             className={`flex items-center gap-3 rounded-full px-3 py-2 text-sm transition ${deliveriesActive ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
           >
-            <span className={`grid h-7 w-7 shrink-0 place-items-center ${deliveriesActive ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
+            <span
+              className={`grid h-7 w-7 shrink-0 place-items-center ${deliveriesActive ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}
+            >
               <CalendarCog className="h-4 w-4" />
             </span>
             Calendário de Entregas
@@ -469,7 +489,9 @@ function PortalNavGroup({
             onClick={onNavigate}
             className={`flex items-center gap-3 rounded-full px-3 py-2 text-sm transition ${financeActive ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
           >
-            <span className={`grid h-7 w-7 shrink-0 place-items-center ${financeActive ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}>
+            <span
+              className={`grid h-7 w-7 shrink-0 place-items-center ${financeActive ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}
+            >
               <CircleDollarSign className="h-4 w-4" />
             </span>
             Financeiro
