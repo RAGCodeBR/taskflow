@@ -7,8 +7,9 @@ const corsHeaders = {
 };
 const GOOGLE_TIME_ZONE = "America/Sao_Paulo";
 // Fixed palette Google Calendar uses for per-event colors (colorId 1-11).
-// TaskFlow stores free-form hex, so pushing/pulling colors means mapping
-// through this table instead of relying only on the calendar's own color.
+// TaskFlow never sets one of these itself (see localPayload below) — this
+// table only decodes a colorId a person set directly in Google, so that
+// genuine per-event override is preserved on pull.
 const GOOGLE_EVENT_COLORS: Record<string, string> = {
   "1": "#7986cb",
   "2": "#33b679",
@@ -22,27 +23,6 @@ const GOOGLE_EVENT_COLORS: Record<string, string> = {
   "10": "#0b8043",
   "11": "#d50000",
 };
-
-function hexDistance(a: string, b: string) {
-  const channel = (hex: string, offset: number) => parseInt(hex.slice(offset, offset + 2), 16);
-  return [1, 3, 5]
-    .map((offset) => channel(a, offset) - channel(b, offset))
-    .reduce((total, diff) => total + diff * diff, 0);
-}
-
-function nearestGoogleColorId(hex: string | null | undefined): string | undefined {
-  if (!hex || !/^#[0-9A-Fa-f]{6}$/.test(hex)) return undefined;
-  let bestId: string | undefined;
-  let bestDistance = Infinity;
-  for (const [id, paletteHex] of Object.entries(GOOGLE_EVENT_COLORS)) {
-    const distance = hexDistance(hex, paletteHex);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestId = id;
-    }
-  }
-  return bestId;
-}
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -158,10 +138,12 @@ function localPayload(event: any) {
     description: event.description ?? undefined,
     location: event.location ?? undefined,
     ...googleDate(event),
-    // Best-effort mapping: Google only accepts one of its 11 fixed colorIds
-    // for an event, so the closest match to the hex chosen in TaskFlow is
-    // sent instead of the calendar's default color.
-    colorId: nearestGoogleColorId(event.color),
+    // The color picked in TaskFlow is always the target calendar's own
+    // color (there is no independent per-event color anymore), so this
+    // explicitly clears any custom colorId instead of approximating one —
+    // otherwise the event would carry a slightly-off "own color" that then
+    // wins over the calendar's real color on the next pull.
+    colorId: null,
     extendedProperties: { private: { taskflowEventId: event.id } },
   };
 }
@@ -300,9 +282,19 @@ async function sync(request: Request, body: any = {}) {
   const token = await tokenForConnection(admin, connection);
   const range = requestedRange(body);
   const calendars = await listAccessibleCalendars(token);
-  const sharedCalendar = calendars.find((calendar) => calendar.id === calendarId);
-  const canWriteSharedCalendar =
-    sharedCalendar?.accessRole === "owner" || sharedCalendar?.accessRole === "writer";
+  // The person can now target any registered calendar when creating an
+  // event in TaskFlow (not just the shared one), so writability has to be
+  // checked per target calendar instead of only for the shared calendar.
+  const accessRoleByCalendarId = new Map(
+    calendars.map((calendar) => [calendar.id, calendar.accessRole]),
+  );
+  const nameByCalendarId = new Map(
+    calendars.map((calendar) => [calendar.id, calendar.summary || calendar.id]),
+  );
+  const canWriteCalendar = (id: string) => {
+    const role = accessRoleByCalendarId.get(id);
+    return role === "owner" || role === "writer";
+  };
   // Keep the shared calendar in the local filter list, but do not request it
   // with a collaborator's token when Google has not shared it with that user.
   const calendarsForSources = calendars.some((calendar) => calendar.id === calendarId)
@@ -381,9 +373,9 @@ async function sync(request: Request, body: any = {}) {
   for (const event of localEvents ?? []) {
     try {
       const targetCalendarId = event.google_calendar_id ?? calendarId;
-      if (targetCalendarId === calendarId && !canWriteSharedCalendar) {
-        const message =
-          "Sua conta Google precisa ter a permissão 'Fazer alterações em eventos' na agenda compartilhada.";
+      if (!canWriteCalendar(targetCalendarId)) {
+        const targetName = nameByCalendarId.get(targetCalendarId) ?? "selecionada";
+        const message = `Sua conta Google precisa ter a permissão 'Fazer alterações em eventos' na agenda ${targetName}.`;
         await admin
           .from("calendar_events")
           .update({

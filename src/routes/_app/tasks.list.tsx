@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { format, isPast } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { priorityColors, priorityLabels } from "@/lib/task-utils";
+import { priorityColors, priorityLabels, dueUrgencyState, dueUrgencyTextClass } from "@/lib/task-utils";
 import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -300,7 +300,7 @@ function ListPage() {
                         color: storedStatus.color,
                       }
                     : null;
-              const overdue = t.due_date && isPast(new Date(t.due_date)) && t.status !== "done";
+              const dueTextClass = dueUrgencyTextClass[dueUrgencyState(t)];
               const taskCollaborators = collaborators.filter((collaborator) => collaborator.task_id === t.id).map((collaborator) => profiles.find((profile) => profile.id === collaborator.collaborator_id)).filter(Boolean);
 
               return (
@@ -372,7 +372,7 @@ function ListPage() {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className={`border-r px-2 py-2 whitespace-nowrap ${overdue ? "font-medium text-destructive" : "text-muted-foreground"}`}>
+                  <td className={`border-r px-2 py-2 whitespace-nowrap ${dueTextClass}`}>
                     {t.due_date
                       ? `${format(new Date(t.due_date), "dd MMM yyyy", { locale: ptBR })}${t.due_time ? ` · ${t.due_time.slice(0, 5)}` : ""}`
                       : "—"}

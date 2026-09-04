@@ -633,7 +633,7 @@ export function TaskCard({
               ? `Atrasado h\u00e1 ${overdueMinutes} min`
               : `Atrasado h\u00e1 ${overdueHours}h${remainingMinutes ? ` ${remainingMinutes} min` : ""}`;
           return {
-            state: "overdue" as const,
+            state: "today" as const,
             label: overdueLabel,
             days: 0,
             subtext: dueLabel,
@@ -676,8 +676,7 @@ export function TaskCard({
   const dueChipClass = {
     overdue:
       "bg-destructive text-destructive-foreground font-bold shadow-sm ring-1 ring-destructive/40",
-    today:
-      "bg-destructive/90 text-destructive-foreground font-semibold shadow-sm ring-1 ring-destructive/30",
+    today: "bg-amber-500 text-amber-950 font-bold shadow-sm ring-1 ring-amber-500/50",
     tomorrow: "bg-amber-500 text-amber-950 font-semibold shadow-sm ring-1 ring-amber-500/40",
     soon: "bg-amber-500/90 text-amber-950 font-semibold shadow-sm ring-1 ring-amber-500/30",
     future: "bg-blue-500/15 text-blue-700 dark:text-blue-300 font-medium ring-1 ring-blue-500/30",
@@ -714,7 +713,7 @@ export function TaskCard({
     if (diff === 0)
       return {
         label: "Vence hoje",
-        cls: "bg-destructive/90 text-destructive-foreground font-semibold ring-1 ring-destructive/30",
+        cls: "bg-amber-500 text-amber-950 font-bold ring-1 ring-amber-500/50",
         state: "today" as const,
       };
     if (diff === 1)

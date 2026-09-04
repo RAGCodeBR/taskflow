@@ -103,6 +103,41 @@ export function matchDateFilter(task: TaskLike, filter: DateFilter): boolean {
   }
 }
 
+export type DueUrgencyState = "overdue" | "today" | "tomorrow" | "soon" | "future" | "none";
+
+/**
+ * Same day-diff rules used for the due-date alert on the task card: the whole
+ * due day counts as "today" (even past an explicit due time), and only the
+ * following day becomes "overdue".
+ */
+export function dueUrgencyState(task: {
+  due_date: string | null;
+  status?: string | null;
+  completed_at?: string | null;
+}): DueUrgencyState {
+  const isDone = task.status === "done" || !!task.completed_at;
+  if (!task.due_date || isDone) return "none";
+  const now = new Date();
+  const due = new Date(task.due_date);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const diffDays = Math.round((startOfDue.getTime() - startOfToday.getTime()) / 86_400_000);
+  if (diffDays < 0) return "overdue";
+  if (diffDays === 0) return "today";
+  if (diffDays === 1) return "tomorrow";
+  if (diffDays <= 7) return "soon";
+  return "future";
+}
+
+export const dueUrgencyTextClass: Record<DueUrgencyState, string> = {
+  overdue: "font-medium text-destructive",
+  today: "font-semibold text-amber-600 dark:text-amber-400",
+  tomorrow: "font-medium text-amber-600 dark:text-amber-400",
+  soon: "font-medium text-amber-600 dark:text-amber-400",
+  future: "text-blue-600 dark:text-blue-400",
+  none: "text-muted-foreground",
+};
+
 export function taskUrgency(task: TaskLike): "overdue" | "due_today" | "due_soon" | "ok" {
   if (!task.due_date) return "ok";
   if (task.status === "done") return "ok";

@@ -50,6 +50,25 @@ describe("calendar event collision layout", () => {
     expect(new Set(layout.map((item) => item.column))).toEqual(new Set([0, 1, 2]));
   });
 
+  it("keeps a card narrow while a neighbouring column is busy", () => {
+    const a = event("a", "2026-08-26T14:00:00-03:00", "2026-08-26T15:00:00-03:00");
+    const b = event("b", "2026-08-26T14:30:00-03:00", "2026-08-26T15:30:00-03:00");
+    expect(buildEventLayouts([a, b]).map((item) => item.span)).toEqual([1, 1]);
+  });
+
+  it("widens a card over the neighbouring columns that are free", () => {
+    const long = event("long", "2026-08-26T14:00:00-03:00", "2026-08-26T17:00:00-03:00");
+    const first = event("first", "2026-08-26T14:00:00-03:00", "2026-08-26T15:00:00-03:00");
+    const second = event("second", "2026-08-26T14:00:00-03:00", "2026-08-26T15:00:00-03:00");
+    const late = event("late", "2026-08-26T16:00:00-03:00", "2026-08-26T17:00:00-03:00");
+    const layout = buildEventLayouts([long, first, second, late]);
+    const byId = new Map(layout.map((item) => [item.event.id, item]));
+    expect(byId.get("late")?.columns).toBe(3);
+    // Nothing sits beside "late" at 16:00, so it covers the free column too.
+    expect(byId.get("late")?.span).toBe(2);
+    expect(byId.get("long")?.span).toBe(1);
+  });
+
   it("identifies a conflict only when the same collaborator overlaps", () => {
     const a = event("a", "2026-08-26T14:00:00-03:00", "2026-08-26T15:00:00-03:00", "jane");
     const same = event("b", "2026-08-26T14:30:00-03:00", "2026-08-26T15:30:00-03:00", "jane");

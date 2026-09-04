@@ -207,7 +207,10 @@ export function useAgendaEvents(rangeStart?: string, rangeEnd?: string) {
     queryFn: async () => {
       // Read through the authenticated client so the active workspace RLS
       // policy is enforced. Google sync remains an explicit server action.
-      let query = (supabase.from("calendar_events" as any) as any).select("*").order("starts_at");
+      let query = (supabase.from("calendar_events" as any) as any)
+        .select("*")
+        .is("deleted_at", null)
+        .order("starts_at");
       if (rangeStart) query = query.gte("starts_at", rangeStart);
       if (rangeEnd) query = query.lte("starts_at", rangeEnd);
       const { data, error } = await query;

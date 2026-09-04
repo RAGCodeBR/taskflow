@@ -22,10 +22,11 @@ import {
   subWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ListFilter, Plus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AgendaEventDialog } from "@/components/AgendaEventDialog";
 import {
   useAgendaCalendarSources,
@@ -36,6 +37,7 @@ import {
 } from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { buildEventLayouts } from "@/lib/calendar-event-layout";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/agenda")({ component: AgendaPage });
@@ -43,6 +45,8 @@ export const Route = createFileRoute("/_app/agenda")({ component: AgendaPage });
 const DAY_START_HOUR = 0;
 const DAY_END_HOUR = 24;
 const HOUR_HEIGHT = 64;
+/** Minimum width of an event card, counted in collision-column slots. */
+const MIN_CARD_SLOTS = 2;
 const SNAP_MINUTES = 15;
 
 type ScheduleChange = Pick<AgendaEvent, "starts_at" | "ends_at">;
@@ -446,9 +450,49 @@ function AgendaPage() {
         <span className="ml-1 text-base font-semibold capitalize sm:text-lg">
           {format(weekStart, "MMMM 'de' yyyy", { locale: ptBR })}
         </span>
-        <Badge variant="secondary" className="ml-auto">
-          Semana
-        </Badge>
+        <div className="ml-auto flex items-center gap-2">
+          {calendarSources.length > 0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <ListFilter className="h-4 w-4" />
+                  Filtro de agendas
+                  {hasActiveCalendarFilter && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72">
+                <h2 className="text-sm font-semibold">Minhas agendas</h2>
+                <div className="mt-3 flex max-h-80 flex-col gap-2 overflow-y-auto">
+                  {calendarSources.map((source) => (
+                    <label
+                      key={source.google_calendar_id}
+                      className="flex cursor-pointer items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={source.is_visible}
+                        onChange={(input) =>
+                          void setCalendarVisibility(source, input.target.checked)
+                        }
+                        className="h-4 w-4 rounded border-border"
+                        style={{ accentColor: source.color }}
+                      />
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-sm"
+                        style={{ backgroundColor: source.color }}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{source.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+          <Badge variant="secondary">Semana</Badge>
+        </div>
       </div>
 
       {error && (
@@ -456,36 +500,9 @@ function AgendaPage() {
           Não foi possível carregar a Agenda: {(error as Error).message}
         </div>
       )}
-      {calendarSources.length > 0 && (
-        <section className="rounded-lg border bg-card p-4">
-          <h2 className="text-sm font-semibold">Minhas agendas</h2>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-            {calendarSources.map((source) => (
-              <label
-                key={source.google_calendar_id}
-                className="flex cursor-pointer items-center gap-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={source.is_visible}
-                  onChange={(input) => void setCalendarVisibility(source, input.target.checked)}
-                  className="h-4 w-4 rounded border-border"
-                  style={{ accentColor: source.color }}
-                />
-                <span
-                  className="h-3 w-3 rounded-sm"
-                  style={{ backgroundColor: source.color }}
-                  aria-hidden="true"
-                />
-                <span>{source.name}</span>
-              </label>
-            ))}
-          </div>
-        </section>
-      )}
-      <div className="overflow-x-auto rounded-lg border bg-card">
-        <div className="min-w-[900px]">
-          <div className="grid grid-cols-[64px_repeat(7,minmax(118px,1fr))] border-b">
+      <div className="max-h-[70vh] overflow-auto rounded-lg border bg-card">
+        <div className="min-w-[1400px]">
+          <div className="sticky top-0 z-30 grid grid-cols-[64px_repeat(7,minmax(190px,1fr))] border-b bg-card">
             <div className="border-r" />
             {days.map((day, index) => (
               <div
@@ -521,7 +538,7 @@ function AgendaPage() {
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-[64px_repeat(7,minmax(118px,1fr))]">
+          <div className="grid grid-cols-[64px_repeat(7,minmax(190px,1fr))]">
             <div className="relative border-r" style={{ height: totalHeight }}>
               {Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, index) => (
                 <div
@@ -550,9 +567,17 @@ function AgendaPage() {
                     style={{ top: index * HOUR_HEIGHT, height: HOUR_HEIGHT }}
                   />
                 ))}
-                {timedEventsForDay(day).map((event) => {
+                {buildEventLayouts(timedEventsForDay(day)).map((layout) => {
+                  const { event, column, columns, span } = layout;
                   const style = eventStyle(event, day);
                   const isActive = draggingId === event.id;
+                  // Cards stay readable by covering the free columns beside
+                  // them and, when there is none, by overlapping the next
+                  // card. Later columns paint on top, so each card always
+                  // keeps its own slot visible — nothing is fully hidden.
+                  const slot = 100 / columns;
+                  const left = column * slot;
+                  const width = Math.min(Math.max(span, MIN_CARD_SLOTS) * slot, 100 - left);
                   return (
                     <div
                       key={event.id}
@@ -574,11 +599,12 @@ function AgendaPage() {
                           setDialogOpen(true);
                         }
                       }}
-                      className={`absolute z-10 overflow-hidden rounded-md px-1.5 py-1 text-left text-[11px] text-white shadow-sm outline-none transition-shadow hover:brightness-95 focus-visible:ring-2 focus-visible:ring-primary/70 ${isActive ? "z-20 cursor-grabbing opacity-85 shadow-lg" : "cursor-grab"} ${savingIds.includes(event.id) ? "animate-pulse" : ""}`}
+                      className={`absolute overflow-hidden rounded-md border border-white/30 px-1.5 py-1 text-left text-[11px] text-white shadow-sm outline-none transition-shadow hover:brightness-95 focus-visible:ring-2 focus-visible:ring-primary/70 ${isActive ? "cursor-grabbing opacity-85 shadow-lg" : "cursor-grab"} ${savingIds.includes(event.id) ? "animate-pulse" : ""}`}
                       style={{
                         ...style,
-                        left: "3px",
-                        width: "calc(100% - 6px)",
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        zIndex: isActive ? 40 : 10 + column,
                         backgroundColor: event.color,
                         touchAction: "none",
                       }}

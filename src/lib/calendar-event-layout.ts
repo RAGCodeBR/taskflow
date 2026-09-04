@@ -9,6 +9,8 @@ export type EventLayout<T extends SchedulableEvent> = {
   event: T;
   column: number;
   columns: number;
+  /** How many columns the card may cover before it hits a neighbour. */
+  span: number;
 };
 
 const eventStart = (event: SchedulableEvent) => new Date(event.starts_at).getTime();
@@ -60,7 +62,22 @@ export function buildEventLayouts<T extends SchedulableEvent>(events: T[]): Even
       columnEnds[nextColumn] = eventEnd(event);
       return { event, column: nextColumn };
     });
-    return assigned.map(({ event, column }) => ({ event, column, columns: columnEnds.length }));
+    const columns = columnEnds.length;
+    return assigned.map(({ event, column }) => {
+      // A card only has to stay narrow while something actually sits beside
+      // it: it grows over the neighbouring columns that are free during its
+      // own time range.
+      let span = 1;
+      while (
+        column + span < columns &&
+        !assigned.some(
+          (other) => other.column === column + span && eventsOverlap(other.event, event),
+        )
+      ) {
+        span += 1;
+      }
+      return { event, column, columns, span };
+    });
   });
 }
 
