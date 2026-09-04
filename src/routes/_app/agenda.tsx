@@ -263,7 +263,7 @@ function AgendaPage() {
       else if (data.pushErrors?.length) toast.error(data.pushErrors[0]);
       else
         toast.success(
-          `Agenda sincronizada: ${data.pushed} enviados, ${data.pulled} recebidos de ${data.remoteEvents} evento(s) no Google.`,
+          `Agenda sincronizada: ${data.pushed} enviados, ${data.pulled} recebidos${data.removed ? `, ${data.removed} removidos` : ""} de ${data.remoteEvents} evento(s) no Google.`,
         );
     }
   };

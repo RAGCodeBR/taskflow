@@ -215,7 +215,10 @@ async function listGoogleEvents(
       // occurrence only), so weekly/daily meetings would never repeat in
       // the Agenda grid or appear on other weeks.
       singleEvents: "true",
-      showDeleted: "false",
+      // Deleted events come back with status "cancelled" instead of being
+      // omitted — the only way the sync can notice a deletion made directly
+      // in Google and mirror it into TaskFlow.
+      showDeleted: "true",
       maxResults: "2500",
       timeMin: range.start.toISOString(),
       timeMax: range.end.toISOString(),
@@ -230,8 +233,11 @@ async function listGoogleEvents(
       ...(page.items ?? [])
         .filter(
           (event: any) =>
-            (event.start?.date || event.start?.dateTime) &&
-            (event.end?.date || event.end?.dateTime),
+            // A cancelled event usually comes back without start/end, and it
+            // still has to reach the caller so the local row gets removed.
+            event.status === "cancelled" ||
+            ((event.start?.date || event.start?.dateTime) &&
+              (event.end?.date || event.end?.dateTime)),
         )
         .map((event: any) => ({ ...event, taskflowCalendarId: calendarId })),
     );
@@ -321,46 +327,10 @@ async function sync(request: Request, body: any = {}) {
   );
   if (sourceError) throw sourceError;
 
-  const eventPages = await Promise.allSettled(
-    calendars.map(async (calendar) => ({
-      calendar,
-      events: await listGoogleEvents(token, calendar.id, range),
-    })),
-  );
-  const importedCalendars = eventPages
-    .filter(
-      (
-        result,
-      ): result is PromiseFulfilledResult<{
-        calendar: { id: string; backgroundColor?: string | null };
-        events: any[];
-      }> => result.status === "fulfilled",
-    )
-    .map((result) => result.value);
-  const calendarErrors = eventPages
-    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
-    .map((result) =>
-      result.reason instanceof Error ? result.reason.message : "Calendário inacessível.",
-    );
-  const googleEvents = importedCalendars.flatMap(({ calendar, events }) =>
-    events.map((event) => ({ ...event, taskflowCalendar: calendar })),
-  );
-  const remoteIds = new Set(
-    googleEvents
-      .filter((event) => event.taskflowCalendar.id === calendarId)
-      .map((event) => event.id),
-  );
-  const remotePayloads = googleEvents.map((event) =>
-    googleToLocal(event, user.id, event.taskflowCalendar),
-  );
-  const { error: importError } = remotePayloads.length
-    ? await admin
-        .from("calendar_events")
-        .upsert(remotePayloads, { onConflict: "google_calendar_id,google_event_id" })
-    : { error: null };
-  const pulled = importError ? 0 : remotePayloads.length;
-  const importErrors = [...calendarErrors, ...(importError ? [importError.message] : [])];
-
+  // Local changes are flushed to Google BEFORE importing Google's state.
+  // With the opposite order the import rewrote sync_status of every row it
+  // touched, so an event deleted in TaskFlow was marked "synced" by the
+  // import and its deletion never reached Google.
   const { data: localEvents, error: localError } = await admin
     .from("calendar_events")
     .select("*")
@@ -370,6 +340,7 @@ async function sync(request: Request, body: any = {}) {
   if (localError) throw localError;
   let pushed = 0;
   const pushErrors: string[] = [];
+  const pushFailures: { id: string; message: string }[] = [];
   for (const event of localEvents ?? []) {
     try {
       const targetCalendarId = event.google_calendar_id ?? calendarId;
@@ -384,6 +355,7 @@ async function sync(request: Request, body: any = {}) {
           })
           .eq("id", event.id);
         pushErrors.push(message);
+        pushFailures.push({ id: event.id, message });
         continue;
       }
       const writeToken = token;
@@ -453,8 +425,92 @@ async function sync(request: Request, body: any = {}) {
         })
         .eq("id", event.id);
       pushErrors.push(message);
+      pushFailures.push({ id: event.id, message });
     }
   }
+
+  const eventPages = await Promise.allSettled(
+    calendars.map(async (calendar) => ({
+      calendar,
+      events: await listGoogleEvents(token, calendar.id, range),
+    })),
+  );
+  const importedCalendars = eventPages
+    .filter(
+      (
+        result,
+      ): result is PromiseFulfilledResult<{
+        calendar: { id: string; backgroundColor?: string | null };
+        events: any[];
+      }> => result.status === "fulfilled",
+    )
+    .map((result) => result.value);
+  const calendarErrors = eventPages
+    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+    .map((result) =>
+      result.reason instanceof Error ? result.reason.message : "Calendário inacessível.",
+    );
+  const googleEvents = importedCalendars.flatMap(({ calendar, events }) =>
+    events.map((event) => ({ ...event, taskflowCalendar: calendar })),
+  );
+  const remoteIds = new Set(
+    googleEvents
+      .filter((event) => event.taskflowCalendar.id === calendarId)
+      .map((event) => event.id),
+  );
+  const cancelledByCalendar = new Map<string, string[]>();
+  const activeGoogleEvents: any[] = [];
+  for (const event of googleEvents) {
+    if (event.status === "cancelled") {
+      const ids = cancelledByCalendar.get(event.taskflowCalendar.id) ?? [];
+      ids.push(event.id);
+      cancelledByCalendar.set(event.taskflowCalendar.id, ids);
+      continue;
+    }
+    activeGoogleEvents.push(event);
+  }
+  const remotePayloads = activeGoogleEvents.map((event) =>
+    googleToLocal(event, user.id, event.taskflowCalendar),
+  );
+  const { error: importError } = remotePayloads.length
+    ? await admin
+        .from("calendar_events")
+        .upsert(remotePayloads, { onConflict: "google_calendar_id,google_event_id" })
+    : { error: null };
+  const pulled = importError ? 0 : remotePayloads.length;
+  const importErrors = [...calendarErrors, ...(importError ? [importError.message] : [])];
+
+  // Google reports a deleted event as "cancelled" instead of dropping it from
+  // the list — that is how a deletion made directly in Google reaches
+  // TaskFlow, which the import previously had no way of noticing.
+  let removed = 0;
+  for (const [cancelledCalendarId, cancelledIds] of cancelledByCalendar) {
+    for (let index = 0; index < cancelledIds.length; index += 100) {
+      const { data: removedRows, error: removeError } = await admin
+        .from("calendar_events")
+        .update({
+          deleted_at: new Date().toISOString(),
+          sync_status: "synced",
+          sync_error: null,
+        })
+        .eq("google_calendar_id", cancelledCalendarId)
+        .in("google_event_id", cancelledIds.slice(index, index + 100))
+        .is("deleted_at", null)
+        .select("id");
+      if (removeError) importErrors.push(removeError.message);
+      else removed += removedRows?.length ?? 0;
+    }
+  }
+
+  // The import above rewrites sync_status on every row it touches, which
+  // would erase the error just recorded for an event that failed to push.
+  for (const failure of pushFailures) {
+    await admin
+      .from("calendar_events")
+      .update({ sync_status: "error", sync_error: failure.message })
+      .eq("id", failure.id);
+  }
+
   const { data: activeEvents, error: activeEventsError } = await admin
     .from("calendar_events")
     .select("*")
@@ -467,6 +523,7 @@ async function sync(request: Request, body: any = {}) {
     ok: true,
     pushed,
     pulled,
+    removed,
     remoteEvents: remoteIds.size,
     importErrors: [...new Set(importErrors)].slice(0, 3),
     pushErrors: [...new Set(pushErrors)].slice(0, 3),
