@@ -299,6 +299,61 @@ export function TaskCard({
     };
   }, [task.id]);
 
+  // Um anexo sobe via upload direto no Storage, sem passar pelo cache do
+  // react-query — a sessão que fez o upload já atualiza o próprio estado local.
+  // Sem isto, quem está com este card aberto em outra sessão (outro ambiente,
+  // outra aba) só vê o anexo novo ao recarregar a página.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`task-card-attachments-${task.id}-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "attachments",
+          filter: `task_id=eq.${task.id}`,
+        },
+        async ({ new: raw }: { new: Record<string, unknown> }) => {
+          const attachment = raw as unknown as Attachment;
+          setAttachments((existing) =>
+            existing.some((item) => item.id === attachment.id)
+              ? existing
+              : [...existing, attachment],
+          );
+          if (attachment.mime_type !== LINK_MIME && attachment.mime_type?.startsWith("image/")) {
+            const { data: signed } = await supabase.storage
+              .from("task-attachments")
+              .createSignedUrl(attachment.storage_path, 3600);
+            if (signed) setThumbs((c) => ({ ...c, [attachment.id]: signed.signedUrl }));
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "attachments",
+          filter: `task_id=eq.${task.id}`,
+        },
+        ({ old: attachment }: { old: { id: string } }) => {
+          setAttachments((existing) => existing.filter((item) => item.id !== attachment.id));
+          setThumbs((c) => {
+            if (!(attachment.id in c)) return c;
+            const next = { ...c };
+            delete next[attachment.id];
+            return next;
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [task.id]);
+
   const [subsRefreshTick, setSubsRefreshTick] = useState(0);
   useEffect(() => {
     const cache = qc.getQueryCache();
@@ -536,7 +591,10 @@ export function TaskCard({
       console.error("Could not sync task attachment to client files", syncError);
       return false;
     }
-    setAttachments((c) => [...c, att]);
+    // A subscription realtime já pode ter inserido este anexo (o INSERT no
+    // banco dispara o evento antes deste await terminar); sem checar, os dois
+    // caminhos somam a mesma linha duas vezes.
+    setAttachments((c) => (c.some((item) => item.id === att.id) ? c : [...c, att]));
     if (att.mime_type?.startsWith("image/")) {
       const { data: signed } = await supabase.storage
         .from("task-attachments")
@@ -893,7 +951,11 @@ export function TaskCard({
   };
 
   const updateSubtaskDue = async (s: Subtask, isoOrEmpty: string) => {
-    const next = isoOrEmpty ? new Date(`${isoOrEmpty}T12:00:00`).toISOString() : null;
+    // SubtaskDuePopover já entrega um ISO completo (ele mesmo monta
+    // `${dateStr}T12:00:00` antes de chamar onApply); envolver de novo aqui
+    // produzia uma data inválida e .toISOString() lançava sem toast nenhum —
+    // por fora parecia que o prazo simplesmente não salvava.
+    const next = isoOrEmpty || null;
     if (next === s.due_date) return;
     if (!s.due_date) {
       await applySubtaskDue(s, next);

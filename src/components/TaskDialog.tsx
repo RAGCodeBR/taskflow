@@ -353,6 +353,48 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     };
   }, [open, currentTaskId]);
 
+  // Um anexo sobe via upload direto no Storage, sem passar pelo cache do
+  // react-query — a sessão que fez o upload já atualiza o próprio estado local.
+  // Sem isto, quem está com a tarefa aberta em outra sessão (outro ambiente,
+  // outra aba) só vê o anexo novo ao recarregar a página.
+  useEffect(() => {
+    if (!open || !currentTaskId) return;
+    const channel = supabase
+      .channel(`task-attachments-${currentTaskId}-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "attachments",
+          filter: `task_id=eq.${currentTaskId}`,
+        },
+        ({ new: attachment }: { new: Record<string, unknown> }) => {
+          setAttachments((existing) =>
+            existing.some((item) => item.id === attachment.id)
+              ? existing
+              : [...existing, attachment as unknown as Attachment],
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "attachments",
+          filter: `task_id=eq.${currentTaskId}`,
+        },
+        ({ old: attachment }: { old: { id: string } }) =>
+          setAttachments((existing) => existing.filter((item) => item.id !== attachment.id)),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [open, currentTaskId]);
+
   const loadCollaborators = async (taskId: string) => {
     const { data, error } = await (supabase.from("task_collaborators") as any)
       .select("collaborator_id")
@@ -939,7 +981,12 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       console.error("Could not sync task attachment to client files", syncError);
       return false;
     }
-    setAttachments((current) => [...current, attachment]);
+    // A subscription realtime já pode ter inserido este anexo (o INSERT no
+    // banco dispara o evento antes deste await terminar); sem checar, os dois
+    // caminhos somam a mesma linha duas vezes.
+    setAttachments((current) =>
+      current.some((item) => item.id === attachment.id) ? current : [...current, attachment],
+    );
     return true;
   };
 
