@@ -172,6 +172,8 @@ export function AgendaEventDialog({
   const [location, setLocation] = useState("");
   const [meetingUrl, setMeetingUrl] = useState("");
   const [createGoogleMeet, setCreateGoogleMeet] = useState(false);
+  const [autoSmartNotes, setAutoSmartNotes] = useState(true);
+  const [autoTranscription, setAutoTranscription] = useState(false);
   const [calendarId, setCalendarId] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -198,6 +200,8 @@ export function AgendaEventDialog({
       setLocation(event.location ?? "");
       setMeetingUrl(event.meeting_url ?? "");
       setCreateGoogleMeet(false);
+      setAutoSmartNotes(event.auto_smart_notes ?? true);
+      setAutoTranscription(event.auto_transcription ?? false);
       setCalendarId(event.google_calendar_id ?? defaultCalendarId);
       return;
     }
@@ -214,6 +218,8 @@ export function AgendaEventDialog({
     setLocation("");
     setMeetingUrl("");
     setCreateGoogleMeet(Boolean(defaultCalendarId));
+    setAutoSmartNotes(true);
+    setAutoTranscription(false);
     setCalendarId(defaultCalendarId);
   }, [open, event, defaultDate, defaultStartTime, defaultCalendarId]);
 
@@ -243,6 +249,8 @@ export function AgendaEventDialog({
       location: location.trim() || null,
       meeting_url: createGoogleMeet ? null : meetingUrl.trim() || null,
       create_google_meet: createGoogleMeet && !meetingUrl.trim(),
+      auto_smart_notes: autoSmartNotes,
+      auto_transcription: autoTranscription,
       // The person picks whose agenda the compromisso belongs to; the color
       // follows that calendar automatically instead of being chosen by hand.
       google_calendar_id: calendarId || null,
@@ -428,6 +436,36 @@ export function AgendaEventDialog({
                     }}
                   />
                 </div>
+                {createGoogleMeet && (
+                  <div className="mt-3 space-y-2 border-t border-primary/15 pt-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="agenda-auto-smart-notes" className="cursor-pointer">
+                        <span className="block text-sm font-medium">Gerar ata com Gemini</span>
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          Cria as anotações inteligentes da reunião
+                        </span>
+                      </Label>
+                      <Switch
+                        id="agenda-auto-smart-notes"
+                        checked={autoSmartNotes}
+                        onCheckedChange={setAutoSmartNotes}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="agenda-auto-transcription" className="cursor-pointer">
+                        <span className="block text-sm font-medium">Gerar transcrição</span>
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          Salva o texto falado durante a reunião
+                        </span>
+                      </Label>
+                      <Switch
+                        id="agenda-auto-transcription"
+                        checked={autoTranscription}
+                        onCheckedChange={setAutoTranscription}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               {!createGoogleMeet && (
                 <Input

@@ -144,6 +144,8 @@ export interface AgendaEvent {
   location: string | null;
   meeting_url: string | null;
   create_google_meet?: boolean;
+  auto_smart_notes?: boolean;
+  auto_transcription?: boolean;
   color: string;
   created_by: string;
   updated_by: string | null;

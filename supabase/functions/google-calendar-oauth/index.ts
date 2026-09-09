@@ -9,6 +9,7 @@ const corsHeaders = {
 // can access, then consolidate their events in the Taskflow Agenda.
 const calendarScope = "https://www.googleapis.com/auth/calendar";
 const meetScope = "https://www.googleapis.com/auth/meetings.space.readonly";
+const meetSettingsScope = "https://www.googleapis.com/auth/meetings.space.settings";
 const identityScopes = "openid email";
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -70,7 +71,7 @@ async function begin(request: Request) {
     client_id: clientId,
     redirect_uri: `${projectUrl}/functions/v1/google-calendar-oauth`,
     response_type: "code",
-    scope: `${identityScopes} ${calendarScope} ${meetScope}`,
+    scope: `${identityScopes} ${calendarScope} ${meetScope} ${meetSettingsScope}`,
     access_type: "offline",
     // Force the consent page so old identity-only connections also receive
     // the Calendar permission required by the Agenda.
@@ -135,7 +136,11 @@ async function callback(request: Request) {
   if (!profileResponse.ok || !profile.email)
     throw new Error("Não foi possível identificar a conta Google.");
   const scopes = String(tokens.scope ?? "").split(/\s+/);
-  if (!scopes.includes(calendarScope) || !scopes.includes(meetScope))
+  if (
+    !scopes.includes(calendarScope) ||
+    !scopes.includes(meetScope) ||
+    !scopes.includes(meetSettingsScope)
+  )
     throw new Error(
       "As permissões do Google Agenda e Google Meet não foram concedidas. Reconecte e aprove o acesso solicitado.",
     );

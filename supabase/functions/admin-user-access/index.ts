@@ -26,6 +26,7 @@ const marketingManagerEmail = "reinangrupoahouse@gmail.com";
 const validPermissions = new Set([
   "dashboard",
   "tasks",
+  "obligations",
   "requests",
   "import_ata",
   "clients",
@@ -272,6 +273,17 @@ Deno.serve(async (request) => {
         .from("user_permissions")
         .upsert({ user_id: data.userId, permissions, updated_by: authData.user.id });
       if (permissionsError) throw permissionsError;
+      // Cada workspace_membership carrega sua própria cópia de permissions,
+      // gravada quando a pessoa entra no ambiente (create, ou
+      // set_marketing_user_access). Essa cópia nunca era tocada aqui: editar
+      // acessos nesta tela atualizava só user_permissions (global), então o
+      // menu — que lê a permissão do membership do ambiente ativo antes de
+      // olhar user_permissions — continuava mostrando o conjunto antigo.
+      const { error: membershipPermissionsError } = await admin
+        .from("workspace_memberships")
+        .update({ permissions })
+        .eq("user_id", data.userId);
+      if (membershipPermissionsError) throw membershipPermissionsError;
       const linkQuery = admin.from("client_user_links");
       const { error: linkError } =
         role === "client"

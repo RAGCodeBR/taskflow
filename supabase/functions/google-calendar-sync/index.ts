@@ -6,6 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const GOOGLE_TIME_ZONE = "America/Sao_Paulo";
+const meetSettingsScope = "https://www.googleapis.com/auth/meetings.space.settings";
 // Fixed palette Google Calendar uses for per-event colors (colorId 1-11).
 // TaskFlow never sets one of these itself (see localPayload below) — this
 // table only decodes a colorId a person set directly in Google, so that
@@ -109,6 +110,56 @@ async function googleRequest(token: string, url: string, init?: RequestInit) {
   if (!response.ok)
     throw new Error(data?.error?.message ?? "Não foi possível sincronizar com o Google Agenda.");
   return data;
+}
+
+function googleMeetCode(meetingUrl: string) {
+  const match = meetingUrl.match(/meet\.google\.com\/([a-z]{3,}-[a-z]{3,}-[a-z]{3,})/i);
+  return match?.[1] ?? null;
+}
+
+function connectionHasScope(connection: any, scope: string) {
+  return String(connection.granted_scopes ?? "")
+    .split(/\s+/)
+    .includes(scope);
+}
+
+async function configureMeetArtifacts(token: string, meetingUrl: string, event: any) {
+  const meetingCode = googleMeetCode(meetingUrl);
+  if (!meetingCode) throw new Error("O link criado pelo Google Meet não é válido.");
+
+  // A meeting code is a short-lived alias, which is exactly what we need
+  // here: configure the space immediately after Calendar creates it.
+  const space = await googleRequest(
+    token,
+    `https://meet.googleapis.com/v2/spaces/${encodeURIComponent(meetingCode)}`,
+  );
+  const spaceId = String(space?.name ?? "").replace(/^spaces\//, "");
+  if (!spaceId) throw new Error("O espaço do Google Meet ainda não está disponível.");
+
+  const updateMask = [
+    "config.artifactConfig.smartNotesConfig.autoSmartNotesGeneration",
+    "config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration",
+  ].join(",");
+  await googleRequest(
+    token,
+    `https://meet.googleapis.com/v2/spaces/${encodeURIComponent(spaceId)}?updateMask=${encodeURIComponent(updateMask)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: `spaces/${spaceId}`,
+        config: {
+          artifactConfig: {
+            smartNotesConfig: {
+              autoSmartNotesGeneration: event.auto_smart_notes ? "ON" : "OFF",
+            },
+            transcriptionConfig: {
+              autoTranscriptionGeneration: event.auto_transcription ? "ON" : "OFF",
+            },
+          },
+        },
+      }),
+    },
+  );
 }
 
 function wasRemovedFromGoogle(error: unknown) {
@@ -357,6 +408,7 @@ async function sync(request: Request, body: any = {}) {
   let pushed = 0;
   const pushErrors: string[] = [];
   const pushFailures: { id: string; message: string }[] = [];
+  const pendingMeetCreationIds: string[] = [];
   for (const event of localEvents ?? []) {
     try {
       const targetCalendarId = event.google_calendar_id ?? calendarId;
@@ -423,6 +475,11 @@ async function sync(request: Request, body: any = {}) {
           { method: "POST", body: JSON.stringify(payload) },
         );
       }
+      const meetingUrl = googleEvent.hangoutLink ?? event.meeting_url ?? null;
+      // Persist Calendar's result before talking to the Meet API. If Google
+      // needs a moment to expose the space (or settings fail temporarily),
+      // the next sync patches this same Calendar event instead of creating a
+      // second one.
       await admin
         .from("calendar_events")
         .update({
@@ -430,9 +487,28 @@ async function sync(request: Request, body: any = {}) {
           google_calendar_id: targetCalendarId,
           google_etag: googleEvent.etag ?? null,
           google_updated_at: googleEvent.updated ?? null,
-          meeting_url: googleEvent.hangoutLink ?? event.meeting_url ?? null,
-          create_google_meet: Boolean(event.create_google_meet && !googleEvent.hangoutLink),
-          sync_status: event.create_google_meet && !googleEvent.hangoutLink ? "pending" : "synced",
+          meeting_url: meetingUrl,
+          create_google_meet: Boolean(event.create_google_meet),
+          sync_status: event.create_google_meet ? "pending" : "synced",
+          sync_error: null,
+        })
+        .eq("id", event.id);
+      if (event.create_google_meet && !meetingUrl) pendingMeetCreationIds.push(event.id);
+      if (event.create_google_meet && meetingUrl) {
+        if (!connectionHasScope(connection, meetSettingsScope))
+          throw new Error(
+            "Reconecte sua conta Google para autorizar a configuração automática de ata e transcrição do Meet.",
+          );
+        await configureMeetArtifacts(writeToken, meetingUrl, event);
+      }
+      await admin
+        .from("calendar_events")
+        .update({
+          // Keep this pending until both the link and the requested Meet
+          // settings have been successfully applied. A later sync retries a
+          // transient Meet API failure without creating a duplicate meeting.
+          create_google_meet: Boolean(event.create_google_meet && !meetingUrl),
+          sync_status: event.create_google_meet && !meetingUrl ? "pending" : "synced",
           sync_error: null,
         })
         .eq("id", event.id);
@@ -531,6 +607,16 @@ async function sync(request: Request, body: any = {}) {
       .from("calendar_events")
       .update({ sync_status: "error", sync_error: failure.message })
       .eq("id", failure.id);
+  }
+
+  // A Calendar import can arrive before Google exposes the newly-created
+  // conference link. Preserve the pending state in that case so a later
+  // sync retries the official Meet creation/configuration.
+  for (const eventId of pendingMeetCreationIds) {
+    await admin
+      .from("calendar_events")
+      .update({ sync_status: "pending", sync_error: null })
+      .eq("id", eventId);
   }
 
   const { data: activeEvents, error: activeEventsError } = await admin

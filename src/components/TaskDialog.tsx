@@ -388,7 +388,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         ({ old: attachment }: { old: { id: string } }) =>
           setAttachments((existing) => existing.filter((item) => item.id !== attachment.id)),
       )
-      .subscribe();
+      .subscribe((status: string, err?: Error) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || err) {
+          console.warn("[attachments realtime] canal não conectou:", status, err);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
