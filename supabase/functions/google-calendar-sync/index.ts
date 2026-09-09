@@ -133,7 +133,7 @@ function googleDate(event: any) {
 }
 
 function localPayload(event: any) {
-  return {
+  const payload: Record<string, unknown> = {
     summary: event.title,
     description: event.description ?? undefined,
     location: event.location ?? undefined,
@@ -146,6 +146,22 @@ function localPayload(event: any) {
     colorId: null,
     extendedProperties: { private: { taskflowEventId: event.id } },
   };
+  if (event.create_google_meet && !event.meeting_url) {
+    payload.conferenceData = {
+      createRequest: {
+        requestId: `taskflow-${event.id}`,
+        conferenceSolutionKey: { type: "hangoutsMeet" },
+      },
+    };
+  }
+  return payload;
+}
+
+function googleEventUrl(calendarId: string, eventId?: string, supportsConferenceData = false) {
+  const path = eventId
+    ? `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+    : `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  return supportsConferenceData ? `${path}?conferenceDataVersion=1` : path;
 }
 
 function googleToLocal(
@@ -364,7 +380,7 @@ async function sync(request: Request, body: any = {}) {
           try {
             await googleRequest(
               writeToken,
-              `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events/${encodeURIComponent(event.google_event_id)}`,
+              googleEventUrl(targetCalendarId, event.google_event_id),
               { method: "DELETE" },
             );
           } catch (error) {
@@ -383,7 +399,11 @@ async function sync(request: Request, body: any = {}) {
         try {
           googleEvent = await googleRequest(
             writeToken,
-            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events/${encodeURIComponent(event.google_event_id)}`,
+            googleEventUrl(
+              targetCalendarId,
+              event.google_event_id,
+              Boolean(event.create_google_meet),
+            ),
             { method: "PATCH", body: JSON.stringify(payload) },
           );
         } catch (error) {
@@ -392,14 +412,14 @@ async function sync(request: Request, body: any = {}) {
           // replace the stale remote ID so future edits remain synchronized.
           googleEvent = await googleRequest(
             writeToken,
-            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
+            googleEventUrl(targetCalendarId, undefined, Boolean(event.create_google_meet)),
             { method: "POST", body: JSON.stringify(payload) },
           );
         }
       } else {
         googleEvent = await googleRequest(
           writeToken,
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
+          googleEventUrl(targetCalendarId, undefined, Boolean(event.create_google_meet)),
           { method: "POST", body: JSON.stringify(payload) },
         );
       }
@@ -410,7 +430,9 @@ async function sync(request: Request, body: any = {}) {
           google_calendar_id: targetCalendarId,
           google_etag: googleEvent.etag ?? null,
           google_updated_at: googleEvent.updated ?? null,
-          sync_status: "synced",
+          meeting_url: googleEvent.hangoutLink ?? event.meeting_url ?? null,
+          create_google_meet: Boolean(event.create_google_meet && !googleEvent.hangoutLink),
+          sync_status: event.create_google_meet && !googleEvent.hangoutLink ? "pending" : "synced",
           sync_error: null,
         })
         .eq("id", event.id);

@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -170,6 +171,7 @@ export function AgendaEventDialog({
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState("");
   const [meetingUrl, setMeetingUrl] = useState("");
+  const [createGoogleMeet, setCreateGoogleMeet] = useState(false);
   const [calendarId, setCalendarId] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -195,6 +197,7 @@ export function AgendaEventDialog({
       setAllDay(event.is_all_day);
       setLocation(event.location ?? "");
       setMeetingUrl(event.meeting_url ?? "");
+      setCreateGoogleMeet(false);
       setCalendarId(event.google_calendar_id ?? defaultCalendarId);
       return;
     }
@@ -210,6 +213,7 @@ export function AgendaEventDialog({
     setAllDay(false);
     setLocation("");
     setMeetingUrl("");
+    setCreateGoogleMeet(Boolean(defaultCalendarId));
     setCalendarId(defaultCalendarId);
   }, [open, event, defaultDate, defaultStartTime, defaultCalendarId]);
 
@@ -237,7 +241,8 @@ export function AgendaEventDialog({
       ends_at: endsAt,
       is_all_day: allDay,
       location: location.trim() || null,
-      meeting_url: meetingUrl.trim() || null,
+      meeting_url: createGoogleMeet ? null : meetingUrl.trim() || null,
+      create_google_meet: createGoogleMeet && !meetingUrl.trim(),
       // The person picks whose agenda the compromisso belongs to; the color
       // follows that calendar automatically instead of being chosen by hand.
       google_calendar_id: calendarId || null,
@@ -396,12 +401,43 @@ export function AgendaEventDialog({
 
           <div className="flex items-center gap-3">
             <Video className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <Input
-              type="url"
-              placeholder="Adicionar link da reunião"
-              value={meetingUrl}
-              onChange={(e) => setMeetingUrl(e.target.value)}
-            />
+            <div className="flex-1 space-y-2">
+              <div
+                className={`rounded-md border px-3 py-2 transition-colors ${
+                  createGoogleMeet ? "border-primary/35 bg-primary/5" : "bg-muted/30"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="agenda-create-google-meet" className="cursor-pointer">
+                    <span className="space-y-0.5">
+                      <span className="block text-sm font-medium">Criar Google Meet</span>
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        {createGoogleMeet
+                          ? "O link será criado ao salvar"
+                          : "Use um link manual ou ative a criação automática"}
+                      </span>
+                    </span>
+                  </Label>
+                  <Switch
+                    id="agenda-create-google-meet"
+                    checked={createGoogleMeet}
+                    disabled={!calendarId}
+                    onCheckedChange={(enabled) => {
+                      setCreateGoogleMeet(enabled);
+                      if (enabled) setMeetingUrl("");
+                    }}
+                  />
+                </div>
+              </div>
+              {!createGoogleMeet && (
+                <Input
+                  type="url"
+                  placeholder="Adicionar link da reunião"
+                  value={meetingUrl}
+                  onChange={(e) => setMeetingUrl(e.target.value)}
+                />
+              )}
+            </div>
           </div>
 
           {event && <MeetingMinutesPanel event={{ ...event, meeting_url: meetingUrl }} />}
