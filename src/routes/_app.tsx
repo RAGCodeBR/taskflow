@@ -20,7 +20,6 @@ function AppLayout() {
   const clientRoutePermissions: Array<[string, string]> = [
     ["/dashboard", "dashboard"],
     ["/tasks", "tasks"],
-    ["/requests", "requests"],
     ["/notes", "notes"],
     ["/import-ata", "import_ata"],
     ["/clients", "clients"],

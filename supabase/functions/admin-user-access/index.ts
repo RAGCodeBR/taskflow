@@ -9,7 +9,6 @@ const corsHeaders = {
 const allAdminPermissions = [
   "dashboard",
   "tasks",
-  "requests",
   "import_ata",
   "clients",
   "reports",
@@ -27,7 +26,6 @@ const validPermissions = new Set([
   "dashboard",
   "tasks",
   "obligations",
-  "requests",
   "import_ata",
   "clients",
   "reports",

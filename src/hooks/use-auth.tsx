@@ -127,7 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             "dashboard",
             "tasks",
             "obligations",
-            "requests",
             "import_ata",
             "clients",
             "reports",
