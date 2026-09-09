@@ -347,7 +347,11 @@ export function TaskCard({
           });
         },
       )
-      .subscribe();
+      .subscribe((status: string, err?: Error) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || err) {
+          console.warn("[attachments realtime] canal não conectou:", status, err);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
