@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { format } from "date-fns";
-import { ExternalLink, FileText, RefreshCw } from "lucide-react";
+import { Copy, ExternalLink, FileText, RefreshCw } from "lucide-react";
 import { AlignLeft, CalendarDays, Clock, LoaderCircle, MapPin, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -176,6 +177,9 @@ export function AgendaEventDialog({
   const [autoTranscription, setAutoTranscription] = useState(false);
   const [calendarId, setCalendarId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [createdEvent, setCreatedEvent] = useState<AgendaEvent | null>(null);
+  const [creatingMeetingLink, setCreatingMeetingLink] = useState(false);
+  const activeEvent = event ?? createdEvent;
 
   // The shared company calendar is the sensible default target for a
   // person creating a compromisso without picking whose agenda it belongs to.
@@ -190,6 +194,8 @@ export function AgendaEventDialog({
   useEffect(() => {
     if (!open) return;
     if (event) {
+      setCreatedEvent(null);
+      setCreatingMeetingLink(false);
       setTitle(event.title);
       setDescription(event.description ?? "");
       setStartDate(dateValue(event.starts_at));
@@ -221,6 +227,8 @@ export function AgendaEventDialog({
     setAutoSmartNotes(true);
     setAutoTranscription(false);
     setCalendarId(defaultCalendarId);
+    setCreatedEvent(null);
+    setCreatingMeetingLink(false);
   }, [open, event, defaultDate, defaultStartTime, defaultCalendarId]);
 
   const toIso = (date: string, time: string) => new Date(`${date}T${time}:00`).toISOString();
@@ -256,24 +264,52 @@ export function AgendaEventDialog({
       google_calendar_id: calendarId || null,
       color: selectedCalendar?.color ?? fallbackColor,
       updated_by: user.id,
-      source: event?.source ?? "taskflow",
+      source: activeEvent?.source ?? "taskflow",
       sync_status: "pending",
     };
     const table = supabase.from("calendar_events" as any) as any;
-    const result = event
-      ? await table.update(payload).eq("id", event.id)
-      : await table.insert({ ...payload, created_by: user.id });
-    setSaving(false);
-    if (result.error) return toast.error(result.error.message);
+    const result = activeEvent
+      ? await table.update(payload).eq("id", activeEvent.id)
+      : await table
+          .insert({ ...payload, created_by: user.id })
+          .select()
+          .single();
+    if (result.error) {
+      setSaving(false);
+      return toast.error(result.error.message);
+    }
     await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
-    toast.success(event ? "Compromisso atualizado" : "Compromisso criado");
+    toast.success(activeEvent ? "Compromisso atualizado" : "Compromisso criado");
+    if (!activeEvent) {
+      const insertedEvent = result.data as AgendaEvent;
+      const needsMeetingLink = createGoogleMeet && !meetingUrl.trim();
+      // Render the waiting state before the network sync starts. Without this
+      // flush, a very fast Calendar response can skip the visual feedback.
+      flushSync(() => {
+        setCreatedEvent(insertedEvent);
+        setCreatingMeetingLink(needsMeetingLink);
+      });
+      await onSaved?.();
+      const { data: syncedEvent } = await table
+        .select("*")
+        .eq("id", insertedEvent.id)
+        .maybeSingle();
+      if (syncedEvent) {
+        setCreatedEvent(syncedEvent as AgendaEvent);
+        setMeetingUrl(syncedEvent.meeting_url ?? "");
+      }
+      setCreatingMeetingLink(false);
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
     onOpenChange(false);
     await onSaved?.();
   };
 
   const remove = async () => {
-    if (!event || !user) return;
-    if (!window.confirm(`Excluir “${event.title}”?`)) return;
+    if (!activeEvent || !user) return;
+    if (!window.confirm(`Excluir “${activeEvent.title}”?`)) return;
     setSaving(true);
     const { error } = await (supabase.from("calendar_events" as any) as any)
       .update({
@@ -282,7 +318,7 @@ export function AgendaEventDialog({
         updated_by: user.id,
         sync_status: "pending",
       })
-      .eq("id", event.id);
+      .eq("id", activeEvent.id);
     setSaving(false);
     if (error) return toast.error(error.message);
     await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
@@ -291,11 +327,20 @@ export function AgendaEventDialog({
     await onSaved?.();
   };
 
+  const copyMeetingLink = async () => {
+    try {
+      await navigator.clipboard.writeText(meetingUrl);
+      toast.success("Link da reunião copiado.");
+    } catch {
+      toast.error("Não foi possível copiar o link da reunião.");
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogTitle className="sr-only">
-          {event ? "Editar compromisso" : "Novo compromisso"}
+          {activeEvent ? "Editar compromisso" : "Novo compromisso"}
         </DialogTitle>
         <div className="space-y-5 pt-1">
           <Input
@@ -421,7 +466,13 @@ export function AgendaEventDialog({
                       <span className="block text-sm font-medium">Criar Google Meet</span>
                       <span className="block text-xs font-normal text-muted-foreground">
                         {createGoogleMeet
-                          ? "O link será criado ao salvar"
+                          ? meetingUrl
+                            ? "Link do Google Meet criado"
+                            : creatingMeetingLink
+                              ? "Criando link do Google Meet…"
+                              : createdEvent
+                                ? "O link ainda não está disponível"
+                                : "O link será criado ao salvar"
                           : "Use um link manual ou ative a criação automática"}
                       </span>
                     </span>
@@ -429,7 +480,7 @@ export function AgendaEventDialog({
                   <Switch
                     id="agenda-create-google-meet"
                     checked={createGoogleMeet}
-                    disabled={!calendarId}
+                    disabled={!calendarId || Boolean(createdEvent) || creatingMeetingLink}
                     onCheckedChange={(enabled) => {
                       setCreateGoogleMeet(enabled);
                       if (enabled) setMeetingUrl("");
@@ -466,6 +517,23 @@ export function AgendaEventDialog({
                     </div>
                   </div>
                 )}
+                {meetingUrl && (
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-primary/15 pt-2.5">
+                    <Button asChild size="sm" className="h-8">
+                      <a href={meetingUrl} target="_blank" rel="noreferrer">
+                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Entrar na reunião
+                      </a>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={() => void copyMeetingLink()}
+                    >
+                      <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar link
+                    </Button>
+                  </div>
+                )}
               </div>
               {!createGoogleMeet && (
                 <Input
@@ -478,7 +546,9 @@ export function AgendaEventDialog({
             </div>
           </div>
 
-          {event && <MeetingMinutesPanel event={{ ...event, meeting_url: meetingUrl }} />}
+          {activeEvent && (
+            <MeetingMinutesPanel event={{ ...activeEvent, meeting_url: meetingUrl }} />
+          )}
 
           <div className="flex gap-3">
             <AlignLeft className="mt-2 h-5 w-5 shrink-0 text-muted-foreground" />
@@ -492,19 +562,25 @@ export function AgendaEventDialog({
           </div>
         </div>
         <DialogFooter className="mt-2 gap-3 border-t pt-4 sm:justify-end">
-          {event ? (
+          {activeEvent ? (
             <Button
               type="button"
               variant="destructive"
               onClick={() => void remove()}
-              disabled={saving}
+              disabled={saving || creatingMeetingLink}
             >
               <Trash2 className="mr-2 h-4 w-4" /> Excluir
             </Button>
           ) : null}
-          <Button type="button" onClick={() => void save()} disabled={saving}>
-            {saving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-            Salvar
+          <Button
+            type="button"
+            onClick={() => void save()}
+            disabled={saving || creatingMeetingLink}
+          >
+            {(saving || creatingMeetingLink) && (
+              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            {creatingMeetingLink ? "Criando link…" : activeEvent ? "Salvar alterações" : "Salvar"}
           </Button>
         </DialogFooter>
       </DialogContent>

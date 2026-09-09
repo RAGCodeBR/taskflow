@@ -7,6 +7,8 @@ const corsHeaders = {
 };
 const GOOGLE_TIME_ZONE = "America/Sao_Paulo";
 const meetSettingsScope = "https://www.googleapis.com/auth/meetings.space.settings";
+const meetCreatedScope = "https://www.googleapis.com/auth/meetings.space.created";
+const meetingLinkMarker = "Google Meet: ";
 // Fixed palette Google Calendar uses for per-event colors (colorId 1-11).
 // TaskFlow never sets one of these itself (see localPayload below) — this
 // table only decodes a colorId a person set directly in Google, so that
@@ -162,6 +164,16 @@ async function configureMeetArtifacts(token: string, meetingUrl: string, event: 
   );
 }
 
+async function createMeetSpace(token: string) {
+  const space = await googleRequest(token, "https://meet.googleapis.com/v2/spaces", {
+    method: "POST",
+    body: "{}",
+  });
+  if (typeof space?.meetingUri !== "string" || !space.meetingUri)
+    throw new Error("O Google Meet não retornou o link da reunião.");
+  return space;
+}
+
 function wasRemovedFromGoogle(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   return message.includes("resource has been deleted") || message.includes("not found");
@@ -183,10 +195,23 @@ function googleDate(event: any) {
   };
 }
 
+function taskflowDescription(description: unknown, meetingUrl?: string | null) {
+  const cleanDescription = String(description ?? "")
+    .replace(new RegExp(`\\n*${meetingLinkMarker.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}https://meet\\.google\\.com/[^\\s]+`, "gi"), "")
+    .trim();
+  if (!meetingUrl) return cleanDescription || undefined;
+  return [cleanDescription, `${meetingLinkMarker}${meetingUrl}`].filter(Boolean).join("\n\n");
+}
+
+function meetingUrlFromDescription(description: unknown) {
+  const match = String(description ?? "").match(/Google Meet:\s*(https:\/\/meet\.google\.com\/[^\s]+)/i);
+  return match?.[1] ?? null;
+}
+
 function localPayload(event: any) {
   const payload: Record<string, unknown> = {
     summary: event.title,
-    description: event.description ?? undefined,
+    description: taskflowDescription(event.description, event.meeting_url),
     location: event.location ?? undefined,
     ...googleDate(event),
     // The color picked in TaskFlow is always the target calendar's own
@@ -197,14 +222,6 @@ function localPayload(event: any) {
     colorId: null,
     extendedProperties: { private: { taskflowEventId: event.id } },
   };
-  if (event.create_google_meet && !event.meeting_url) {
-    payload.conferenceData = {
-      createRequest: {
-        requestId: `taskflow-${event.id}`,
-        conferenceSolutionKey: { type: "hangoutsMeet" },
-      },
-    };
-  }
   return payload;
 }
 
@@ -247,9 +264,9 @@ function googleToLocal(
     google_etag: event.etag ?? null,
     google_updated_at: event.updated ?? null,
     title: event.summary || "Sem título",
-    description: event.description ?? null,
+    description: taskflowDescription(event.description) ?? null,
     location: event.location ?? null,
-    meeting_url: event.hangoutLink ?? null,
+    meeting_url: event.hangoutLink ?? meetingUrlFromDescription(event.description),
     color: ownColor ?? calendarColor,
     source: "google",
     sync_status: "synced",
@@ -408,7 +425,6 @@ async function sync(request: Request, body: any = {}) {
   let pushed = 0;
   const pushErrors: string[] = [];
   const pushFailures: { id: string; message: string }[] = [];
-  const pendingMeetCreationIds: string[] = [];
   for (const event of localEvents ?? []) {
     try {
       const targetCalendarId = event.google_calendar_id ?? calendarId;
@@ -445,17 +461,40 @@ async function sync(request: Request, body: any = {}) {
           .eq("id", event.id);
         continue;
       }
-      const payload = localPayload(event);
+      let meetingUrl = event.meeting_url ?? null;
+      if (event.create_google_meet) {
+        if (
+          !connectionHasScope(connection, meetCreatedScope) ||
+          !connectionHasScope(connection, meetSettingsScope)
+        )
+          throw new Error(
+            "Reconecte sua conta Google para autorizar a criação do Meet e a configuração automática de ata e transcrição.",
+          );
+
+        // Create the Meet with the employee's own Google identity first.
+        // The shared calendar only receives the already-created meeting link,
+        // so the creator remains the Meet organizer regardless of which
+        // company calendar stores the compromisso.
+        if (!meetingUrl) {
+          const meetSpace = await createMeetSpace(writeToken);
+          meetingUrl = meetSpace.meetingUri;
+          // Persist before Calendar work so a retry never creates a second
+          // meeting when Calendar is temporarily unavailable.
+          await admin
+            .from("calendar_events")
+            .update({ meeting_url: meetingUrl, sync_status: "pending", sync_error: null })
+            .eq("id", event.id);
+        }
+        await configureMeetArtifacts(writeToken, meetingUrl, event);
+      }
+
+      const payload = localPayload({ ...event, meeting_url: meetingUrl, create_google_meet: false });
       let googleEvent: any;
       if (event.google_event_id) {
         try {
           googleEvent = await googleRequest(
             writeToken,
-            googleEventUrl(
-              targetCalendarId,
-              event.google_event_id,
-              Boolean(event.create_google_meet),
-            ),
+            googleEventUrl(targetCalendarId, event.google_event_id),
             { method: "PATCH", body: JSON.stringify(payload) },
           );
         } catch (error) {
@@ -464,22 +503,18 @@ async function sync(request: Request, body: any = {}) {
           // replace the stale remote ID so future edits remain synchronized.
           googleEvent = await googleRequest(
             writeToken,
-            googleEventUrl(targetCalendarId, undefined, Boolean(event.create_google_meet)),
+            googleEventUrl(targetCalendarId),
             { method: "POST", body: JSON.stringify(payload) },
           );
         }
       } else {
         googleEvent = await googleRequest(
           writeToken,
-          googleEventUrl(targetCalendarId, undefined, Boolean(event.create_google_meet)),
+          googleEventUrl(targetCalendarId),
           { method: "POST", body: JSON.stringify(payload) },
         );
       }
-      const meetingUrl = googleEvent.hangoutLink ?? event.meeting_url ?? null;
-      // Persist Calendar's result before talking to the Meet API. If Google
-      // needs a moment to expose the space (or settings fail temporarily),
-      // the next sync patches this same Calendar event instead of creating a
-      // second one.
+      meetingUrl = googleEvent.hangoutLink ?? meetingUrl ?? null;
       await admin
         .from("calendar_events")
         .update({
@@ -488,27 +523,8 @@ async function sync(request: Request, body: any = {}) {
           google_etag: googleEvent.etag ?? null,
           google_updated_at: googleEvent.updated ?? null,
           meeting_url: meetingUrl,
-          create_google_meet: Boolean(event.create_google_meet),
-          sync_status: event.create_google_meet ? "pending" : "synced",
-          sync_error: null,
-        })
-        .eq("id", event.id);
-      if (event.create_google_meet && !meetingUrl) pendingMeetCreationIds.push(event.id);
-      if (event.create_google_meet && meetingUrl) {
-        if (!connectionHasScope(connection, meetSettingsScope))
-          throw new Error(
-            "Reconecte sua conta Google para autorizar a configuração automática de ata e transcrição do Meet.",
-          );
-        await configureMeetArtifacts(writeToken, meetingUrl, event);
-      }
-      await admin
-        .from("calendar_events")
-        .update({
-          // Keep this pending until both the link and the requested Meet
-          // settings have been successfully applied. A later sync retries a
-          // transient Meet API failure without creating a duplicate meeting.
-          create_google_meet: Boolean(event.create_google_meet && !meetingUrl),
-          sync_status: event.create_google_meet && !meetingUrl ? "pending" : "synced",
+          create_google_meet: false,
+          sync_status: "synced",
           sync_error: null,
         })
         .eq("id", event.id);
@@ -607,16 +623,6 @@ async function sync(request: Request, body: any = {}) {
       .from("calendar_events")
       .update({ sync_status: "error", sync_error: failure.message })
       .eq("id", failure.id);
-  }
-
-  // A Calendar import can arrive before Google exposes the newly-created
-  // conference link. Preserve the pending state in that case so a later
-  // sync retries the official Meet creation/configuration.
-  for (const eventId of pendingMeetCreationIds) {
-    await admin
-      .from("calendar_events")
-      .update({ sync_status: "pending", sync_error: null })
-      .eq("id", eventId);
   }
 
   const { data: activeEvents, error: activeEventsError } = await admin

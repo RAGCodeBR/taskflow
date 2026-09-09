@@ -10,6 +10,7 @@ const corsHeaders = {
 const calendarScope = "https://www.googleapis.com/auth/calendar";
 const meetScope = "https://www.googleapis.com/auth/meetings.space.readonly";
 const meetSettingsScope = "https://www.googleapis.com/auth/meetings.space.settings";
+const meetCreatedScope = "https://www.googleapis.com/auth/meetings.space.created";
 const identityScopes = "openid email";
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -71,7 +72,7 @@ async function begin(request: Request) {
     client_id: clientId,
     redirect_uri: `${projectUrl}/functions/v1/google-calendar-oauth`,
     response_type: "code",
-    scope: `${identityScopes} ${calendarScope} ${meetScope} ${meetSettingsScope}`,
+    scope: `${identityScopes} ${calendarScope} ${meetScope} ${meetSettingsScope} ${meetCreatedScope}`,
     access_type: "offline",
     // Force the consent page so old identity-only connections also receive
     // the Calendar permission required by the Agenda.
@@ -139,7 +140,8 @@ async function callback(request: Request) {
   if (
     !scopes.includes(calendarScope) ||
     !scopes.includes(meetScope) ||
-    !scopes.includes(meetSettingsScope)
+    !scopes.includes(meetSettingsScope) ||
+    !scopes.includes(meetCreatedScope)
   )
     throw new Error(
       "As permissões do Google Agenda e Google Meet não foram concedidas. Reconecte e aprove o acesso solicitado.",
