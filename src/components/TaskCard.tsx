@@ -2512,10 +2512,11 @@ function ClientPicker({
   const [search, setSearch] = useState("");
   const filteredClients = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
+    const selectableClients = clients.filter((client) => client.is_active || client.id === value);
     return term
-      ? clients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term))
-      : clients;
-  }, [clients, search]);
+      ? selectableClients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term))
+      : selectableClients;
+  }, [clients, search, value]);
   return (
     <div className="space-y-2">
       <Input
@@ -2550,7 +2551,10 @@ function ClientPicker({
               className="mr-2 h-2 w-2 shrink-0 rounded-full"
               style={{ backgroundColor: client.color ?? "#94a3b8" }}
             />
-            <span className="truncate">{client.name}</span>
+            <span className="truncate">
+              {client.name}
+              {client.is_active ? "" : " (inativo)"}
+            </span>
           </button>
         ))}
         {filteredClients.length === 0 && (

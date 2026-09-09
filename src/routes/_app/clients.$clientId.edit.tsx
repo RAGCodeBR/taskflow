@@ -3,7 +3,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Archive,
   Building2,
+  CheckCircle2,
   ChevronDown,
   Download,
   ExternalLink,
@@ -15,6 +17,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  RotateCcw,
   Save,
   Trash2,
   Users,
@@ -46,6 +49,8 @@ import {
   type ClientDepartment,
   type ClientDepartmentEmployee,
   type ClientSystemAccess,
+  type Task,
+  useArchivedClientTasks,
 } from "@/hooks/use-data";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -54,6 +59,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { NotesWorkspace } from "@/routes/_app/notes";
 import { FileDropZone } from "@/components/FileDropZone";
 import { ClientFilesManager } from "@/components/ClientFilesManager";
+import { TaskDialog } from "@/components/TaskDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { toJpeg } from "html-to-image";
 import { format } from "date-fns";
@@ -140,6 +146,8 @@ function EditClientPage() {
       return (data ?? []) as ClientBranch[];
     },
   });
+  const { data: archivedTasks = [], isLoading: loadingArchivedTasks } =
+    useArchivedClientTasks(clientId, client?.is_active === false);
   const [saving, setSaving] = useState(false);
   const [cnpj, setCnpj] = useState("");
   const [legalName, setLegalName] = useState("");
@@ -195,7 +203,37 @@ function EditClientPage() {
   const [branchEmail, setBranchEmail] = useState("");
   const [branchNotes, setBranchNotes] = useState("");
   const [activeTab, setActiveTab] = useState("client");
+  const [archivedTaskFilter, setArchivedTaskFilter] = useState<"all" | "open" | "completed">("all");
+  const [selectedArchivedTask, setSelectedArchivedTask] = useState<Task | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const visibleArchivedTasks = archivedTasks.filter((task) => {
+    const completed = task.status === "done" || !!task.completed_at;
+    return (
+      archivedTaskFilter === "all" || (archivedTaskFilter === "completed" ? completed : !completed)
+    );
+  });
+
+  const restoreArchivedTask = async (task: Task) => {
+    if (!client?.is_active) {
+      toast.error("Reative o cliente antes de restaurar uma tarefa para a operação.");
+      return;
+    }
+    if (!confirm(`Restaurar a tarefa "${task.title}" para as telas operacionais?`)) return;
+    const { error } = await supabase
+      .from("tasks")
+      .update({ archived_at: null, archived_reason: null })
+      .eq("id", task.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      queryClient.invalidateQueries({ queryKey: ["tasks", "archived", clientId] }),
+    ]);
+    toast.success("Tarefa restaurada");
+  };
 
   useEffect(() => {
     if (!client) return;
@@ -716,7 +754,7 @@ function EditClientPage() {
 
   return (
     <div
-      className={`mx-auto w-full ${activeTab === "notes" ? "max-w-5xl" : "max-w-4xl"} space-y-6 p-6`}
+      className={`mx-auto w-full ${activeTab === "notes" || activeTab === "archived-tasks" ? "max-w-5xl" : "max-w-4xl"} space-y-6 p-6`}
     >
       <header className="flex items-center gap-4">
         <Button asChild size="icon" variant="ghost" title="Voltar para clientes">
@@ -734,13 +772,16 @@ function EditClientPage() {
 
       <Card className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
+          <TabsList className="h-auto flex-wrap justify-start">
             <TabsTrigger value="client">Dados do cliente</TabsTrigger>
             <TabsTrigger value="branches">Outras unidades</TabsTrigger>
             <TabsTrigger value="departments">Departamentos</TabsTrigger>
             <TabsTrigger value="system">Sistemas</TabsTrigger>
             <TabsTrigger value="notes">Anotações</TabsTrigger>
             <TabsTrigger value="attachments">Anexos</TabsTrigger>
+            <TabsTrigger value="archived-tasks">
+              Tarefas arquivadas ({archivedTasks.length})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="client" className="mt-6">
@@ -1525,8 +1566,114 @@ function EditClientPage() {
           <TabsContent value="attachments" className="mt-6">
             <ClientFilesManager clientId={clientId} />
           </TabsContent>
+          <TabsContent value="archived-tasks" className="mt-6 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <Archive className="mt-0.5 h-5 w-5 text-primary" />
+                <div>
+                  <h2 className="font-semibold">Tarefas arquivadas</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Histórico retirado da operação quando o cliente foi inativado.
+                  </p>
+                </div>
+              </div>
+              <div className="flex rounded-full bg-muted p-1 text-xs">
+                {(
+                  [
+                    ["all", "Todas"],
+                    ["open", "Em aberto"],
+                    ["completed", "Concluídas"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setArchivedTaskFilter(value)}
+                    className={`rounded-full px-3 py-1.5 transition-colors ${archivedTaskFilter === value ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loadingArchivedTasks ? (
+              <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+                <LoaderCircle className="h-4 w-4 animate-spin" /> Carregando histórico…
+              </div>
+            ) : visibleArchivedTasks.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+                Nenhuma tarefa arquivada neste filtro.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {visibleArchivedTasks.map((task) => {
+                  const completed = task.status === "done" || !!task.completed_at;
+                  return (
+                    <div
+                      key={task.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
+                    >
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => setSelectedArchivedTask(task)}
+                      >
+                        <div className="flex items-center gap-2">
+                          {completed ? (
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                          ) : (
+                            <Archive className="h-4 w-4 shrink-0 text-amber-600" />
+                          )}
+                          <span className="truncate font-medium">{task.title}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {completed ? "Concluída" : "Em aberto"}
+                          {task.archived_at
+                            ? ` · Arquivada em ${format(new Date(task.archived_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
+                            : " · Arquivada com o encerramento do cliente"}
+                          {task.due_date
+                            ? ` · Prazo ${format(new Date(task.due_date), "dd/MM/yyyy", { locale: ptBR })}`
+                            : ""}
+                        </p>
+                      </button>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedArchivedTask(task)}
+                        >
+                          Ver tarefa
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={!client.is_active}
+                          title={
+                            client.is_active
+                              ? "Restaurar tarefa"
+                              : "Reative o cliente antes de restaurar"
+                          }
+                          onClick={() => void restoreArchivedTask(task)}
+                        >
+                          <RotateCcw className="mr-1.5 h-4 w-4" /> Restaurar
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </Card>
+      <TaskDialog
+        open={!!selectedArchivedTask}
+        onOpenChange={(open) => !open && setSelectedArchivedTask(null)}
+        task={selectedArchivedTask}
+      />
       <Dialog open={!!selectedEmployee} onOpenChange={(open) => !open && setSelectedEmployee(null)}>
         <DialogContent
           className="max-w-2xl"

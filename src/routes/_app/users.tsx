@@ -184,11 +184,13 @@ function AccessForm({
             onChange={(e) => onChange({ ...value, clientId: e.target.value })}
           >
             <option value="">Selecione o cliente</option>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
+            {clients
+              .filter((client) => client.is_active || client.id === value.clientId)
+              .map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}{client.is_active ? "" : " (inativo)"}
+                </option>
+              ))}
           </select>
           <p className="text-xs text-muted-foreground">
             Este usuário verá somente as tarefas e faturas deste cliente.

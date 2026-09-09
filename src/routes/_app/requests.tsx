@@ -996,11 +996,13 @@ function RequestsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sem cliente</SelectItem>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
+                    {clients
+                      .filter((client) => client.is_active)
+                      .map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>

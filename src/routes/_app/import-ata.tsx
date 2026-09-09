@@ -68,7 +68,10 @@ function ImportAtaPage() {
     () => profiles.filter((p) => p.is_active !== false).map((p) => ({ id: p.id, name: p.full_name || "Sem nome" })),
     [profiles],
   );
-  const clientList = useMemo(() => clients.map((c) => ({ id: c.id, name: c.name })), [clients]);
+  const clientList = useMemo(
+    () => clients.filter((c) => c.is_active).map((c) => ({ id: c.id, name: c.name })),
+    [clients],
+  );
   const tagList = useMemo(() => tags.map((t) => ({ id: t.id, name: t.name })), [tags]);
 
   const defaultStatusId = useMemo(() => {

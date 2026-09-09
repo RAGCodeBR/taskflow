@@ -345,7 +345,7 @@ export function ClientsIndexPage() {
     const action = isActive ? "reativar" : "inativar";
     const description = isActive
       ? `Reativar o cliente "${client.name}"? Ele voltará a aparecer nas listas de clientes ativos.`
-      : `Inativar o cliente "${client.name}"? Nenhuma tarefa, histórico, dado ou anexo será excluído.`;
+      : `Inativar o cliente "${client.name}"? As tarefas abertas e concluídas serão arquivadas no cadastro do cliente e as obrigações recorrentes serão pausadas. Nenhum histórico, dado ou anexo será excluído.`;
     if (!confirm(description)) return;
     const { error } = await supabase
       .from("clients")
@@ -355,7 +355,11 @@ export function ClientsIndexPage() {
       toast.error(error.message);
       return;
     }
-    await qc.invalidateQueries({ queryKey: ["clients"] });
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["clients"] }),
+      qc.invalidateQueries({ queryKey: ["tasks"] }),
+      qc.invalidateQueries({ queryKey: ["obligations"] }),
+    ]);
     toast.success(isActive ? "Cliente reativado" : "Cliente inativado");
   };
 

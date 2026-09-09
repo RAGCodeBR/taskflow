@@ -34,6 +34,8 @@ export interface Task {
   tag_id: string | null;
   deleted_at: string | null;
   deleted_by: string | null;
+  archived_at: string | null;
+  archived_reason: "client_inactive" | "manual" | null;
   created_at: string;
   updated_at: string;
   card_width: number | null;
@@ -310,7 +312,26 @@ export function useTasks() {
         .order("position", { ascending: true })
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as Task[];
+      return ((data ?? []) as Task[]).filter((task) => !task.archived_at);
+    },
+  });
+}
+
+export function useArchivedClientTasks(clientId: string, includeLegacyClientTasks = false) {
+  return useQuery({
+    queryKey: ["tasks", "archived", clientId, includeLegacyClientTasks],
+    enabled: !!clientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("client_id", clientId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return ((data ?? []) as Task[])
+        .filter((task) => includeLegacyClientTasks || !!task.archived_at)
+        .sort((a, b) => (b.archived_at ?? "").localeCompare(a.archived_at ?? ""));
     },
   });
 }

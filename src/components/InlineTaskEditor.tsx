@@ -437,11 +437,13 @@ export function InlineTaskEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhum</SelectItem>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
+                  {clients
+                    .filter((client) => client.is_active || client.id === task.client_id)
+                    .map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}{client.is_active ? "" : " (inativo)"}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

@@ -1086,6 +1086,8 @@ export type Database = {
           assignee_id: string | null
           assigned_at: string | null
           assigned_by: string | null
+          archived_at: string | null
+          archived_reason: string | null
           card_width: number | null
           client_id: string | null
           color: string | null
@@ -1113,6 +1115,8 @@ export type Database = {
           assignee_id?: string | null
           assigned_at?: string | null
           assigned_by?: string | null
+          archived_at?: string | null
+          archived_reason?: string | null
           card_width?: number | null
           client_id?: string | null
           color?: string | null
@@ -1140,6 +1144,8 @@ export type Database = {
           assignee_id?: string | null
           assigned_at?: string | null
           assigned_by?: string | null
+          archived_at?: string | null
+          archived_reason?: string | null
           card_width?: number | null
           client_id?: string | null
           color?: string | null

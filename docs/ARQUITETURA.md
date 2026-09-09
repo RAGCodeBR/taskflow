@@ -99,6 +99,24 @@ Tarefas compartilhadas com participantes de outro ambiente continuam ancoradas
 no ambiente de origem. Cliente, coluna e ambiente pertencem ao ambiente
 proprietario; a participacao concede acesso operacional sem duplicar o registro.
 
+### Encerramento operacional de clientes
+
+Inativar um cliente preserva integralmente o cadastro e seu historico. O gatilho
+`archive_inactive_client_operations` marca com `archived_at` todas as tarefas
+abertas e concluidas que ainda nao estejam na Lixeira e pausa as obrigacoes
+recorrentes do cliente. Tarefas arquivadas deixam de compor Kanban, lista,
+calendario, Dashboard e relatorios operacionais, mas ficam disponiveis na aba
+**Tarefas arquivadas** do cadastro do cliente, com filtros de abertas e
+concluidas.
+
+Arquivamento e Lixeira sao conceitos diferentes: `archived_at` encerra o
+trabalho sem apagar nada; `deleted_at` continua sendo a exclusao reversivel pela
+Lixeira. A reativacao do cliente permite novos trabalhos, mas nao restaura as
+tarefas antigas automaticamente. Uma tarefa arquivada pode ser restaurada
+individualmente somente depois que o cliente estiver ativo. O banco tambem
+impede novas tarefas, obrigacoes ativas e solicitacoes para clientes inativos,
+mesmo quando a operacao vier de um atalho ou de uma versao antiga da interface.
+
 ## Arquivos do cliente e anexos de tarefas
 
 Arquivos diretamente vinculados ao cliente sao gerenciados por

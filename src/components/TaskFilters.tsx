@@ -94,13 +94,18 @@ export function TaskFilters({
     );
   };
 
+  const activeClients = useMemo(
+    () => (clients ?? []).filter((client) => client.is_active),
+    [clients],
+  );
   const filteredClients = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = clients ?? [];
-    return q ? list.filter((c) => c.name.toLowerCase().includes(q)) : list;
-  }, [clients, search]);
+    return q
+      ? activeClients.filter((client) => client.name.toLowerCase().includes(q))
+      : activeClients;
+  }, [activeClients, search]);
 
-  const allSelected = (clients?.length ?? 0) > 0 && selectedClients.length === clients?.length;
+  const allSelected = activeClients.length > 0 && selectedClients.length === activeClients.length;
 
   const clientsLabel =
     selectedClients.length === 0
@@ -188,14 +193,14 @@ export function TaskFilters({
                 <Checkbox
                   checked={allSelected}
                   onCheckedChange={(v) => {
-                    if (v) setSelectedClients((clients ?? []).map((c) => c.id));
+                    if (v) setSelectedClients(activeClients.map((client) => client.id));
                     else setSelectedClients([]);
                   }}
                 />
                 <span>Selecionar todos</span>
               </label>
               <span className="text-xs text-muted-foreground">
-                {selectedClients.length}/{clients?.length ?? 0}
+                {selectedClients.length}/{activeClients.length}
               </span>
             </div>
             <div className="max-h-64 overflow-y-auto">
