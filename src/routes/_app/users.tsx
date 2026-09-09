@@ -61,25 +61,25 @@ type FormState = {
   clientId: string;
   marketingAccess: boolean;
 };
+const COLLABORATOR_DEFAULT_PERMISSIONS = [
+  "dashboard",
+  "tasks",
+  "clients",
+  "mural",
+  "agenda",
+  "trash",
+  "settings",
+];
 const defaults: FormState = {
   fullName: "",
   email: "",
   password: "",
   role: "collaborator",
-  permissions: [
-    "dashboard",
-    "tasks",
-    "requests",
-    "import_ata",
-    "clients",
-    "reports",
-    "mural",
-    "agenda",
-    "portal_entregas",
-    "portal_financeiro",
-    "trash",
-    "settings",
-  ],
+  // Padrão da casa para um colaborador: acesso ao dia a dia da tarefa, sem
+  // as áreas de gestão (obrigações, solicitações, relatórios, calendário de
+  // entregas, financeiro) nem importação de ata — quem precisa delas ganha
+  // manualmente aqui.
+  permissions: COLLABORATOR_DEFAULT_PERMISSIONS,
   clientId: "",
   marketingAccess: false,
 };
@@ -144,7 +144,12 @@ function AccessForm({
               permissions:
                 e.target.value === "client"
                   ? ["portal_entregas", "portal_financeiro"]
-                  : value.permissions,
+                  : // Trocar de Admin/Cliente para Colaborador não deve carregar
+                    // sobras de outra categoria — volta ao padrão da casa, do
+                    // mesmo jeito que Cliente já reseta ao entrar nela.
+                    e.target.value === "collaborator" && value.role !== "collaborator"
+                    ? COLLABORATOR_DEFAULT_PERMISSIONS
+                    : value.permissions,
               marketingAccess: e.target.value === "client" ? false : value.marketingAccess,
             })
           }
@@ -168,9 +173,7 @@ function AccessForm({
             className="mt-0.5"
             checked={value.marketingAccess}
             disabled={value.role === "client"}
-            onCheckedChange={(checked) =>
-              onChange({ ...value, marketingAccess: checked === true })
-            }
+            onCheckedChange={(checked) => onChange({ ...value, marketingAccess: checked === true })}
           />
         </label>
       )}
@@ -297,9 +300,11 @@ function UsersPage() {
     queryKey: ["marketing_members", marketingWorkspace?.id],
     enabled: !!marketingWorkspace?.id,
     queryFn: async () =>
-      ((await (supabase.from("workspace_memberships") as any)
-        .select("user_id, access_grant")
-        .eq("workspace_id", marketingWorkspace!.id)).data ?? []) as Array<{
+      ((
+        await (supabase.from("workspace_memberships") as any)
+          .select("user_id, access_grant")
+          .eq("workspace_id", marketingWorkspace!.id)
+      ).data ?? []) as Array<{
         user_id: string;
         access_grant: "manual" | "admin_policy";
       }>,
@@ -308,9 +313,11 @@ function UsersPage() {
     queryKey: ["current_workspace_members", activeWorkspace?.id],
     enabled: !!activeWorkspace?.id,
     queryFn: async () =>
-      ((await (supabase.from("workspace_memberships") as any)
-        .select("user_id")
-        .eq("workspace_id", activeWorkspace!.id)).data ?? []) as Array<{ user_id: string }>,
+      ((
+        await (supabase.from("workspace_memberships") as any)
+          .select("user_id")
+          .eq("workspace_id", activeWorkspace!.id)
+      ).data ?? []) as Array<{ user_id: string }>,
   });
   const invokeAccessManager = async (
     action: "create" | "update" | "delete",
@@ -393,9 +400,14 @@ function UsersPage() {
     },
     onSuccess: (_data, variables) => {
       refreshMarketingAccess();
-      toast.success(variables.enabled ? "Marketing liberado para este usuário." : "Marketing removido deste usuário.");
+      toast.success(
+        variables.enabled
+          ? "Marketing liberado para este usuário."
+          : "Marketing removido deste usuário.",
+      );
     },
-    onError: (error: any) => toast.error(error?.message ?? "Não foi possível atualizar o acesso ao Marketing."),
+    onError: (error: any) =>
+      toast.error(error?.message ?? "Não foi possível atualizar o acesso ao Marketing."),
   });
   const setActive = useMutation({
     mutationFn: async ({ userId, active }: { userId: string; active: boolean }) => {
@@ -572,18 +584,18 @@ function UsersPage() {
           )}
           {!self && canDeleteUser && (
             <Button
-                size="sm"
-                variant="outline"
-                className="mt-2 w-full text-destructive hover:text-destructive"
-                disabled={deleteAccess.isPending}
-                onClick={() => {
-                  if (confirm(`Excluir permanentemente o acesso de "${p.full_name || p.email}"?`)) {
-                    deleteAccess.mutate(p.id);
-                  }
-                }}
-              >
-                <Trash2 className="mr-1 h-3 w-3" /> Excluir acesso
-              </Button>
+              size="sm"
+              variant="outline"
+              className="mt-2 w-full text-destructive hover:text-destructive"
+              disabled={deleteAccess.isPending}
+              onClick={() => {
+                if (confirm(`Excluir permanentemente o acesso de "${p.full_name || p.email}"?`)) {
+                  deleteAccess.mutate(p.id);
+                }
+              }}
+            >
+              <Trash2 className="mr-1 h-3 w-3" /> Excluir acesso
+            </Button>
           )}
         </div>
       </Card>
@@ -614,7 +626,9 @@ function UsersPage() {
                 </DialogDescription>
               </DialogHeader>
               <AccessForm
-                value={inMarketing ? { ...form, role: "collaborator", marketingAccess: true } : form}
+                value={
+                  inMarketing ? { ...form, role: "collaborator", marketingAccess: true } : form
+                }
                 onChange={setForm}
                 includeCredentials
                 marketingOnly={inMarketing}

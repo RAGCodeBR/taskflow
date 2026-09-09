@@ -26,6 +26,7 @@ const marketingManagerEmail = "reinangrupoahouse@gmail.com";
 const validPermissions = new Set([
   "dashboard",
   "tasks",
+  "obligations",
   "requests",
   "import_ata",
   "clients",
