@@ -46,7 +46,6 @@ import {
   type ClientDepartment,
   type ClientDepartmentEmployee,
   type ClientSystemAccess,
-  useProfiles,
 } from "@/hooks/use-data";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -54,6 +53,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NotesWorkspace } from "@/routes/_app/notes";
 import { FileDropZone } from "@/components/FileDropZone";
+import { ClientFilesManager } from "@/components/ClientFilesManager";
 import { useAuth } from "@/hooks/use-auth";
 import { toJpeg } from "html-to-image";
 import { format } from "date-fns";
@@ -1523,7 +1523,7 @@ function EditClientPage() {
             <NotesWorkspace fixedClientId={clientId} embedded />
           </TabsContent>
           <TabsContent value="attachments" className="mt-6">
-            <AttachmentsManager clientId={clientId} />
+            <ClientFilesManager clientId={clientId} />
           </TabsContent>
         </Tabs>
       </Card>
@@ -1627,7 +1627,7 @@ function EditClientPage() {
                   title="Anexos do funcionário"
                   icon={<Paperclip className="h-4 w-4" />}
                 >
-                  <AttachmentsManager
+                  <EmployeeAttachmentsManager
                     clientId={clientId}
                     employeeId={selectedEmployee.id}
                     hideHeader
@@ -1840,48 +1840,25 @@ function EmployeeNotesManager({ employeeId }: { employeeId: string }) {
   );
 }
 
-function AttachmentsManager({
+function EmployeeAttachmentsManager({
   clientId,
   employeeId,
   hideHeader = false,
 }: {
   clientId: string;
-  employeeId?: string;
+  employeeId: string;
   hideHeader?: boolean;
 }) {
-  const { user, isAdmin } = useAuth();
-  const { data: profiles = [] } = useProfiles();
+  const { user } = useAuth();
   const [files, setFiles] = useState<ManagedAttachment[]>([]);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
-  // Admins begin with their own uploads, but may deliberately switch to one
-  // person or all people. Other roles always remain restricted to themselves.
-  const [ownerFilter, setOwnerFilter] = useState<string>(user?.id ?? "");
-  const table = employeeId ? "client_department_employee_attachments" : "client_files";
-  const foreignKey = employeeId ? "employee_id" : "client_id";
-  const referenceId = employeeId ?? clientId;
-
-  useEffect(() => {
-    if (user?.id) setOwnerFilter((current) => current || user.id);
-  }, [user?.id]);
 
   const load = async () => {
-    // The client-wide attachment area is personal by default. Keep the
-    // employee attachment area unchanged, since it belongs to the employee.
-    if (!employeeId && !user?.id) {
-      setFiles([]);
-      return;
-    }
-
-    let query = (supabase.from(table) as any)
+    const { data, error } = await (supabase.from("client_department_employee_attachments") as any)
       .select("*")
-      .eq(foreignKey, referenceId)
+      .eq("employee_id", employeeId)
       .order("created_at", { ascending: false });
-    if (!employeeId) {
-      const selectedOwner = isAdmin ? ownerFilter || user!.id : user!.id;
-      if (selectedOwner !== "all") query = query.eq("uploaded_by", selectedOwner);
-    }
-    const { data, error } = await query;
     if (error) {
       toast.error(error.message);
       return;
@@ -1891,7 +1868,7 @@ function AttachmentsManager({
 
   useEffect(() => {
     void load();
-  }, [referenceId, ownerFilter, isAdmin, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [employeeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false;
@@ -1923,9 +1900,7 @@ function AttachmentsManager({
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-zA-Z0-9._-]+/g, "_");
-      const path = employeeId
-        ? `clients/${clientId}/employees/${employeeId}/files/${Date.now()}_${safeName}`
-        : `clients/${clientId}/files/${Date.now()}_${safeName}`;
+      const path = `clients/${clientId}/employees/${employeeId}/files/${Date.now()}_${safeName}`;
       const { error: uploadError } = await supabase.storage
         .from("task-attachments")
         .upload(path, file, { contentType: file.type || "application/octet-stream" });
@@ -1933,27 +1908,17 @@ function AttachmentsManager({
         toast.error(uploadError.message);
         continue;
       }
-      const payload = employeeId
-        ? {
-            employee_id: employeeId,
-            title: file.name,
-            file_name: file.name,
-            storage_path: path,
-            mime_type: file.type || null,
-            size_bytes: file.size,
-            uploaded_by: user.id,
-          }
-        : {
-            client_id: clientId,
-            title: file.name,
-            file_name: file.name,
-            storage_path: path,
-            mime_type: file.type || null,
-            size_bytes: file.size,
-            uploaded_by: user.id,
-            position: files.length,
-          };
-      const { error: insertError } = await (supabase.from(table) as any).insert(payload);
+      const { error: insertError } = await (
+        supabase.from("client_department_employee_attachments") as any
+      ).insert({
+        employee_id: employeeId,
+        title: file.name,
+        file_name: file.name,
+        storage_path: path,
+        mime_type: file.type || null,
+        size_bytes: file.size,
+        uploaded_by: user.id,
+      });
       if (insertError) {
         await supabase.storage.from("task-attachments").remove([path]);
         toast.error(insertError.message);
@@ -1976,23 +1941,9 @@ function AttachmentsManager({
 
   const remove = async (file: ManagedAttachment) => {
     if (!confirm(`Excluir o anexo "${file.file_name}"?`)) return;
-    const { taskAttachmentIdFromClientFilePath } =
-      await import("@/lib/sync-task-attachment-to-client");
-    const sourceAttachmentId =
-      file.source_attachment_id ?? taskAttachmentIdFromClientFilePath(file.storage_path);
-    if (!employeeId && sourceAttachmentId) {
-      const { removeTaskAttachmentAndClientCopy } =
-        await import("@/lib/sync-task-attachment-to-client");
-      try {
-        await removeTaskAttachmentAndClientCopy(sourceAttachmentId);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Não foi possível excluir o arquivo.");
-        return;
-      }
-      void load();
-      return;
-    }
-    const { error } = await (supabase.from(table) as any).delete().eq("id", file.id);
+    const { error } = await (supabase.from("client_department_employee_attachments") as any)
+      .delete()
+      .eq("id", file.id);
     if (error) {
       toast.error(error.message);
       return;
@@ -2002,7 +1953,7 @@ function AttachmentsManager({
   };
 
   const saveTitle = async (file: ManagedAttachment, title: string) => {
-    const { error } = await (supabase.from(table) as any)
+    const { error } = await (supabase.from("client_department_employee_attachments") as any)
       .update({ title: title.trim() || file.file_name })
       .eq("id", file.id);
     if (error) {
@@ -2016,43 +1967,19 @@ function AttachmentsManager({
     );
   };
 
-  const title = employeeId ? "Anexos do funcionário" : "Anexos do cliente";
   return (
     <section className="space-y-3">
       {!hideHeader && (
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 font-semibold">
-              <Paperclip className="h-4 w-4" /> {title}
+              <Paperclip className="h-4 w-4" /> Anexos do funcionário
             </h2>
             <p className="text-sm text-muted-foreground">
               Adicione documentos, imagens e outros arquivos.
             </p>
           </div>
           <span className="text-sm text-muted-foreground">{files.length} arquivo(s)</span>
-        </div>
-      )}
-      {isAdmin && !employeeId && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
-          <Label htmlFor="client-attachment-owner" className="text-sm">
-            Exibir anexos de
-          </Label>
-          <select
-            id="client-attachment-owner"
-            value={ownerFilter || user?.id || ""}
-            onChange={(event) => setOwnerFilter(event.target.value)}
-            className="h-8 min-w-52 rounded-md border bg-background px-2 text-sm"
-          >
-            <option value={user?.id ?? ""}>Meus anexos</option>
-            <option value="all">Todos os usuários</option>
-            {profiles
-              .filter((profile) => profile.id !== user?.id)
-              .map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.full_name || profile.email || "Usuário sem nome"}
-                </option>
-              ))}
-          </select>
         </div>
       )}
       <FileDropZone
