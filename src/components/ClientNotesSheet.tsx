@@ -14,8 +14,8 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { AttachmentPreviewDialog, type PreviewableAttachment } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
+import { canPreviewAttachment } from "@/lib/attachment-preview";
 
-const PREVIEWABLE_MIME_RE = /^(image\/|video\/|audio\/|text\/)|application\/pdf|json/i;
 
 interface ClientNote {
   id: string;
@@ -402,7 +402,7 @@ function NoteCard({
                 {atts.map((a) => {
                   const isLink = a.mime_type === "text/uri-list";
                   const isImage = !isLink && a.mime_type?.startsWith("image/");
-                  const canPreview = !isLink && PREVIEWABLE_MIME_RE.test(a.mime_type ?? "");
+                  const canPreview = !isLink && canPreviewAttachment(a.file_name, a.mime_type);
 
                   const handleOpen = () => {
                     if (isLink) {
@@ -543,7 +543,7 @@ function ClientFilesPanel({ clientId }: { clientId: string }) {
   };
 
   const open = (f: ClientFile) => {
-    const canPreview = PREVIEWABLE_MIME_RE.test(f.mime_type ?? "");
+    const canPreview = canPreviewAttachment(f.file_name, f.mime_type);
     if (canPreview) {
       setPreview({ file_name: f.file_name, storage_path: f.storage_path, mime_type: f.mime_type });
       return;
@@ -595,7 +595,7 @@ function ClientFilesPanel({ clientId }: { clientId: string }) {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
               {files.map((f) => {
                 const isImage = f.mime_type?.startsWith("image/");
-                const canPreview = PREVIEWABLE_MIME_RE.test(f.mime_type ?? "");
+                const canPreview = canPreviewAttachment(f.file_name, f.mime_type);
                 return (
                   <div key={f.id} className="group relative aspect-square overflow-hidden rounded border bg-background">
                     <button

@@ -112,6 +112,13 @@ cadastro do cliente. Assim, as duas entradas da interface seguem as mesmas regra
 - anexos de funcionarios continuam em fluxo separado, pois pertencem a
   `client_department_employee_attachments`.
 
+O preview de anexos e processado localmente no navegador. Alem de imagens, PDF,
+audio, video e texto, `AttachmentPreviewDialog` renderiza documentos `.docx` e
+planilhas `.xlsx`, `.xlsm` e `.csv`. Planilhas muito grandes sao limitadas no
+preview a 500 linhas e 50 colunas, mas o download sempre preserva o arquivo
+original. Formatos legados como `.doc` e `.xls`, apresentacoes e formatos sem um
+renderizador seguro continuam disponiveis para download.
+
 Quando uma tarefa vinculada a um cliente recebe um anexo, ele tambem e registrado
 em `client_files`. O vinculo usa `source_attachment_id` e reaproveita o mesmo
 objeto do bucket `task-attachments`; nao ha copia fisica do arquivo. A migration

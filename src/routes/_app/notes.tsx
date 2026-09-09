@@ -20,13 +20,13 @@ import { FileDropZone } from "@/components/FileDropZone";
 import { marked } from "marked";
 import { AttachmentPreviewDialog, type PreviewableAttachment } from "@/components/AttachmentPreviewDialog";
 import { formatNoteWithAI } from "@/lib/ai-format.functions";
+import { canPreviewAttachment } from "@/lib/attachment-preview";
 
 export const Route = createFileRoute("/_app/notes")({
   component: NotesPage,
 });
 
 const sb = supabase as any;
-const PREVIEWABLE_MIME_RE = /^(image\/|video\/|audio\/|text\/)|application\/pdf|json/i;
 
 type SortMode = "manual" | "date_desc" | "date_asc" | "updated_desc" | "title_asc";
 
@@ -863,7 +863,7 @@ function NoteEditor({
   };
 
   const openAttachment = (a: NoteAttachment) => {
-    const canPreview = PREVIEWABLE_MIME_RE.test(a.mime_type ?? "");
+    const canPreview = canPreviewAttachment(a.file_name, a.mime_type);
     if (canPreview) {
       setPreview({ file_name: a.file_name, storage_path: a.storage_path, mime_type: a.mime_type });
       return;
@@ -1026,7 +1026,7 @@ function NoteEditor({
               <ul className="space-y-1.5">
                 {attachments.map((a) => {
                   const isImage = a.mime_type?.startsWith("image/");
-                  const canPreview = PREVIEWABLE_MIME_RE.test(a.mime_type ?? "");
+                  const canPreview = canPreviewAttachment(a.file_name, a.mime_type);
                   return (
                     <li key={a.id} className="flex items-center gap-2 rounded-md border bg-card p-2">
                       <button

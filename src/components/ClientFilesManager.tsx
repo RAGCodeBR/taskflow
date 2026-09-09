@@ -25,8 +25,7 @@ import {
   removeTaskAttachmentAndClientCopy,
   taskAttachmentIdFromClientFilePath,
 } from "@/lib/sync-task-attachment-to-client";
-
-const PREVIEWABLE_MIME_RE = /^(image\/|video\/|audio\/|text\/)|application\/pdf|json/i;
+import { canPreviewAttachment } from "@/lib/attachment-preview";
 
 export interface ClientFile {
   id: string;
@@ -259,7 +258,7 @@ export function ClientFilesManager({
   };
 
   const openFile = (file: ClientFile) => {
-    if (PREVIEWABLE_MIME_RE.test(file.mime_type ?? "")) {
+    if (canPreviewAttachment(file.file_name, file.mime_type)) {
       setPreview({
         file_name: file.title || file.file_name,
         storage_path: file.storage_path,
@@ -397,7 +396,7 @@ export function ClientFilesManager({
         <ul className="space-y-2">
           {files.map((file, index) => {
             const isImage = file.mime_type?.startsWith("image/");
-            const canPreview = PREVIEWABLE_MIME_RE.test(file.mime_type ?? "");
+            const canPreview = canPreviewAttachment(file.file_name, file.mime_type);
             return (
               <li key={file.id} className="flex items-center gap-3 rounded-lg border bg-card p-2">
                 <div className="flex flex-col">
