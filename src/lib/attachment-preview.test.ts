@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { canPreviewAttachment } from "@/lib/attachment-preview";
 
 describe("canPreviewAttachment", () => {
+  it("usa a API atual do leitor de Excel", async () => {
+    const reader = await import("read-excel-file/browser");
+    expect(reader.default).toBeTypeOf("function");
+  });
+
   it.each(["relatorio.docx", "dados.xlsx", "macros.xlsm", "exportacao.csv"])(
     "reconhece %s mesmo sem MIME type",
     (fileName) => {

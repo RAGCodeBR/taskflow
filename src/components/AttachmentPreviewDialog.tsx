@@ -204,29 +204,26 @@ export function AttachmentPreviewDialog({ open, onOpenChange, attachment }: Prop
           return;
         }
 
-        const { default: readXlsxFile, readSheetNames } = await import("read-excel-file/browser");
-        const sheetNames = await readSheetNames(fileBlob);
-        const nextSheets = await Promise.all(
-          sheetNames.map(async (sheetName) => {
-            const sourceRows = await readXlsxFile(fileBlob, { sheet: sheetName });
-            const totalColumns = sourceRows.reduce(
-              (largest, row) => Math.max(largest, row.length),
-              0,
-            );
-            return {
-              name: sheetName,
-              rows: sourceRows.slice(0, MAX_SPREADSHEET_ROWS).map((row) =>
-                row.slice(0, MAX_SPREADSHEET_COLUMNS).map((cell) => {
-                  if (cell === null || cell === undefined) return "";
-                  if (cell instanceof Date) return cell.toLocaleString("pt-BR");
-                  return String(cell);
-                }),
-              ),
-              totalRows: sourceRows.length,
-              totalColumns,
-            };
-          }),
-        );
+        const { default: readXlsxFile } = await import("read-excel-file/browser");
+        const workbookSheets = await readXlsxFile(fileBlob);
+        const nextSheets = workbookSheets.map(({ sheet: sheetName, data: sourceRows }) => {
+          const totalColumns = sourceRows.reduce(
+            (largest, row) => Math.max(largest, row.length),
+            0,
+          );
+          return {
+            name: sheetName,
+            rows: sourceRows.slice(0, MAX_SPREADSHEET_ROWS).map((row) =>
+              row.slice(0, MAX_SPREADSHEET_COLUMNS).map((cell) => {
+                if (cell === null || cell === undefined) return "";
+                if (cell instanceof Date) return cell.toLocaleString("pt-BR");
+                return String(cell);
+              }),
+            ),
+            totalRows: sourceRows.length,
+            totalColumns,
+          };
+        });
         if (active) setSheets(nextSheets);
       } catch (renderError) {
         if (active) {
