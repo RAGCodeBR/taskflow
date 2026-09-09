@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { ExternalLink, FileText, RefreshCw } from "lucide-react";
 import { AlignLeft, CalendarDays, Clock, LoaderCircle, MapPin, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,6 +52,104 @@ function CalendarDot({ color }: { color: string }) {
   );
 }
 
+async function edgeFunctionErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "context" in error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      const body = await context
+        .clone()
+        .json()
+        .catch(() => null);
+      if (body && typeof body === "object" && "error" in body && typeof body.error === "string")
+        return body.error;
+    }
+  }
+  return error instanceof Error ? error.message : "Não foi possível sincronizar a ata.";
+}
+
+function MeetingMinutesPanel({ event }: { event: AgendaEvent }) {
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+  const isMeet = /meet\.google\.com\/[a-z]{3,}-[a-z]{3,}-[a-z]{3,}/i.test(event.meeting_url ?? "");
+  const { data: minutes, isLoading } = useQuery({
+    queryKey: ["meeting_minutes", event.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("meeting_minutes")
+        .select("status, google_doc_url, generated_at, error_message")
+        .eq("calendar_event_id", event.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: isMeet,
+  });
+  const ended = new Date(event.ends_at) <= new Date();
+  const syncMinutes = async () => {
+    setSyncing(true);
+    const { data, error } = await supabase.functions.invoke("google-meet-minutes-sync", {
+      body: { eventId: event.id },
+    });
+    setSyncing(false);
+    if (error) return toast.error(await edgeFunctionErrorMessage(error));
+    if (data?.error) return toast.error(data.error);
+    await queryClient.invalidateQueries({ queryKey: ["meeting_minutes", event.id] });
+    if (data.status === "ready") toast.success("Ata da reunião encontrada.");
+    else toast.message(data.reason || "A ata ainda não está disponível.");
+  };
+
+  const statusText = !isMeet
+    ? "Adicione um link do Google Meet para buscar a ata desta reunião."
+    : !ended
+      ? "A ata será procurada após o término da reunião."
+      : minutes?.status === "ready"
+        ? "Ata do Gemini disponível."
+        : minutes?.status === "unavailable"
+          ? "Nenhuma ata do Gemini foi encontrada para esta reunião."
+          : minutes?.status === "error"
+            ? minutes.error_message || "Não foi possível consultar a ata."
+            : "Aguardando a ata do Gemini ser gerada.";
+
+  return (
+    <div className="flex gap-3 rounded-lg border bg-muted/30 p-3">
+      <FileText className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="text-sm font-medium">Ata da reunião</div>
+        <p className="text-xs text-muted-foreground">
+          {isLoading ? "Consultando status…" : statusText}
+        </p>
+        {minutes?.generated_at && (
+          <p className="text-[11px] text-muted-foreground">
+            Gerada em {format(new Date(minutes.generated_at), "dd/MM/yyyy 'às' HH:mm")}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {minutes?.google_doc_url && (
+            <Button asChild size="sm" variant="outline">
+              <a href={minutes.google_doc_url} target="_blank" rel="noreferrer">
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir ata
+              </a>
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant={minutes?.google_doc_url ? "ghost" : "outline"}
+            onClick={() => void syncMinutes()}
+            disabled={syncing || !ended || !isMeet}
+          >
+            {syncing ? (
+              <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            )}
+            {minutes?.google_doc_url ? "Atualizar" : "Buscar ata"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AgendaEventDialog({
   open,
   onOpenChange,
@@ -65,7 +164,7 @@ export function AgendaEventDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState(defaultStartTime);
+  const [startTime, setStartTime] = useState(defaultStartTime ?? defaultStartTimeValue);
   const [endDate, setEndDate] = useState("");
   const [endTime, setEndTime] = useState(defaultEndTime);
   const [allDay, setAllDay] = useState(false);
@@ -121,7 +220,7 @@ export function AgendaEventDialog({
     if (!title.trim()) return toast.error("Informe o título do compromisso.");
     if (!startDate || !endDate) return toast.error("Informe a data de início e término.");
 
-    const startsAt = toIso(startDate, allDay ? "00:00" : startTime);
+    const startsAt = toIso(startDate, allDay ? "00:00" : (startTime ?? defaultStartTimeValue));
     const endsAt = toIso(endDate, allDay ? "23:59" : endTime);
     if (new Date(endsAt) <= new Date(startsAt))
       return toast.error("O término deve ser posterior ao início.");
@@ -235,7 +334,7 @@ export function AgendaEventDialog({
                   <Input
                     aria-label="Hora de início"
                     type="time"
-                    value={startTime}
+                    value={startTime ?? defaultStartTimeValue}
                     onChange={(e) => setStartTime(e.target.value)}
                     className={`w-[132px] shrink-0 ${dateTimeInputClass}`}
                   />
@@ -304,6 +403,8 @@ export function AgendaEventDialog({
               onChange={(e) => setMeetingUrl(e.target.value)}
             />
           </div>
+
+          {event && <MeetingMinutesPanel event={{ ...event, meeting_url: meetingUrl }} />}
 
           <div className="flex gap-3">
             <AlignLeft className="mt-2 h-5 w-5 shrink-0 text-muted-foreground" />

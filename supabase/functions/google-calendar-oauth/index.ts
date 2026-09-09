@@ -8,6 +8,7 @@ const corsHeaders = {
 // Full Calendar scope is required to list every calendar the connected account
 // can access, then consolidate their events in the Taskflow Agenda.
 const calendarScope = "https://www.googleapis.com/auth/calendar";
+const meetScope = "https://www.googleapis.com/auth/meetings.space.readonly";
 const identityScopes = "openid email";
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -69,7 +70,7 @@ async function begin(request: Request) {
     client_id: clientId,
     redirect_uri: `${projectUrl}/functions/v1/google-calendar-oauth`,
     response_type: "code",
-    scope: `${identityScopes} ${calendarScope}`,
+    scope: `${identityScopes} ${calendarScope} ${meetScope}`,
     access_type: "offline",
     // Force the consent page so old identity-only connections also receive
     // the Calendar permission required by the Agenda.
@@ -134,9 +135,9 @@ async function callback(request: Request) {
   if (!profileResponse.ok || !profile.email)
     throw new Error("Não foi possível identificar a conta Google.");
   const scopes = String(tokens.scope ?? "").split(/\s+/);
-  if (!scopes.includes(calendarScope))
+  if (!scopes.includes(calendarScope) || !scopes.includes(meetScope))
     throw new Error(
-      "Calendar permission was not granted. Reconnect and approve the requested access.",
+      "As permissões do Google Agenda e Google Meet não foram concedidas. Reconecte e aprove o acesso solicitado.",
     );
   const { data: previousConnection, error: previousConnectionError } = await admin
     .from("calendar_google_connections")

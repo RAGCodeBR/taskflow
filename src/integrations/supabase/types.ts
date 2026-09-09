@@ -88,6 +88,56 @@ export type Database = {
         }
         Relationships: []
       }
+      meeting_minutes: {
+        Row: {
+          calendar_event_id: string
+          conference_record_name: string | null
+          created_at: string
+          error_message: string | null
+          generated_at: string | null
+          google_doc_url: string | null
+          id: string
+          last_checked_at: string | null
+          smart_note_name: string | null
+          status: "pending" | "ready" | "unavailable" | "error"
+          updated_at: string
+        }
+        Insert: {
+          calendar_event_id: string
+          conference_record_name?: string | null
+          created_at?: string
+          error_message?: string | null
+          generated_at?: string | null
+          google_doc_url?: string | null
+          id?: string
+          last_checked_at?: string | null
+          smart_note_name?: string | null
+          status?: "pending" | "ready" | "unavailable" | "error"
+          updated_at?: string
+        }
+        Update: {
+          calendar_event_id?: string
+          conference_record_name?: string | null
+          created_at?: string
+          error_message?: string | null
+          generated_at?: string | null
+          google_doc_url?: string | null
+          id?: string
+          last_checked_at?: string | null
+          smart_note_name?: string | null
+          status?: "pending" | "ready" | "unavailable" | "error"
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_minutes_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_files: {
         Row: {
           client_id: string
