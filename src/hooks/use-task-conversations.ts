@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useProfiles } from "@/hooks/use-data";
+import { useProfiles, useTaskCollaborators } from "@/hooks/use-data";
 import { activityToast } from "@/lib/activity-toast";
 import { isConversationRoom, unreadRoomCount } from "@/lib/task-conversations";
 
@@ -12,6 +12,8 @@ type RoomTask = {
   completed_at: string | null;
   status: string | null;
   deleted_at: string | null;
+  assignee_id: string | null;
+  created_by: string | null;
 };
 type Message = {
   id: string;
@@ -27,13 +29,17 @@ const messagesKey = ["task-conversation-messages"] as const;
 const readsKey = (userId?: string) => ["task-conversation-reads", userId] as const;
 
 /**
- * As "salas" da tela de Conversas: tarefas onde a pessoa participa (a RLS de
- * `comments` já garante o recorte por ambiente/participação — só volta mensagem
- * de tarefa que a pessoa pode ver), que não estão concluídas e têm ao menos
- * uma mensagem. Traz também as mensagens e o ponteiro de leitura de cada uma.
+ * As "salas" da tela de Conversas: tarefas que a pessoa pode ver (a RLS de
+ * `comments` recorta por ambiente/participação — e, para admin, deixa ver também
+ * as conversas do próprio ambiente em que ele não participa), que não estão
+ * concluídas e têm ao menos uma mensagem. Traz mensagens, ponteiro de leitura e
+ * o conjunto `myRoomIds` — as salas em que a pessoa participa de fato
+ * (responsável, criador ou colaborador), que é o que separa "Minhas conversas"
+ * de "Outras conversas".
  */
 export function useTaskConversations() {
   const { user } = useAuth();
+  const { data: collaborations = [] } = useTaskCollaborators();
 
   const messages = useQuery({
     queryKey: messagesKey,
@@ -57,7 +63,7 @@ export function useTaskConversations() {
     enabled: !!user?.id && taskIds.length > 0,
     queryFn: async () => {
       const { data, error } = await (supabase.from("tasks") as any)
-        .select("id, title, completed_at, status, deleted_at")
+        .select("id, title, completed_at, status, deleted_at, assignee_id, created_by")
         .in("id", taskIds);
       if (error) throw error;
       return (data ?? []) as RoomTask[];
@@ -98,8 +104,25 @@ export function useTaskConversations() {
     [rooms.data, messagesByTask],
   );
 
+  // Salas em que a pessoa participa de fato — o mesmo vínculo que a RLS usa em
+  // can_access_task_conversation (responsável, criador, colaborador).
+  const myRoomIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!user?.id) return ids;
+    const collabTasks = new Set(
+      collaborations.filter((c) => c.collaborator_id === user.id).map((c) => c.task_id),
+    );
+    roomTasks.forEach((task) => {
+      if (task.assignee_id === user.id || task.created_by === user.id || collabTasks.has(task.id)) {
+        ids.add(task.id);
+      }
+    });
+    return ids;
+  }, [roomTasks, collaborations, user?.id]);
+
   return {
     roomTasks,
+    myRoomIds,
     messagesByTask,
     lastReadByTask,
     allMessages: messages.data ?? [],
@@ -121,32 +144,35 @@ export function useMarkConversationRead() {
   };
 }
 
-/** Número de SALAS com mensagem não lida — o badge do menu. */
+/**
+ * Número de SALAS com mensagem não lida — o badge do menu. Conta só as salas em
+ * que a pessoa participa: o admin não recebe bolinha vermelha pelas conversas
+ * dos consultores que ele só acompanha.
+ */
 export function useTaskConversationsUnread() {
   const { user } = useAuth();
-  const { roomTasks, allMessages, lastReadByTask } = useTaskConversations();
+  const { myRoomIds, allMessages, lastReadByTask } = useTaskConversations();
   return useMemo(() => {
     if (!user?.id) return 0;
-    return unreadRoomCount(
-      allMessages,
-      roomTasks.map((t) => t.id),
-      user.id,
-      lastReadByTask,
-    );
-  }, [user?.id, roomTasks, allMessages, lastReadByTask]);
+    return unreadRoomCount(allMessages, Array.from(myRoomIds), user.id, lastReadByTask);
+  }, [user?.id, myRoomIds, allMessages, lastReadByTask]);
 }
 
 /**
  * Atividade de conversa ao vivo em qualquer tela: mantém o cache fresco e mostra
  * um toast discreto quando OUTRA pessoa manda mensagem numa tarefa que a pessoa
- * acompanha. Nunca para as próprias mensagens.
+ * acompanha. Só para as salas próprias — nunca para as próprias mensagens, nem
+ * para as conversas que o admin apenas fiscaliza.
  */
 export function useTaskConversationRealtime() {
   const { user } = useAuth();
   const { data: profiles = [] } = useProfiles();
+  const { myRoomIds } = useTaskConversations();
   const qc = useQueryClient();
   const userIdRef = useRef(user?.id);
   userIdRef.current = user?.id;
+  const myRoomIdsRef = useRef(myRoomIds);
+  myRoomIdsRef.current = myRoomIds;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -172,6 +198,7 @@ export function useTaskConversationRealtime() {
           if (payload.eventType !== "INSERT") return;
           const actor = payload.new?.author_id;
           if (!actor || actor === userIdRef.current) return;
+          if (!myRoomIdsRef.current.has(payload.new.task_id)) return;
           activityToast(`${nameOf(actor)} comentou em "${titleOf(payload.new.task_id)}"`);
         },
       )

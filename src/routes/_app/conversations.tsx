@@ -58,12 +58,12 @@ function ParticipantStack({ people }: { people: Profile[] }) {
 }
 
 function ConversationsPage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: profiles = [] } = useProfiles();
   const { data: allTasks = [] } = useTasks();
   const { data: myCollaborations = [] } = useTaskCollaborators();
   const { task: taskFromUrl } = Route.useSearch();
-  const { roomTasks, messagesByTask, lastReadByTask, allMessages, isLoading } =
+  const { roomTasks, myRoomIds, messagesByTask, lastReadByTask, allMessages, isLoading } =
     useTaskConversations();
   const [selectedId, setSelectedId] = useState<string | null>(taskFromUrl ?? null);
   const markRead = useMarkConversationRead();
@@ -108,32 +108,48 @@ function ConversationsPage() {
     [roomTasks, lastMessageAtByTask],
   );
 
+  // "Minhas conversas": salas em que eu participo. "Outras conversas": as que eu
+  // só enxergo por ser admin do ambiente — leitura, sem entrar na conversa.
+  const myOrderedRooms = useMemo(
+    () => orderedRooms.filter((room) => myRoomIds.has(room.id)),
+    [orderedRooms, myRoomIds],
+  );
+  const otherOrderedRooms = useMemo(
+    () => orderedRooms.filter((room) => !myRoomIds.has(room.id)),
+    [orderedRooms, myRoomIds],
+  );
+  const isOversightRoom = (id: string | null) =>
+    !!id && !myRoomIds.has(id) && otherOrderedRooms.some((room) => room.id === id);
+
   // Deep-link da tarefa (vindo do card / editor) tem prioridade.
   useEffect(() => {
     if (taskFromUrl) setSelectedId(taskFromUrl);
   }, [taskFromUrl]);
 
-  // Sem deep-link, só troca a seleção se ela ficou órfã. Uma tarefa escolhida
-  // em "Nova conversa" ainda não é uma sala (não tem mensagem) — não pode ser
-  // revertida por isso.
+  // Sem deep-link, a seleção padrão é sempre a PRIMEIRA das minhas conversas —
+  // nunca uma sala que eu só fiscalizo. Só troca se a atual ficou órfã. Uma
+  // tarefa escolhida em "Nova conversa" ainda não é sala (sem mensagem), então
+  // também vale como conhecida.
   useEffect(() => {
     if (taskFromUrl) return;
     if (!selectedId) {
-      setSelectedId(orderedRooms[0]?.id ?? null);
+      setSelectedId(myOrderedRooms[0]?.id ?? null);
       return;
     }
     const known =
       orderedRooms.some((room) => room.id === selectedId) ||
       allTasks.some((task) => task.id === selectedId);
-    if (!known) setSelectedId(orderedRooms[0]?.id ?? null);
-  }, [orderedRooms, selectedId, taskFromUrl, allTasks]);
+    if (!known) setSelectedId(myOrderedRooms[0]?.id ?? null);
+  }, [orderedRooms, myOrderedRooms, selectedId, taskFromUrl, allTasks]);
 
   // Abrir uma sala — e cada mensagem nova enquanto ela está aberta — marca como
   // lida e derruba o indicador na hora.
   useEffect(() => {
     if (!user?.id || !selectedId) return;
+    // Sala que eu só fiscalizo não marca leitura — não conta pro meu badge.
+    if (!myRoomIds.has(selectedId)) return;
     void markRead(selectedId);
-  }, [user?.id, selectedId, allMessages.length, markRead]);
+  }, [user?.id, selectedId, allMessages.length, markRead, myRoomIds]);
 
   const selected =
     orderedRooms.find((room) => room.id === selectedId) ??
@@ -184,6 +200,61 @@ function ConversationsPage() {
   const selectedParticipants = selected ? (participantsByTask.get(selected.id) ?? []) : [];
   const nameOf = (id: string | null) =>
     (id && profileById.get(id)?.full_name) || (id && profileById.get(id)?.email) || "Alguém";
+
+  const renderRoom = (room: (typeof orderedRooms)[number]) => {
+    const list = messagesByTask.get(room.id) ?? [];
+    const last = list[list.length - 1];
+    const unread =
+      user?.id && myRoomIds.has(room.id)
+        ? unreadInRoom(allMessages, room.id, user.id, lastReadByTask.get(room.id))
+        : 0;
+    const active = selectedId === room.id;
+    return (
+      <li key={room.id}>
+        <button
+          type="button"
+          onClick={() => setSelectedId(room.id)}
+          className={cn(
+            "relative flex w-full flex-col gap-1 px-5 py-4 text-left transition-colors",
+            active ? "bg-accent/60" : "hover:bg-accent/30",
+          )}
+        >
+          {active && <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary" />}
+          <div className="flex items-start gap-2">
+            <span
+              className={cn(
+                "min-w-0 flex-1 font-display text-[13px] font-semibold leading-snug",
+                active ? "text-primary" : "text-foreground",
+              )}
+            >
+              {room.title}
+            </span>
+            {unread > 0 && (
+              <span className="mt-0.5 shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
+          </div>
+          {last && (
+            <p className="line-clamp-1 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground/70">{nameOf(last.author_id)}</span>{" "}
+              {last.body}
+            </p>
+          )}
+          <div className="mt-1 flex items-center justify-between">
+            {last ? (
+              <span className="text-[11px] text-muted-foreground/70">
+                {formatDistanceToNow(new Date(last.created_at), { addSuffix: true, locale: ptBR })}
+              </span>
+            ) : (
+              <span />
+            )}
+            <ParticipantStack people={participantsByTask.get(room.id) ?? []} />
+          </div>
+        </button>
+      </li>
+    );
+  };
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
@@ -254,68 +325,26 @@ function ConversationsPage() {
             </div>
           )}
 
-          <ul className="divide-y divide-border/60">
-            {orderedRooms.map((room) => {
-              const list = messagesByTask.get(room.id) ?? [];
-              const last = list[list.length - 1];
-              const unread = user?.id
-                ? unreadInRoom(allMessages, room.id, user.id, lastReadByTask.get(room.id))
-                : 0;
-              const active = selectedId === room.id;
-              return (
-                <li key={room.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(room.id)}
-                    className={cn(
-                      "relative flex w-full flex-col gap-1 px-5 py-4 text-left transition-colors",
-                      active ? "bg-accent/60" : "hover:bg-accent/30",
-                    )}
-                  >
-                    {active && (
-                      <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary" />
-                    )}
-                    <div className="flex items-start gap-2">
-                      <span
-                        className={cn(
-                          "min-w-0 flex-1 font-display text-[13px] font-semibold leading-snug",
-                          active ? "text-primary" : "text-foreground",
-                        )}
-                      >
-                        {room.title}
-                      </span>
-                      {unread > 0 && (
-                        <span className="mt-0.5 shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
-                          {unread > 99 ? "99+" : unread}
-                        </span>
-                      )}
-                    </div>
-                    {last && (
-                      <p className="line-clamp-1 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground/70">
-                          {nameOf(last.author_id)}
-                        </span>{" "}
-                        {last.body}
-                      </p>
-                    )}
-                    <div className="mt-1 flex items-center justify-between">
-                      {last ? (
-                        <span className="text-[11px] text-muted-foreground/70">
-                          {formatDistanceToNow(new Date(last.created_at), {
-                            addSuffix: true,
-                            locale: ptBR,
-                          })}
-                        </span>
-                      ) : (
-                        <span />
-                      )}
-                      <ParticipantStack people={participantsByTask.get(room.id) ?? []} />
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          {myOrderedRooms.length > 0 && (
+            <>
+              {otherOrderedRooms.length > 0 && (
+                <p className="px-5 pb-1 pt-4 text-xs font-semibold text-muted-foreground">
+                  Minhas conversas
+                </p>
+              )}
+              <ul className="divide-y divide-border/60">{myOrderedRooms.map(renderRoom)}</ul>
+            </>
+          )}
+
+          {otherOrderedRooms.length > 0 && (
+            <>
+              <p className="flex items-center gap-1.5 px-5 pb-1 pt-4 text-xs font-semibold text-muted-foreground">
+                Outras conversas
+                <span className="font-normal text-muted-foreground/70">· só leitura</span>
+              </p>
+              <ul className="divide-y divide-border/60">{otherOrderedRooms.map(renderRoom)}</ul>
+            </>
+          )}
         </aside>
 
         {/* Conversa */}
@@ -334,6 +363,11 @@ function ConversationsPage() {
                 <span className="min-w-0 flex-1 truncate font-display text-base font-semibold">
                   {selected.title}
                 </span>
+                {isOversightRoom(selectedId) && (
+                  <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    Só leitura
+                  </span>
+                )}
                 {selectedParticipants.length > 0 && (
                   <div className="flex shrink-0 items-center gap-2">
                     <ParticipantStack people={selectedParticipants} />
@@ -343,7 +377,16 @@ function ConversationsPage() {
                   </div>
                 )}
               </div>
-              <TaskConversationPanel key={selected.id} taskId={selected.id} />
+              <TaskConversationPanel
+                key={selected.id}
+                taskId={selected.id}
+                readOnly={isOversightRoom(selectedId)}
+                readOnlyReason={
+                  isOversightRoom(selectedId)
+                    ? "Somente leitura — você não participa desta tarefa."
+                    : undefined
+                }
+              />
             </>
           ) : (
             <div className="grid flex-1 place-items-center px-8 text-center">

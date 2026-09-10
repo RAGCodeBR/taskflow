@@ -24,6 +24,8 @@ type Props = {
   taskId: string;
   /** Tarefa concluída: histórico visível, sem campo de envio. */
   readOnly?: boolean;
+  /** Texto do rodapé quando `readOnly` — o padrão fala em tarefa concluída. */
+  readOnlyReason?: string;
   /** Chamado quando uma mensagem entra ou sai — a lista de conversas usa isso. */
   onActivity?: () => void;
   className?: string;
@@ -47,7 +49,13 @@ const MESSAGE_EMOJIS = [
  * @menção, responder citando, editar a própria mensagem, apagar. Sem casca de
  * layout — serve o diálogo, a aba do card/editor e a tela de Conversas.
  */
-export function TaskConversationPanel({ taskId, readOnly = false, onActivity, className }: Props) {
+export function TaskConversationPanel({
+  taskId,
+  readOnly = false,
+  readOnlyReason,
+  onActivity,
+  className,
+}: Props) {
   const { user, isAdmin } = useAuth();
   const { data: profiles = [] } = useProfiles();
   // O autocomplete de @menção só oferece quem é do ambiente da tarefa.
@@ -378,7 +386,7 @@ export function TaskConversationPanel({ taskId, readOnly = false, onActivity, cl
 
       {readOnly ? (
         <p className="border-t bg-background px-4 py-3 text-center text-xs text-muted-foreground">
-          Tarefa concluída — conversa em modo leitura.
+          {readOnlyReason ?? "Tarefa concluída — conversa em modo leitura."}
         </p>
       ) : (
         <div className="relative border-t bg-card p-3 sm:px-4">
