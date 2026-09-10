@@ -63,6 +63,7 @@ type MuralPost = {
   checklist: ChecklistItem[];
   created_by: string;
   created_at: string;
+  updated_at: string | null;
   completed_at: string | null;
   is_pinned: boolean;
   is_featured: boolean;
@@ -79,6 +80,8 @@ type MuralAttachment = {
   storage_path: string;
   mime_type: string | null;
   size_bytes: number | null;
+  uploaded_by: string | null;
+  created_at: string | null;
 };
 type MuralReaction = {
   id: string;
@@ -244,7 +247,9 @@ function MuralPage() {
     queryKey: ["mural_post_attachments"],
     queryFn: async () => {
       const { data, error } = await (supabase.from("mural_post_attachments") as any)
-        .select("id, post_id, file_name, storage_path, mime_type, size_bytes")
+        .select(
+          "id, post_id, file_name, storage_path, mime_type, size_bytes, uploaded_by, created_at",
+        )
         .order("created_at");
       if (error) throw error;
       return (data ?? []) as MuralAttachment[];
@@ -266,23 +271,76 @@ function MuralPage() {
   // aberto em outra aba, ou é outra pessoa, só vê o card novo/editado/excluído
   // depois de recarregar. Um canal só, três tabelas: mais barato que abrir três
   // conexões para o mesmo quadro.
+  //
+  // Além de atualizar, mostra um toast discreto para a atividade leve do mural
+  // (reação, edição, anexo) de OUTRAS pessoas — isso não gera notificação
+  // persistente, só um aviso ao vivo para quem está com o quadro aberto.
+  const userIdRef = useRef(user?.id);
+  userIdRef.current = user?.id;
+
+  // Nome de quem agiu e título do recado saem do cache do react-query — sempre
+  // atual, e sem virar dependência de effect (evita recriar o canal a cada
+  // mudança de posts/profiles).
+  const actorName = (id: string | null | undefined) => {
+    if (!id) return "Alguém";
+    const list = (qc.getQueryData(["profiles"]) ?? []) as Array<{
+      id: string;
+      full_name: string | null;
+      email?: string | null;
+    }>;
+    const found = list.find((item) => item.id === id);
+    return found?.full_name || found?.email || "Alguém";
+  };
+  const postTitle = (id: string | null | undefined) => {
+    if (!id) return "um recado";
+    const list = (qc.getQueryData(["mural_posts"]) ?? []) as Array<{ id: string; title: string }>;
+    return list.find((item) => item.id === id)?.title || "um recado";
+  };
+  // Campos cuja mudança NÃO merece aviso: reposicionar o card no quadro.
+  const SILENT_FIELDS = new Set(["canvas_x", "canvas_y", "updated_at"]);
+
   useEffect(() => {
     const channel = supabase
       .channel(`mural-realtime-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "mural_posts" },
-        () => void qc.invalidateQueries({ queryKey: ["mural_posts"] }),
+        (payload: any) => {
+          void qc.invalidateQueries({ queryKey: ["mural_posts"] });
+          if (payload.eventType !== "UPDATE") return;
+          const actor = payload.new?.created_by;
+          if (!actor || actor === userIdRef.current) return;
+          const changed = Object.keys(payload.new ?? {}).some(
+            (key) => !SILENT_FIELDS.has(key) && payload.new[key] !== payload.old?.[key],
+          );
+          if (changed) toast(`${actorName(actor)} atualizou "${payload.new.title}"`);
+        },
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "mural_post_attachments" },
-        () => void qc.invalidateQueries({ queryKey: ["mural_post_attachments"] }),
+        (payload: any) => {
+          void qc.invalidateQueries({ queryKey: ["mural_post_attachments"] });
+          if (payload.eventType !== "INSERT") return;
+          const actor = payload.new?.uploaded_by;
+          if (!actor || actor === userIdRef.current) return;
+          toast(
+            `${actorName(actor)} anexou ${payload.new.file_name} em "${postTitle(payload.new.post_id)}"`,
+          );
+        },
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "mural_post_reactions" },
-        () => void qc.invalidateQueries({ queryKey: ["mural_post_reactions"] }),
+        (payload: any) => {
+          void qc.invalidateQueries({ queryKey: ["mural_post_reactions"] });
+          if (payload.eventType !== "INSERT") return;
+          const actor = payload.new?.user_id;
+          if (!actor || actor === userIdRef.current) return;
+          toast(
+            `${actorName(actor)} reagiu ${payload.new.emoji} em "${postTitle(payload.new.post_id)}"`,
+          );
+        },
       )
       .subscribe((status: string, err?: Error) => {
         if (status === "SUBSCRIBED") {
@@ -314,6 +372,63 @@ function MuralPage() {
       await qc.invalidateQueries({ queryKey: muralUnreadKey(user.id) });
     })();
   }, [isLoading, qc, user?.id]);
+
+  // Resumo ao entrar: uma vez por abertura do mural, avisa por toast a atividade
+  // leve (reação, edição de recado, anexo) que aconteceu desde a última visita
+  // desta pessoa. O marco fica no localStorage — informação de passagem, não
+  // precisa persistir no servidor nem valer entre dispositivos.
+  const didMuralCatchUp = useRef(false);
+  useEffect(() => {
+    if (!user || isLoading || didMuralCatchUp.current) return;
+    didMuralCatchUp.current = true;
+
+    const key = `mural_last_seen_${user.id}`;
+    let lastSeen = 0;
+    try {
+      lastSeen = Number(localStorage.getItem(key)) || 0;
+    } catch {
+      lastSeen = 0;
+    }
+    // Grava a visita já, para não repetir o resumo se o efeito re-rodar.
+    try {
+      localStorage.setItem(key, String(Date.now()));
+    } catch {
+      /* modo privado / storage bloqueado: sem resumo, sem erro */
+    }
+    // Primeira visita neste navegador: não despeja o histórico inteiro.
+    if (!lastSeen) return;
+
+    const novidades: string[] = [];
+    reactions.forEach((r) => {
+      if (r.user_id !== user.id && r.created_at && Date.parse(r.created_at) > lastSeen) {
+        novidades.push(`${actorName(r.user_id)} reagiu ${r.emoji} em "${postTitle(r.post_id)}"`);
+      }
+    });
+    attachments.forEach((a) => {
+      if (a.uploaded_by !== user.id && a.created_at && Date.parse(a.created_at) > lastSeen) {
+        novidades.push(
+          `${actorName(a.uploaded_by)} anexou ${a.file_name} em "${postTitle(a.post_id)}"`,
+        );
+      }
+    });
+    posts.forEach((post) => {
+      const edited =
+        post.updated_at &&
+        Date.parse(post.updated_at) > lastSeen &&
+        (!post.created_at || Date.parse(post.created_at) <= lastSeen);
+      if (edited && post.created_by && post.created_by !== user.id) {
+        novidades.push(`${actorName(post.created_by)} atualizou "${post.title}"`);
+      }
+    });
+
+    novidades.slice(0, 4).forEach((msg) => toast(msg));
+    if (novidades.length > 4) {
+      toast(
+        `e mais ${novidades.length - 4} novidade${novidades.length - 4 === 1 ? "" : "s"} no mural`,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isLoading]);
 
   const savePost = useMutation({
     mutationFn: async () => {
@@ -738,7 +853,7 @@ function MuralPage() {
                           aria-label={color.label}
                           aria-pressed={form.color === color.value}
                           onClick={() => setForm({ ...form, color: color.value })}
-                        className={`h-7 w-7 rounded-full border border-black/10 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#287f80] focus-visible:ring-offset-2 ${color.card.split(" ")[0]} ${form.color === color.value ? "ring-2 ring-[#287f80] ring-offset-2" : ""}`}
+                          className={`h-7 w-7 rounded-full border border-black/10 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#287f80] focus-visible:ring-offset-2 ${color.card.split(" ")[0]} ${form.color === color.value ? "ring-2 ring-[#287f80] ring-offset-2" : ""}`}
                         />
                       ))}
                     </div>
@@ -1245,7 +1360,9 @@ function MuralPage() {
                   <div className="mt-4 flex items-center justify-between gap-3 border-t border-foreground/10 pt-3 font-sans text-xs text-current/70">
                     <div className="flex min-w-0 items-center gap-2">
                       <Avatar className="h-7 w-7 shrink-0 border border-white/70 shadow-sm">
-                        {author?.avatar_url && <AvatarImage src={author.avatar_url} alt={authorName} />}
+                        {author?.avatar_url && (
+                          <AvatarImage src={author.avatar_url} alt={authorName} />
+                        )}
                         <AvatarFallback className="bg-white/65 text-[9px] font-semibold text-current">
                           {authorInitials || "U"}
                         </AvatarFallback>

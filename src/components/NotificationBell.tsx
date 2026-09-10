@@ -36,16 +36,16 @@ export function NotificationBell() {
 
   const load = async () => {
     if (!user) return;
+    // Mural tem badge próprio na navegação: fica fora do sino, e o filtro é no
+    // banco para que as notificações de mural não consumam o limit(30) e
+    // empurrem as de tarefa para fora da janela.
     const { data } = await (supabase.from("notifications") as any)
       .select("*")
       .eq("user_id", user.id)
+      .not("type", "in", `(${[...MURAL_NOTIFICATION_TYPES].join(",")})`)
       .order("created_at", { ascending: false })
       .limit(30);
-    // Mural activity has its own per-user badge in the navigation. Keeping it
-    // out of the global bell avoids two independent unread queues for the same event.
-    const next = ((data ?? []) as Notification[]).filter(
-      (notification) => !MURAL_NOTIFICATION_TYPES.has(notification.type),
-    );
+    const next = (data ?? []) as Notification[];
     if (next.some((n) => n.type === "assignment" || n.type === "subtask_assignment" || n.type === "collaborator_assignment")) {
       refreshAssignedWork();
     }
@@ -63,6 +63,7 @@ export function NotificationBell() {
         { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
         (payload: any) => {
           const type = payload.new?.type ?? payload.old?.type;
+          if (MURAL_NOTIFICATION_TYPES.has(type)) return;
           if (type === "assignment" || type === "subtask_assignment" || type === "collaborator_assignment") refreshAssignedWork();
           void load();
         },
