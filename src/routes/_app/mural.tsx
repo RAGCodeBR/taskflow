@@ -261,6 +261,42 @@ function MuralPage() {
     },
   });
 
+  // Sem isto, toda mutation deste quadro só atualiza a própria sessão de quem
+  // agiu (via invalidateQueries local nos handlers abaixo) — quem tem o mural
+  // aberto em outra aba, ou é outra pessoa, só vê o card novo/editado/excluído
+  // depois de recarregar. Um canal só, três tabelas: mais barato que abrir três
+  // conexões para o mesmo quadro.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`mural-realtime-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "mural_posts" },
+        () => void qc.invalidateQueries({ queryKey: ["mural_posts"] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "mural_post_attachments" },
+        () => void qc.invalidateQueries({ queryKey: ["mural_post_attachments"] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "mural_post_reactions" },
+        () => void qc.invalidateQueries({ queryKey: ["mural_post_reactions"] }),
+      )
+      .subscribe((status: string, err?: Error) => {
+        if (status === "SUBSCRIBED") {
+          console.info("[mural realtime] conectado — atualizações ao vivo ativas");
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || err) {
+          console.warn("[mural realtime] canal não conectou:", status, err);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
+
   useEffect(() => {
     if (!user || isLoading || hasMarkedCurrentVisitRead.current) return;
     hasMarkedCurrentVisitRead.current = true;
