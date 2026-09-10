@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { useProfiles, useTasks, type Profile } from "@/hooks/use-data";
+import { useProfiles, useTaskCollaborators, useTasks, type Profile } from "@/hooks/use-data";
 import { TaskConversationPanel } from "@/components/TaskConversationPanel";
 import { useMarkConversationRead, useTaskConversations } from "@/hooks/use-task-conversations";
 import { sortRoomsByLastMessage, unreadInRoom } from "@/lib/task-conversations";
@@ -61,6 +61,7 @@ function ConversationsPage() {
   const { user } = useAuth();
   const { data: profiles = [] } = useProfiles();
   const { data: allTasks = [] } = useTasks();
+  const { data: myCollaborations = [] } = useTaskCollaborators();
   const { task: taskFromUrl } = Route.useSearch();
   const { roomTasks, messagesByTask, lastReadByTask, allMessages, isLoading } =
     useTaskConversations();
@@ -144,6 +145,19 @@ function ConversationsPage() {
       : null);
 
   const roomIds = useMemo(() => new Set(orderedRooms.map((room) => room.id)), [orderedRooms]);
+
+  // Só dá pra abrir conversa de uma demanda em que você participa — responsável,
+  // criador ou colaborador. É o mesmo escopo que a RLS de comments aplica; sem
+  // isso o picker ofereceria tarefas onde a primeira mensagem seria recusada.
+  const myTaskIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!user?.id) return ids;
+    myCollaborations.forEach((row) => {
+      if (row.collaborator_id === user.id) ids.add(row.task_id);
+    });
+    return ids;
+  }, [myCollaborations, user?.id]);
+
   const startableTasks = useMemo(() => {
     const term = pickerQuery.trim().toLocaleLowerCase("pt-BR");
     return allTasks
@@ -153,10 +167,13 @@ function ConversationsPage() {
           task.status !== "done" &&
           !task.deleted_at &&
           !roomIds.has(task.id) &&
+          (task.assignee_id === user?.id ||
+            task.created_by === user?.id ||
+            myTaskIds.has(task.id)) &&
           (!term || task.title.toLocaleLowerCase("pt-BR").includes(term)),
       )
       .slice(0, 40);
-  }, [allTasks, roomIds, pickerQuery]);
+  }, [allTasks, roomIds, pickerQuery, user?.id, myTaskIds]);
 
   const openRoom = (id: string) => {
     setSelectedId(id);
