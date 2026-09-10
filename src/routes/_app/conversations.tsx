@@ -354,7 +354,7 @@ function ConversationsPage() {
                     : "text-muted-foreground hover:bg-accent/50",
                 )}
               >
-                Fiscalização
+                Outras
                 <span className="ml-1 opacity-70">{otherOrderedRooms.length}</span>
               </button>
             </div>
@@ -373,7 +373,7 @@ function ConversationsPage() {
             orderedRooms.length > 0 && (
               <p className="px-5 py-10 text-center text-xs text-muted-foreground">
                 {shownTab === "others"
-                  ? "Nada para fiscalizar agora."
+                  ? "Nenhuma outra conversa por aqui."
                   : "Você ainda não participa de nenhuma conversa."}
               </p>
             )
