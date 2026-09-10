@@ -739,7 +739,7 @@ function MonthlyBriefingPanel({
 }
 
 function ReportsPage() {
-  const { isAdmin, hasPermission, loading } = useAuth();
+  const { isAdmin, hasPermission, loading, activeWorkspace } = useAuth();
   const { data: tasks = [] } = useWorkspaceTasks();
   const { data: profiles = [] } = useProfiles();
   const { data: clients = [] } = useClients();
@@ -777,6 +777,19 @@ function ReportsPage() {
       return data ?? [];
     },
   });
+  // Quem pertence ao ambiente ativo. As tarefas já vêm recortadas por ambiente
+  // (useWorkspaceTasks), mas a lista de pessoas vinha de `profiles` inteira e
+  // trazia gente de outro ambiente para os filtros, gráficos e rankings.
+  const { data: workspaceMembers = [] } = useQuery({
+    queryKey: ["reports_workspace_members", activeWorkspace?.id],
+    enabled: !!activeWorkspace?.id,
+    queryFn: async () =>
+      ((
+        await (supabase.rpc("list_workspace_member_ids", {
+          target_workspace_id: activeWorkspace!.id,
+        }) as any)
+      ).data ?? []) as Array<{ user_id: string }>,
+  });
 
   const [period, setPeriod] = useState(previousMonthPeriod);
   const [userFilter, setUserFilter] = useState<string>("all");
@@ -800,9 +813,13 @@ function ReportsPage() {
       .filter((role: { role: string }) => role.role === "client")
       .map((role: { user_id: string }) => role.user_id),
   );
+  const workspaceMemberIds = new Set(workspaceMembers.map((m) => m.user_id));
   const visibleProfiles = profiles
     .filter(matchesStatus)
-    .filter((profile) => !clientUserIds.has(profile.id));
+    .filter((profile) => !clientUserIds.has(profile.id))
+    // Sem membros carregados (ainda carregando, ou ambiente indefinido) não
+    // filtra — evita uma tela de time vazia por um instante.
+    .filter((profile) => workspaceMemberIds.size === 0 || workspaceMemberIds.has(profile.id));
   const visibleIds = new Set(visibleProfiles.map((p) => p.id));
 
   const periodStart = startOfDay(parseISO(period.start));
