@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useMuralUnreadCount } from "@/hooks/use-mural-unread";
 import { useMuralLaunchDigest } from "@/hooks/use-mural-launch-digest";
+import { useMuralRealtime } from "@/hooks/use-mural-realtime";
 import { canSwitchTaskFlowEnvironment } from "@/lib/environment-access";
 
 function useTheme() {
@@ -75,6 +76,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Resumo da atividade leve do mural desde a última visita — em qualquer
   // tela, uma vez por carregamento do sistema.
   useMuralLaunchDigest();
+  // Atividade do mural ao vivo em qualquer tela (avisos + cache fresco).
+  useMuralRealtime();
   const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
   const canAccessFinance = hasPermission("portal_financeiro") || hasPermission("portal");
   const canSwitchEnvironments = canSwitchTaskFlowEnvironment(workspaces.length);

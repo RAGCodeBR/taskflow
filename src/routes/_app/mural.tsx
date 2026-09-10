@@ -46,7 +46,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { muralActivityToast } from "@/lib/mural-activity-toast";
 import { muralUnreadKey } from "@/hooks/use-mural-unread";
 
 export const Route = createFileRoute("/_app/mural")({
@@ -276,86 +275,6 @@ function MuralPage() {
   // Além de atualizar, mostra um toast discreto para a atividade leve do mural
   // (reação, edição, anexo) de OUTRAS pessoas — isso não gera notificação
   // persistente, só um aviso ao vivo para quem está com o quadro aberto.
-  const userIdRef = useRef(user?.id);
-  userIdRef.current = user?.id;
-
-  // Nome de quem agiu e título do recado saem do cache do react-query — sempre
-  // atual, e sem virar dependência de effect (evita recriar o canal a cada
-  // mudança de posts/profiles).
-  const actorName = (id: string | null | undefined) => {
-    if (!id) return "Alguém";
-    const list = (qc.getQueryData(["profiles"]) ?? []) as Array<{
-      id: string;
-      full_name: string | null;
-      email?: string | null;
-    }>;
-    const found = list.find((item) => item.id === id);
-    return found?.full_name || found?.email || "Alguém";
-  };
-  const postTitle = (id: string | null | undefined) => {
-    if (!id) return "um recado";
-    const list = (qc.getQueryData(["mural_posts"]) ?? []) as Array<{ id: string; title: string }>;
-    return list.find((item) => item.id === id)?.title || "um recado";
-  };
-  // Campos cuja mudança NÃO merece aviso: reposicionar o card no quadro.
-  const SILENT_FIELDS = new Set(["canvas_x", "canvas_y", "updated_at"]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel(`mural-realtime-${Math.random().toString(36).slice(2)}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "mural_posts" },
-        (payload: any) => {
-          void qc.invalidateQueries({ queryKey: ["mural_posts"] });
-          if (payload.eventType !== "UPDATE") return;
-          const actor = payload.new?.created_by;
-          if (!actor || actor === userIdRef.current) return;
-          const changed = Object.keys(payload.new ?? {}).some(
-            (key) => !SILENT_FIELDS.has(key) && payload.new[key] !== payload.old?.[key],
-          );
-          if (changed) muralActivityToast(`${actorName(actor)} atualizou "${payload.new.title}"`);
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "mural_post_attachments" },
-        (payload: any) => {
-          void qc.invalidateQueries({ queryKey: ["mural_post_attachments"] });
-          if (payload.eventType !== "INSERT") return;
-          const actor = payload.new?.uploaded_by;
-          if (!actor || actor === userIdRef.current) return;
-          muralActivityToast(
-            `${actorName(actor)} anexou ${payload.new.file_name} em "${postTitle(payload.new.post_id)}"`,
-          );
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "mural_post_reactions" },
-        (payload: any) => {
-          void qc.invalidateQueries({ queryKey: ["mural_post_reactions"] });
-          if (payload.eventType !== "INSERT") return;
-          const actor = payload.new?.user_id;
-          if (!actor || actor === userIdRef.current) return;
-          muralActivityToast(
-            `${actorName(actor)} reagiu ${payload.new.emoji} em "${postTitle(payload.new.post_id)}"`,
-          );
-        },
-      )
-      .subscribe((status: string, err?: Error) => {
-        if (status === "SUBSCRIBED") {
-          console.info("[mural realtime] conectado — atualizações ao vivo ativas");
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || err) {
-          console.warn("[mural realtime] canal não conectou:", status, err);
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [qc]);
-
   useEffect(() => {
     if (!user || isLoading || hasMarkedCurrentVisitRead.current) return;
     hasMarkedCurrentVisitRead.current = true;
@@ -485,18 +404,24 @@ function MuralPage() {
   const toggleReaction = useMutation({
     mutationFn: async ({ postId, emoji }: { postId: string; emoji: string }) => {
       if (!user) throw new Error("Sua sessão expirou. Entre novamente.");
-      const current = reactions.find(
-        (reaction) =>
-          reaction.post_id === postId && reaction.user_id === user.id && reaction.emoji === emoji,
-      );
-      const { error } = current
-        ? await (supabase.from("mural_post_reactions") as any).delete().eq("id", current.id)
-        : await (supabase.from("mural_post_reactions") as any).insert({
-            post_id: postId,
-            user_id: user.id,
-            emoji,
-          });
-      if (error) throw error;
+      const { data: removed, error: deleteError } = await (
+        supabase.from("mural_post_reactions") as any
+      )
+        .delete()
+        .match({ post_id: postId, user_id: user.id, emoji })
+        .select("id");
+      if (deleteError) throw deleteError;
+      if (removed && removed.length > 0) return; // já tinha reagido: era para tirar
+      const { error: insertError } = await (supabase.from("mural_post_reactions") as any).insert({
+        post_id: postId,
+        user_id: user.id,
+        emoji,
+      });
+      // Corrida entre abas/cliques: a reação pode já ter entrado. Só relança o
+      // que não for violação da unicidade (post_id, user_id, emoji).
+      if (insertError && !String(insertError.message).toLowerCase().includes("duplicate")) {
+        throw insertError;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["mural_post_reactions"] }),
     onError: (error: Error) => toast.error(error.message),
