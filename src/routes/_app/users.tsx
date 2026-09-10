@@ -160,20 +160,24 @@ function AccessForm({
           {!marketingOnly && <option value="admin">Administrador</option>}
         </select>
       </div>
-      {includeCredentials && !marketingOnly && (
+      {!marketingOnly && value.role !== "client" && (
         <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border p-3">
           <span>
-            <span className="block text-sm font-medium">Liberar ambiente Marketing</span>
+            <span className="block text-sm font-medium">
+              {includeCredentials ? "Liberar ambiente Marketing" : "Acesso ao ambiente Marketing"}
+            </span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              {value.role === "client"
-                ? "Contas de cliente permanecem vinculadas à Consultoria."
-                : "O novo usuário entra somente no Marketing, sem acesso à Consultoria."}
+              {value.role === "admin"
+                ? "Administradores acessam todos os ambientes automaticamente."
+                : includeCredentials
+                  ? "O novo usuário entra somente no Marketing, sem acesso à Consultoria."
+                  : "Além do ambiente atual, esta pessoa passa a acessar o Marketing."}
             </span>
           </span>
           <Checkbox
             className="mt-0.5"
-            checked={value.marketingAccess}
-            disabled={value.role === "client"}
+            checked={value.role === "admin" || value.marketingAccess}
+            disabled={value.role === "admin"}
             onCheckedChange={(checked) => onChange({ ...value, marketingAccess: checked === true })}
           />
         </label>
@@ -192,7 +196,8 @@ function AccessForm({
               .filter((client) => client.is_active || client.id === value.clientId)
               .map((client) => (
                 <option key={client.id} value={client.id}>
-                  {client.name}{client.is_active ? "" : " (inativo)"}
+                  {client.name}
+                  {client.is_active ? "" : " (inativo)"}
                 </option>
               ))}
           </select>
@@ -373,15 +378,28 @@ function UsersPage() {
     onError: (e: any) => toast.error(e?.message ?? "Erro ao criar acesso"),
   });
   const updateMutation = useMutation({
-    mutationFn: () =>
-      invokeAccessManager("update", {
+    mutationFn: async () => {
+      await invokeAccessManager("update", {
         userId: editing!,
         fullName: form.fullName,
         password: form.password || undefined,
         role: form.role,
         permissions: form.permissions,
         clientId: form.clientId || null,
-      }),
+      });
+      // Acesso ao Marketing é associação de ambiente, não permissão de menu —
+      // vai por uma função própria e só quando o toggle muda.
+      if (form.role === "collaborator") {
+        const hasMarketing = marketingMembers.some((member) => member.user_id === editing);
+        if (hasMarketing !== form.marketingAccess) {
+          const { error } = await (supabase as any).rpc("set_marketing_user_access", {
+            target_user_id: editing,
+            enabled: form.marketingAccess,
+          });
+          if (error) throw error;
+        }
+      }
+    },
     onSuccess: () => {
       refresh();
       setEditing(null);
@@ -485,6 +503,7 @@ function UsersPage() {
       role,
       permissions: permissionRows.find((p) => p.user_id === id)?.permissions ?? [],
       clientId: clientLinks.find((link) => link.user_id === id)?.client_id ?? "",
+      marketingAccess: marketingMembers.some((member) => member.user_id === id),
     });
     setEditing(id);
   };
