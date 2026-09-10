@@ -69,6 +69,7 @@ function ConversationsPage() {
   const markRead = useMarkConversationRead();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
+  const [roomTab, setRoomTab] = useState<"mine" | "others">("mine");
 
   const profileById = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -120,6 +121,10 @@ function ConversationsPage() {
   );
   const isOversightRoom = (id: string | null) =>
     !!id && !myRoomIds.has(id) && otherOrderedRooms.some((room) => room.id === id);
+
+  const hasOversight = otherOrderedRooms.length > 0;
+  const shownTab = hasOversight ? roomTab : "mine";
+  const visibleRooms = shownTab === "others" ? otherOrderedRooms : myOrderedRooms;
 
   // Deep-link da tarefa (vindo do card / editor) tem prioridade.
   useEffect(() => {
@@ -325,25 +330,53 @@ function ConversationsPage() {
             </div>
           )}
 
-          {myOrderedRooms.length > 0 && (
-            <>
-              {otherOrderedRooms.length > 0 && (
-                <p className="px-5 pb-1 pt-4 text-xs font-semibold text-muted-foreground">
-                  Minhas conversas
-                </p>
-              )}
-              <ul className="divide-y divide-border/60">{myOrderedRooms.map(renderRoom)}</ul>
-            </>
+          {hasOversight && (
+            <div className="flex gap-1 border-b bg-card p-2">
+              <button
+                type="button"
+                onClick={() => setRoomTab("mine")}
+                className={cn(
+                  "flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                  shownTab === "mine"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent/50",
+                )}
+              >
+                Minhas
+              </button>
+              <button
+                type="button"
+                onClick={() => setRoomTab("others")}
+                className={cn(
+                  "flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                  shownTab === "others"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent/50",
+                )}
+              >
+                Fiscalização
+                <span className="ml-1 opacity-70">{otherOrderedRooms.length}</span>
+              </button>
+            </div>
           )}
 
-          {otherOrderedRooms.length > 0 && (
-            <>
-              <p className="flex items-center gap-1.5 px-5 pb-1 pt-4 text-xs font-semibold text-muted-foreground">
-                Outras conversas
-                <span className="font-normal text-muted-foreground/70">· só leitura</span>
+          {shownTab === "others" && (
+            <p className="px-5 pb-1 pt-3 text-[11px] text-muted-foreground/70">
+              Conversas do seu ambiente em que você não participa — só leitura.
+            </p>
+          )}
+
+          {visibleRooms.length > 0 ? (
+            <ul className="divide-y divide-border/60">{visibleRooms.map(renderRoom)}</ul>
+          ) : (
+            !isLoading &&
+            orderedRooms.length > 0 && (
+              <p className="px-5 py-10 text-center text-xs text-muted-foreground">
+                {shownTab === "others"
+                  ? "Nada para fiscalizar agora."
+                  : "Você ainda não participa de nenhuma conversa."}
               </p>
-              <ul className="divide-y divide-border/60">{otherOrderedRooms.map(renderRoom)}</ul>
-            </>
+            )
           )}
         </aside>
 
