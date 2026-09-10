@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Supabase types are regenerated after the migration is applied. */
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAssignableProfiles, useClients, useColumns, useTaskStatuses } from "@/hooks/use-data";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -53,7 +54,8 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
   const { data: statuses = [] } = useTaskStatuses();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [clientId, setClientId] = useState("");
+  const [clientIds, setClientIds] = useState<string[]>([]);
+  const [clientSearch, setClientSearch] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [frequency, setFrequency] = useState<ObligationFrequency>("monthly");
   const [intervalCount, setIntervalCount] = useState(1);
@@ -75,7 +77,8 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
     if (!open) return;
     setTitle(obligation?.title ?? "");
     setDescription(obligation?.description ?? "");
-    setClientId(obligation?.client_id ?? "");
+    setClientIds(obligation?.client_id ? [obligation.client_id] : []);
+    setClientSearch("");
     setAssigneeId(obligation?.assignee_id ?? "");
     setFrequency(obligation?.frequency ?? "monthly");
     setIntervalCount(obligation?.interval_count ?? 1);
@@ -106,6 +109,27 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
     [daysOfMonth],
   );
 
+  const activeClients = useMemo(() => clients.filter((client) => client.is_active), [clients]);
+  const filteredClients = useMemo(() => {
+    const term = clientSearch.trim().toLocaleLowerCase("pt-BR");
+    return term
+      ? activeClients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term))
+      : activeClients;
+  }, [activeClients, clientSearch]);
+  const selectedClientNames = useMemo(
+    () =>
+      clientIds
+        .map((id) => clients.find((client) => client.id === id)?.name)
+        .filter((name): name is string => Boolean(name)),
+    [clientIds, clients],
+  );
+
+  const toggleClient = (clientId: string) => {
+    setClientIds((current) =>
+      current.includes(clientId) ? current.filter((id) => id !== clientId) : [...current, clientId],
+    );
+  };
+
   const recurrencePreview = useMemo(() => {
     const every = intervalCount > 1 ? `A cada ${intervalCount}` : "Todo";
     if (frequency === "daily") {
@@ -134,7 +158,7 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
 
   const save = async () => {
     if (!title.trim()) return toast.error("Informe o nome da obrigação.");
-    if (!clientId) return toast.error("Selecione o cliente.");
+    if (clientIds.length === 0) return toast.error("Selecione ao menos um cliente.");
     if (!startDate) return toast.error("Informe a data de início.");
     if (frequency === "weekly" && daysOfWeek.length === 0)
       return toast.error("Selecione ao menos um dia da semana.");
@@ -147,7 +171,6 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
     const payload = {
       title: title.trim(),
       description: description.trim() || null,
-      client_id: clientId,
       assignee_id: assigneeId || null,
       frequency,
       interval_count: Math.max(1, intervalCount),
@@ -168,11 +191,12 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
 
     const request = obligation
       ? (supabase.from("obligations" as any) as any)
-          .update(payload)
+          .update({ ...payload, client_id: clientIds[0] })
           .eq("id", obligation.id)
           .select("id")
-          .single()
-      : (supabase.from("obligations" as any) as any).insert(payload).select("id").single();
+      : (supabase.from("obligations" as any) as any)
+          .insert(clientIds.map((clientId) => ({ ...payload, client_id: clientId })))
+          .select("id");
     const { data, error } = await request;
     if (error) {
       setSaving(false);
@@ -180,22 +204,32 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
       return;
     }
 
-    const { error: refreshError } = await (supabase as any).rpc("refresh_obligation", {
-      target_obligation_id: data.id,
-    });
+    const savedObligations = (data ?? []) as Array<{ id: string }>;
+    const refreshResults = await Promise.all(
+      savedObligations.map(({ id }) =>
+        (supabase as any).rpc("refresh_obligation", { target_obligation_id: id }),
+      ),
+    );
+    const refreshError = refreshResults.find((result) => result.error)?.error;
     setSaving(false);
-    if (refreshError) {
-      toast.error(
-        `Obrigação salva, mas os próximos prazos não foram gerados: ${refreshError.message}`,
-      );
-      return;
-    }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["obligations"] }),
       queryClient.invalidateQueries({ queryKey: ["obligation-occurrences"] }),
       queryClient.invalidateQueries({ queryKey: ["tasks"] }),
     ]);
-    toast.success(obligation ? "Obrigação atualizada" : "Obrigação criada");
+    if (refreshError) {
+      toast.error(
+        `Obrigação salva, mas alguns próximos prazos não foram gerados: ${refreshError.message}`,
+      );
+      return;
+    }
+    toast.success(
+      obligation
+        ? "Obrigação atualizada"
+        : clientIds.length === 1
+          ? "Obrigação criada"
+          : `Obrigação criada para ${clientIds.length} clientes`,
+    );
     onOpenChange(false);
   };
 
@@ -220,25 +254,114 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Cliente *</Label>
-                <Select
-                  value={clientId || "none"}
-                  onValueChange={(value) => setClientId(value === "none" ? "" : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Selecione o cliente</SelectItem>
-                    {clients
-                      .filter((client) => client.is_active)
-                      .map((client) => (
+                <Label>{obligation ? "Cliente *" : "Clientes *"}</Label>
+                {obligation ? (
+                  <Select
+                    value={clientIds[0] || "none"}
+                    onValueChange={(value) => setClientIds(value === "none" ? [] : [value])}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Selecione o cliente</SelectItem>
+                      {activeClients.map((client) => (
                         <SelectItem key={client.id} value={client.id}>
                           {client.name}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between font-normal"
+                      >
+                        <span className="truncate text-left">
+                          {selectedClientNames.length === 0
+                            ? "Selecione os clientes"
+                            : selectedClientNames.length === 1
+                              ? selectedClientNames[0]
+                              : `${selectedClientNames.length} clientes selecionados`}
+                        </span>
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="w-[var(--radix-popover-trigger-width)] p-2"
+                    >
+                      <div className="mb-2 flex items-center gap-2">
+                        <Input
+                          value={clientSearch}
+                          onChange={(event) => setClientSearch(event.target.value)}
+                          placeholder="Buscar cliente..."
+                          className="h-8"
+                        />
+                        {clientIds.length > 0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() => setClientIds([])}
+                            title="Limpar seleção"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <label className="mb-1 flex cursor-pointer items-center gap-2 border-b px-2 py-2 text-sm font-medium">
+                        <Checkbox
+                          checked={
+                            activeClients.length > 0 && clientIds.length === activeClients.length
+                              ? true
+                              : clientIds.length > 0
+                                ? "indeterminate"
+                                : false
+                          }
+                          onCheckedChange={(checked) =>
+                            setClientIds(
+                              checked === true ? activeClients.map((client) => client.id) : [],
+                            )
+                          }
+                        />
+                        <span>Selecionar todos</span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {clientIds.length}/{activeClients.length}
+                        </span>
+                      </label>
+                      <div className="max-h-64 overflow-y-auto overscroll-contain">
+                        {filteredClients.length === 0 ? (
+                          <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+                            Nenhum cliente encontrado
+                          </p>
+                        ) : (
+                          filteredClients.map((client) => (
+                            <label
+                              key={client.id}
+                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-accent"
+                            >
+                              <Checkbox
+                                checked={clientIds.includes(client.id)}
+                                onCheckedChange={() => toggleClient(client.id)}
+                              />
+                              <span className="truncate">{client.name}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+                {!obligation && clientIds.length > 1 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Será criada uma série de tarefas para cada cliente selecionado.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Responsável</Label>

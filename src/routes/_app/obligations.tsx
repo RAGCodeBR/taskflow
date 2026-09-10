@@ -27,7 +27,6 @@ import {
   Clock3,
   ExternalLink,
   Loader2,
-  MoreHorizontal,
   Pause,
   Pencil,
   Play,
@@ -41,10 +40,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useClients,
+  useAssignableProfiles,
+  useColumns,
   useProfiles,
+  useTaskStatuses,
   type Client,
+  type KanbanColumn,
   type Profile,
   type Task,
+  type TaskStatus,
 } from "@/hooks/use-data";
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import {
@@ -54,6 +58,7 @@ import {
   type ObligationOccurrence,
 } from "@/hooks/use-obligations";
 import { ObligationDialog } from "@/components/ObligationDialog";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { TaskDialog } from "@/components/TaskDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -69,8 +74,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,12 +106,33 @@ export const Route = createFileRoute("/_app/obligations")({ component: Obligatio
 const todayKey = () => format(new Date(), "yyyy-MM-dd");
 
 type DeleteTarget =
-  | { scope: "occurrence"; occurrence: ObligationOccurrence; obligation: Obligation }
+  | { scope: "occurrences"; occurrences: ObligationOccurrence[] }
   | { scope: "series"; obligation: Obligation }
+  | { scope: "series-batch"; obligations: Obligation[] }
   | { scope: "all" };
 
+type BulkTaskUpdates = {
+  title?: string;
+  description?: string | null;
+  status?: Task["status"];
+  status_id?: string | null;
+  completed_at?: string | null;
+  column_id?: string | null;
+  client_id?: string | null;
+  assignee_id?: string | null;
+  priority?: Task["priority"];
+  due_date?: string | null;
+  due_time?: string | null;
+};
+
+type BulkTaskChanges = {
+  updates: BulkTaskUpdates;
+  collaboratorIds?: string[];
+  dueDateReason?: string;
+};
+
 function ObligationsPage() {
-  const { hasPermission, loading, activeWorkspace } = useAuth();
+  const { hasPermission, loading, activeWorkspace, user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const {
     data: obligations = [],
@@ -110,6 +146,9 @@ function ObligationsPage() {
   } = useObligationOccurrences();
   const { data: clients = [] } = useClients();
   const { data: profiles = [] } = useProfiles();
+  const { data: assignableProfiles = [] } = useAssignableProfiles();
+  const { data: columns = [] } = useColumns();
+  const { data: taskStatuses = [] } = useTaskStatuses();
   const { data: tasks = [] } = useWorkspaceTasks();
   const materializedWorkspace = useRef<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -123,6 +162,9 @@ function ObligationsPage() {
   const [workingOccurrenceId, setWorkingOccurrenceId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedOccurrenceIds, setSelectedOccurrenceIds] = useState<string[]>([]);
+  const [bulkEditOccurrenceIds, setBulkEditOccurrenceIds] = useState<string[]>([]);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [clientLogoUrls, setClientLogoUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -180,7 +222,12 @@ function ObligationsPage() {
         missing.map((client) => client.avatar_path!),
         3600,
       );
-      const urlByPath = new Map((data ?? []).map((item) => [item.path, item.signedUrl]));
+      const urlByPath = new Map(
+        (data ?? []).map((item: { path: string | null; signedUrl: string | null }) => [
+          item.path,
+          item.signedUrl,
+        ]),
+      );
       const loaded = Object.fromEntries(
         missing
           .map((client) => [client.id, urlByPath.get(client.avatar_path!)])
@@ -344,6 +391,188 @@ function ObligationsPage() {
     toast.success("Obrigação concluída neste período");
   };
 
+  const toggleOccurrenceSelection = (occurrenceId: string) => {
+    setSelectedOccurrenceIds((current) =>
+      current.includes(occurrenceId)
+        ? current.filter((id) => id !== occurrenceId)
+        : [...current, occurrenceId],
+    );
+  };
+
+  const selectClientOccurrences = (occurrenceIds: string[], selected: boolean) => {
+    setSelectedOccurrenceIds((current) => {
+      const next = new Set(current);
+      occurrenceIds.forEach((id) => (selected ? next.add(id) : next.delete(id)));
+      return [...next];
+    });
+  };
+
+  const saveBulkTaskChanges = async ({
+    updates,
+    collaboratorIds,
+    dueDateReason,
+  }: BulkTaskChanges) => {
+    const selectedOccurrences = bulkEditOccurrenceIds
+      .map((id) => occurrences.find((occurrence) => occurrence.id === id))
+      .filter((occurrence): occurrence is ObligationOccurrence => Boolean(occurrence));
+    const existingTaskIds = selectedOccurrences
+      .map((occurrence) => occurrence.task_id)
+      .filter((taskId): taskId is string => Boolean(taskId && taskById.has(taskId)));
+    const occurrencesToMaterialize = selectedOccurrences.filter(
+      (occurrence) => !occurrence.task_id || !taskById.has(occurrence.task_id),
+    );
+
+    const creationResults = await Promise.all(
+      occurrencesToMaterialize.map((occurrence) =>
+        (supabase as any).rpc("create_obligation_task", {
+          target_occurrence_id: occurrence.id,
+        }),
+      ),
+    );
+    const creationError = creationResults.find((result) => result.error)?.error;
+    if (creationError) {
+      toast.error(`Não foi possível preparar todas as tarefas: ${creationError.message}`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["obligation-occurrences"] }),
+        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      ]);
+      return false;
+    }
+
+    const taskIds = [
+      ...new Set([
+        ...existingTaskIds,
+        ...creationResults
+          .map((result) => result.data)
+          .filter((taskId): taskId is string => typeof taskId === "string"),
+      ]),
+    ];
+    if (taskIds.length === 0) {
+      toast.error("Nenhuma tarefa disponível para editar.");
+      return false;
+    }
+
+    const { data: currentTasks, error: currentTasksError } = await supabase
+      .from("tasks")
+      .select("id, due_date, created_by, assignee_id")
+      .in("id", taskIds);
+    if (currentTasksError) {
+      toast.error(currentTasksError.message);
+      return false;
+    }
+
+    if (
+      collaboratorIds &&
+      !isAdmin &&
+      (currentTasks ?? []).some(
+        (task: { created_by: string | null; assignee_id: string | null }) =>
+          task.created_by !== user?.id && task.assignee_id !== user?.id,
+      )
+    ) {
+      toast.error(
+        "Você precisa ser criador ou responsável por todas as tarefas para substituir os participantes.",
+      );
+      return false;
+    }
+
+    if (updates.status === "done") {
+      const { data: incompleteSubtasks, error: subtasksError } = await supabase
+        .from("subtasks")
+        .select("id")
+        .in("task_id", taskIds)
+        .eq("done", false)
+        .limit(1);
+      if (subtasksError) {
+        toast.error(subtasksError.message);
+        return false;
+      }
+      if (incompleteSubtasks?.length) {
+        toast.error("Conclua as subtarefas pendentes antes de concluir as tarefas selecionadas.");
+        return false;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      const { error } = await supabase.from("tasks").update(updates).in("id", taskIds);
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
+    }
+
+    if (collaboratorIds) {
+      const { error: deleteCollaboratorsError } = await (supabase.from("task_collaborators") as any)
+        .delete()
+        .in("task_id", taskIds);
+      if (deleteCollaboratorsError) {
+        toast.error(deleteCollaboratorsError.message);
+        return false;
+      }
+      if (collaboratorIds.length > 0) {
+        const { error: insertCollaboratorsError } = await (
+          supabase.from("task_collaborators") as any
+        ).insert(
+          taskIds.flatMap((taskId) =>
+            collaboratorIds.map((collaboratorId) => ({
+              task_id: taskId,
+              collaborator_id: collaboratorId,
+              added_by: user?.id ?? null,
+            })),
+          ),
+        );
+        if (insertCollaboratorsError) {
+          toast.error(insertCollaboratorsError.message);
+          return false;
+        }
+      }
+    }
+
+    if ("due_date" in updates && user?.id && dueDateReason) {
+      const changedDeadlines = (currentTasks ?? []).filter(
+        (task: { id: string; due_date: string | null }) =>
+          task.due_date && task.due_date !== updates.due_date,
+      );
+      if (changedDeadlines.length > 0) {
+        const { error: deadlineHistoryError } = await supabase.from("task_due_date_changes").insert(
+          changedDeadlines.map((task: { id: string; due_date: string | null }) => ({
+            task_id: task.id,
+            user_id: user.id,
+            old_due_date: task.due_date,
+            new_due_date: updates.due_date ?? null,
+            reason: dueDateReason,
+          })),
+        );
+        if (deadlineHistoryError) {
+          toast.warning("Prazos atualizados, mas não foi possível registrar a justificativa.");
+        }
+      }
+    }
+    if (user?.id) {
+      const { error: historyError } = await supabase.from("task_history").insert(
+        taskIds.map((taskId) => ({
+          task_id: taskId,
+          user_id: user.id,
+          action: "updated",
+          details: {
+            source: "obligations_bulk_edit",
+            fields: [...Object.keys(updates), ...(collaboratorIds ? ["collaborators"] : [])],
+          },
+        })),
+      );
+      if (historyError) console.error("Não foi possível registrar a edição em lote", historyError);
+    }
+
+    setSelectedOccurrenceIds((current) =>
+      current.filter((id) => !bulkEditOccurrenceIds.includes(id)),
+    );
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["obligation-occurrences"] }),
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+    ]);
+    toast.success(`${taskIds.length} tarefa${taskIds.length === 1 ? " editada" : "s editadas"}`);
+    return true;
+  };
+
   const setObligationActive = async (obligation: Obligation, isActive: boolean) => {
     const { error } = await (supabase.from("obligations" as any) as any)
       .update({ is_active: isActive })
@@ -371,17 +600,26 @@ function ObligationsPage() {
     setDeleting(true);
     let error: { message: string } | null = null;
 
-    if (deleteTarget.scope === "occurrence") {
+    if (deleteTarget.scope === "occurrences") {
       const result = await (supabase.from("obligation_occurrences" as any) as any)
         .update({ status: "skipped" })
-        .eq("id", deleteTarget.occurrence.id);
+        .in(
+          "id",
+          deleteTarget.occurrences.map((occurrence) => occurrence.id),
+        );
       error = result.error;
     } else if (deleteTarget.scope === "series") {
       const result = await (supabase.from("obligations" as any) as any)
         .delete()
         .eq("id", deleteTarget.obligation.id);
       error = result.error;
-    } else if (activeWorkspace?.id) {
+    } else if (deleteTarget.scope === "series-batch") {
+      const result = await (supabase.from("obligations" as any) as any).delete().in(
+        "id",
+        deleteTarget.obligations.map((obligation) => obligation.id),
+      );
+      error = result.error;
+    } else if (deleteTarget.scope === "all" && activeWorkspace?.id) {
       const result = await (supabase.from("obligations" as any) as any)
         .delete()
         .eq("workspace_id", activeWorkspace.id);
@@ -391,17 +629,42 @@ function ObligationsPage() {
     setDeleting(false);
     if (error) return toast.error(error.message);
     const scope = deleteTarget.scope;
+    if (scope === "occurrences") {
+      const deletedIds = new Set(deleteTarget.occurrences.map((occurrence) => occurrence.id));
+      setSelectedOccurrenceIds((current) => current.filter((id) => !deletedIds.has(id)));
+    } else if (scope === "series") {
+      const deletedOccurrenceIds = new Set(
+        occurrences
+          .filter((occurrence) => occurrence.obligation_id === deleteTarget.obligation.id)
+          .map((occurrence) => occurrence.id),
+      );
+      setSelectedOccurrenceIds((current) => current.filter((id) => !deletedOccurrenceIds.has(id)));
+    } else if (scope === "series-batch") {
+      const deletedObligationIds = new Set(
+        deleteTarget.obligations.map((obligation) => obligation.id),
+      );
+      const deletedOccurrenceIds = new Set(
+        occurrences
+          .filter((occurrence) => deletedObligationIds.has(occurrence.obligation_id))
+          .map((occurrence) => occurrence.id),
+      );
+      setSelectedOccurrenceIds((current) => current.filter((id) => !deletedOccurrenceIds.has(id)));
+    } else {
+      setSelectedOccurrenceIds([]);
+    }
     setDeleteTarget(null);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["obligations"] }),
       queryClient.invalidateQueries({ queryKey: ["obligation-occurrences"] }),
     ]);
     toast.success(
-      scope === "occurrence"
-        ? "Vencimento excluído"
+      scope === "occurrences"
+        ? "Vencimentos selecionados excluídos"
         : scope === "series"
           ? "Obrigação e seus vencimentos foram excluídos"
-          : "Todas as obrigações foram excluídas",
+          : scope === "series-batch"
+            ? "Obrigação e todos os seus vencimentos foram excluídos"
+            : "Todas as obrigações foram excluídas",
     );
   };
 
@@ -519,36 +782,123 @@ function ObligationsPage() {
             />
           ) : (
             <div className="space-y-3">
-              {pendingGroups.map(({ clientId, client, items }, index) => (
-                <ClientSection
-                  key={clientId}
-                  client={client}
-                  logoUrl={client ? clientLogoUrls[client.id] : undefined}
-                  subtitle={`${new Set(items.map((item) => item.obligation.id)).size} obrigação(ões) · ${items.length} vencimento(s)`}
-                  defaultOpen={index === 0}
-                >
-                  {items.map(({ occurrence, obligation }) => (
-                    <OccurrenceRow
-                      key={occurrence.id}
-                      occurrence={occurrence}
-                      obligation={obligation}
-                      client={client}
-                      assignee={profileById.get(obligation.assignee_id ?? "") ?? null}
-                      taskAvailable={Boolean(
-                        occurrence.task_id && taskById.has(occurrence.task_id),
-                      )}
-                      working={workingOccurrenceId === occurrence.id}
-                      onOpenTask={() => openTask(occurrence)}
-                      onCreateTask={() => void createTaskNow(occurrence)}
-                      onComplete={() => void completeOccurrence(occurrence)}
-                      onDeleteOccurrence={() =>
-                        setDeleteTarget({ scope: "occurrence", occurrence, obligation })
-                      }
-                      onDeleteSeries={() => setDeleteTarget({ scope: "series", obligation })}
-                    />
-                  ))}
-                </ClientSection>
-              ))}
+              {pendingGroups.map(({ clientId, client, items }, index) => {
+                const occurrenceIds = items.map((item) => item.occurrence.id);
+                const selectedItems = items.filter((item) =>
+                  selectedOccurrenceIds.includes(item.occurrence.id),
+                );
+                const selectedIds = selectedItems.map((item) => item.occurrence.id);
+                const selectedObligations = [
+                  ...new Map(
+                    selectedItems.map((item) => [item.obligation.id, item.obligation]),
+                  ).values(),
+                ];
+                const allSelected =
+                  occurrenceIds.length > 0 && selectedIds.length === occurrenceIds.length;
+                return (
+                  <ClientSection
+                    key={clientId}
+                    client={client}
+                    logoUrl={client ? clientLogoUrls[client.id] : undefined}
+                    subtitle={`${new Set(items.map((item) => item.obligation.id)).size} obrigação(ões) · ${items.length} vencimento(s)`}
+                    defaultOpen={index === 0}
+                    actions={
+                      <div className="flex shrink-0 items-center gap-2">
+                        <label className="hidden cursor-pointer items-center gap-2 text-xs text-muted-foreground sm:flex">
+                          <Checkbox
+                            checked={
+                              allSelected ? true : selectedIds.length > 0 ? "indeterminate" : false
+                            }
+                            onCheckedChange={(checked) =>
+                              selectClientOccurrences(occurrenceIds, checked === true)
+                            }
+                          />
+                          Todas
+                        </label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={selectedIds.length === 0}
+                          onClick={() => {
+                            setBulkEditOccurrenceIds(selectedIds);
+                            setBulkEditOpen(true);
+                          }}
+                        >
+                          <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                          Editar selecionadas
+                          {selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={selectedIds.length === 0}
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                              Excluir
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() =>
+                                setDeleteTarget({
+                                  scope: "occurrences",
+                                  occurrences: selectedItems.map((item) => item.occurrence),
+                                })
+                              }
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir somente os vencimentos selecionados
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() =>
+                                setDeleteTarget({
+                                  scope: "series-batch",
+                                  obligations: selectedObligations,
+                                })
+                              }
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir obrigação
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    }
+                  >
+                    {items.map(({ occurrence, obligation }) => {
+                      const task = occurrence.task_id
+                        ? (taskById.get(occurrence.task_id) ?? null)
+                        : null;
+                      return (
+                        <OccurrenceRow
+                          key={occurrence.id}
+                          occurrence={occurrence}
+                          obligation={obligation}
+                          task={task}
+                          client={client}
+                          assignee={
+                            profileById.get(task?.assignee_id ?? obligation.assignee_id ?? "") ??
+                            null
+                          }
+                          selected={selectedOccurrenceIds.includes(occurrence.id)}
+                          working={workingOccurrenceId === occurrence.id}
+                          onSelectedChange={() => toggleOccurrenceSelection(occurrence.id)}
+                          onOpenTask={() => openTask(occurrence)}
+                          onCreateTask={() => void createTaskNow(occurrence)}
+                          onComplete={() => void completeOccurrence(occurrence)}
+                        />
+                      );
+                    })}
+                  </ClientSection>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -720,6 +1070,16 @@ function ObligationsPage() {
         obligation={editingObligation}
       />
       <TaskDialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen} task={editingTask} />
+      <BulkTaskEditDialog
+        open={bulkEditOpen}
+        onOpenChange={setBulkEditOpen}
+        taskCount={bulkEditOccurrenceIds.length}
+        profiles={assignableProfiles}
+        clients={clients}
+        columns={columns}
+        statuses={taskStatuses}
+        onSave={saveBulkTaskChanges}
+      />
       <AlertDialog
         open={!!deleteTarget}
         onOpenChange={(open) => {
@@ -781,17 +1141,355 @@ function MetricCard({
   );
 }
 
+function BulkTaskEditDialog({
+  open,
+  onOpenChange,
+  taskCount,
+  profiles,
+  clients,
+  columns,
+  statuses,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  taskCount: number;
+  profiles: Profile[];
+  clients: Client[];
+  columns: KanbanColumn[];
+  statuses: TaskStatus[];
+  onSave: (changes: BulkTaskChanges) => Promise<boolean>;
+}) {
+  const [applyTitle, setApplyTitle] = useState(false);
+  const [title, setTitle] = useState("");
+  const [applyDescription, setApplyDescription] = useState(false);
+  const [description, setDescription] = useState("");
+  const [assignee, setAssignee] = useState("unchanged");
+  const [priority, setPriority] = useState("unchanged");
+  const [status, setStatus] = useState("unchanged");
+  const [client, setClient] = useState("unchanged");
+  const [applyCollaborators, setApplyCollaborators] = useState(false);
+  const [collaboratorIds, setCollaboratorIds] = useState<string[]>([]);
+  const [applyDeadline, setApplyDeadline] = useState(false);
+  const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
+  const [dueDateReason, setDueDateReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setApplyTitle(false);
+    setTitle("");
+    setApplyDescription(false);
+    setDescription("");
+    setAssignee("unchanged");
+    setPriority("unchanged");
+    setStatus("unchanged");
+    setClient("unchanged");
+    setApplyCollaborators(false);
+    setCollaboratorIds([]);
+    setApplyDeadline(false);
+    setDueDate("");
+    setDueTime("");
+    setDueDateReason("");
+  }, [open]);
+
+  const toggleCollaborator = (profileId: string) => {
+    setCollaboratorIds((current) =>
+      current.includes(profileId)
+        ? current.filter((id) => id !== profileId)
+        : [...current, profileId],
+    );
+  };
+
+  const save = async () => {
+    const updates: BulkTaskUpdates = {};
+    if (applyTitle) {
+      if (!title.trim()) {
+        toast.error("Informe o novo título das tarefas.");
+        return;
+      }
+      updates.title = title.trim();
+    }
+    if (applyDescription) updates.description = description.trim() || null;
+    if (assignee !== "unchanged") {
+      updates.assignee_id = assignee === "none" ? null : assignee;
+    }
+    if (priority !== "unchanged") {
+      updates.priority = priority === "none" ? null : (priority as NonNullable<Task["priority"]>);
+    }
+    if (client !== "unchanged") {
+      updates.client_id = client === "none" ? null : client;
+    }
+    if (status !== "unchanged") {
+      if (status === "completed") {
+        updates.status = "done";
+        updates.status_id = statuses.find((item) => item.is_completed)?.id ?? null;
+        updates.completed_at = new Date().toISOString();
+      } else {
+        updates.status = "todo";
+        updates.status_id = statuses.find((item) => !item.is_completed)?.id ?? null;
+        updates.completed_at = null;
+        updates.column_id = status === "none" ? null : status.replace(/^column:/, "");
+      }
+    }
+    if (applyDeadline) {
+      if (!dueDateReason.trim()) {
+        toast.error("Informe a justificativa para alterar os prazos.");
+        return;
+      }
+      updates.due_date = dueDate ? new Date(`${dueDate}T12:00:00`).toISOString() : null;
+      updates.due_time = dueDate ? dueTime || null : null;
+    }
+    if (Object.keys(updates).length === 0 && !applyCollaborators) {
+      toast.error("Escolha ao menos um campo para alterar.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (
+        await onSave({
+          updates,
+          collaboratorIds: applyCollaborators ? collaboratorIds : undefined,
+          dueDateReason: applyDeadline ? dueDateReason.trim() : undefined,
+        })
+      ) {
+        onOpenChange(false);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Editar tarefas selecionadas</DialogTitle>
+          <DialogDescription>
+            As alterações serão aplicadas a {taskCount} tarefa{taskCount === 1 ? "" : "s"}. Os
+            vencimentos ainda previstos serão transformados em tarefas. Ative somente os campos que
+            deseja substituir em todas elas.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-5 py-2">
+          <section className="grid gap-4 rounded-xl border p-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                <Checkbox
+                  checked={applyTitle}
+                  onCheckedChange={(checked) => setApplyTitle(checked === true)}
+                  disabled={saving}
+                />
+                Alterar título
+              </label>
+              <Input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                disabled={!applyTitle || saving}
+                placeholder="Novo título para todas as tarefas"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Responsável</Label>
+              <Select value={assignee} onValueChange={setAssignee} disabled={saving}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unchanged">Não alterar</SelectItem>
+                  <SelectItem value="none">Sem responsável</SelectItem>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.full_name || profile.email || "Usuário"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Prioridade</Label>
+              <Select value={priority} onValueChange={setPriority} disabled={saving}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unchanged">Não alterar</SelectItem>
+                  <SelectItem value="none">Sem prioridade</SelectItem>
+                  <SelectItem value="low">Baixa</SelectItem>
+                  <SelectItem value="medium">Média</SelectItem>
+                  <SelectItem value="high">Alta</SelectItem>
+                  <SelectItem value="urgent">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={setStatus} disabled={saving}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unchanged">Não alterar</SelectItem>
+                  <SelectItem value="none">Sem coluna</SelectItem>
+                  {columns.map((column) => (
+                    <SelectItem key={column.id} value={`column:${column.id}`}>
+                      {column.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="completed">Concluído</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Cliente</Label>
+              <Select value={client} onValueChange={setClient} disabled={saving}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unchanged">Não alterar</SelectItem>
+                  <SelectItem value="none">Sem cliente</SelectItem>
+                  {clients
+                    .filter((item) => item.is_active)
+                    .map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </section>
+
+          <section className="space-y-3 rounded-xl border p-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+              <Checkbox
+                checked={applyCollaborators}
+                onCheckedChange={(checked) => setApplyCollaborators(checked === true)}
+                disabled={saving}
+              />
+              Substituir participantes
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Ao ativar, a lista escolhida substituirá os participantes atuais de todas as tarefas.
+            </p>
+            {applyCollaborators && (
+              <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+                {profiles.map((profile) => (
+                  <label
+                    key={profile.id}
+                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                  >
+                    <Checkbox
+                      checked={collaboratorIds.includes(profile.id)}
+                      onCheckedChange={() => toggleCollaborator(profile.id)}
+                      disabled={saving}
+                    />
+                    <span className="truncate">
+                      {profile.full_name || profile.email || "Usuário"}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-3 rounded-xl border p-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+              <Checkbox
+                checked={applyDeadline}
+                onCheckedChange={(checked) => setApplyDeadline(checked === true)}
+                disabled={saving}
+              />
+              Alterar prazo e horário
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Prazo</Label>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
+                  disabled={!applyDeadline || saving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Horário opcional</Label>
+                <Input
+                  type="time"
+                  value={dueTime}
+                  onChange={(event) => setDueTime(event.target.value)}
+                  disabled={!applyDeadline || !dueDate || saving}
+                />
+              </div>
+              {applyDeadline && (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>
+                    Justificativa da alteração <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    value={dueDateReason}
+                    onChange={(event) => setDueDateReason(event.target.value)}
+                    placeholder="Explique o motivo da alteração do prazo"
+                    disabled={saving}
+                  />
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-3 rounded-xl border p-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+              <Checkbox
+                checked={applyDescription}
+                onCheckedChange={(checked) => setApplyDescription(checked === true)}
+                disabled={saving}
+              />
+              Alterar descrição
+            </label>
+            {applyDescription ? (
+              <RichTextEditor
+                value={description}
+                onChange={setDescription}
+                placeholder="Nova descrição para todas as tarefas..."
+                minHeight={100}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                As descrições atuais serão preservadas.
+              </p>
+            )}
+          </section>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button disabled={saving} onClick={() => void save()}>
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {saving ? "Aplicando..." : "Aplicar alterações"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ClientSection({
   client,
   logoUrl,
   subtitle,
   defaultOpen,
+  actions,
   children,
 }: {
   client: Client | null;
   logoUrl?: string;
   subtitle: string;
   defaultOpen: boolean;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -806,33 +1504,44 @@ function ClientSection({
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className="overflow-hidden">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/40"
-          >
-            <Avatar className="h-11 w-11 shrink-0 rounded-xl border bg-background">
-              <AvatarImage
-                src={logoUrl}
-                alt={`Logo ${clientName}`}
-                className="object-contain p-1"
-              />
-              <AvatarFallback
-                className="rounded-xl text-xs font-semibold text-white"
-                style={{ backgroundColor: client?.color || "#64748b" }}
-              >
-                {initials || "?"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate font-semibold">{clientName}</h2>
-              <p className="text-xs text-muted-foreground">{subtitle}</p>
-            </div>
-            <ChevronDown
-              className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
-            />
-          </button>
-        </CollapsibleTrigger>
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 transition hover:bg-muted/40">
+          <CollapsibleTrigger asChild>
+            <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left">
+              <Avatar className="h-11 w-11 shrink-0 rounded-xl border bg-background">
+                <AvatarImage
+                  src={logoUrl}
+                  alt={`Logo ${clientName}`}
+                  className="object-contain p-1"
+                />
+                <AvatarFallback
+                  className="rounded-xl text-xs font-semibold text-white"
+                  style={{ backgroundColor: client?.color || "#64748b" }}
+                >
+                  {initials || "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate font-semibold">{clientName}</h2>
+                <p className="text-xs text-muted-foreground">{subtitle}</p>
+              </div>
+              {!actions && (
+                <ChevronDown
+                  className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+                />
+              )}
+            </button>
+          </CollapsibleTrigger>
+          {actions}
+          {actions && (
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                <ChevronDown
+                  className={`h-5 w-5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+                />
+              </Button>
+            </CollapsibleTrigger>
+          )}
+        </div>
         <CollapsibleContent>
           <div className="space-y-2 border-t bg-muted/15 p-3">{children}</div>
         </CollapsibleContent>
@@ -844,31 +1553,33 @@ function ClientSection({
 function OccurrenceRow({
   occurrence,
   obligation,
+  task,
   client,
   assignee,
-  taskAvailable,
+  selected,
   working,
+  onSelectedChange,
   onOpenTask,
   onCreateTask,
   onComplete,
-  onDeleteOccurrence,
-  onDeleteSeries,
 }: {
   occurrence: ObligationOccurrence;
   obligation: Obligation;
+  task: Task | null;
   client: Client | null;
   assignee: Profile | null;
-  taskAvailable: boolean;
+  selected: boolean;
   working: boolean;
+  onSelectedChange: () => void;
   onOpenTask: () => void;
   onCreateTask: () => void;
   onComplete: () => void;
-  onDeleteOccurrence: () => void;
-  onDeleteSeries: () => void;
 }) {
   const today = todayKey();
   const overdue = occurrence.due_date < today;
   const dueToday = occurrence.due_date === today;
+  const taskAvailable = Boolean(task);
+  const displayTitle = task?.title ?? obligation.title;
   const assigneeName = assignee?.full_name || assignee?.email || "Sem responsável";
   const initials = assignee
     ? assigneeName
@@ -880,8 +1591,13 @@ function OccurrenceRow({
     : "?";
   return (
     <Card
-      className={`flex flex-wrap items-center gap-3 p-3 ${overdue ? "border-destructive/40" : dueToday ? "border-amber-500/50" : ""}`}
+      className={`flex flex-wrap items-center gap-3 p-3 ${selected ? "ring-2 ring-primary/30" : ""} ${overdue ? "border-destructive/40" : dueToday ? "border-amber-500/50" : ""}`}
     >
+      <Checkbox
+        checked={selected}
+        onCheckedChange={onSelectedChange}
+        aria-label={`Selecionar ${displayTitle} de ${formatDate(occurrence.due_date)}`}
+      />
       <div
         className="grid h-12 w-14 shrink-0 place-items-center rounded-xl text-center text-white"
         style={{ backgroundColor: client?.color || "#64748b" }}
@@ -901,7 +1617,7 @@ function OccurrenceRow({
       </Avatar>
       <div className="min-w-[180px] flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-medium">{obligation.title}</h3>
+          <h3 className="font-medium">{displayTitle}</h3>
           {overdue ? (
             <Badge variant="destructive">Atrasada</Badge>
           ) : dueToday ? (
@@ -937,23 +1653,6 @@ function OccurrenceRow({
           <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
           Concluir
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8" title="Mais opções">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="text-destructive" onClick={onDeleteOccurrence}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Excluir somente este vencimento
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onClick={onDeleteSeries}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Excluir toda a série
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </Card>
   );
@@ -1103,18 +1802,28 @@ function formatRecurrence(obligation: Obligation) {
 }
 
 function deleteDialogTitle(target: DeleteTarget | null) {
-  if (target?.scope === "occurrence") return "Excluir somente este vencimento?";
+  if (target?.scope === "occurrences") return "Excluir os vencimentos selecionados?";
   if (target?.scope === "series") return "Excluir toda esta obrigação?";
+  if (target?.scope === "series-batch") {
+    return target.obligations.length === 1
+      ? "Excluir a obrigação inteira?"
+      : "Excluir as obrigações inteiras?";
+  }
   if (target?.scope === "all") return "Excluir todas as obrigações?";
   return "Excluir obrigação?";
 }
 
 function deleteDialogDescription(target: DeleteTarget | null) {
-  if (target?.scope === "occurrence") {
-    return `Somente o vencimento de ${formatDate(target.occurrence.due_date)} será removido. Os demais continuarão normalmente.`;
+  if (target?.scope === "occurrences") {
+    return `${target.occurrences.length} vencimento(s) selecionado(s) serão removidos. Os demais vencimentos das séries continuarão normalmente.`;
   }
   if (target?.scope === "series") {
     return `A obrigação “${target.obligation.title}” e todos os vencimentos dela serão excluídos. Tarefas que já foram geradas serão preservadas.`;
+  }
+  if (target?.scope === "series-batch") {
+    return target.obligations.length === 1
+      ? `A obrigação “${target.obligations[0].title}” e todos os vencimentos dela serão excluídos. Tarefas que já foram geradas serão preservadas.`
+      : `${target.obligations.length} obrigações envolvidas na seleção e todos os vencimentos delas serão excluídos. Tarefas que já foram geradas serão preservadas.`;
   }
   return "Todas as obrigações e seus vencimentos serão excluídos deste ambiente. Tarefas que já foram geradas serão preservadas.";
 }
