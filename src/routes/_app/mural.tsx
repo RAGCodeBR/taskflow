@@ -46,6 +46,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { muralActivityToast } from "@/lib/mural-activity-toast";
 import { muralUnreadKey } from "@/hooks/use-mural-unread";
 
 export const Route = createFileRoute("/_app/mural")({
@@ -313,7 +314,7 @@ function MuralPage() {
           const changed = Object.keys(payload.new ?? {}).some(
             (key) => !SILENT_FIELDS.has(key) && payload.new[key] !== payload.old?.[key],
           );
-          if (changed) toast(`${actorName(actor)} atualizou "${payload.new.title}"`);
+          if (changed) muralActivityToast(`${actorName(actor)} atualizou "${payload.new.title}"`);
         },
       )
       .on(
@@ -324,7 +325,7 @@ function MuralPage() {
           if (payload.eventType !== "INSERT") return;
           const actor = payload.new?.uploaded_by;
           if (!actor || actor === userIdRef.current) return;
-          toast(
+          muralActivityToast(
             `${actorName(actor)} anexou ${payload.new.file_name} em "${postTitle(payload.new.post_id)}"`,
           );
         },
@@ -337,7 +338,7 @@ function MuralPage() {
           if (payload.eventType !== "INSERT") return;
           const actor = payload.new?.user_id;
           if (!actor || actor === userIdRef.current) return;
-          toast(
+          muralActivityToast(
             `${actorName(actor)} reagiu ${payload.new.emoji} em "${postTitle(payload.new.post_id)}"`,
           );
         },
@@ -372,63 +373,6 @@ function MuralPage() {
       await qc.invalidateQueries({ queryKey: muralUnreadKey(user.id) });
     })();
   }, [isLoading, qc, user?.id]);
-
-  // Resumo ao entrar: uma vez por abertura do mural, avisa por toast a atividade
-  // leve (reação, edição de recado, anexo) que aconteceu desde a última visita
-  // desta pessoa. O marco fica no localStorage — informação de passagem, não
-  // precisa persistir no servidor nem valer entre dispositivos.
-  const didMuralCatchUp = useRef(false);
-  useEffect(() => {
-    if (!user || isLoading || didMuralCatchUp.current) return;
-    didMuralCatchUp.current = true;
-
-    const key = `mural_last_seen_${user.id}`;
-    let lastSeen = 0;
-    try {
-      lastSeen = Number(localStorage.getItem(key)) || 0;
-    } catch {
-      lastSeen = 0;
-    }
-    // Grava a visita já, para não repetir o resumo se o efeito re-rodar.
-    try {
-      localStorage.setItem(key, String(Date.now()));
-    } catch {
-      /* modo privado / storage bloqueado: sem resumo, sem erro */
-    }
-    // Primeira visita neste navegador: não despeja o histórico inteiro.
-    if (!lastSeen) return;
-
-    const novidades: string[] = [];
-    reactions.forEach((r) => {
-      if (r.user_id !== user.id && r.created_at && Date.parse(r.created_at) > lastSeen) {
-        novidades.push(`${actorName(r.user_id)} reagiu ${r.emoji} em "${postTitle(r.post_id)}"`);
-      }
-    });
-    attachments.forEach((a) => {
-      if (a.uploaded_by !== user.id && a.created_at && Date.parse(a.created_at) > lastSeen) {
-        novidades.push(
-          `${actorName(a.uploaded_by)} anexou ${a.file_name} em "${postTitle(a.post_id)}"`,
-        );
-      }
-    });
-    posts.forEach((post) => {
-      const edited =
-        post.updated_at &&
-        Date.parse(post.updated_at) > lastSeen &&
-        (!post.created_at || Date.parse(post.created_at) <= lastSeen);
-      if (edited && post.created_by && post.created_by !== user.id) {
-        novidades.push(`${actorName(post.created_by)} atualizou "${post.title}"`);
-      }
-    });
-
-    novidades.slice(0, 4).forEach((msg) => toast(msg));
-    if (novidades.length > 4) {
-      toast(
-        `e mais ${novidades.length - 4} novidade${novidades.length - 4 === 1 ? "" : "s"} no mural`,
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, isLoading]);
 
   const savePost = useMutation({
     mutationFn: async () => {

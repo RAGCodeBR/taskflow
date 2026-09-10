@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMuralUnreadCount } from "@/hooks/use-mural-unread";
+import { useMuralLaunchDigest } from "@/hooks/use-mural-launch-digest";
 import { canSwitchTaskFlowEnvironment } from "@/lib/environment-access";
 
 function useTheme() {
@@ -71,6 +72,9 @@ const allNav: readonly NavItem[] = [
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile, user, signOut, isAdmin, hasPermission, workspaces, activeWorkspace } = useAuth();
   const muralUnreadCount = useMuralUnreadCount();
+  // Resumo da atividade leve do mural desde a última visita — em qualquer
+  // tela, uma vez por carregamento do sistema.
+  useMuralLaunchDigest();
   const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
   const canAccessFinance = hasPermission("portal_financeiro") || hasPermission("portal");
   const canSwitchEnvironments = canSwitchTaskFlowEnvironment(workspaces.length);
