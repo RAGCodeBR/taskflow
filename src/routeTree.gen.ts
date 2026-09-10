@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppAgendaRouteImport } from './routes/_app/agenda'
 import { Route as AppAmbientesRouteImport } from './routes/_app/ambientes'
 import { Route as AppClientsRouteImport } from './routes/_app/clients'
+import { Route as AppConversationsRouteImport } from './routes/_app/conversations'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppImportAtaRouteImport } from './routes/_app/import-ata'
 import { Route as AppMuralRouteImport } from './routes/_app/mural'
@@ -64,6 +65,11 @@ const AppAmbientesRoute = AppAmbientesRouteImport.update({
 const AppClientsRoute = AppClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppConversationsRoute = AppConversationsRouteImport.update({
+  id: '/conversations',
+  path: '/conversations',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AppAgendaRoute
   '/ambientes': typeof AppAmbientesRoute
   '/clients': typeof AppClientsRouteWithChildren
+  '/conversations': typeof AppConversationsRoute
   '/dashboard': typeof AppDashboardRoute
   '/import-ata': typeof AppImportAtaRoute
   '/mural': typeof AppMuralRoute
@@ -205,6 +212,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/agenda': typeof AppAgendaRoute
   '/ambientes': typeof AppAmbientesRoute
+  '/conversations': typeof AppConversationsRoute
   '/dashboard': typeof AppDashboardRoute
   '/import-ata': typeof AppImportAtaRoute
   '/mural': typeof AppMuralRoute
@@ -234,6 +242,7 @@ export interface FileRoutesById {
   '/_app/agenda': typeof AppAgendaRoute
   '/_app/ambientes': typeof AppAmbientesRoute
   '/_app/clients': typeof AppClientsRouteWithChildren
+  '/_app/conversations': typeof AppConversationsRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/import-ata': typeof AppImportAtaRoute
   '/_app/mural': typeof AppMuralRoute
@@ -264,6 +273,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/ambientes'
     | '/clients'
+    | '/conversations'
     | '/dashboard'
     | '/import-ata'
     | '/mural'
@@ -291,6 +301,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/agenda'
     | '/ambientes'
+    | '/conversations'
     | '/dashboard'
     | '/import-ata'
     | '/mural'
@@ -319,6 +330,7 @@ export interface FileRouteTypes {
     | '/_app/agenda'
     | '/_app/ambientes'
     | '/_app/clients'
+    | '/_app/conversations'
     | '/_app/dashboard'
     | '/_app/import-ata'
     | '/_app/mural'
@@ -390,6 +402,13 @@ declare module '@tanstack/react-router' {
       path: '/clients'
       fullPath: '/clients'
       preLoaderRoute: typeof AppClientsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/conversations': {
+      id: '/_app/conversations'
+      path: '/conversations'
+      fullPath: '/conversations'
+      preLoaderRoute: typeof AppConversationsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -580,6 +599,7 @@ interface AppRouteChildren {
   AppAgendaRoute: typeof AppAgendaRoute
   AppAmbientesRoute: typeof AppAmbientesRoute
   AppClientsRoute: typeof AppClientsRouteWithChildren
+  AppConversationsRoute: typeof AppConversationsRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppImportAtaRoute: typeof AppImportAtaRoute
   AppMuralRoute: typeof AppMuralRoute
@@ -600,6 +620,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAgendaRoute: AppAgendaRoute,
   AppAmbientesRoute: AppAmbientesRoute,
   AppClientsRoute: AppClientsRouteWithChildren,
+  AppConversationsRoute: AppConversationsRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppImportAtaRoute: AppImportAtaRoute,
   AppMuralRoute: AppMuralRoute,

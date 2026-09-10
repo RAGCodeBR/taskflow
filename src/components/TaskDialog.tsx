@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useAssignableProfiles,
@@ -37,7 +38,7 @@ import { toast } from "sonner";
 import {
   Trash2,
   Paperclip,
-  Send,
+  MessageSquare,
   Download,
   ExternalLink,
   X,
@@ -46,7 +47,6 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
-  SmilePlus,
   Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -118,16 +118,6 @@ interface Attachment {
 }
 const LINK_MIME = "text/uri-list";
 const COMPLETED_STATUS_VALUE = "__completed__";
-const MESSAGE_EMOJIS = [
-  "\u{1F600}",
-  "\u{1F602}",
-  "\u{1F44B}",
-  "\u{1F680}",
-  "\u{1F4A1}",
-  "\u{2764}\u{FE0F}",
-  "\u{1F389}",
-  "\u{1F44F}",
-];
 const storageObjectName = () => `arquivo-${Date.now()}-${crypto.randomUUID()}`;
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -150,6 +140,7 @@ function AssigneeOption({
 }
 
 export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props) {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, profile, isAdmin, activeWorkspace, workspaces } = useAuth();
   const { data: cols } = useColumns();
@@ -220,9 +211,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const term = clientSearch.trim().toLocaleLowerCase("pt-BR");
     const activeClients = (clients ?? []).filter((client) => client.is_active);
     return term
-      ? activeClients.filter((client) =>
-          client.name.toLocaleLowerCase("pt-BR").includes(term),
-        )
+      ? activeClients.filter((client) => client.name.toLocaleLowerCase("pt-BR").includes(term))
       : activeClients;
   }, [clients, clientSearch]);
   const selectedClient = clients?.find((client) => client.id === clientId);
@@ -753,9 +742,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     }
 
     setSubtasks((current) =>
-      current.map((subtask) =>
-        subtask.id === st.id ? { ...subtask, due_date: next } : subtask,
-      ),
+      current.map((subtask) => (subtask.id === st.id ? { ...subtask, due_date: next } : subtask)),
     );
     if (user) {
       const { error: historyError } = await supabase.from("subtask_due_date_changes").insert({
@@ -891,45 +878,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         return new RegExp(`(^|\\s)@${escapeRegExp(name)}(?=$|[\\s.,!?:;])`, "i").test(body);
       })
       .map((candidate) => candidate.id);
-
-  const addComment = async () => {
-    if (!newComment.trim() || !user) return;
-    const tid = await ensureTask();
-    if (!tid) return;
-    const body = newComment.trim();
-    const { data, error } = await supabase
-      .from("comments")
-      .insert({
-        task_id: tid,
-        author_id: user.id,
-        body,
-        title: null,
-      })
-      .select()
-      .single();
-    if (error) return toast.error(error.message);
-    const mentionIds = mentionedProfileIds(body).filter((id) => id !== user.id);
-    if (mentionIds.length) {
-      const { error: mentionError } = await supabase
-        .from("comment_mentions")
-        .insert(
-          mentionIds.map((mentionedUserId) => ({
-            comment_id: data.id,
-            mentioned_user_id: mentionedUserId,
-          })),
-        );
-      if (mentionError)
-        toast.error(
-          `Comentário enviado, mas não foi possível notificar as menções: ${mentionError.message}`,
-        );
-    }
-    setComments((existing) =>
-      existing.some((comment) => comment.id === data.id)
-        ? existing
-        : [...existing, data as Comment],
-    );
-    setNewComment("");
-  };
 
   const deleteComment = async (id: string) => {
     const { error } = await supabase.from("comments").delete().eq("id", id);
@@ -1649,140 +1597,30 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
               </TabsContent>
 
               <TabsContent value="comments" className="space-y-3">
-                <div className="max-h-80 space-y-3 overflow-y-auto rounded-md border bg-muted/10 p-3">
-                  {comments.length === 0 && (
-                    <p className="py-6 text-center text-sm text-muted-foreground">
-                      Ainda não há mensagens nesta tarefa.
-                    </p>
-                  )}
-                  {comments.map((comment) => {
-                    const author = profiles?.find(
-                      (candidate) => candidate.id === comment.author_id,
-                    );
-                    const authorName = author?.full_name || author?.email || "Usuário";
-                    const isOwnComment = comment.author_id === user?.id;
-                    const mentionNames = mentionableProfiles
-                      .map((candidate) => candidate.full_name || candidate.email)
-                      .filter((name): name is string => Boolean(name));
-                    const mentionParts = mentionNames.length
-                      ? comment.body.split(
-                          new RegExp(
-                            `(${mentionNames.map((name) => `@${escapeRegExp(name)}`).join("|")})`,
-                            "gi",
-                          ),
-                        )
-                      : [comment.body];
-                    return (
-                      <div
-                        key={comment.id}
-                        className={`flex gap-2 ${isOwnComment ? "justify-end" : "justify-start"}`}
-                      >
-                        {!isOwnComment && (
-                          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-                            {authorName.slice(0, 2).toUpperCase()}
-                          </div>
-                        )}
-                        <div
-                          className={`group max-w-[85%] rounded-lg px-3 py-2 text-sm ${isOwnComment ? "bg-primary text-primary-foreground" : "bg-muted"}`}
-                        >
-                          <div className="mb-1 flex items-center gap-2 text-[11px] opacity-75">
-                            <span className="font-medium">
-                              {isOwnComment ? "Você" : authorName}
-                            </span>
-                            <span>{format(new Date(comment.created_at), "dd/MM HH:mm")}</span>
-                            {(isOwnComment || isAdmin) && (
-                              <button
-                                type="button"
-                                className="ml-auto opacity-0 transition-opacity group-hover:opacity-100"
-                                onClick={() => deleteComment(comment.id)}
-                                title="Excluir mensagem"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                          </div>
-                          <p className="whitespace-pre-wrap break-words">
-                            {mentionParts.map((part, index) =>
-                              part.startsWith("@") ? (
-                                <span
-                                  key={index}
-                                  className={
-                                    isOwnComment
-                                      ? "font-semibold underline"
-                                      : "font-semibold text-primary"
-                                  }
-                                >
-                                  {part}
-                                </span>
-                              ) : (
-                                part
-                              ),
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="relative rounded-md border bg-background p-2">
-                  <Textarea
-                    rows={3}
-                    placeholder="Escreva uma mensagem… Use @ para marcar alguém."
-                    value={newComment}
-                    onChange={(event) => setNewComment(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-                        event.preventDefault();
-                        void addComment();
-                      }
-                    }}
-                  />
-                  {mentionCandidates.length > 0 && (
-                    <div className="absolute bottom-[calc(100%+4px)] left-2 z-10 w-64 overflow-hidden rounded-md border bg-popover p-1 shadow-md">
-                      {mentionCandidates.map((candidate) => (
-                        <button
-                          key={candidate.id}
-                          type="button"
-                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={() => insertMention(candidate)}
-                        >
-                          <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
-                            {(candidate.full_name || candidate.email || "U")
-                              .slice(0, 2)
-                              .toUpperCase()}
-                          </span>
-                          <span className="truncate">{candidate.full_name || candidate.email}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="mt-2 flex flex-nowrap items-center justify-between gap-2 overflow-x-auto">
-                    <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
-                      <SmilePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                      {MESSAGE_EMOJIS.map((emoji) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          className="rounded p-1 text-base leading-none hover:bg-muted"
-                          onClick={() => setNewComment((current) => `${current}${emoji}`)}
-                          title={`Adicionar ${emoji}`}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                    <span className="text-[11px] text-muted-foreground">
-                      Use @ para marcar alguém · Ctrl/⌘ + Enter para enviar
-                    </span>
-                    <Button
-                      onClick={() => void addComment()}
-                      size="sm"
-                      disabled={!newComment.trim()}
-                    >
-                      <Send className="mr-1 h-4 w-4" /> Enviar
-                    </Button>
-                  </div>
+                <div className="rounded-md border bg-muted/10 p-6 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {comments.length === 0
+                      ? "Nenhuma mensagem ainda."
+                      : `${comments.length} ${comments.length === 1 ? "mensagem" : "mensagens"} nesta tarefa.`}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() =>
+                      navigate({
+                        to: "/conversations",
+                        search: { task: task?.id ?? currentTaskId ?? undefined },
+                      })
+                    }
+                    disabled={!task?.id && !currentTaskId}
+                  >
+                    <MessageSquare className="mr-1.5 h-4 w-4" /> Abrir conversa
+                  </Button>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    A conversa da tarefa acontece na tela Conversas.
+                  </p>
                 </div>
               </TabsContent>
               <TabsContent value="files" className="space-y-2">

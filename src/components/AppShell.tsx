@@ -22,6 +22,7 @@ import {
   CircleDollarSign,
   ChevronDown,
   MessageSquareText,
+  MessagesSquare,
   Layers3,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -38,6 +39,10 @@ import {
 import { useMuralUnreadCount } from "@/hooks/use-mural-unread";
 import { useMuralLaunchDigest } from "@/hooks/use-mural-launch-digest";
 import { useMuralRealtime } from "@/hooks/use-mural-realtime";
+import {
+  useTaskConversationsUnread,
+  useTaskConversationRealtime,
+} from "@/hooks/use-task-conversations";
 import { canSwitchTaskFlowEnvironment } from "@/lib/environment-access";
 
 function useTheme() {
@@ -59,6 +64,7 @@ const allNav: readonly NavItem[] = [
   { to: "/mural", label: "Mural LA", icon: MessageSquareText },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/tasks", label: "Minhas Tarefas", icon: ListChecks },
+  { to: "/conversations", label: "Conversas", icon: MessagesSquare },
   { to: "/obligations", label: "Obrigações", icon: CalendarCog },
   { to: "/import-ata", label: "Importar Ata", icon: FileUp },
   { to: "/clients", label: "Clientes", icon: Building2 },
@@ -78,6 +84,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   useMuralLaunchDigest();
   // Atividade do mural ao vivo em qualquer tela (avisos + cache fresco).
   useMuralRealtime();
+  const conversationsUnread = useTaskConversationsUnread();
+  useTaskConversationRealtime();
   const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
   const canAccessFinance = hasPermission("portal_financeiro") || hasPermission("portal");
   const canSwitchEnvironments = canSwitchTaskFlowEnvironment(workspaces.length);
@@ -85,6 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const accessByPath: Record<string, string> = {
       "/dashboard": "dashboard",
       "/tasks": "tasks",
+      "/conversations": "conversations",
       "/obligations": "obligations",
       "/import-ata": "import_ata",
       "/clients": "clients",
@@ -189,6 +198,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {n.to === "/mural" && muralUnreadCount > 0 && (
                   <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                     {muralUnreadCount > 99 ? "99+" : muralUnreadCount}
+                  </span>
+                )}
+                {n.to === "/conversations" && conversationsUnread > 0 && (
+                  <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {conversationsUnread > 99 ? "99+" : conversationsUnread}
                   </span>
                 )}
               </Link>
@@ -317,6 +331,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {n.to === "/mural" && muralUnreadCount > 0 && (
                       <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                         {muralUnreadCount > 99 ? "99+" : muralUnreadCount}
+                      </span>
+                    )}
+                    {n.to === "/conversations" && conversationsUnread > 0 && (
+                      <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                        {conversationsUnread > 99 ? "99+" : conversationsUnread}
                       </span>
                     )}
                   </Link>

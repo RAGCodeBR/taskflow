@@ -60,34 +60,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // released as soon as the session was restored, while this sequence was
     // still running.  During that interval `permissions` was empty and the
     // entire sidebar was filtered out for client accounts.
-    const [profileResult, activeWorkspaceResult, authResult, rolesResult, linkResult, permissionsResult, membershipsResult, workspaceResult] =
-      await Promise.all([
-        supabase
-          .from("profiles")
-          // `active_workspace_id` has its own database permission because it
-          // was introduced after profile-field grants. Keep profile identity
-          // independent of that field so a workspace permission issue can
-          // never make a user's name and photo disappear from the UI.
-          .select("id, full_name, avatar_url, theme_preferences")
-          .eq("id", uid)
-          .maybeSingle(),
-        (supabase as any).rpc("current_workspace_id"),
-        supabase.auth.getUser(),
-        supabase.from("user_roles").select("role").eq("user_id", uid),
-        (supabase.from("client_user_links" as any) as any)
-          .select("client_id")
-          .eq("user_id", uid)
-          .maybeSingle(),
-        (supabase.from("user_permissions") as any)
-          .select("permissions")
-          .eq("user_id", uid)
-          .maybeSingle(),
-        (supabase.from("workspace_memberships") as any)
-          .select("workspace_id, role, permissions")
-          .eq("user_id", uid),
-        (supabase.from("workspaces") as any).select("id, slug, name"),
-      ]);
-    const profileWorkspaceId = activeWorkspaceResult.error ? null : activeWorkspaceResult.data ?? null;
+    const [
+      profileResult,
+      activeWorkspaceResult,
+      authResult,
+      rolesResult,
+      linkResult,
+      permissionsResult,
+      membershipsResult,
+      workspaceResult,
+    ] = await Promise.all([
+      supabase
+        .from("profiles")
+        // `active_workspace_id` has its own database permission because it
+        // was introduced after profile-field grants. Keep profile identity
+        // independent of that field so a workspace permission issue can
+        // never make a user's name and photo disappear from the UI.
+        .select("id, full_name, avatar_url, theme_preferences")
+        .eq("id", uid)
+        .maybeSingle(),
+      (supabase as any).rpc("current_workspace_id"),
+      supabase.auth.getUser(),
+      supabase.from("user_roles").select("role").eq("user_id", uid),
+      (supabase.from("client_user_links" as any) as any)
+        .select("client_id")
+        .eq("user_id", uid)
+        .maybeSingle(),
+      (supabase.from("user_permissions") as any)
+        .select("permissions")
+        .eq("user_id", uid)
+        .maybeSingle(),
+      (supabase.from("workspace_memberships") as any)
+        .select("workspace_id, role, permissions")
+        .eq("user_id", uid),
+      (supabase.from("workspaces") as any).select("id, slug, name"),
+    ]);
+    const profileWorkspaceId = activeWorkspaceResult.error
+      ? null
+      : (activeWorkspaceResult.data ?? null);
     const prof = profileResult.data
       ? { ...profileResult.data, active_workspace_id: profileWorkspaceId }
       : null;
@@ -104,7 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const memberships = ((membershipsResult.data ?? []) as Array<any>)
       .map((membership) => {
         const workspace = workspaceById.get(membership.workspace_id);
-        if (!workspace?.id || (workspace.slug !== "consultoria" && workspace.slug !== "marketing")) return null;
+        if (!workspace?.id || (workspace.slug !== "consultoria" && workspace.slug !== "marketing"))
+          return null;
         return {
           id: workspace.id,
           slug: workspace.slug,
@@ -124,29 +135,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsClient(client);
     setClientId(link?.client_id ?? null);
     const systemPermissions = [
-            "dashboard",
-            "tasks",
-            "obligations",
-            "import_ata",
-            "clients",
-            "reports",
-            "mural",
-            "agenda",
-            "portal_entregas",
-            "portal_financeiro",
-            "users",
-            "trash",
-            "settings",
-          ];
+      "dashboard",
+      "tasks",
+      "conversations",
+      "obligations",
+      "import_ata",
+      "clients",
+      "reports",
+      "mural",
+      "agenda",
+      "portal_entregas",
+      "portal_financeiro",
+      "users",
+      "trash",
+      "settings",
+    ];
     // Never silently fall back to the first membership if the server returned
     // an unknown active id. A fallback can label the UI "Consultoria" while
     // RLS still authorizes Marketing data. The next refresh will resolve it.
     const selectedWorkspace = prof?.active_workspace_id
-      ? memberships.find((workspace) => workspace.id === prof.active_workspace_id) ?? null
-      : memberships[0] ?? null;
+      ? (memberships.find((workspace) => workspace.id === prof.active_workspace_id) ?? null)
+      : (memberships[0] ?? null);
     setWorkspaces(memberships);
     setActiveWorkspaceState(selectedWorkspace);
-    setPermissions(admin ? systemPermissions : selectedWorkspace?.permissions ?? (Array.isArray(access?.permissions) ? access.permissions : []));
+    setPermissions(
+      admin
+        ? systemPermissions
+        : (selectedWorkspace?.permissions ??
+            (Array.isArray(access?.permissions) ? access.permissions : [])),
+    );
   };
 
   useEffect(() => {
@@ -243,7 +260,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Confirm the database state before leaving this screen. This guards
     // against a stale RPC schema or a policy that acknowledged a call but
     // did not persist the profile preference.
-    const { data: confirmedWorkspaceId, error: confirmError } = await (supabase as any).rpc("current_workspace_id");
+    const { data: confirmedWorkspaceId, error: confirmError } = await (supabase as any).rpc(
+      "current_workspace_id",
+    );
     if (confirmError) throw confirmError;
     if (confirmedWorkspaceId !== workspaceId) {
       throw new Error("O ambiente não foi confirmado. Tente novamente.");

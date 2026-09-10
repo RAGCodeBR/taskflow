@@ -39,6 +39,7 @@ export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 const ACCESS_OPTIONS = [
   ["dashboard", "Dashboard"],
   ["tasks", "Minhas tarefas"],
+  ["conversations", "Conversas"],
   ["obligations", "Obrigações"],
   ["import_ata", "Importar ata"],
   ["clients", "Clientes"],
@@ -63,6 +64,7 @@ type FormState = {
 const COLLABORATOR_DEFAULT_PERMISSIONS = [
   "dashboard",
   "tasks",
+  "conversations",
   "clients",
   "mural",
   "agenda",

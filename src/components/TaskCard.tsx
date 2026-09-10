@@ -62,8 +62,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
 import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
 import { CommentAttachments } from "@/components/CommentAttachments";
-import { TaskConversationDialog } from "@/components/TaskConversationDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useAssignableProfiles,
@@ -173,6 +173,7 @@ export function TaskCard({
   dragHandleProps,
   minimal = false,
 }: Props) {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, profile, isAdmin } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -194,7 +195,6 @@ export function TaskCard({
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [comments, setComments] = useState<CardComment[]>([]);
-  const [conversationOpen, setConversationOpen] = useState(false);
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
@@ -2206,7 +2206,7 @@ export function TaskCard({
                   type="button"
                   onClick={(event) => {
                     stop(event);
-                    setConversationOpen(true);
+                    void navigate({ to: "/conversations", search: { task: task.id } });
                   }}
                   className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-[11px] text-primary transition hover:bg-primary/10"
                 >
@@ -2227,11 +2227,6 @@ export function TaskCard({
         attachment={previewAttachment}
       />
 
-      <TaskConversationDialog
-        open={conversationOpen}
-        onOpenChange={setConversationOpen}
-        task={task}
-      />
 
       <SubtaskDialog
         open={subtaskDialogOpen}

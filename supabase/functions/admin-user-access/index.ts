@@ -9,6 +9,7 @@ const corsHeaders = {
 const allAdminPermissions = [
   "dashboard",
   "tasks",
+  "conversations",
   "import_ata",
   "clients",
   "reports",
@@ -25,6 +26,7 @@ const marketingManagerEmail = "reinangrupoahouse@gmail.com";
 const validPermissions = new Set([
   "dashboard",
   "tasks",
+  "conversations",
   "obligations",
   "import_ata",
   "clients",
