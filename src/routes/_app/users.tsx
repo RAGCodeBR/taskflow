@@ -20,7 +20,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { canManageMarketingAccess } from "@/lib/environment-access";
 import { toast } from "sonner";
 import {
   Archive,
@@ -509,7 +508,6 @@ function UsersPage() {
   };
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
   if (!isAdmin) return <Navigate to="/mural" />;
-  const isMarketingManager = canManageMarketingAccess(user?.email);
   const renderProfile = (p: any) => {
     const role = (roles.find((r: { user_id: string; role: string }) => r.user_id === p.id)?.role ??
       "collaborator") as Role;
@@ -517,9 +515,9 @@ function UsersPage() {
     const marketingMembership = marketingMembers.find((member) => member.user_id === p.id);
     const canManageMarketing = role === "admin" || role === "collaborator";
     const canToggleMarketing = inMarketing && role === "collaborator";
-    const canEditUser = isMarketingManager || (inMarketing && role === "collaborator");
-    const canDeactivateUser = isMarketingManager;
-    const canDeleteUser = isMarketingManager || (inMarketing && role === "collaborator");
+    const canEditUser = isAdmin;
+    const canDeactivateUser = isAdmin;
+    const canDeleteUser = isAdmin;
     return (
       <Card key={p.id} className="p-4">
         <div className="flex items-center gap-3">
@@ -632,7 +630,7 @@ function UsersPage() {
             Crie logins e defina os acessos de cada usuário.
           </p>
         </div>
-        {(isMarketingManager || inMarketing) && (
+        {isAdmin && (
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -691,7 +689,7 @@ function UsersPage() {
           </Collapsible>
         ))}
       </div>
-      {isMarketingManager && inactiveProfiles.length > 0 && (
+      {isAdmin && inactiveProfiles.length > 0 && (
         <div>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
             <Archive className="h-4 w-4" /> Desativados ({inactiveProfiles.length})

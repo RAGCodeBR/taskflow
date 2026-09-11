@@ -22,7 +22,6 @@ const allAdminPermissions = [
   "settings",
 ];
 const clientPermissions = ["portal_entregas", "portal_financeiro"];
-const marketingManagerEmail = "reinangrupoahouse@gmail.com";
 const validPermissions = new Set([
   "dashboard",
   "tasks",
@@ -81,8 +80,6 @@ Deno.serve(async (request) => {
     if (roleError) throw roleError;
     if (!callerRoles?.some((item) => item.role === "admin"))
       return response({ error: "Somente administradores podem gerenciar acessos." }, 403);
-    const isMarketingManager = authData.user.email?.trim().toLowerCase() === marketingManagerEmail;
-
     const payload = await request.json();
     const action = payload?.action;
     const data = payload?.data ?? {};
@@ -97,36 +94,46 @@ Deno.serve(async (request) => {
     if (action === "create" && data.marketingAccess === true && role === "client")
       return response({ error: "O acesso de cliente deve permanecer vinculado à Consultoria." }, 400);
 
-    // In Marketing, every administrator can manage only Marketing's own
-    // collaborators. Consultoria users and administrator accounts remain
-    // centrally managed by the responsible account.
-    if (!isMarketingManager) {
-      if (!managesMarketing)
-        return response({ error: "Você pode alterar apenas seu próprio perfil fora do Marketing." }, 403);
-      if (action === "create") {
-        if (role !== "collaborator" || data.marketingAccess !== true)
-          return response({ error: "No Marketing, crie somente colaboradores próprios do ambiente." }, 403);
-      } else {
-        if (!validUuid(data.userId)) return response({ error: "Usuário inválido." }, 400);
-        const { data: targetRoles, error: targetRoleError } = await admin
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.userId)
-          .maybeSingle();
-        if (targetRoleError) throw targetRoleError;
-        const { data: memberships, error: membershipsError } = await admin
-          .from("workspace_memberships")
-          .select("workspace_id, workspaces!inner(slug)")
-          .eq("user_id", data.userId);
-        if (membershipsError) throw membershipsError;
-        const membershipSlugs = (memberships ?? []).map((membership: any) => membership.workspaces?.slug);
-        const onlyMarketingCollaborator =
-          targetRoles?.role === "collaborator" &&
-          membershipSlugs.includes("marketing") &&
-          !membershipSlugs.includes("consultoria");
-        if (!onlyMarketingCollaborator || (action === "update" && role !== "collaborator"))
-          return response({ error: "Você pode alterar somente colaboradores próprios do Marketing." }, 403);
-      }
+    const { data: callerProfile, error: callerProfileError } = await admin
+      .from("profiles")
+      .select("active_workspace_id")
+      .eq("id", authData.user.id)
+      .single();
+    if (callerProfileError || !callerProfile?.active_workspace_id)
+      return response({ error: "Ambiente ativo não encontrado." }, 403);
+    const { data: callerWorkspace, error: callerWorkspaceError } = await admin
+      .from("workspaces")
+      .select("id, slug")
+      .eq("id", callerProfile.active_workspace_id)
+      .single();
+    if (callerWorkspaceError || !callerWorkspace)
+      return response({ error: "Ambiente ativo não encontrado." }, 403);
+    const { data: callerMembership, error: callerMembershipError } = await admin
+      .from("workspace_memberships")
+      .select("user_id")
+      .eq("workspace_id", callerWorkspace.id)
+      .eq("user_id", authData.user.id)
+      .maybeSingle();
+    if (callerMembershipError) throw callerMembershipError;
+    if (!callerMembership || callerWorkspace.slug !== data.workspaceSlug)
+      return response({ error: "Você não pode gerenciar usuários deste ambiente." }, 403);
+
+    if (managesMarketing && action === "create") {
+      if (role !== "collaborator" || data.marketingAccess !== true)
+        return response({ error: "No Marketing, crie somente colaboradores próprios do ambiente." }, 403);
+    }
+
+    if (action !== "create") {
+      if (!validUuid(data.userId)) return response({ error: "Usuário inválido." }, 400);
+      const { data: targetMembership, error: targetMembershipError } = await admin
+        .from("workspace_memberships")
+        .select("user_id")
+        .eq("workspace_id", callerWorkspace.id)
+        .eq("user_id", data.userId)
+        .maybeSingle();
+      if (targetMembershipError) throw targetMembershipError;
+      if (!targetMembership)
+        return response({ error: "Este usuário não pertence ao ambiente ativo." }, 403);
     }
     const permissions =
       action === "delete"
