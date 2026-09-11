@@ -220,16 +220,28 @@ function localPayload(event: any) {
     // otherwise the event would carry a slightly-off "own color" that then
     // wins over the calendar's real color on the next pull.
     colorId: null,
+    attendees: Array.isArray(event.attendee_emails)
+      ? event.attendee_emails.map((email: string) => ({ email }))
+      : [],
     extendedProperties: { private: { taskflowEventId: event.id } },
   };
   return payload;
 }
 
-function googleEventUrl(calendarId: string, eventId?: string, supportsConferenceData = false) {
+function googleEventUrl(
+  calendarId: string,
+  eventId?: string,
+  supportsConferenceData = false,
+  sendUpdates = false,
+) {
   const path = eventId
     ? `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
     : `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
-  return supportsConferenceData ? `${path}?conferenceDataVersion=1` : path;
+  const query = new URLSearchParams();
+  if (supportsConferenceData) query.set("conferenceDataVersion", "1");
+  if (sendUpdates) query.set("sendUpdates", "all");
+  const suffix = query.toString();
+  return suffix ? `${path}?${suffix}` : path;
 }
 
 function googleToLocal(
@@ -267,6 +279,10 @@ function googleToLocal(
     description: taskflowDescription(event.description) ?? null,
     location: event.location ?? null,
     meeting_url: event.hangoutLink ?? meetingUrlFromDescription(event.description),
+    attendee_emails: (event.attendees ?? [])
+      .map((attendee: any) => attendee.email)
+      .filter((email: unknown): email is string => typeof email === "string")
+      .map((email: string) => email.toLowerCase()),
     color: ownColor ?? calendarColor,
     source: "google",
     sync_status: "synced",
@@ -448,7 +464,7 @@ async function sync(request: Request, body: any = {}) {
           try {
             await googleRequest(
               writeToken,
-              googleEventUrl(targetCalendarId, event.google_event_id),
+              googleEventUrl(targetCalendarId, event.google_event_id, false, true),
               { method: "DELETE" },
             );
           } catch (error) {
@@ -494,7 +510,7 @@ async function sync(request: Request, body: any = {}) {
         try {
           googleEvent = await googleRequest(
             writeToken,
-            googleEventUrl(targetCalendarId, event.google_event_id),
+            googleEventUrl(targetCalendarId, event.google_event_id, false, true),
             { method: "PATCH", body: JSON.stringify(payload) },
           );
         } catch (error) {
@@ -503,14 +519,14 @@ async function sync(request: Request, body: any = {}) {
           // replace the stale remote ID so future edits remain synchronized.
           googleEvent = await googleRequest(
             writeToken,
-            googleEventUrl(targetCalendarId),
+            googleEventUrl(targetCalendarId, undefined, false, true),
             { method: "POST", body: JSON.stringify(payload) },
           );
         }
       } else {
         googleEvent = await googleRequest(
           writeToken,
-          googleEventUrl(targetCalendarId),
+          googleEventUrl(targetCalendarId, undefined, false, true),
           { method: "POST", body: JSON.stringify(payload) },
         );
       }

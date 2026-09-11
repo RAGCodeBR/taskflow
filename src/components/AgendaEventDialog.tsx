@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { format } from "date-fns";
 import { Copy, ExternalLink, FileText, RefreshCw } from "lucide-react";
-import { AlignLeft, CalendarDays, Clock, LoaderCircle, MapPin, Trash2, Video } from "lucide-react";
+import {
+  AlignLeft,
+  CalendarDays,
+  Clock,
+  LoaderCircle,
+  MapPin,
+  Trash2,
+  UserPlus,
+  Video,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
@@ -21,7 +31,11 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useAgendaCalendarSources, type AgendaEvent } from "@/hooks/use-data";
+import {
+  useAgendaCalendarSources,
+  useAssignableProfiles,
+  type AgendaEvent,
+} from "@/hooks/use-data";
 
 type Props = {
   open: boolean;
@@ -43,6 +57,11 @@ const dateTimeInputClass =
 
 const dateValue = (value: string) => format(new Date(value), "yyyy-MM-dd");
 const timeValue = (value: string) => format(new Date(value), "HH:mm");
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizedEmail(value: string) {
+  return value.trim().toLowerCase();
+}
 
 function CalendarDot({ color }: { color: string }) {
   return (
@@ -176,10 +195,18 @@ export function AgendaEventDialog({
   const [autoSmartNotes, setAutoSmartNotes] = useState(true);
   const [autoTranscription, setAutoTranscription] = useState(false);
   const [calendarId, setCalendarId] = useState("");
+  const [attendeeEmails, setAttendeeEmails] = useState<string[]>([]);
+  const [attendeeInput, setAttendeeInput] = useState("");
+  const [attendeeFocused, setAttendeeFocused] = useState(false);
+  const [activeAttendeeSuggestion, setActiveAttendeeSuggestion] = useState(-1);
   const [saving, setSaving] = useState(false);
   const [createdEvent, setCreatedEvent] = useState<AgendaEvent | null>(null);
   const [creatingMeetingLink, setCreatingMeetingLink] = useState(false);
   const activeEvent = event ?? createdEvent;
+  // Profiles hide e-mail addresses at table level. This RPC deliberately exposes
+  // the active collaborators of the current workspace, so the invite autocomplete
+  // works without weakening that privacy rule.
+  const { data: inviteProfiles = [] } = useAssignableProfiles();
 
   // The shared company calendar is the sensible default target for a
   // person creating a compromisso without picking whose agenda it belongs to.
@@ -204,6 +231,9 @@ export function AgendaEventDialog({
       setEndTime(timeValue(event.ends_at));
       setAllDay(event.is_all_day);
       setLocation(event.location ?? "");
+      setAttendeeEmails(event.attendee_emails ?? []);
+      setAttendeeInput("");
+      setActiveAttendeeSuggestion(-1);
       setMeetingUrl(event.meeting_url ?? "");
       setCreateGoogleMeet(false);
       setAutoSmartNotes(event.auto_smart_notes ?? true);
@@ -222,6 +252,9 @@ export function AgendaEventDialog({
     setEndTime(format(end, "HH:mm"));
     setAllDay(false);
     setLocation("");
+    setAttendeeEmails([]);
+    setAttendeeInput("");
+    setActiveAttendeeSuggestion(-1);
     setMeetingUrl("");
     setCreateGoogleMeet(Boolean(defaultCalendarId));
     setAutoSmartNotes(true);
@@ -232,6 +265,29 @@ export function AgendaEventDialog({
   }, [open, event, defaultDate, defaultStartTime, defaultCalendarId]);
 
   const toIso = (date: string, time: string) => new Date(`${date}T${time}:00`).toISOString();
+
+  const addAttendee = (email: string) => {
+    const normalized = normalizedEmail(email);
+    if (!emailPattern.test(normalized))
+      return toast.error("Informe um e-mail válido para o convidado.");
+    setAttendeeEmails((current) =>
+      current.includes(normalized) ? current : [...current, normalized],
+    );
+    setAttendeeInput("");
+    setActiveAttendeeSuggestion(-1);
+  };
+
+  const attendeeSuggestions = useMemo(() => {
+    const query = normalizedEmail(attendeeInput);
+    return inviteProfiles
+      .filter(
+        (profile) =>
+          profile.email &&
+          !attendeeEmails.includes(normalizedEmail(profile.email)) &&
+          `${profile.full_name ?? ""} ${profile.email}`.toLowerCase().includes(query),
+      )
+      .slice(0, 5);
+  }, [attendeeEmails, attendeeInput, inviteProfiles]);
 
   const save = async () => {
     if (!user) return;
@@ -255,6 +311,7 @@ export function AgendaEventDialog({
       ends_at: endsAt,
       is_all_day: allDay,
       location: location.trim() || null,
+      attendee_emails: attendeeEmails,
       meeting_url: createGoogleMeet ? null : meetingUrl.trim() || null,
       create_google_meet: createGoogleMeet && !meetingUrl.trim(),
       auto_smart_notes: autoSmartNotes,
@@ -442,6 +499,110 @@ export function AgendaEventDialog({
               </Select>
             </div>
           )}
+
+          <div className="flex items-start gap-3">
+            <UserPlus className="mt-2.5 h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="relative min-w-0 flex-1">
+              <div
+                className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border bg-background px-2 py-1.5 shadow-sm transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary"
+                onClick={() => setAttendeeFocused(true)}
+              >
+                {attendeeEmails.map((email) => (
+                  <span
+                    key={email}
+                    className="inline-flex max-w-full items-center gap-1 rounded-sm bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
+                  >
+                    <span className="truncate">{email}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remover ${email}`}
+                      className="rounded-sm text-primary/70 transition-colors hover:text-primary"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setAttendeeEmails((current) => current.filter((item) => item !== email));
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <Input
+                  value={attendeeInput}
+                  onFocus={() => setAttendeeFocused(true)}
+                  onBlur={() => window.setTimeout(() => setAttendeeFocused(false), 150)}
+                  onChange={(event) => {
+                    setAttendeeInput(event.target.value);
+                    setActiveAttendeeSuggestion(-1);
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      (event.key === "ArrowDown" || event.key === "ArrowUp") &&
+                      attendeeSuggestions.length
+                    ) {
+                      event.preventDefault();
+                      setActiveAttendeeSuggestion((current) => {
+                        if (event.key === "ArrowDown")
+                          return current < attendeeSuggestions.length - 1 ? current + 1 : 0;
+                        return current > 0 ? current - 1 : attendeeSuggestions.length - 1;
+                      });
+                      return;
+                    }
+                    if (event.key === "Enter" || event.key === "Tab" || event.key === ",") {
+                      const selectedSuggestion = attendeeSuggestions[activeAttendeeSuggestion];
+                      if (!selectedSuggestion && !attendeeInput.trim()) return;
+                      event.preventDefault();
+                      if (selectedSuggestion) addAttendee(selectedSuggestion.email!);
+                      else addAttendee(attendeeInput);
+                    }
+                    if (event.key === "Backspace" && !attendeeInput && attendeeEmails.length) {
+                      setAttendeeEmails((current) => current.slice(0, -1));
+                    }
+                  }}
+                  className="h-6 min-w-36 flex-1 border-0 bg-transparent px-1 py-0 text-sm shadow-none focus-visible:ring-0"
+                  role="combobox"
+                  aria-expanded={attendeeFocused && attendeeSuggestions.length > 0}
+                  aria-activedescendant={
+                    activeAttendeeSuggestion >= 0
+                      ? `attendee-suggestion-${attendeeSuggestions[activeAttendeeSuggestion]?.id}`
+                      : undefined
+                  }
+                  placeholder={
+                    attendeeEmails.length ? "Adicionar mais convidados" : "Adicionar convidados"
+                  }
+                />
+              </div>
+              {attendeeFocused && attendeeSuggestions.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border bg-popover p-1 shadow-md">
+                  {attendeeSuggestions.map((profile) => (
+                    <button
+                      key={profile.id}
+                      id={`attendee-suggestion-${profile.id}`}
+                      type="button"
+                      className={`flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm transition-colors hover:bg-muted ${
+                        attendeeSuggestions[activeAttendeeSuggestion]?.id === profile.id
+                          ? "bg-muted"
+                          : ""
+                      }`}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => addAttendee(profile.email!)}
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+                        {(profile.full_name || profile.email || "?").slice(0, 1).toUpperCase()}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">
+                          {profile.full_name || profile.email}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {profile.email}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="flex items-center gap-3">
             <MapPin className="h-5 w-5 shrink-0 text-muted-foreground" />

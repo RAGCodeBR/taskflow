@@ -143,6 +143,7 @@ export interface AgendaEvent {
   is_all_day: boolean;
   location: string | null;
   meeting_url: string | null;
+  attendee_emails?: string[];
   create_google_meet?: boolean;
   auto_smart_notes?: boolean;
   auto_transcription?: boolean;
