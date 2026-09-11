@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useAuth } from "@/hooks/use-auth";
 import { useProfiles } from "@/hooks/use-data";
 import { supabase } from "@/integrations/supabase/client";
+import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import {
   removeTaskAttachmentAndClientCopy,
   taskAttachmentIdFromClientFilePath,
@@ -144,52 +145,96 @@ export function ClientFilesManager({
 
   const upload = async (fileList: FileList | null) => {
     if (!fileList?.length || !user) return;
-    setUploading(true);
-    const { data: lastFile } = await supabase
-      .from("client_files")
-      .select("position")
-      .eq("client_id", clientId)
-      .order("position", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    let nextPosition = (lastFile?.position ?? -1) + 1;
-    for (const file of Array.from(fileList)) {
-      const safeName = file.name
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9._-]+/g, "_");
-      const path = `clients/${clientId}/files/${Date.now()}_${crypto.randomUUID()}_${safeName}`;
-      const { error: uploadError } = await supabase.storage
-        .from("task-attachments")
-        .upload(path, file, { contentType: file.type || "application/octet-stream" });
-      if (uploadError) {
-        toast.error(uploadError.message);
-        continue;
-      }
-      const { error: insertError } = await supabase.from("client_files").insert({
-        client_id: clientId,
-        title: file.name,
-        file_name: file.name,
-        storage_path: path,
-        mime_type: file.type || null,
-        size_bytes: file.size,
-        uploaded_by: user.id,
-        position: nextPosition,
-      });
-      if (insertError) {
-        await supabase.storage.from("task-attachments").remove([path]);
-        toast.error(insertError.message);
-        continue;
-      }
-      nextPosition += 1;
+    const selectedFiles = Array.from(fileList);
+    const oversizedFiles = selectedFiles.filter(isTaskAttachmentTooLarge);
+    if (oversizedFiles.length) {
+      toast.error(
+        `${oversizedFiles.length} ${oversizedFiles.length === 1 ? "arquivo ultrapassa" : "arquivos ultrapassam"} o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`,
+      );
+      return;
     }
-    setUploading(false);
-    const nextUploaderIds =
-      isAdmin && !selectedUploaderIds.includes(user.id)
-        ? [...selectedUploaderIds, user.id]
-        : selectedUploaderIds;
-    if (nextUploaderIds !== selectedUploaderIds) setSelectedUploaderIds(nextUploaderIds);
-    else void load(nextUploaderIds);
+
+    setUploading(true);
+    let uploadedCount = 0;
+    try {
+      const { data: lastFile, error: positionError } = await supabase
+        .from("client_files")
+        .select("position")
+        .eq("client_id", clientId)
+        .order("position", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (positionError) throw positionError;
+
+      let nextPosition = (lastFile?.position ?? -1) + 1;
+      for (const file of selectedFiles) {
+        const safeName = file.name
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9._-]+/g, "_");
+        const path = `clients/${clientId}/files/${Date.now()}_${crypto.randomUUID()}_${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("task-attachments")
+          .upload(path, file, { contentType: file.type || "application/octet-stream" });
+        if (uploadError) {
+          toast.error(`${file.name}: falha ao enviar o arquivo. ${uploadError.message}`);
+          continue;
+        }
+
+        const { data: insertedFile, error: insertError } = await supabase
+          .from("client_files")
+          .insert({
+            client_id: clientId,
+            title: file.name,
+            file_name: file.name,
+            storage_path: path,
+            mime_type: file.type || null,
+            size_bytes: file.size,
+            uploaded_by: user.id,
+            position: nextPosition,
+          })
+          .select("*")
+          .single();
+        if (insertError) {
+          await supabase.storage.from("task-attachments").remove([path]);
+          toast.error(`${file.name}: falha ao vincular ao cliente. ${insertError.message}`);
+          continue;
+        }
+
+        const savedFile = insertedFile as ClientFile;
+        setFiles((current) =>
+          current.some((item) => item.id === savedFile.id) ? current : [...current, savedFile],
+        );
+        const { data: signed } = await supabase.storage
+          .from("task-attachments")
+          .createSignedUrl(path, 3600);
+        if (signed) setUrls((current) => ({ ...current, [savedFile.id]: signed.signedUrl }));
+
+        uploadedCount += 1;
+        nextPosition += 1;
+      }
+
+      const nextUploaderIds =
+        isAdmin && selectedUploaderIds.length > 0 && !selectedUploaderIds.includes(user.id)
+          ? [...selectedUploaderIds, user.id]
+          : selectedUploaderIds;
+      if (nextUploaderIds !== selectedUploaderIds) setSelectedUploaderIds(nextUploaderIds);
+      await load(nextUploaderIds);
+
+      if (uploadedCount > 0) {
+        toast.success(
+          `${uploadedCount} ${uploadedCount === 1 ? "arquivo enviado" : "arquivos enviados"} com sucesso.`,
+        );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? `Não foi possível carregar os arquivos do cliente. ${error.message}`
+          : "Não foi possível carregar os arquivos do cliente.",
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
   const saveTitle = async (file: ClientFile, title: string) => {
