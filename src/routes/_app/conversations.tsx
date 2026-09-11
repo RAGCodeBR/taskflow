@@ -9,7 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { useProfiles, useTaskCollaborators, useTasks, type Profile } from "@/hooks/use-data";
+import {
+  useProfiles,
+  useRelatedClients,
+  useTaskCollaborators,
+  useTasks,
+  type Profile,
+} from "@/hooks/use-data";
 import { TaskConversationPanel } from "@/components/TaskConversationPanel";
 import { useMarkConversationRead, useTaskConversations } from "@/hooks/use-task-conversations";
 import { sortRoomsByLastMessage, unreadInRoom } from "@/lib/task-conversations";
@@ -60,6 +66,7 @@ function ParticipantStack({ people }: { people: Profile[] }) {
 function ConversationsPage() {
   const { user, isAdmin } = useAuth();
   const { data: profiles = [] } = useProfiles();
+  const { data: relatedClients = [] } = useRelatedClients();
   const { data: allTasks = [] } = useTasks();
   const { data: myCollaborations = [] } = useTaskCollaborators();
   const { task: taskFromUrl } = Route.useSearch();
@@ -76,6 +83,11 @@ function ConversationsPage() {
     profiles.forEach((profile) => map.set(profile.id, profile));
     return map;
   }, [profiles]);
+
+  const clientNameById = useMemo(
+    () => new Map(relatedClients.map((client) => [client.id, client.name])),
+    [relatedClients],
+  );
 
   const lastMessageAtByTask = useMemo(() => {
     const map = new Map<string, string>();
@@ -161,7 +173,7 @@ function ConversationsPage() {
     (selectedId
       ? (() => {
           const t = allTasks.find((task) => task.id === selectedId);
-          return t ? { id: t.id, title: t.title } : null;
+          return t ? { id: t.id, title: t.title, client_id: t.client_id } : null;
         })()
       : null);
 
@@ -203,6 +215,7 @@ function ConversationsPage() {
   };
 
   const selectedParticipants = selected ? (participantsByTask.get(selected.id) ?? []) : [];
+  const selectedClientName = selected?.client_id ? clientNameById.get(selected.client_id) : null;
   const nameOf = (id: string | null) =>
     (id && profileById.get(id)?.full_name) || (id && profileById.get(id)?.email) || "Alguém";
 
@@ -214,6 +227,7 @@ function ConversationsPage() {
         ? unreadInRoom(allMessages, room.id, user.id, lastReadByTask.get(room.id))
         : 0;
     const active = selectedId === room.id;
+    const clientName = room.client_id ? clientNameById.get(room.client_id) : null;
     return (
       <li key={room.id}>
         <button
@@ -240,6 +254,9 @@ function ConversationsPage() {
               </span>
             )}
           </div>
+          {clientName && (
+            <p className="line-clamp-1 text-xs font-medium text-primary/80">{clientName}</p>
+          )}
           {last && (
             <p className="line-clamp-1 text-xs text-muted-foreground">
               <span className="font-medium text-foreground/70">{nameOf(last.author_id)}</span>{" "}
@@ -393,9 +410,16 @@ function ConversationsPage() {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="min-w-0 flex-1 truncate font-display text-base font-semibold">
-                  {selected.title}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate font-display text-base font-semibold">
+                    {selected.title}
+                  </span>
+                  {selectedClientName && (
+                    <span className="block truncate text-xs font-medium text-primary/80">
+                      Cliente: {selectedClientName}
+                    </span>
+                  )}
+                </div>
                 {isOversightRoom(selectedId) && (
                   <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                     Só leitura
