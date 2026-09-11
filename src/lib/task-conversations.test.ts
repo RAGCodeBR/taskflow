@@ -3,6 +3,7 @@ import {
   isConversationRoom,
   sortRoomsByLastMessage,
   unreadInRoom,
+  unreadMessageCount,
   unreadRoomCount,
 } from "./task-conversations";
 
@@ -12,6 +13,18 @@ const task = (over: Partial<Parameters<typeof isConversationRoom>[0]> = {}) => (
   status: "todo",
   deleted_at: null,
   ...over,
+});
+
+describe("unreadMessageCount", () => {
+  it("soma cada mensagem não lida, inclusive quando são da mesma conversa", () => {
+    const msgs = [
+      { task_id: "t1", author_id: "outro", created_at: "2026-09-03T10:00:00Z" },
+      { task_id: "t1", author_id: "outro", created_at: "2026-09-03T10:01:00Z" },
+      { task_id: "t2", author_id: "outro", created_at: "2026-09-03T10:02:00Z" },
+      { task_id: "t2", author_id: "eu", created_at: "2026-09-03T10:03:00Z" },
+    ];
+    expect(unreadMessageCount(msgs, ["t1", "t2"], "eu", new Map())).toBe(3);
+  });
 });
 
 describe("isConversationRoom", () => {

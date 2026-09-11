@@ -201,7 +201,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </span>
                 )}
                 {n.to === "/conversations" && conversationsUnread > 0 && (
-                  <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#142e63] px-1 text-[10px] font-bold text-white shadow-sm">
                     {conversationsUnread > 99 ? "99+" : conversationsUnread}
                   </span>
                 )}
@@ -334,7 +334,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       </span>
                     )}
                     {n.to === "/conversations" && conversationsUnread > 0 && (
-                      <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                      <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#142e63] px-1 text-[10px] font-bold text-white shadow-sm">
                         {conversationsUnread > 99 ? "99+" : conversationsUnread}
                       </span>
                     )}

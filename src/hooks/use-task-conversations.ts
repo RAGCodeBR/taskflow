@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfiles, useTaskCollaborators } from "@/hooks/use-data";
 import { activityToast } from "@/lib/activity-toast";
-import { isConversationRoom, unreadRoomCount } from "@/lib/task-conversations";
+import { isConversationRoom, unreadMessageCount } from "@/lib/task-conversations";
 
 type RoomTask = {
   id: string;
@@ -145,17 +145,13 @@ export function useMarkConversationRead() {
   };
 }
 
-/**
- * Número de SALAS com mensagem não lida — o badge do menu. Conta só as salas em
- * que a pessoa participa: o admin não recebe bolinha vermelha pelas conversas
- * dos consultores que ele só acompanha.
- */
+/** Número de mensagens de conversa não lidas para o badge do menu. */
 export function useTaskConversationsUnread() {
   const { user } = useAuth();
   const { myRoomIds, allMessages, lastReadByTask } = useTaskConversations();
   return useMemo(() => {
     if (!user?.id) return 0;
-    return unreadRoomCount(allMessages, Array.from(myRoomIds), user.id, lastReadByTask);
+    return unreadMessageCount(allMessages, Array.from(myRoomIds), user.id, lastReadByTask);
   }, [user?.id, myRoomIds, allMessages, lastReadByTask]);
 }
 

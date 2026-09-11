@@ -74,3 +74,16 @@ export function unreadRoomCount(
     return count + (unread > 0 ? 1 : 0);
   }, 0);
 }
+
+/** Total de mensagens de outras pessoas ainda não lidas nas salas acessíveis. */
+export function unreadMessageCount(
+  messages: ConversationMessageLike[],
+  roomTaskIds: string[],
+  myUserId: string,
+  lastReadByTask: Map<string, string>,
+): number {
+  return roomTaskIds.reduce(
+    (count, taskId) => count + unreadInRoom(messages, taskId, myUserId, lastReadByTask.get(taskId)),
+    0,
+  );
+}

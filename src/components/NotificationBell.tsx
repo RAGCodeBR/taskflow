@@ -20,7 +20,12 @@ interface Notification {
   created_at: string;
 }
 
-const MURAL_NOTIFICATION_TYPES = new Set(["mural_post", "mural_reaction"]);
+const NAVIGATION_NOTIFICATION_TYPES = new Set([
+  "mural_post",
+  "mural_reaction",
+  "comment",
+  "mention",
+]);
 
 export function NotificationBell() {
   const { user } = useAuth();
@@ -36,17 +41,23 @@ export function NotificationBell() {
 
   const load = async () => {
     if (!user) return;
-    // Mural tem badge próprio na navegação: fica fora do sino, e o filtro é no
-    // banco para que as notificações de mural não consumam o limit(30) e
-    // empurrem as de tarefa para fora da janela.
+    // Mural e Conversas têm indicadores próprios na navegação. Filtrar no banco
+    // evita que esses avisos ocupem espaço no sino.
     const { data } = await (supabase.from("notifications") as any)
       .select("*")
       .eq("user_id", user.id)
-      .not("type", "in", `(${[...MURAL_NOTIFICATION_TYPES].join(",")})`)
+      .not("type", "in", `(${[...NAVIGATION_NOTIFICATION_TYPES].join(",")})`)
       .order("created_at", { ascending: false })
       .limit(30);
     const next = (data ?? []) as Notification[];
-    if (next.some((n) => n.type === "assignment" || n.type === "subtask_assignment" || n.type === "collaborator_assignment")) {
+    if (
+      next.some(
+        (n) =>
+          n.type === "assignment" ||
+          n.type === "subtask_assignment" ||
+          n.type === "collaborator_assignment",
+      )
+    ) {
       refreshAssignedWork();
     }
     setItems(next);
@@ -63,8 +74,13 @@ export function NotificationBell() {
         { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
         (payload: any) => {
           const type = payload.new?.type ?? payload.old?.type;
-          if (MURAL_NOTIFICATION_TYPES.has(type)) return;
-          if (type === "assignment" || type === "subtask_assignment" || type === "collaborator_assignment") refreshAssignedWork();
+          if (NAVIGATION_NOTIFICATION_TYPES.has(type)) return;
+          if (
+            type === "assignment" ||
+            type === "subtask_assignment" ||
+            type === "collaborator_assignment"
+          )
+            refreshAssignedWork();
           void load();
         },
       )
@@ -88,7 +104,8 @@ export function NotificationBell() {
     await (supabase.from("notifications") as any)
       .update({ is_read: true })
       .eq("user_id", user.id)
-      .eq("is_read", false);
+      .eq("is_read", false)
+      .not("type", "in", `(${[...NAVIGATION_NOTIFICATION_TYPES].join(",")})`);
     setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 
@@ -125,7 +142,9 @@ export function NotificationBell() {
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div>
             <p className="text-sm font-semibold">Notificações</p>
-            <p className="text-xs text-muted-foreground">{unread > 0 ? `${unread} não lidas` : "Tudo em dia"}</p>
+            <p className="text-xs text-muted-foreground">
+              {unread > 0 ? `${unread} não lidas` : "Tudo em dia"}
+            </p>
           </div>
           <Button size="sm" variant="ghost" disabled={unread === 0} onClick={markAllRead}>
             <Check className="mr-1 h-3.5 w-3.5" />
@@ -149,7 +168,9 @@ export function NotificationBell() {
               )}
               <div className="min-w-0 flex-1">
                 <p className="font-medium leading-tight">{n.title}</p>
-                {n.body && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.body}</p>}
+                {n.body && (
+                  <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.body}</p>
+                )}
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ptBR })}
                 </p>
