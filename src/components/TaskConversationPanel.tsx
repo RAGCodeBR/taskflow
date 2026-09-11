@@ -77,13 +77,9 @@ export function TaskConversationPanel({
   }, [message]);
   const mentionCandidates = useMemo(() => {
     if (mentionQuery === null) return [];
-    return mentionableProfiles
-      .filter((profile) =>
-        (profile.full_name || profile.email || "")
-          .toLocaleLowerCase("pt-BR")
-          .includes(mentionQuery),
-      )
-      .slice(0, 5);
+    return mentionableProfiles.filter((profile) =>
+      (profile.full_name || profile.email || "").toLocaleLowerCase("pt-BR").includes(mentionQuery),
+    );
   }, [mentionQuery, mentionableProfiles]);
 
   const nameOf = (id: string | null | undefined) => {
@@ -418,7 +414,7 @@ export function TaskConversationPanel({
             }}
           />
           {mentionCandidates.length > 0 && (
-            <div className="absolute bottom-[calc(100%+4px)] left-3 z-10 w-64 overflow-hidden rounded-md border bg-popover p-1 shadow-md">
+            <div className="scrollbar-thin absolute bottom-[calc(100%+4px)] left-3 z-10 max-h-52 w-64 overflow-y-auto overscroll-contain rounded-md border bg-popover p-1 shadow-md">
               {mentionCandidates.map((profile) => (
                 <button
                   key={profile.id}
