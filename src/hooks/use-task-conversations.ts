@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,7 +23,7 @@ type Message = {
   body: string;
   created_at: string;
 };
-type Read = { task_id: string; last_read_at: string };
+type Read = { task_id: string; last_read_at: string; manual_unread: boolean };
 
 const roomsKey = ["task-conversation-rooms"] as const;
 const messagesKey = ["task-conversation-messages"] as const;
@@ -76,7 +76,7 @@ export function useTaskConversations() {
     enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await (supabase.from("task_conversation_reads") as any)
-        .select("task_id, last_read_at")
+        .select("task_id, last_read_at, manual_unread")
         .eq("user_id", user!.id);
       if (error) throw error;
       return (data ?? []) as Read[];
@@ -98,6 +98,12 @@ export function useTaskConversations() {
     (reads.data ?? []).forEach((r) => map.set(r.task_id, r.last_read_at));
     return map;
   }, [reads.data]);
+
+  const manuallyUnreadTaskIds = useMemo(
+    () =>
+      new Set((reads.data ?? []).filter((read) => read.manual_unread).map((read) => read.task_id)),
+    [reads.data],
+  );
 
   const roomTasks = useMemo(
     () =>
@@ -126,6 +132,7 @@ export function useTaskConversations() {
     myRoomIds,
     messagesByTask,
     lastReadByTask,
+    manuallyUnreadTaskIds,
     allMessages: messages.data ?? [],
     isLoading: messages.isLoading || rooms.isLoading,
   };
@@ -135,24 +142,73 @@ export function useTaskConversations() {
 export function useMarkConversationRead() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  return async (taskId: string) => {
-    if (!user?.id) return;
-    await (supabase.from("task_conversation_reads") as any).upsert(
-      { user_id: user.id, task_id: taskId, last_read_at: new Date().toISOString() },
-      { onConflict: "user_id,task_id" },
-    );
-    await qc.invalidateQueries({ queryKey: readsKey(user.id) });
-  };
+  return useCallback(
+    async (taskId: string) => {
+      if (!user?.id) return;
+      await (supabase.from("task_conversation_reads") as any).upsert(
+        {
+          user_id: user.id,
+          task_id: taskId,
+          last_read_at: new Date().toISOString(),
+          manual_unread: false,
+        },
+        { onConflict: "user_id,task_id" },
+      );
+      await qc.invalidateQueries({ queryKey: readsKey(user.id) });
+    },
+    [qc, user?.id],
+  );
+}
+
+/** Marca manualmente uma conversa como não lida sem apagar seu histórico de leitura. */
+export function useMarkConversationUnread() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useCallback(
+    async (taskId: string) => {
+      if (!user?.id) return;
+      await (supabase.from("task_conversation_reads") as any).upsert(
+        {
+          user_id: user.id,
+          task_id: taskId,
+          last_read_at: new Date().toISOString(),
+          manual_unread: true,
+        },
+        { onConflict: "user_id,task_id" },
+      );
+      await qc.invalidateQueries({ queryKey: readsKey(user.id) });
+    },
+    [qc, user?.id],
+  );
 }
 
 /** Número de mensagens de conversa não lidas para o badge do menu. */
 export function useTaskConversationsUnread() {
   const { user } = useAuth();
-  const { myRoomIds, allMessages, lastReadByTask } = useTaskConversations();
+  const { roomTasks, myRoomIds, allMessages, lastReadByTask, manuallyUnreadTaskIds } =
+    useTaskConversations();
   return useMemo(() => {
     if (!user?.id) return 0;
-    return unreadMessageCount(allMessages, Array.from(myRoomIds), user.id, lastReadByTask);
-  }, [user?.id, myRoomIds, allMessages, lastReadByTask]);
+    const unreadByMessage = unreadMessageCount(
+      allMessages,
+      Array.from(myRoomIds),
+      user.id,
+      lastReadByTask,
+    );
+    const activeRoomIds = new Set(roomTasks.map((task) => task.id));
+    const manualOnly = [...manuallyUnreadTaskIds].filter(
+      (taskId) =>
+        activeRoomIds.has(taskId) &&
+        (!myRoomIds.has(taskId) ||
+          !allMessages.some(
+            (message) =>
+              message.task_id === taskId &&
+              message.author_id !== user.id &&
+              Date.parse(message.created_at) > Date.parse(lastReadByTask.get(taskId) ?? ""),
+          )),
+    ).length;
+    return unreadByMessage + manualOnly;
+  }, [user?.id, roomTasks, myRoomIds, allMessages, lastReadByTask, manuallyUnreadTaskIds]);
 }
 
 /**

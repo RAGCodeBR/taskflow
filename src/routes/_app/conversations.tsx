@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MessagesSquare, ChevronLeft, Plus } from "lucide-react";
+import { MessagesSquare, ChevronLeft, Filter, Plus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,18 @@ import {
   type Profile,
 } from "@/hooks/use-data";
 import { TaskConversationPanel } from "@/components/TaskConversationPanel";
-import { useMarkConversationRead, useTaskConversations } from "@/hooks/use-task-conversations";
+import {
+  useMarkConversationRead,
+  useMarkConversationUnread,
+  useTaskConversations,
+} from "@/hooks/use-task-conversations";
 import { sortRoomsByLastMessage, unreadInRoom } from "@/lib/task-conversations";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 export const Route = createFileRoute("/_app/conversations")({
   validateSearch: (search: Record<string, unknown>): { task?: string } => ({
@@ -70,13 +80,22 @@ function ConversationsPage() {
   const { data: allTasks = [] } = useTasks();
   const { data: myCollaborations = [] } = useTaskCollaborators();
   const { task: taskFromUrl } = Route.useSearch();
-  const { roomTasks, myRoomIds, messagesByTask, lastReadByTask, allMessages, isLoading } =
-    useTaskConversations();
+  const {
+    roomTasks,
+    myRoomIds,
+    messagesByTask,
+    lastReadByTask,
+    manuallyUnreadTaskIds,
+    allMessages,
+    isLoading,
+  } = useTaskConversations();
   const [selectedId, setSelectedId] = useState<string | null>(taskFromUrl ?? null);
   const markRead = useMarkConversationRead();
+  const markUnread = useMarkConversationUnread();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const [roomTab, setRoomTab] = useState<"mine" | "others">("mine");
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
   const profileById = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -136,7 +155,19 @@ function ConversationsPage() {
 
   const hasOversight = otherOrderedRooms.length > 0;
   const shownTab = hasOversight ? roomTab : "mine";
-  const visibleRooms = shownTab === "others" ? otherOrderedRooms : myOrderedRooms;
+  const isRoomUnread = (roomId: string) =>
+    manuallyUnreadTaskIds.has(roomId) ||
+    (!!user?.id &&
+      myRoomIds.has(roomId) &&
+      unreadInRoom(allMessages, roomId, user.id, lastReadByTask.get(roomId)) > 0);
+  const roomsForTab = shownTab === "others" ? otherOrderedRooms : myOrderedRooms;
+  const unreadRoomTotal = useMemo(
+    () => roomsForTab.filter((room) => isRoomUnread(room.id)).length,
+    [roomsForTab, manuallyUnreadTaskIds, user?.id, myRoomIds, allMessages, lastReadByTask],
+  );
+  const visibleRooms = unreadOnly
+    ? roomsForTab.filter((room) => isRoomUnread(room.id))
+    : roomsForTab;
 
   // Deep-link da tarefa (vindo do card / editor) tem prioridade.
   useEffect(() => {
@@ -163,10 +194,8 @@ function ConversationsPage() {
   // lida e derruba o indicador na hora.
   useEffect(() => {
     if (!user?.id || !selectedId) return;
-    // Sala que eu só fiscalizo não marca leitura — não conta pro meu badge.
-    if (!myRoomIds.has(selectedId)) return;
     void markRead(selectedId);
-  }, [user?.id, selectedId, allMessages.length, markRead, myRoomIds]);
+  }, [user?.id, selectedId, allMessages.length, markRead]);
 
   const selected =
     orderedRooms.find((room) => room.id === selectedId) ??
@@ -222,59 +251,71 @@ function ConversationsPage() {
   const renderRoom = (room: (typeof orderedRooms)[number]) => {
     const list = messagesByTask.get(room.id) ?? [];
     const last = list[list.length - 1];
-    const unread =
-      user?.id && myRoomIds.has(room.id)
-        ? unreadInRoom(allMessages, room.id, user.id, lastReadByTask.get(room.id))
-        : 0;
+    const unread = isRoomUnread(room.id);
     const active = selectedId === room.id;
     const clientName = room.client_id ? clientNameById.get(room.client_id) : null;
     return (
-      <li key={room.id}>
-        <button
-          type="button"
-          onClick={() => setSelectedId(room.id)}
-          className={cn(
-            "relative flex w-full flex-col gap-1 px-5 py-4 text-left transition-colors",
-            active ? "bg-accent/60" : "hover:bg-accent/30",
-          )}
-        >
-          {active && <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary" />}
-          <div className="flex items-start gap-2">
-            <span
+      <ContextMenu key={room.id}>
+        <ContextMenuTrigger asChild>
+          <li>
+            <button
+              type="button"
+              onClick={() => setSelectedId(room.id)}
               className={cn(
-                "min-w-0 flex-1 font-display text-[13px] font-semibold leading-snug",
-                active ? "text-primary" : "text-foreground",
+                "relative flex w-full flex-col gap-1 px-5 py-4 text-left transition-colors",
+                active ? "bg-accent/60" : "hover:bg-accent/30",
               )}
             >
-              {room.title}
-            </span>
-            {unread > 0 && (
-              <span className="mt-0.5 shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
-                {unread > 99 ? "99+" : unread}
-              </span>
-            )}
-          </div>
-          {clientName && (
-            <p className="line-clamp-1 text-xs font-medium text-primary/80">{clientName}</p>
-          )}
-          {last && (
-            <p className="line-clamp-1 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground/70">{nameOf(last.author_id)}</span>{" "}
-              {last.body}
-            </p>
-          )}
-          <div className="mt-1 flex items-center justify-between">
-            {last ? (
-              <span className="text-[11px] text-muted-foreground/70">
-                {formatDistanceToNow(new Date(last.created_at), { addSuffix: true, locale: ptBR })}
-              </span>
-            ) : (
-              <span />
-            )}
-            <ParticipantStack people={participantsByTask.get(room.id) ?? []} />
-          </div>
-        </button>
-      </li>
+              {active && (
+                <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary" />
+              )}
+              <div className="flex items-start gap-2">
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 font-display text-[13px] font-semibold leading-snug",
+                    active ? "text-primary" : "text-foreground",
+                  )}
+                >
+                  {room.title}
+                </span>
+                {unread && (
+                  <span
+                    aria-label="Conversa não lida"
+                    className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#142e63] shadow-sm"
+                  />
+                )}
+              </div>
+              {clientName && (
+                <p className="line-clamp-1 text-xs font-medium text-primary/80">{clientName}</p>
+              )}
+              {last && (
+                <p className="line-clamp-1 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground/70">{nameOf(last.author_id)}</span>{" "}
+                  {last.body}
+                </p>
+              )}
+              <div className="mt-1 flex items-center justify-between">
+                {last ? (
+                  <span className="text-[11px] text-muted-foreground/70">
+                    {formatDistanceToNow(new Date(last.created_at), {
+                      addSuffix: true,
+                      locale: ptBR,
+                    })}
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <ParticipantStack people={participantsByTask.get(room.id) ?? []} />
+              </div>
+            </button>
+          </li>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={() => void (unread ? markRead(room.id) : markUnread(room.id))}>
+            {unread ? "Marcar como lida" : "Marcar como não lida"}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     );
   };
 
@@ -347,35 +388,59 @@ function ConversationsPage() {
             </div>
           )}
 
-          {hasOversight && (
-            <div className="flex gap-1 border-b bg-card p-2">
-              <button
-                type="button"
-                onClick={() => setRoomTab("mine")}
-                className={cn(
-                  "flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
-                  shownTab === "mine"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent/50",
-                )}
-              >
-                Minhas
-              </button>
-              <button
-                type="button"
-                onClick={() => setRoomTab("others")}
-                className={cn(
-                  "flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
-                  shownTab === "others"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent/50",
-                )}
-              >
-                Outras
-                <span className="ml-1 opacity-70">{otherOrderedRooms.length}</span>
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-1 border-b bg-card p-2">
+            {hasOversight && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setRoomTab("mine")}
+                  className={cn(
+                    "flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                    shownTab === "mine"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent/50",
+                  )}
+                >
+                  Minhas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRoomTab("others")}
+                  className={cn(
+                    "flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                    shownTab === "others"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent/50",
+                  )}
+                >
+                  Outras
+                  <span className="ml-1 opacity-70">{otherOrderedRooms.length}</span>
+                </button>
+              </>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant={unreadOnly ? "default" : "ghost"}
+              className={cn("h-8 gap-1.5 px-2 text-xs", !hasOversight && "ml-auto")}
+              onClick={() => setUnreadOnly((current) => !current)}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Não lidas
+              {unreadRoomTotal > 0 && (
+                <span
+                  className={cn(
+                    "grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-bold",
+                    unreadOnly
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-[#142e63] text-white",
+                  )}
+                >
+                  {unreadRoomTotal > 99 ? "99+" : unreadRoomTotal}
+                </span>
+              )}
+            </Button>
+          </div>
 
           {shownTab === "others" && (
             <p className="px-5 pb-1 pt-3 text-[11px] text-muted-foreground/70">
