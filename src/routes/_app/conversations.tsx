@@ -365,7 +365,7 @@ function ConversationsPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+    <div className="flex h-[calc(100vh-3.5rem)] flex-col [&_button:not(:disabled)]:cursor-pointer">
       <header className="flex items-center gap-3 border-b px-6 py-4">
         <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
           <MessagesSquare className="h-[1.15rem] w-[1.15rem]" />
@@ -373,7 +373,8 @@ function ConversationsPage() {
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-lg font-semibold leading-tight">Conversas</h1>
           <p className="text-xs text-muted-foreground">
-            Uma conversa por demanda. Quando a tarefa é concluída, ela sai daqui.
+            Uma conversa por demanda. Quando a conversa é concluída, o histórico pode ser acessado
+            clicando no card da tarefa.
           </p>
         </div>
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>

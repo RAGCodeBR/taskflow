@@ -540,7 +540,12 @@ export function TaskConversationPanel({
   };
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col [&_button:not(:disabled)]:cursor-pointer",
+        className,
+      )}
+    >
       <div
         ref={commentsContainerRef}
         className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-muted/20 px-4 py-5 sm:px-6"
