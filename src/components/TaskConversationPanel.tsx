@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Send, SmilePlus, X, Reply, Pencil, Check } from "lucide-react";
+import { Send, SmilePlus, X, Reply, Pencil, Check, LoaderCircle, Mic, Square } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,15 @@ type Comment = {
   created_at: string;
   reply_to_id: string | null;
   edited_at: string | null;
+};
+
+type AudioAttachment = {
+  id: string;
+  comment_id: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  signed_url: string;
 };
 
 type Props = {
@@ -43,6 +52,43 @@ const MESSAGE_EMOJIS = [
   "\u{1F389}",
   "\u{1F44F}",
 ];
+const MAX_AUDIO_SECONDS = 60;
+
+function createWavBlob(chunks: Float32Array[], sampleRate: number) {
+  const sampleCount = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  const buffer = new ArrayBuffer(44 + sampleCount * 2);
+  const view = new DataView(buffer);
+  const writeText = (offset: number, value: string) => {
+    [...value].forEach((character, index) =>
+      view.setUint8(offset + index, character.charCodeAt(0)),
+    );
+  };
+
+  writeText(0, "RIFF");
+  view.setUint32(4, 36 + sampleCount * 2, true);
+  writeText(8, "WAVE");
+  writeText(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeText(36, "data");
+  view.setUint32(40, sampleCount * 2, true);
+
+  let offset = 44;
+  chunks.forEach((chunk) => {
+    chunk.forEach((sample) => {
+      const normalized = Math.max(-1, Math.min(1, sample));
+      view.setInt16(offset, normalized < 0 ? normalized * 0x8000 : normalized * 0x7fff, true);
+      offset += 2;
+    });
+  });
+
+  return new Blob([buffer], { type: "audio/wav" });
+}
 
 /**
  * O chat de uma tarefa: mensagens em `comments`, realtime por `task_id`,
@@ -65,7 +111,25 @@ export function TaskConversationPanel({
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
+  const [audioByComment, setAudioByComment] = useState<Record<string, AudioAttachment[]>>({});
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [sendingAudio, setSendingAudio] = useState(false);
   const messageRef = useRef<HTMLTextAreaElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const silentGainRef = useRef<GainNode | null>(null);
+  const audioChunksRef = useRef<Float32Array[]>([]);
+  const audioSampleRateRef = useRef(44_100);
+  const recordingTimerRef = useRef<number | null>(null);
+  const recordingTimeoutRef = useRef<number | null>(null);
+  const recordingSecondsRef = useRef(0);
+  const recordingStartedAtRef = useRef<number | null>(null);
 
   const mentionableProfiles = useMemo(
     () => assignableProfiles.filter((profile) => profile.is_active !== false),
@@ -96,6 +160,151 @@ export function TaskConversationPanel({
     if (error) return toast.error(error.message);
     setComments((data ?? []) as Comment[]);
   }, [taskId]);
+
+  const loadAudioAttachments = useCallback(async () => {
+    const commentIds = comments.map((comment) => comment.id);
+    if (!commentIds.length) {
+      setAudioByComment({});
+      return;
+    }
+    const { data, error } = await (supabase.from("comment_attachments") as any)
+      .select("id, comment_id, file_name, storage_path, mime_type")
+      .in("comment_id", commentIds)
+      .like("mime_type", "audio/%");
+    if (error) return;
+    const attachments = await Promise.all(
+      (data ?? []).map(async (attachment: Omit<AudioAttachment, "signed_url">) => {
+        const { data: signed } = await supabase.storage
+          .from("task-attachments")
+          .createSignedUrl(attachment.storage_path, 60 * 60);
+        return signed ? { ...attachment, signed_url: signed.signedUrl } : null;
+      }),
+    );
+    const grouped: Record<string, AudioAttachment[]> = {};
+    attachments.filter(Boolean).forEach((attachment) => {
+      const audio = attachment as AudioAttachment;
+      grouped[audio.comment_id] = [...(grouped[audio.comment_id] ?? []), audio];
+    });
+    setAudioByComment(grouped);
+  }, [comments]);
+
+  useEffect(() => {
+    void loadAudioAttachments();
+  }, [loadAudioAttachments]);
+
+  useEffect(
+    () => () => {
+      if (recordingTimerRef.current !== null) window.clearInterval(recordingTimerRef.current);
+      if (recordingTimeoutRef.current !== null) window.clearTimeout(recordingTimeoutRef.current);
+      audioProcessorRef.current?.disconnect();
+      audioSourceRef.current?.disconnect();
+      silentGainRef.current?.disconnect();
+      void audioContextRef.current?.close();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    },
+    [],
+  );
+
+  const clearRecordingTimers = () => {
+    if (recordingTimerRef.current !== null) window.clearInterval(recordingTimerRef.current);
+    if (recordingTimeoutRef.current !== null) window.clearTimeout(recordingTimeoutRef.current);
+    recordingTimerRef.current = null;
+    recordingTimeoutRef.current = null;
+  };
+
+  const clearAudioPreview = () => {
+    if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+    setAudioPreviewUrl(null);
+    setAudioBlob(null);
+    setAudioDuration(0);
+  };
+
+  const stopRecordingAudio = () => {
+    clearRecordingTimers();
+    const elapsedSeconds = Math.max(
+      recordingSecondsRef.current,
+      recordingStartedAtRef.current
+        ? Math.floor((Date.now() - recordingStartedAtRef.current) / 1000)
+        : 0,
+    );
+    recordingStartedAtRef.current = null;
+
+    audioProcessorRef.current?.disconnect();
+    audioSourceRef.current?.disconnect();
+    silentGainRef.current?.disconnect();
+    void audioContextRef.current?.close();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    audioContextRef.current = null;
+    audioSourceRef.current = null;
+    audioProcessorRef.current = null;
+    silentGainRef.current = null;
+
+    const blob = createWavBlob(audioChunksRef.current, audioSampleRateRef.current);
+    audioChunksRef.current = [];
+    if (blob.size > 44 && elapsedSeconds >= 1) {
+      const previewUrl = URL.createObjectURL(blob);
+      setAudioBlob(blob);
+      setAudioPreviewUrl(previewUrl);
+      setAudioDuration(elapsedSeconds);
+    } else if (elapsedSeconds < 1) {
+      toast.error("Grave o áudio por pelo menos 1 segundo antes de parar.");
+    } else {
+      toast.error("Nenhum áudio foi capturado. Verifique o microfone e tente novamente.");
+    }
+    setIsRecordingAudio(false);
+  };
+
+  const startRecordingAudio = async () => {
+    if (readOnly || isRecordingAudio || sendingAudio) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === "undefined") {
+      return toast.error("A gravação de áudio não é compatível com este navegador.");
+    }
+    clearAudioPreview();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = stream;
+      const audioContext = new AudioContext();
+      await audioContext.resume();
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const silentGain = audioContext.createGain();
+      silentGain.gain.value = 0;
+      audioChunksRef.current = [];
+      audioSampleRateRef.current = audioContext.sampleRate;
+      processor.onaudioprocess = (event) => {
+        audioChunksRef.current.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      };
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(audioContext.destination);
+      audioContextRef.current = audioContext;
+      audioSourceRef.current = source;
+      audioProcessorRef.current = processor;
+      silentGainRef.current = silentGain;
+      recordingSecondsRef.current = 0;
+      recordingStartedAtRef.current = Date.now();
+      setRecordingSeconds(0);
+      setIsRecordingAudio(true);
+      recordingTimerRef.current = window.setInterval(() => {
+        recordingSecondsRef.current = Math.min(
+          MAX_AUDIO_SECONDS,
+          Math.floor((Date.now() - (recordingStartedAtRef.current ?? Date.now())) / 1000),
+        );
+        setRecordingSeconds(recordingSecondsRef.current);
+      }, 1000);
+      recordingTimeoutRef.current = window.setTimeout(
+        () => stopRecordingAudio(),
+        MAX_AUDIO_SECONDS * 1000,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível acessar o microfone.");
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  };
 
   useEffect(() => {
     void loadComments();
@@ -189,6 +398,78 @@ export function TaskConversationPanel({
     setMessage("");
     setReplyingTo(null);
     onActivity?.();
+  };
+
+  const sendAudio = async () => {
+    if (!audioBlob || !user || readOnly || sendingAudio) return;
+    setSendingAudio(true);
+    try {
+      const { data: comment, error: commentError } = await supabase
+        .from("comments")
+        .insert({
+          task_id: taskId,
+          author_id: user.id,
+          body: "🎤 Áudio",
+          title: null,
+          reply_to_id: null,
+        })
+        .select(SELECT)
+        .single();
+      if (commentError) throw commentError;
+
+      const extension = audioBlob.type.includes("wav")
+        ? "wav"
+        : audioBlob.type.includes("ogg")
+          ? "ogg"
+          : "webm";
+      const path = `${taskId}/comments/${comment.id}/${Date.now()}-audio.${extension}`;
+      const contentType = audioBlob.type || `audio/${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("task-attachments")
+        .upload(path, audioBlob, { contentType, upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { data: attachment, error: attachmentError } = await (
+        supabase.from("comment_attachments") as any
+      )
+        .insert({
+          comment_id: comment.id,
+          task_id: taskId,
+          file_name: `Áudio ${format(new Date(), "dd/MM HH:mm")}.${extension}`,
+          storage_path: path,
+          mime_type: contentType,
+          size_bytes: audioBlob.size,
+          uploaded_by: user.id,
+        })
+        .select("id, comment_id, file_name, storage_path, mime_type")
+        .single();
+      if (attachmentError) throw attachmentError;
+
+      const { data: signed } = await supabase.storage
+        .from("task-attachments")
+        .createSignedUrl(path, 60 * 60);
+      if (signed) {
+        setAudioByComment((current) => ({
+          ...current,
+          [comment.id]: [
+            ...(current[comment.id] ?? []),
+            {
+              ...(attachment as Omit<AudioAttachment, "signed_url">),
+              signed_url: signed.signedUrl,
+            },
+          ],
+        }));
+      }
+      setComments((current) =>
+        current.some((item) => item.id === comment.id) ? current : [...current, comment as Comment],
+      );
+      clearAudioPreview();
+      onActivity?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar o áudio.");
+    } finally {
+      setSendingAudio(false);
+    }
   };
 
   const saveEdit = async (id: string) => {
@@ -374,6 +655,17 @@ export function TaskConversationPanel({
                     {renderBody(comment.body, isOwnMessage)}
                   </p>
                 )}
+                {(audioByComment[comment.id] ?? []).map((audio) => (
+                  <audio
+                    key={audio.id}
+                    controls
+                    preload="metadata"
+                    src={audio.signed_url}
+                    className="mt-2 h-9 max-w-full"
+                  >
+                    Seu navegador não suporta a reprodução de áudio.
+                  </audio>
+                ))}
               </div>
             </div>
           );
@@ -398,6 +690,57 @@ export function TaskConversationPanel({
               <button type="button" onClick={() => setReplyingTo(null)} title="Cancelar resposta">
                 <X className="h-3.5 w-3.5" />
               </button>
+            </div>
+          )}
+          {isRecordingAudio && (
+            <div className="mb-2 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-destructive" />
+              <span className="font-medium">Gravando áudio</span>
+              <span className="text-muted-foreground">
+                {String(Math.floor(recordingSeconds / 60)).padStart(2, "0")}:
+                {String(recordingSeconds % 60).padStart(2, "0")} / 01:00
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="ml-auto h-7 px-2 text-xs"
+                onClick={stopRecordingAudio}
+              >
+                <Square className="mr-1 h-3 w-3 fill-current" /> Parar
+              </Button>
+            </div>
+          )}
+          {audioPreviewUrl && !isRecordingAudio && (
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
+              <audio controls preload="metadata" src={audioPreviewUrl} className="h-9 max-w-full" />
+              <span className="text-xs text-muted-foreground">
+                Áudio de até 01:00{audioDuration ? ` · ${audioDuration}s gravados` : ""}
+              </span>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="ml-auto h-7 w-7"
+                onClick={clearAudioPreview}
+                title="Descartar áudio"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8"
+                onClick={() => void sendAudio()}
+                disabled={sendingAudio}
+              >
+                {sendingAudio ? (
+                  <LoaderCircle className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-1 h-4 w-4" />
+                )}
+                Enviar áudio
+              </Button>
             </div>
           )}
           <Textarea
@@ -433,6 +776,23 @@ export function TaskConversationPanel({
           )}
           <div className="mt-2 flex flex-nowrap items-center justify-between gap-2 overflow-x-auto">
             <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
+              <Button
+                type="button"
+                size="icon"
+                variant={isRecordingAudio ? "destructive" : "ghost"}
+                className="h-7 w-7"
+                onClick={() =>
+                  void (isRecordingAudio ? stopRecordingAudio() : startRecordingAudio())
+                }
+                disabled={sendingAudio || !!audioPreviewUrl}
+                title={isRecordingAudio ? "Parar gravação" : "Gravar áudio (máximo de 1 minuto)"}
+              >
+                {isRecordingAudio ? (
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </Button>
               <SmilePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               {MESSAGE_EMOJIS.map((emoji) => (
                 <button
