@@ -55,6 +55,11 @@ const MESSAGE_EMOJIS = [
 const MAX_AUDIO_SECONDS = 60;
 const COMMENTS_PAGE_SIZE = 50;
 
+function audioPlayerWidth(duration: number | undefined) {
+  if (!duration || !Number.isFinite(duration)) return 300;
+  return Math.min(420, Math.max(280, 260 + Math.round(duration * 2.5)));
+}
+
 function createWavBlob(chunks: Float32Array[], sampleRate: number) {
   const sampleCount = chunks.reduce((total, chunk) => total + chunk.length, 0);
   const buffer = new ArrayBuffer(44 + sampleCount * 2);
@@ -113,6 +118,7 @@ export function TaskConversationPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [audioByComment, setAudioByComment] = useState<Record<string, AudioAttachment[]>>({});
+  const [audioDurationById, setAudioDurationById] = useState<Record<string, number>>({});
   const [hasOlderComments, setHasOlderComments] = useState(false);
   const [isLoadingOlderComments, setIsLoadingOlderComments] = useState(false);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
@@ -734,7 +740,17 @@ export function TaskConversationPanel({
                     controls
                     preload="auto"
                     src={audio.signed_url}
-                    className="mt-2 h-8 w-[220px] max-w-full"
+                    onLoadedMetadata={(event) => {
+                      const duration = event.currentTarget.duration;
+                      if (!Number.isFinite(duration)) return;
+                      setAudioDurationById((current) =>
+                        current[audio.id] === duration
+                          ? current
+                          : { ...current, [audio.id]: duration },
+                      );
+                    }}
+                    className="mt-2 h-8 max-w-full"
+                    style={{ width: audioPlayerWidth(audioDurationById[audio.id]) }}
                   >
                     Seu navegador não suporta a reprodução de áudio.
                   </audio>
