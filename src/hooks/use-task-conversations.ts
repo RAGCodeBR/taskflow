@@ -204,6 +204,23 @@ export function useCloseTaskConversation() {
 }
 
 /** Número de mensagens de conversa não lidas para o badge do menu. */
+export function useReopenTaskConversation() {
+  const qc = useQueryClient();
+  return useCallback(
+    async (taskId: string) => {
+      const { error } = await (supabase.from("tasks") as any)
+        .update({ conversation_closed_at: null })
+        .eq("id", taskId);
+      if (error) throw error;
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: roomsKey }),
+        qc.invalidateQueries({ queryKey: ["tasks"] }),
+      ]);
+    },
+    [qc],
+  );
+}
+
 export function useTaskConversationsUnread() {
   const { user } = useAuth();
   const { roomTasks, myRoomIds, allMessages, lastReadByTask, manuallyUnreadTaskIds } =

@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, MessagesSquare, ChevronLeft, Filter, Plus } from "lucide-react";
+import {
+  Check,
+  MessagesSquare,
+  ChevronLeft,
+  Filter,
+  Plus,
+  RotateCcw,
+  LoaderCircle,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,10 +27,12 @@ import {
   type Profile,
 } from "@/hooks/use-data";
 import { TaskConversationPanel } from "@/components/TaskConversationPanel";
+import { supabase } from "@/integrations/supabase/client";
 import {
   useMarkConversationRead,
   useMarkConversationUnread,
   useCloseTaskConversation,
+  useReopenTaskConversation,
   useTaskConversations,
 } from "@/hooks/use-task-conversations";
 import { sortRoomsByLastMessage, unreadInRoom } from "@/lib/task-conversations";
@@ -83,6 +94,23 @@ function ConversationsPage() {
   const { data: myCollaborations = [] } = useTaskCollaborators();
   const { task: taskFromUrl } = Route.useSearch();
   const navigate = useNavigate();
+  const directTask = useQuery({
+    queryKey: ["task-conversation-direct", taskFromUrl],
+    enabled: !!taskFromUrl,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("tasks") as any)
+        .select("id, title, client_id, conversation_closed_at")
+        .eq("id", taskFromUrl!)
+        .single();
+      if (error) throw error;
+      return data as {
+        id: string;
+        title: string;
+        client_id: string | null;
+        conversation_closed_at: string | null;
+      };
+    },
+  });
   const {
     roomTasks,
     myRoomIds,
@@ -96,11 +124,13 @@ function ConversationsPage() {
   const markRead = useMarkConversationRead();
   const markUnread = useMarkConversationUnread();
   const closeConversation = useCloseTaskConversation();
+  const reopenTaskConversation = useReopenTaskConversation();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const [roomTab, setRoomTab] = useState<"mine" | "others">("mine");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [closingConversationId, setClosingConversationId] = useState<string | null>(null);
+  const [reopeningConversationId, setReopeningConversationId] = useState<string | null>(null);
 
   const profileById = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -206,10 +236,17 @@ function ConversationsPage() {
     orderedRooms.find((room) => room.id === selectedId) ??
     (selectedId
       ? (() => {
-          const t = allTasks.find((task) => task.id === selectedId);
+          const t =
+            (taskFromUrl === selectedId ? directTask.data : undefined) ??
+            allTasks.find((task) => task.id === selectedId);
           return t ? { id: t.id, title: t.title, client_id: t.client_id } : null;
         })()
       : null);
+  const selectedTask = selectedId
+    ? ((taskFromUrl === selectedId ? directTask.data : undefined) ??
+      allTasks.find((task) => task.id === selectedId))
+    : undefined;
+  const isSelectedConversationClosed = !!selectedTask?.conversation_closed_at;
 
   const roomIds = useMemo(() => new Set(orderedRooms.map((room) => room.id)), [orderedRooms]);
 
@@ -262,6 +299,19 @@ function ConversationsPage() {
       toast.error(error instanceof Error ? error.message : "Não foi possível concluir a conversa.");
     } finally {
       setClosingConversationId(null);
+    }
+  };
+
+  const reopenConversation = async (taskId: string) => {
+    if (reopeningConversationId) return;
+    setReopeningConversationId(taskId);
+    try {
+      await reopenTaskConversation(taskId);
+      toast.success("Conversa reativada.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível reativar a conversa.");
+    } finally {
+      setReopeningConversationId(null);
     }
   };
 
@@ -536,6 +586,23 @@ function ConversationsPage() {
                     </span>
                   )}
                 </div>
+                {isSelectedConversationClosed && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 shrink-0 gap-1.5 border-[#142e63]/30 text-xs text-[#142e63] hover:bg-[#142e63]/10"
+                    disabled={reopeningConversationId === selected.id}
+                    onClick={() => void reopenConversation(selected.id)}
+                  >
+                    {reopeningConversationId === selected.id ? (
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    )}
+                    Reativar conversa
+                  </Button>
+                )}
                 {isOversightRoom(selectedId) && (
                   <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                     Só leitura
@@ -553,11 +620,13 @@ function ConversationsPage() {
               <TaskConversationPanel
                 key={selected.id}
                 taskId={selected.id}
-                readOnly={isOversightRoom(selectedId)}
+                readOnly={isOversightRoom(selectedId) || isSelectedConversationClosed}
                 readOnlyReason={
                   isOversightRoom(selectedId)
                     ? "Somente leitura — você não participa desta tarefa."
-                    : undefined
+                    : isSelectedConversationClosed
+                      ? "Conversa concluída — reative-a para voltar a enviar mensagens."
+                      : undefined
                 }
               />
             </>
