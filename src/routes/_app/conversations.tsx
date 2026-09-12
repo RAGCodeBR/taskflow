@@ -374,7 +374,7 @@ function ConversationsPage() {
           <h1 className="font-display text-lg font-semibold leading-tight">Conversas</h1>
           <p className="text-xs text-muted-foreground">
             Uma conversa por demanda. Quando a conversa é concluída, o histórico pode ser acessado
-            clicando no card da tarefa.
+            no card da tarefa.
           </p>
         </div>
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
