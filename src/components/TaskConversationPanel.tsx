@@ -119,6 +119,7 @@ export function TaskConversationPanel({
   const [audioDuration, setAudioDuration] = useState(0);
   const [sendingAudio, setSendingAudio] = useState(false);
   const messageRef = useRef<HTMLTextAreaElement>(null);
+  const commentsContainerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -191,6 +192,15 @@ export function TaskConversationPanel({
   useEffect(() => {
     void loadAudioAttachments();
   }, [loadAudioAttachments]);
+
+  useEffect(() => {
+    const container = commentsContainerRef.current;
+    if (!container) return;
+    const frame = window.requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [taskId, comments.length]);
 
   useEffect(
     () => () => {
@@ -531,7 +541,10 @@ export function TaskConversationPanel({
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-muted/20 px-4 py-5 sm:px-6">
+      <div
+        ref={commentsContainerRef}
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-muted/20 px-4 py-5 sm:px-6"
+      >
         {comments.length === 0 && (
           <p className="py-12 text-center text-sm text-muted-foreground">
             Ainda não há mensagens nesta tarefa.
