@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { MessagesSquare, ChevronLeft, Filter, Plus } from "lucide-react";
@@ -80,6 +80,7 @@ function ConversationsPage() {
   const { data: allTasks = [] } = useTasks();
   const { data: myCollaborations = [] } = useTaskCollaborators();
   const { task: taskFromUrl } = Route.useSearch();
+  const navigate = useNavigate();
   const {
     roomTasks,
     myRoomIds,
@@ -241,6 +242,10 @@ function ConversationsPage() {
     setSelectedId(id);
     setPickerOpen(false);
     setPickerQuery("");
+  };
+
+  const openTask = (taskId: string) => {
+    void navigate({ to: "/tasks/list", search: { task: taskId } });
   };
 
   const selectedParticipants = selected ? (participantsByTask.get(selected.id) ?? []) : [];
@@ -476,9 +481,14 @@ function ConversationsPage() {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <div className="min-w-0 flex-1">
-                  <span className="block truncate font-display text-base font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => openTask(selected.id)}
+                    title="Abrir tarefa em Minhas Tarefas"
+                    className="block max-w-full cursor-pointer truncate text-left font-display text-base font-semibold transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
                     {selected.title}
-                  </span>
+                  </button>
                   {selectedClientName && (
                     <span className="block truncate text-xs font-medium text-primary/80">
                       Cliente: {selectedClientName}
