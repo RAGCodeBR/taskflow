@@ -53,6 +53,7 @@ const MESSAGE_EMOJIS = [
   "\u{1F44F}",
 ];
 const MAX_AUDIO_SECONDS = 60;
+const COMMENTS_PAGE_SIZE = 50;
 
 function createWavBlob(chunks: Float32Array[], sampleRate: number) {
   const sampleCount = chunks.reduce((total, chunk) => total + chunk.length, 0);
@@ -112,6 +113,8 @@ export function TaskConversationPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [audioByComment, setAudioByComment] = useState<Record<string, AudioAttachment[]>>({});
+  const [hasOlderComments, setHasOlderComments] = useState(false);
+  const [isLoadingOlderComments, setIsLoadingOlderComments] = useState(false);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
@@ -120,6 +123,7 @@ export function TaskConversationPanel({
   const [sendingAudio, setSendingAudio] = useState(false);
   const messageRef = useRef<HTMLTextAreaElement>(null);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
+  const restoreScrollRef = useRef<{ height: number; top: number } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -157,10 +161,36 @@ export function TaskConversationPanel({
       .from("comments")
       .select(SELECT)
       .eq("task_id", taskId)
-      .order("created_at");
+      .order("created_at", { ascending: false })
+      .limit(COMMENTS_PAGE_SIZE);
     if (error) return toast.error(error.message);
-    setComments((data ?? []) as Comment[]);
+    const latestComments = ((data ?? []) as Comment[]).reverse();
+    setAudioByComment({});
+    setComments(latestComments);
+    setHasOlderComments(latestComments.length === COMMENTS_PAGE_SIZE);
   }, [taskId]);
+
+  const loadOlderComments = async () => {
+    const oldestComment = comments[0];
+    if (!oldestComment || isLoadingOlderComments || !hasOlderComments) return;
+    setIsLoadingOlderComments(true);
+    const container = commentsContainerRef.current;
+    if (container) {
+      restoreScrollRef.current = { height: container.scrollHeight, top: container.scrollTop };
+    }
+    const { data, error } = await supabase
+      .from("comments")
+      .select(SELECT)
+      .eq("task_id", taskId)
+      .lt("created_at", oldestComment.created_at)
+      .order("created_at", { ascending: false })
+      .limit(COMMENTS_PAGE_SIZE);
+    setIsLoadingOlderComments(false);
+    if (error) return toast.error(error.message);
+    const olderComments = ((data ?? []) as Comment[]).reverse();
+    setComments((current) => [...olderComments, ...current]);
+    setHasOlderComments(olderComments.length === COMMENTS_PAGE_SIZE);
+  };
 
   const loadAudioAttachments = useCallback(async () => {
     const commentIds = comments.map((comment) => comment.id);
@@ -197,7 +227,13 @@ export function TaskConversationPanel({
     const container = commentsContainerRef.current;
     if (!container) return;
     const frame = window.requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
+      const restorePosition = restoreScrollRef.current;
+      if (restorePosition) {
+        container.scrollTop = container.scrollHeight - restorePosition.height + restorePosition.top;
+        restoreScrollRef.current = null;
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
     });
     return () => window.cancelAnimationFrame(frame);
   }, [taskId, comments.length]);
@@ -458,18 +494,17 @@ export function TaskConversationPanel({
       const { data: signed } = await supabase.storage
         .from("task-attachments")
         .createSignedUrl(path, 60 * 60);
-      if (signed) {
-        setAudioByComment((current) => ({
-          ...current,
-          [comment.id]: [
-            ...(current[comment.id] ?? []),
-            {
-              ...(attachment as Omit<AudioAttachment, "signed_url">),
-              signed_url: signed.signedUrl,
-            },
-          ],
-        }));
-      }
+
+      setAudioByComment((current) => ({
+        ...current,
+        [comment.id]: [
+          ...(current[comment.id] ?? []),
+          {
+            ...(attachment as Omit<AudioAttachment, "signed_url">),
+            signed_url: signed?.signedUrl ?? URL.createObjectURL(audioBlob),
+          },
+        ],
+      }));
       setComments((current) =>
         current.some((item) => item.id === comment.id) ? current : [...current, comment as Comment],
       );
@@ -549,7 +584,27 @@ export function TaskConversationPanel({
       <div
         ref={commentsContainerRef}
         className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-muted/20 px-4 py-5 sm:px-6"
+        onScroll={(event) => {
+          if (event.currentTarget.scrollTop < 80) void loadOlderComments();
+        }}
       >
+        {hasOlderComments && (
+          <div className="flex justify-center pb-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground"
+              disabled={isLoadingOlderComments}
+              onClick={() => void loadOlderComments()}
+            >
+              {isLoadingOlderComments && (
+                <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              )}
+              Carregar mensagens anteriores
+            </Button>
+          </div>
+        )}
         {comments.length === 0 && (
           <p className="py-12 text-center text-sm text-muted-foreground">
             Ainda não há mensagens nesta tarefa.
@@ -677,9 +732,9 @@ export function TaskConversationPanel({
                   <audio
                     key={audio.id}
                     controls
-                    preload="metadata"
+                    preload="auto"
                     src={audio.signed_url}
-                    className="mt-2 h-9 max-w-full"
+                    className="mt-2 h-8 w-[220px] max-w-full"
                   >
                     Seu navegador não suporta a reprodução de áudio.
                   </audio>
