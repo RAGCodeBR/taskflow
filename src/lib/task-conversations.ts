@@ -8,6 +8,7 @@ export interface ConversationTaskLike {
   completed_at: string | null;
   status: string | null;
   deleted_at?: string | null;
+  conversation_closed_at?: string | null;
 }
 
 export interface ConversationMessageLike {
@@ -24,6 +25,7 @@ export interface ConversationMessageLike {
 export function isConversationRoom(task: ConversationTaskLike, hasMessages: boolean): boolean {
   if (!hasMessages) return false;
   if (task.deleted_at) return false;
+  if (task.conversation_closed_at) return false;
   return !task.completed_at && task.status !== "done";
 }
 

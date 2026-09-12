@@ -39,6 +39,7 @@ export interface Task {
   created_at: string;
   updated_at: string;
   card_width: number | null;
+  conversation_closed_at?: string | null;
   /** Ambiente dono da tarefa. Diverge do ativo quando ela chega por participação. */
   workspace_id?: string | null;
 }

@@ -43,6 +43,11 @@ describe("isConversationRoom", () => {
   it("na lixeira não é sala", () => {
     expect(isConversationRoom(task({ deleted_at: "2026-09-01T10:00:00Z" }), true)).toBe(false);
   });
+  it("conversa concluída sai da lista, mas mantém seu histórico na tarefa", () => {
+    expect(isConversationRoom(task({ conversation_closed_at: "2026-09-11T10:00:00Z" }), true)).toBe(
+      false,
+    );
+  });
 });
 
 describe("sortRoomsByLastMessage", () => {

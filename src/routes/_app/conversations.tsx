@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MessagesSquare, ChevronLeft, Filter, Plus } from "lucide-react";
+import { Check, MessagesSquare, ChevronLeft, Filter, Plus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useProfiles,
@@ -20,6 +21,7 @@ import { TaskConversationPanel } from "@/components/TaskConversationPanel";
 import {
   useMarkConversationRead,
   useMarkConversationUnread,
+  useCloseTaskConversation,
   useTaskConversations,
 } from "@/hooks/use-task-conversations";
 import { sortRoomsByLastMessage, unreadInRoom } from "@/lib/task-conversations";
@@ -93,10 +95,12 @@ function ConversationsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(taskFromUrl ?? null);
   const markRead = useMarkConversationRead();
   const markUnread = useMarkConversationUnread();
+  const closeConversation = useCloseTaskConversation();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const [roomTab, setRoomTab] = useState<"mine" | "others">("mine");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [closingConversationId, setClosingConversationId] = useState<string | null>(null);
 
   const profileById = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -248,6 +252,19 @@ function ConversationsPage() {
     void navigate({ to: "/tasks/list", search: { task: taskId } });
   };
 
+  const finishConversation = async (taskId: string) => {
+    if (closingConversationId) return;
+    setClosingConversationId(taskId);
+    try {
+      await closeConversation(taskId);
+      if (selectedId === taskId) setSelectedId(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível concluir a conversa.");
+    } finally {
+      setClosingConversationId(null);
+    }
+  };
+
   const selectedParticipants = selected ? (participantsByTask.get(selected.id) ?? []) : [];
   const selectedClientName = selected?.client_id ? clientNameById.get(selected.client_id) : null;
   const nameOf = (id: string | null) =>
@@ -289,6 +306,29 @@ function ConversationsPage() {
                     className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#142e63] shadow-sm"
                   />
                 )}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Concluir conversa"
+                  title="Concluir conversa"
+                  aria-disabled={closingConversationId === room.id}
+                  className={cn(
+                    "grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-full text-[#142e63] transition-colors hover:bg-[#142e63]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                    closingConversationId === room.id && "pointer-events-none opacity-40",
+                  )}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void finishConversation(room.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void finishConversation(room.id);
+                  }}
+                >
+                  <Check className="h-4 w-4" strokeWidth={2.5} />
+                </span>
               </div>
               {clientName && (
                 <p className="line-clamp-1 text-xs font-medium text-primary/80">{clientName}</p>

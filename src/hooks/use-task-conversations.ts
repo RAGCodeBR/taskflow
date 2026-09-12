@@ -15,6 +15,7 @@ type RoomTask = {
   assignee_id: string | null;
   created_by: string | null;
   client_id: string | null;
+  conversation_closed_at: string | null;
 };
 type Message = {
   id: string;
@@ -64,7 +65,9 @@ export function useTaskConversations() {
     enabled: !!user?.id && taskIds.length > 0,
     queryFn: async () => {
       const { data, error } = await (supabase.from("tasks") as any)
-        .select("id, title, completed_at, status, deleted_at, assignee_id, created_by, client_id")
+        .select(
+          "id, title, completed_at, status, deleted_at, assignee_id, created_by, client_id, conversation_closed_at",
+        )
         .in("id", taskIds);
       if (error) throw error;
       return (data ?? []) as RoomTask[];
@@ -179,6 +182,24 @@ export function useMarkConversationUnread() {
       await qc.invalidateQueries({ queryKey: readsKey(user.id) });
     },
     [qc, user?.id],
+  );
+}
+
+/** Encerra a conversa sem remover as mensagens registradas na tarefa. */
+export function useCloseTaskConversation() {
+  const qc = useQueryClient();
+  return useCallback(
+    async (taskId: string) => {
+      const { error } = await (supabase.from("tasks") as any)
+        .update({ conversation_closed_at: new Date().toISOString() })
+        .eq("id", taskId);
+      if (error) throw error;
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: roomsKey }),
+        qc.invalidateQueries({ queryKey: ["tasks"] }),
+      ]);
+    },
+    [qc],
   );
 }
 
