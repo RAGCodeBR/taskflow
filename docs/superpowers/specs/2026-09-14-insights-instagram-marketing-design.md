@@ -25,6 +25,14 @@ Pré-requisitos também fora do código:
 - Um app registrado no Meta for Developers, com `META_APP_ID` e
   `META_APP_SECRET`.
 
+## Abordagem: piloto
+
+Antes de sair conectando todo mundo: sobe pra 1-2 clientes primeiro, usa por
+um tempo, vê o que os dados realmente rendem (se o time olha, se muda alguma
+decisão) antes de estender pros demais clientes de Marketing. A arquitetura
+abaixo já nasce pronta pra qualquer número de contas — "piloto" é só por
+quantos clientes conectar no começo, não uma versão mais simples do sistema.
+
 ## Decisões (confirmadas com o usuário)
 
 | Pergunta | Resposta |
