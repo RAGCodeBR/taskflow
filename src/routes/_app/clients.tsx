@@ -25,6 +25,7 @@ import {
   ArchiveRestore,
   ChevronDown,
   FileDown,
+  Instagram,
   Plus,
   Pencil,
   Trash2,
@@ -162,7 +163,7 @@ export const Route = createFileRoute("/_app/clients")({
 
 export function ClientsIndexPage() {
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const { data: clients = [] } = useClients();
   const { data: tasks = [] } = useWorkspaceTasks();
   const { data: subtasks = [] } = useSubtasks();
@@ -690,6 +691,13 @@ export function ClientsIndexPage() {
                         <Sparkles className="h-4 w-4 text-primary" />
                       </Link>
                     </Button>
+                    {activeWorkspace?.slug === "marketing" && (
+                      <Button asChild size="icon" variant="ghost" title="Insights do Instagram">
+                        <Link to="/clients/$clientId/insights" params={{ clientId: c.id }}>
+                          <Instagram className="h-4 w-4 text-primary" />
+                        </Link>
+                      </Button>
+                    )}
                     <Button asChild size="icon" variant="ghost" title="Editar cliente">
                       <Link to="/clients/$clientId/edit" params={{ clientId: c.id }}>
                         <Pencil className="h-4 w-4" />
