@@ -91,20 +91,25 @@ function initialsOf(name: string) {
 function ParticipantsLastSeen({ participants }: { participants: ConversationParticipant[] }) {
   if (participants.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-3 border-t bg-muted/30 px-4 py-1.5 sm:px-6">
-      {participants.map((participant) => (
-        <div key={participant.id} className="flex items-center gap-1.5" title={participant.name}>
-          <Avatar className="h-5 w-5">
-            <AvatarImage src={participant.avatarUrl || undefined} alt={participant.name} />
-            <AvatarFallback className="bg-primary/10 text-[8px] font-semibold text-primary">
-              {initialsOf(participant.name)}
-            </AvatarFallback>
-          </Avatar>
-          <span className="text-[10px] text-muted-foreground">
-            {formatSeenAt(participant.lastReadAt)}
-          </span>
-        </div>
-      ))}
+    <div className="border-t bg-muted/30 px-4 pb-1.5 pt-1 sm:px-6">
+      <p className="mb-1 text-[9px] text-muted-foreground/70">
+        Último horário que a pessoa entrou na janela dessa conversa
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        {participants.map((participant) => (
+          <div key={participant.id} className="flex items-center gap-1.5" title={participant.name}>
+            <Avatar className="h-5 w-5">
+              <AvatarImage src={participant.avatarUrl || undefined} alt={participant.name} />
+              <AvatarFallback className="bg-primary/10 text-[8px] font-semibold text-primary">
+                {initialsOf(participant.name)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-[10px] text-muted-foreground">
+              {formatSeenAt(participant.lastReadAt)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
