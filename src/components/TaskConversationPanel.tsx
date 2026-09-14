@@ -1,11 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Send, SmilePlus, X, Reply, Pencil, Check, LoaderCircle, Mic, Square } from "lucide-react";
+import {
+  Send,
+  SmilePlus,
+  X,
+  Reply,
+  Pencil,
+  Check,
+  CheckCheck,
+  LoaderCircle,
+  Mic,
+  Square,
+} from "lucide-react";
 import { format } from "date-fns";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAssignableProfiles, useProfiles } from "@/hooks/use-data";
+import { useMarkConversationRead } from "@/hooks/use-task-conversations";
+import {
+  formatSeenAt,
+  useConversationParticipants,
+  whoSawMessage,
+  type ConversationParticipant,
+} from "@/hooks/use-conversation-receipts";
 import { cn } from "@/lib/utils";
 import { participantColor } from "@/lib/participant-color";
 import { toast } from "sonner";
@@ -54,6 +73,41 @@ const MESSAGE_EMOJIS = [
 ];
 const MAX_AUDIO_SECONDS = 60;
 const COMMENTS_PAGE_SIZE = 50;
+
+function initialsOf(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/**
+ * Faixa fixa de presença: foto + horário da última vez que cada participante
+ * abriu esta conversa. Sempre renderizada — não é tooltip, não é hover, não
+ * some.
+ */
+function ParticipantsLastSeen({ participants }: { participants: ConversationParticipant[] }) {
+  if (participants.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-t bg-muted/30 px-4 py-1.5 sm:px-6">
+      {participants.map((participant) => (
+        <div key={participant.id} className="flex items-center gap-1.5" title={participant.name}>
+          <Avatar className="h-5 w-5">
+            <AvatarImage src={participant.avatarUrl || undefined} alt={participant.name} />
+            <AvatarFallback className="bg-primary/10 text-[8px] font-semibold text-primary">
+              {initialsOf(participant.name)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-[10px] text-muted-foreground">
+            {formatSeenAt(participant.lastReadAt)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function audioPlayerWidth(duration: number | undefined) {
   if (!duration || !Number.isFinite(duration)) return 300;
@@ -112,6 +166,10 @@ export function TaskConversationPanel({
   const { data: profiles = [] } = useProfiles();
   // O autocomplete de @menção só oferece quem é do ambiente da tarefa.
   const { data: assignableProfiles = [] } = useAssignableProfiles();
+  // "Visto por" — quem participa da conversa e quando cada um leu por
+  // último. Fixo, sempre visível; não é uma preferência que dá pra desligar.
+  const { participants: conversationParticipants } = useConversationParticipants(taskId);
+  const markConversationRead = useMarkConversationRead();
   const [comments, setComments] = useState<Comment[]>([]);
   const [message, setMessage] = useState("");
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
@@ -449,6 +507,9 @@ export function TaskConversationPanel({
     );
     setMessage("");
     setReplyingTo(null);
+    // Quem manda mensagem obviamente tem a janela aberta agora — a faixa de
+    // presença não pode mostrar "ainda não entrou" pra quem acabou de falar.
+    void markConversationRead(taskId);
     onActivity?.();
   };
 
@@ -515,6 +576,7 @@ export function TaskConversationPanel({
         current.some((item) => item.id === comment.id) ? current : [...current, comment as Comment],
       );
       clearAudioPreview();
+      void markConversationRead(taskId);
       onActivity?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar o áudio.");
@@ -624,6 +686,11 @@ export function TaskConversationPanel({
             ? comments.find((item) => item.id === comment.reply_to_id)
             : null;
           const editing = editingId === comment.id;
+          const receipt = whoSawMessage(
+            conversationParticipants,
+            comment.author_id,
+            comment.created_at,
+          );
           return (
             <div
               key={comment.id}
@@ -755,11 +822,54 @@ export function TaskConversationPanel({
                     Seu navegador não suporta a reprodução de áudio.
                   </audio>
                 ))}
+                {receipt.totalRecipients > 0 && (
+                  <div
+                    className={cn(
+                      "mt-1.5 flex items-center gap-1 text-[10px]",
+                      isOwnMessage
+                        ? "justify-end text-primary-foreground/70"
+                        : "text-foreground/60",
+                    )}
+                    title={
+                      [
+                        receipt.seen.length > 0
+                          ? `Visto por ${receipt.seen
+                              .map(
+                                (p) =>
+                                  `${p.name} às ${format(new Date(p.lastReadAt as string), "HH:mm")}`,
+                              )
+                              .join(", ")}`
+                          : null,
+                        receipt.notSeen.length > 0
+                          ? `Ainda não visto por ${receipt.notSeen.map((p) => p.name).join(", ")}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || undefined
+                    }
+                  >
+                    <CheckCheck
+                      className={cn(
+                        "h-3 w-3 shrink-0",
+                        receipt.seen.length === receipt.totalRecipients && "text-emerald-400",
+                      )}
+                    />
+                    <span className="truncate">
+                      {receipt.seen.length === 0
+                        ? "Enviada"
+                        : receipt.seen.length === receipt.totalRecipients
+                          ? `Visto por ${receipt.seen.length === 1 ? receipt.seen[0].name : "todos"}`
+                          : `Visto por ${receipt.seen.map((p) => p.name).join(", ")}`}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      <ParticipantsLastSeen participants={conversationParticipants} />
 
       {readOnly ? (
         <p className="border-t bg-background px-4 py-3 text-center text-xs text-muted-foreground">
