@@ -1,1 +1,7 @@
 project_id = "xlcurhbxexyunpkcswwo"
+
+# Chamada pelo pg_cron/pg_net (ou testada na mão), nunca pelo navegador de um
+# usuário — a própria função valida um segredo (CRON_SECRET), não faz sentido
+# também exigir um JWT da plataforma pra chegar até esse código.
+[functions.instagram-insights-sync]
+verify_jwt = false
