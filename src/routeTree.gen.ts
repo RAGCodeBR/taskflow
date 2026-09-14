@@ -37,6 +37,7 @@ import { Route as AppTasksCalendarRouteImport } from './routes/_app/tasks.calend
 import { Route as AppTasksKanbanRouteImport } from './routes/_app/tasks.kanban'
 import { Route as AppTasksListRouteImport } from './routes/_app/tasks.list'
 import { Route as AppClientsClientIdEditRouteImport } from './routes/_app/clients.$clientId.edit'
+import { Route as AppClientsClientIdInsightsRouteImport } from './routes/_app/clients.$clientId.insights'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -177,6 +178,12 @@ const AppClientsClientIdEditRoute = AppClientsClientIdEditRouteImport.update({
   path: '/$clientId/edit',
   getParentRoute: () => AppClientsRoute,
 } as any)
+const AppClientsClientIdInsightsRoute =
+  AppClientsClientIdInsightsRouteImport.update({
+    id: '/$clientId/insights',
+    path: '/$clientId/insights',
+    getParentRoute: () => AppClientsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -206,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/clients/': typeof AppClientsIndexRoute
   '/tasks/': typeof AppTasksIndexRoute
   '/clients/$clientId/edit': typeof AppClientsClientIdEditRoute
+  '/clients/$clientId/insights': typeof AppClientsClientIdInsightsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -233,6 +241,7 @@ export interface FileRoutesByTo {
   '/clients': typeof AppClientsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/clients/$clientId/edit': typeof AppClientsClientIdEditRoute
+  '/clients/$clientId/insights': typeof AppClientsClientIdInsightsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -264,6 +273,7 @@ export interface FileRoutesById {
   '/_app/clients/': typeof AppClientsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/_app/clients/$clientId/edit': typeof AppClientsClientIdEditRoute
+  '/_app/clients/$clientId/insights': typeof AppClientsClientIdInsightsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/clients/'
     | '/tasks/'
     | '/clients/$clientId/edit'
+    | '/clients/$clientId/insights'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/tasks'
     | '/clients/$clientId/edit'
+    | '/clients/$clientId/insights'
   id:
     | '__root__'
     | '/'
@@ -352,6 +364,7 @@ export interface FileRouteTypes {
     | '/_app/clients/'
     | '/_app/tasks/'
     | '/_app/clients/$clientId/edit'
+    | '/_app/clients/$clientId/insights'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -558,6 +571,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppClientsClientIdEditRouteImport
       parentRoute: typeof AppClientsRoute
     }
+    '/_app/clients/$clientId/insights': {
+      id: '/_app/clients/$clientId/insights'
+      path: '/$clientId/insights'
+      fullPath: '/clients/$clientId/insights'
+      preLoaderRoute: typeof AppClientsClientIdInsightsRouteImport
+      parentRoute: typeof AppClientsRoute
+    }
   }
 }
 
@@ -565,12 +585,14 @@ interface AppClientsRouteChildren {
   AppClientsNewRoute: typeof AppClientsNewRoute
   AppClientsIndexRoute: typeof AppClientsIndexRoute
   AppClientsClientIdEditRoute: typeof AppClientsClientIdEditRoute
+  AppClientsClientIdInsightsRoute: typeof AppClientsClientIdInsightsRoute
 }
 
 const AppClientsRouteChildren: AppClientsRouteChildren = {
   AppClientsNewRoute: AppClientsNewRoute,
   AppClientsIndexRoute: AppClientsIndexRoute,
   AppClientsClientIdEditRoute: AppClientsClientIdEditRoute,
+  AppClientsClientIdInsightsRoute: AppClientsClientIdInsightsRoute,
 }
 
 const AppClientsRouteWithChildren = AppClientsRoute._addFileChildren(
