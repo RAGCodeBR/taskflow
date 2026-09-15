@@ -89,6 +89,12 @@ export function OfflineQueryCache({ queryClient, children }: Props) {
     const key = storageKey(userId);
     previousKeyRef.current = key;
     setRestoredFor(null);
+    // A restauração local nunca pode impedir a abertura do sistema. Em modo
+    // avião o perfil remoto pode continuar carregando, mas a sessão já existe
+    // no navegador e os dados em IndexedDB devem ser disponibilizados.
+    const restoreFallback = window.setTimeout(() => {
+      if (active) setRestoredFor(userId);
+    }, 3_000);
 
     const persister = createAsyncStoragePersister({
       key,
@@ -111,22 +117,26 @@ export function OfflineQueryCache({ queryClient, children }: Props) {
       })
       .finally(() => {
         if (!active) return;
+        window.clearTimeout(restoreFallback);
         unsubscribe = persistQueryClientSubscribe({
           queryClient,
           persister,
           buster: CACHE_VERSION,
-          dehydrateOptions: { shouldDehydrateQuery },
+          dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
         });
         setRestoredFor(userId);
       });
 
     return () => {
       active = false;
+      window.clearTimeout(restoreFallback);
       unsubscribe?.();
     };
   }, [queryClient, user?.id]);
 
-  if (loading || (!!user && restoredFor !== user.id)) {
+  // Com uma sessão local identificada, não espere a consulta remota de perfil:
+  // ela depende da internet e bloquearia justamente o modo offline.
+  if ((!user && loading) || (!!user && restoredFor !== user.id)) {
     return (
       <div className="grid min-h-screen place-items-center bg-background px-6 text-center text-sm text-muted-foreground">
         Preparando dados locais…
