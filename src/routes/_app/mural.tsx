@@ -277,7 +277,9 @@ function MuralPage() {
   // (reação, edição, anexo) de OUTRAS pessoas — isso não gera notificação
   // persistente, só um aviso ao vivo para quem está com o quadro aberto.
   useEffect(() => {
-    if (!user || isLoading || hasMarkedCurrentVisitRead.current) return;
+    // Marcar avisos como lidos é conveniência, não pode falhar nem gerar um
+    // alerta ao navegar sem internet.
+    if (!user || isLoading || isOffline() || hasMarkedCurrentVisitRead.current) return;
     hasMarkedCurrentVisitRead.current = true;
     void (async () => {
       const { error } = await (supabase.from("notifications") as any)

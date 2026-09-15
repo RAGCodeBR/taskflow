@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Send,
   SmilePlus,
@@ -169,6 +170,7 @@ export function TaskConversationPanel({
   className,
 }: Props) {
   const { user, isAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const { data: profiles = [] } = useProfiles();
   // O autocomplete de @menção só oferece quem é do ambiente da tarefa.
   const { data: assignableProfiles = [] } = useAssignableProfiles();
@@ -227,6 +229,21 @@ export function TaskConversationPanel({
   };
 
   const loadComments = useCallback(async () => {
+    const cacheKey = ["task-conversation-panel", taskId] as const;
+    if (isOffline()) {
+      // A tela de Conversas já carrega o resumo completo das mensagens. Assim,
+      // mesmo uma conversa cujo painel ainda não foi aberto individualmente
+      // continua com o seu histórico disponível no modo avião.
+      const cachedComments =
+        queryClient.getQueryData<Comment[]>(cacheKey) ??
+        (queryClient
+          .getQueryData<Comment[]>(["task-conversation-messages"])
+          ?.filter((comment) => comment.task_id === taskId) ?? []);
+      setAudioByComment({});
+      setComments(cachedComments);
+      setHasOlderComments(false);
+      return;
+    }
     const { data, error } = await supabase
       .from("comments")
       .select(SELECT)
@@ -238,7 +255,8 @@ export function TaskConversationPanel({
     setAudioByComment({});
     setComments(latestComments);
     setHasOlderComments(latestComments.length === COMMENTS_PAGE_SIZE);
-  }, [taskId]);
+    queryClient.setQueryData(cacheKey, latestComments);
+  }, [queryClient, taskId]);
 
   const loadOlderComments = async () => {
     const oldestComment = comments[0];
@@ -424,6 +442,7 @@ export function TaskConversationPanel({
 
   useEffect(() => {
     void loadComments();
+    if (isOffline()) return;
     const channel = supabase
       .channel(`task-conversation-${taskId}-${Math.random().toString(36).slice(2)}`)
       .on(

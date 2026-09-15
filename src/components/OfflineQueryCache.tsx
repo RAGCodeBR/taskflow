@@ -9,40 +9,22 @@ import { del, get, set } from "idb-keyval";
 import { useAuth } from "@/hooks/use-auth";
 import { clearOfflineSyncData } from "@/lib/offline-sync";
 
-const CACHE_VERSION = "offline-cache-v1";
+// A versão 2 passa a preservar todas as consultas de dados de trabalho já
+// abertas pelo usuário. Isso evita que uma tela fique vazia no modo avião
+// apenas porque sua chave não estava na lista inicial.
+const CACHE_VERSION = "offline-cache-v2";
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
 // Agenda e integrações Google deliberadamente ficam fora da primeira etapa offline.
-const OFFLINE_QUERY_ROOTS = new Set([
-  "tasks",
-  "columns",
-  "clients",
-  "related-clients",
-  "profiles",
-  "assignable-profiles",
-  "user_roles",
-  "task_collaborators",
-  "task_tags",
-  "task_tag_links",
-  "subtasks",
-  "task_statuses",
-  "user_column_order",
-  "user_task_order",
-  "board_preferences",
-  "task-conversation-rooms",
-  "task-conversation-messages",
-  "task-conversation-reads",
-  "obligations",
-  "obligation-occurrences",
-  "mural_posts",
-  "mural_post_attachments",
-  "mural_post_reactions",
-  "service_requests",
-  "service_request_messages",
-  "service_request_activity",
-  "service_request_participants",
-  "service_request_assignees",
-  "service_request_attachments",
+// Integrações externas e dados financeiros continuam estritamente online.
+// Todo o restante que a pessoa já pôde visualizar é mantido somente no
+// IndexedDB do próprio usuário, separado por conta.
+const ONLINE_ONLY_QUERY_ROOTS = new Set([
+  "google_calendar_connection",
+  "agenda_events",
+  "agenda_calendar_sources",
+  "meeting_minutes",
+  "client_invoices",
 ]);
 
 function storageKey(userId: string) {
@@ -53,7 +35,7 @@ function shouldPersistQuery(query: { queryKey: readonly unknown[]; state: { stat
   return (
     query.state.status === "success" &&
     typeof query.queryKey[0] === "string" &&
-    OFFLINE_QUERY_ROOTS.has(query.queryKey[0])
+    !ONLINE_ONLY_QUERY_ROOTS.has(query.queryKey[0])
   );
 }
 
@@ -98,7 +80,9 @@ export function OfflineQueryCache({ queryClient, children }: Props) {
 
     const persister = createAsyncStoragePersister({
       key,
-      throttleTime: 1_000,
+      // Não deixe uma janela entre carregar a tela e desligar a rede: cada
+      // resposta bem-sucedida deve ir ao IndexedDB imediatamente.
+      throttleTime: 0,
       storage: {
         getItem: (itemKey) => get<string>(itemKey),
         setItem: (itemKey, value) => set(itemKey, value),

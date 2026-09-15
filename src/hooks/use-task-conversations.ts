@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useProfiles, useTaskCollaborators } from "@/hooks/use-data";
 import { activityToast } from "@/lib/activity-toast";
 import { isConversationRoom, unreadMessageCount } from "@/lib/task-conversations";
+import { isOffline } from "@/lib/offline-sync";
 
 type RoomTask = {
   id: string;
@@ -23,6 +24,8 @@ type Message = {
   author_id: string | null;
   body: string;
   created_at: string;
+  reply_to_id: string | null;
+  edited_at: string | null;
 };
 type Read = { task_id: string; last_read_at: string; manual_unread: boolean };
 
@@ -48,7 +51,7 @@ export function useTaskConversations() {
     enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await (supabase.from("comments") as any)
-        .select("id, task_id, author_id, body, created_at")
+        .select("id, task_id, author_id, body, created_at, reply_to_id, edited_at")
         .order("created_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Message[];
@@ -148,6 +151,13 @@ export function useMarkConversationRead() {
   return useCallback(
     async (taskId: string) => {
       if (!user?.id) return;
+      if (isOffline()) {
+        qc.setQueryData<Read[]>(readsKey(user.id), (current = []) => [
+          ...current.filter((read) => read.task_id !== taskId),
+          { task_id: taskId, last_read_at: new Date().toISOString(), manual_unread: false },
+        ]);
+        return;
+      }
       await (supabase.from("task_conversation_reads") as any).upsert(
         {
           user_id: user.id,
@@ -170,6 +180,13 @@ export function useMarkConversationUnread() {
   return useCallback(
     async (taskId: string) => {
       if (!user?.id) return;
+      if (isOffline()) {
+        qc.setQueryData<Read[]>(readsKey(user.id), (current = []) => [
+          ...current.filter((read) => read.task_id !== taskId),
+          { task_id: taskId, last_read_at: new Date().toISOString(), manual_unread: true },
+        ]);
+        return;
+      }
       await (supabase.from("task_conversation_reads") as any).upsert(
         {
           user_id: user.id,
