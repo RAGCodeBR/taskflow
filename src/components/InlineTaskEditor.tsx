@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAssignableProfiles, type Client, type KanbanColumn, type Profile, type Task, type TaskTag } from "@/hooks/use-data";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteTaskWithOfflineSupport, updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 interface Attachment {
   id: string;
@@ -220,6 +221,13 @@ export function InlineTaskEditor({
 
     const path = `${task.id}/${Date.now()}-${safeName}`;
     const contentType = file.type || "application/octet-stream";
+    if (isOffline()) {
+      const attachment: Attachment = { id: crypto.randomUUID(), task_id: task.id, file_name: file.name, storage_path: path, mime_type: contentType, size_bytes: file.size, uploaded_by: user.id, created_at: new Date().toISOString() };
+      await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: attachment.id, payload: { table: "attachments", bucket: "task-attachments", blob: file, attachment } });
+      setAttachments((current) => [...current, attachment]);
+      toast.success("Arquivo salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
+      return;
+    }
 
     const { error: uploadError } = await supabase.storage
       .from("task-attachments")

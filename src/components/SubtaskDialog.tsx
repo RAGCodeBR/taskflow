@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 import {
   Dialog,
   DialogContent,
@@ -126,6 +127,24 @@ export function SubtaskDialog({
       notes: notes.trim() || null,
       done,
     };
+
+    if (user && isOffline()) {
+      const local = subtask
+        ? { ...subtask, ...payload }
+        : { id: crypto.randomUUID(), ...payload, task_id: taskId, position, completed_at: null };
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "subtask",
+        action: subtask ? "update" : "create",
+        entityId: local.id,
+        payload: subtask ? { patch: payload } : { subtask: local },
+      });
+      setSaving(false);
+      onSaved(local as EditableSubtask);
+      toast.success("Subtarefa salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      onOpenChange(false);
+      return;
+    }
 
     const request = subtask
       ? (supabase.from("subtasks") as any)

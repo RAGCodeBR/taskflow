@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 interface ObligationDialogProps {
   open: boolean;
@@ -48,6 +50,7 @@ const todayValue = () => new Date().toISOString().slice(0, 10);
 
 export function ObligationDialog({ open, onOpenChange, obligation }: ObligationDialogProps) {
   const queryClient = useQueryClient();
+  const { user, activeWorkspace } = useAuth();
   const { data: clients = [] } = useClients();
   const { data: profiles = [] } = useAssignableProfiles();
   const { data: columns = [] } = useColumns();
@@ -188,6 +191,27 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
       status_id: statusId || null,
       is_active: isActive,
     };
+
+    if (user && activeWorkspace && isOffline()) {
+      const now = new Date().toISOString();
+      const localItems: Obligation[] = obligation
+        ? [{ ...obligation, ...payload, client_id: clientIds[0], updated_at: now }]
+        : clientIds.map((clientId) => ({
+            id: crypto.randomUUID(), workspace_id: activeWorkspace.id, created_by: user.id,
+            created_at: now, updated_at: now, client_id: clientId, ...payload,
+          }));
+      await Promise.all(localItems.map((item) => enqueueOfflineOperation({
+        userId: user.id, entity: "record", action: obligation ? "update" : "create", entityId: item.id,
+        payload: obligation ? { table: "obligations", patch: payload } : { table: "obligations", record: item },
+      })));
+      queryClient.setQueryData<Obligation[]>(["obligations", activeWorkspace.id], (current = []) =>
+        obligation ? current.map((item) => item.id === obligation.id ? localItems[0] : item) : [...current, ...localItems],
+      );
+      setSaving(false);
+      toast.success("ObrigaÃ§Ã£o salva neste aparelho. Os prÃ³ximos prazos serÃ£o gerados ao reconectar.");
+      onOpenChange(false);
+      return;
+    }
 
     const request = obligation
       ? (supabase.from("obligations" as any) as any)

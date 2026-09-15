@@ -80,6 +80,7 @@ import { useBoardPreferences, type CardField } from "@/hooks/use-board-preferenc
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 interface Attachment {
   id: string;
@@ -561,6 +562,13 @@ export function TaskCard({
         .slice(-120) || "arquivo";
     const path = `${task.id}/${Date.now()}-${safe}`;
     const contentType = file.type || "application/octet-stream";
+    if (isOffline()) {
+      const attachment: Attachment = { id: crypto.randomUUID(), task_id: task.id, file_name: file.name, storage_path: path, mime_type: contentType, size_bytes: file.size, created_at: new Date().toISOString() };
+      await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: attachment.id, payload: { table: "attachments", bucket: "task-attachments", blob: file, attachment: { ...attachment, uploaded_by: user.id } } });
+      setAttachments((current) => [...current, attachment]);
+      toast.success("Arquivo salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
+      return true;
+    }
     const { error: upErr } = await supabase.storage
       .from("task-attachments")
       .upload(path, file, { contentType, upsert: false });

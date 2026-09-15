@@ -1012,6 +1012,19 @@ function KanbanPage() {
       return;
     }
     const color = /^#[0-9a-fA-F]{6}$/.test(columnEditor.color) ? columnEditor.color : "#1e3a8a";
+    if (isOffline()) {
+      if (columnEditor.id) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: columnEditor.id, payload: { table: "kanban_columns", patch: { name, color } } });
+        qc.setQueryData<KanbanColumn[]>(["columns"], (current = []) => current.map((column) => column.id === columnEditor.id ? { ...column, name, color } : column));
+      } else {
+        const column: KanbanColumn = { id: crypto.randomUUID(), name, color, position: columns.length, client_id: null };
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: column.id, payload: { table: "kanban_columns", record: { ...column, created_by: user.id } } });
+        qc.setQueryData<KanbanColumn[]>(["columns"], (current = []) => [...current, column]);
+      }
+      setColumnEditor({ open: false, id: null, name: "", color: "#1e3a8a" });
+      toast.success("Coluna salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     if (columnEditor.id) {
       const { error } = await supabase
         .from("kanban_columns")

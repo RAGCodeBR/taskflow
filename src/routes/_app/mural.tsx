@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { muralUnreadKey } from "@/hooks/use-mural-unread";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export const Route = createFileRoute("/_app/mural")({
   component: MuralPage,
@@ -319,6 +320,21 @@ function MuralPage() {
         expires_at: form.expiresAt || null,
       };
       const newPostPosition = editingPost ? null : findAvailableCanvasPosition(form.cardSize);
+      if (isOffline()) {
+        const now = new Date().toISOString();
+        const localPost: MuralPost = editingPost
+          ? { ...editingPost, ...payload, updated_at: now }
+          : {
+              id: crypto.randomUUID(), ...payload, created_by: user.id, created_at: now, updated_at: now,
+              completed_at: null, canvas_x: newPostPosition?.x ?? 0, canvas_y: newPostPosition?.y ?? 0,
+            };
+        await enqueueOfflineOperation({
+          userId: user.id, entity: "record", action: editingPost ? "update" : "create", entityId: localPost.id,
+          payload: editingPost ? { table: "mural_posts", patch: payload } : { table: "mural_posts", record: localPost },
+        });
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => editingPost ? current.map((post) => post.id === localPost.id ? localPost : post) : [...current, localPost]);
+        return localPost;
+      }
       const { data, error } = editingPost
         ? await (supabase.from("mural_posts") as any)
             .update(payload)
@@ -353,6 +369,11 @@ function MuralPage() {
       const checklist = post.checklist.map((item, itemIndex) =>
         itemIndex === index ? { ...item, done: !item.done } : item,
       );
+      if (user && isOffline()) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: post.id, payload: { table: "mural_posts", patch: { checklist } } });
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => current.map((item) => item.id === post.id ? { ...item, checklist } : item));
+        return;
+      }
       const { error } = await (supabase.from("mural_posts") as any)
         .update({ checklist })
         .eq("id", post.id);
@@ -364,6 +385,11 @@ function MuralPage() {
 
   const removePost = useMutation({
     mutationFn: async (id: string) => {
+      if (user && isOffline()) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: id, payload: { table: "mural_posts" } });
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => current.filter((post) => post.id !== id));
+        return;
+      }
       const { error } = await (supabase.from("mural_posts") as any).delete().eq("id", id);
       if (error) throw error;
     },
@@ -375,6 +401,12 @@ function MuralPage() {
   });
   const setPostCompleted = useMutation({
     mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
+      const patch = { completed_at: completed ? new Date().toISOString() : null, ...(completed ? { is_pinned: false } : {}) };
+      if (user && isOffline()) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: id, payload: { table: "mural_posts", patch } });
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => current.map((post) => post.id === id ? { ...post, ...patch } : post));
+        return;
+      }
       const { error } = await (supabase.from("mural_posts") as any)
         // Um recado concluído deixa automaticamente de ocupar a área de fixados.
         .update({
@@ -395,6 +427,11 @@ function MuralPage() {
       id: string;
       patch: Partial<Pick<MuralPost, "is_pinned" | "card_size" | "canvas_x" | "canvas_y">>;
     }) => {
+      if (user && isOffline()) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: id, payload: { table: "mural_posts", patch } });
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => current.map((post) => post.id === id ? { ...post, ...patch } : post));
+        return;
+      }
       const { error } = await (supabase.from("mural_posts") as any).update(patch).eq("id", id);
       if (error) throw error;
     },
@@ -403,6 +440,13 @@ function MuralPage() {
   });
   const toggleReaction = useMutation({
     mutationFn: async ({ postId, emoji }: { postId: string; emoji: string }) => {
+      if (user && isOffline()) {
+        const existing = (reactions as any[]).find((reaction) => reaction.post_id === postId && reaction.user_id === user.id && reaction.emoji === emoji);
+        const reaction = { post_id: postId, user_id: user.id, emoji };
+        await enqueueOfflineOperation({ userId: user.id, entity: "reaction", action: existing ? "delete" : "create", entityId: existing?.id ?? crypto.randomUUID(), payload: { reaction } });
+        qc.setQueryData<any[]>(["mural_post_reactions"], (current = []) => existing ? current.filter((item) => item.id !== existing.id) : [...current, { id: crypto.randomUUID(), ...reaction }]);
+        return;
+      }
       if (!user) throw new Error("Sua sessão expirou. Entre novamente.");
       const { data: removed, error: deleteError } = await (
         supabase.from("mural_post_reactions") as any
@@ -578,6 +622,16 @@ function MuralPage() {
           .replace(/[\u0300-\u036f]/g, "")
           .replace(/[^a-zA-Z0-9._-]+/g, "_");
         const path = `mural/${post.id}/${crypto.randomUUID()}-${safeName}`;
+        if (isOffline()) {
+          await enqueueOfflineOperation({
+            userId: user.id, entity: "attachment", action: "create", entityId: crypto.randomUUID(),
+            payload: {
+              table: "mural_post_attachments", bucket: "mural-attachments", blob: file,
+              attachment: { id: crypto.randomUUID(), post_id: post.id, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id },
+            },
+          });
+          continue;
+        }
         const { error: uploadError } = await supabase.storage
           .from("mural-attachments")
           .upload(path, file);

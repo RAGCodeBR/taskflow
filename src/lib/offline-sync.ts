@@ -11,7 +11,8 @@ export type OfflineEntity =
   | "tag"
   | "column"
   | "obligation"
-  | "mural";
+  | "mural"
+  | "reaction";
 
 export type OfflineAction = "create" | "update" | "delete";
 

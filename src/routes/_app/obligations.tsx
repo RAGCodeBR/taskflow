@@ -38,6 +38,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 import {
   useClients,
   useAssignableProfiles,
@@ -574,6 +575,12 @@ function ObligationsPage() {
   };
 
   const setObligationActive = async (obligation: Obligation, isActive: boolean) => {
+    if (user && activeWorkspace?.id && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: obligation.id, payload: { table: "obligations", patch: { is_active: isActive } } });
+      queryClient.setQueryData<Obligation[]>(["obligations", activeWorkspace.id], (current = []) => current.map((item) => item.id === obligation.id ? { ...item, is_active: isActive } : item));
+      toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     const { error } = await (supabase.from("obligations" as any) as any)
       .update({ is_active: isActive })
       .eq("id", obligation.id);
@@ -598,6 +605,21 @@ function ObligationsPage() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
+    if (user && activeWorkspace?.id && isOffline()) {
+      const target = deleteTarget;
+      if (target.scope === "occurrences") {
+        await Promise.all(target.occurrences.map((occurrence) => enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: occurrence.id, payload: { table: "obligation_occurrences", patch: { status: "skipped" } } })));
+        queryClient.setQueryData<any[]>(["obligation-occurrences", activeWorkspace.id], (current = []) => current.map((item) => target.occurrences.some((occurrence) => occurrence.id === item.id) ? { ...item, status: "skipped" } : item));
+      } else {
+        const ids = target.scope === "series" ? [target.obligation.id] : target.scope === "series-batch" ? target.obligations.map((item) => item.id) : obligations.map((item) => item.id);
+        await Promise.all(ids.map((id) => enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: id, payload: { table: "obligations" } })));
+        queryClient.setQueryData<Obligation[]>(["obligations", activeWorkspace.id], (current = []) => current.filter((item) => !ids.includes(item.id)));
+      }
+      setDeleting(false);
+      setDeleteTarget(null);
+      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     let error: { message: string } | null = null;
 
     if (deleteTarget.scope === "occurrences") {

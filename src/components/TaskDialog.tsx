@@ -64,7 +64,7 @@ import {
   createTaskWithOfflineSupport,
   updateTaskWithOfflineSupport,
 } from "@/lib/offline-task-mutations";
-import { isOffline } from "@/lib/offline-sync";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 interface Props {
   open: boolean;
@@ -762,10 +762,22 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
 
   const toggleSubtask = async (st: Subtask) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: st.id, payload: { patch: { done: !st.done } } });
+      setSubtasks((current) => current.map((item) => item.id === st.id ? { ...item, done: !item.done } : item));
+      toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     await supabase.from("subtasks").update({ done: !st.done }).eq("id", st.id);
     setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, done: !s.done } : s)));
   };
   const deleteSubtask = async (id: string) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "delete", entityId: id, payload: {} });
+      setSubtasks((current) => current.filter((item) => item.id !== id));
+      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     await supabase.from("subtasks").delete().eq("id", id);
     setSubtasks(subtasks.filter((s) => s.id !== id));
   };
@@ -781,6 +793,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     }
     if (nextTitle === subtask.title) {
       setEditingSubtaskId((current) => (current === subtask.id ? null : current));
+      return;
+    }
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: subtask.id, payload: { patch: { title: nextTitle } } });
+      setSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: nextTitle } : item));
+      setEditingSubtaskId((current) => (current === subtask.id ? null : current));
+      toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
       return;
     }
 
@@ -801,6 +820,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const applySubtaskDue = async (st: Subtask, next: string | null, reason?: string) => {
     const prev = st.due_date;
     setSubDueSaving(true);
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: st.id, payload: { patch: { due_date: next } } });
+      setSubtasks((current) => current.map((item) => item.id === st.id ? { ...item, due_date: next } : item));
+      setSubDueSaving(false);
+      toast.success("Prazo salvo neste aparelho. SerÃ¡ sincronizado ao reconectar.");
+      return true;
+    }
     const { error } = await supabase.from("subtasks").update({ due_date: next }).eq("id", st.id);
     if (error) {
       setSubDueSaving(false);
@@ -885,6 +911,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const tid = currentTaskId ?? (await ensureTask());
     if (!tid) return;
     const path = `${tid}/subtasks/${st.id}/${storageObjectName()}`;
+    if (isOffline()) {
+      const attachment = { id: crypto.randomUUID(), subtask_id: st.id, task_id: tid, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id, created_at: new Date().toISOString() };
+      await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: attachment.id, payload: { table: "subtask_attachments", bucket: "task-attachments", blob: file, attachment } });
+      setSubAttachments((prev) => ({ ...prev, [st.id]: [...(prev[st.id] ?? []), attachment as SubtaskAttachment] }));
+      toast.success("Arquivo salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
+      return;
+    }
     const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
     if (upErr) return toast.error(upErr.message);
     const { data, error } = await (supabase.from("subtask_attachments") as any)
@@ -962,6 +995,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const tid = taskId ?? (await ensureTask());
     if (!tid) return false;
     const path = `${tid}/${storageObjectName()}`;
+    if (isOffline()) {
+      const attachment = { id: crypto.randomUUID(), task_id: tid, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id, created_at: new Date().toISOString() };
+      await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: attachment.id, payload: { table: "attachments", bucket: "task-attachments", blob: file, attachment } });
+      setAttachments((current) => [...current, attachment as Attachment]);
+      toast.success("Arquivo salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
+      return true;
+    }
     const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
     if (upErr) {
       toast.error(`${file.name}: ${upErr.message}`);

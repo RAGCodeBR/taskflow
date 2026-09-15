@@ -97,8 +97,18 @@ async function syncOperation(operation: OfflineOperation) {
     return syncTaskDelete(operation);
   }
 
-  if (operation.entity === "subtask" && operation.action === "create") {
-    const { error } = await (supabase.from("subtasks") as any).insert(operation.payload.subtask);
+  if (operation.entity === "subtask") {
+    if (operation.action === "create") {
+      const { error } = await (supabase.from("subtasks") as any).insert(operation.payload.subtask);
+      if (error) throw error;
+      return false;
+    }
+    if (operation.action === "update") {
+      const { error } = await (supabase.from("subtasks") as any).update(operation.payload.patch).eq("id", operation.entityId);
+      if (error) throw error;
+      return false;
+    }
+    const { error } = await supabase.from("subtasks").delete().eq("id", operation.entityId);
     if (error) throw error;
     return false;
   }
@@ -167,6 +177,32 @@ async function syncOperation(operation: OfflineOperation) {
     }
     const { error } = await (supabase.from(table as any) as any).delete().eq("id", operation.entityId);
     if (error) throw error;
+    return false;
+  }
+
+  if (operation.entity === "reaction") {
+    const reaction = operation.payload.reaction as Record<string, unknown>;
+    if (operation.action === "delete") {
+      const { error } = await (supabase.from("mural_post_reactions") as any)
+        .delete().match({ post_id: reaction.post_id, user_id: reaction.user_id, emoji: reaction.emoji });
+      if (error) throw error;
+      return false;
+    }
+    const { error } = await (supabase.from("mural_post_reactions") as any).insert(reaction);
+    if (error && !String(error.message).toLowerCase().includes("duplicate")) throw error;
+    return false;
+  }
+
+  if (operation.entity === "attachment") {
+    const attachment = operation.payload.attachment as Record<string, unknown>;
+    const bucket = String(operation.payload.bucket);
+    const blob = operation.payload.blob as Blob;
+    const { error: uploadError } = await supabase.storage.from(bucket).upload(String(attachment.storage_path), blob, {
+      contentType: String(attachment.mime_type || "application/octet-stream"), upsert: false,
+    });
+    if (uploadError) throw uploadError;
+    const { error: insertError } = await (supabase.from(String(operation.payload.table) as any) as any).insert(attachment);
+    if (insertError) throw insertError;
     return false;
   }
 
