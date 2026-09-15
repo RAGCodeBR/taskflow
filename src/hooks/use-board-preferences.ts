@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export const ALL_FIELDS = ["tags", "description", "subtasks", "attachments", "priority", "due", "createdAt", "meta"] as const;
 export type CardField = (typeof ALL_FIELDS)[number];
@@ -59,6 +60,10 @@ export function useUpdateBoardPreferences() {
     mutationFn: async (patch: Partial<BoardPreferences>) => {
       if (!user) throw new Error("not authenticated");
       const next = { ...(qc.getQueryData<BoardPreferences>(["board_preferences", user.id]) ?? DEFAULT_PREFS), ...patch };
+      if (isOffline()) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: user.id, payload: { table: "board_preferences", record: { user_id: user.id, ...next }, upsert: true, onConflict: "user_id" } });
+        return next;
+      }
       const { error } = await supabase.from("board_preferences").upsert({ user_id: user.id, ...next }, { onConflict: "user_id" });
       if (error) throw error; return next;
     },

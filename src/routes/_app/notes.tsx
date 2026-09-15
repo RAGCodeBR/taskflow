@@ -21,6 +21,7 @@ import { marked } from "marked";
 import { AttachmentPreviewDialog, type PreviewableAttachment } from "@/components/AttachmentPreviewDialog";
 import { formatNoteWithAI } from "@/lib/ai-format.functions";
 import { canPreviewAttachment } from "@/lib/attachment-preview";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export const Route = createFileRoute("/_app/notes")({
   component: NotesPage,
@@ -338,6 +339,14 @@ export function NotesWorkspace({
     if (!clientId || !user) return;
     const today = new Date().toISOString().slice(0, 10);
     const minPos = notes.reduce((m, n) => Math.min(m, n.position), 0);
+    if (isOffline()) {
+      const now = new Date().toISOString();
+      const created: ClientNote = { id: crypto.randomUUID(), client_id: clientId, title: "Nova anotaÃ§Ã£o", content: "", content_html: "", done: false, position: minPos - 1, created_at: now, updated_at: now, note_date: today, task_id: null, created_by: user.id };
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: created.id, payload: { table: "client_notes", record: created } });
+      setNotes((current) => [created, ...current]);
+      setSelectedId(created.id);
+      return;
+    }
     const { data, error } = await sb.from("client_notes").insert({
       client_id: clientId,
       title: "Nova anotação",
@@ -357,6 +366,10 @@ export function NotesWorkspace({
     if (!confirm("Excluir esta anotação?")) return;
     setNotes((n) => n.filter((x) => x.id !== id));
     if (selectedId === id) setSelectedId(null);
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: id, payload: { table: "client_notes" } });
+      return;
+    }
     const { error } = await sb.from("client_notes").delete().eq("id", id);
     if (error) toast.error(error.message);
   };
@@ -366,6 +379,10 @@ export function NotesWorkspace({
   };
 
   const persistNote = async (id: string, patch: Partial<ClientNote>) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: id, payload: { table: "client_notes", patch } });
+      return;
+    }
     const { error } = await sb.from("client_notes").update(patch).eq("id", id);
     if (error) toast.error(error.message);
   };
@@ -454,6 +471,10 @@ export function NotesWorkspace({
     [ordered[idx], ordered[swap]] = [ordered[swap], ordered[idx]];
     const reIndexed = ordered.map((n, i) => ({ ...n, position: i }));
     setNotes(reIndexed);
+    if (user && isOffline()) {
+      await Promise.all(reIndexed.map((note) => enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: note.id, payload: { table: "client_notes", patch: { position: note.position } } })));
+      return;
+    }
     await Promise.all(
       reIndexed.map((n) => sb.from("client_notes").update({ position: n.position }).eq("id", n.id)),
     );
@@ -839,6 +860,13 @@ function NoteEditor({
     for (const file of Array.from(fl)) {
       const safe = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_");
       const path = `notes/${note.id}/${Date.now()}_${safe}`;
+      if (isOffline()) {
+        await enqueueOfflineOperation({
+          userId: user.id, entity: "attachment", action: "create", entityId: crypto.randomUUID(),
+          payload: { table: "client_note_attachments", bucket: "task-attachments", blob: file, attachment: { id: crypto.randomUUID(), note_id: note.id, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id } },
+        });
+        continue;
+      }
       const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
       if (upErr) { toast.error(upErr.message); continue; }
       const { error: insErr } = await sb.from("client_note_attachments").insert({

@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
 import { toast } from "sonner";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 interface CommentAttachment {
   id: string;
@@ -78,6 +79,12 @@ export function CommentAttachments({
             .slice(-120) || "arquivo";
         const path = `${taskId}/comments/${commentId}/${Date.now()}-${safe}`;
         const contentType = file.type || "application/octet-stream";
+        if (isOffline()) {
+          const att: CommentAttachment = { id: crypto.randomUUID(), comment_id: commentId, task_id: taskId, file_name: file.name, storage_path: path, mime_type: contentType, size_bytes: file.size, created_at: new Date().toISOString() };
+          await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: att.id, payload: { table: "comment_attachments", bucket: "task-attachments", blob: file, attachment: { ...att, uploaded_by: user.id } } });
+          setItems((current) => [...current, att]);
+          continue;
+        }
         const { error: upErr } = await supabase.storage
           .from("task-attachments")
           .upload(path, file, { contentType, upsert: false });
@@ -119,6 +126,11 @@ export function CommentAttachments({
 
   const remove = async (a: CommentAttachment) => {
     if (!window.confirm(`Remover "${a.file_name}"?`)) return;
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: a.id, payload: { table: "comment_attachments" } });
+      setItems((current) => current.filter((item) => item.id !== a.id));
+      return;
+    }
     await supabase.storage.from("task-attachments").remove([a.storage_path]);
     await supabase.from("comment_attachments").delete().eq("id", a.id);
     setItems((c) => c.filter((x) => x.id !== a.id));

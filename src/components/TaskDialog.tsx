@@ -955,6 +955,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
   const deleteSubFile = async (att: SubtaskAttachment) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: att.id, payload: { table: "subtask_attachments" } });
+      setSubAttachments((prev) => ({ ...prev, [att.subtask_id]: (prev[att.subtask_id] ?? []).filter((item) => item.id !== att.id) }));
+      return;
+    }
     await supabase.storage.from("task-attachments").remove([att.storage_path]);
     await (supabase.from("subtask_attachments") as any).delete().eq("id", att.id);
     setSubAttachments((prev) => ({
@@ -1105,6 +1110,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
   };
   const deleteAttachment = async (att: Attachment) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: att.id, payload: { table: "attachments" } });
+      setAttachments((current) => current.filter((item) => item.id !== att.id));
+      return;
+    }
     try {
       await removeTaskAttachmentAndClientCopy(att.id);
       setAttachments(attachments.filter((a) => a.id !== att.id));

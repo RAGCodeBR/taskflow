@@ -333,6 +333,12 @@ export function InlineTaskEditor({
   };
 
   const deleteAttachment = async (attachment: Attachment) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: attachment.id, payload: { table: "attachments" } });
+      setAttachments((current) => current.filter((item) => item.id !== attachment.id));
+      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     if (attachment.mime_type !== LINK_MIME) {
       await supabase.storage.from("task-attachments").remove([attachment.storage_path]);
     }

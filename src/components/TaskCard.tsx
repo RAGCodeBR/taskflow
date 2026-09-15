@@ -653,6 +653,12 @@ export function TaskCard({
   };
 
   const deleteAttachment = async (a: Attachment) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: a.id, payload: { table: "attachments" } });
+      setAttachments((current) => current.filter((item) => item.id !== a.id));
+      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     try {
       await removeTaskAttachmentAndClientCopy(a.id);
       setAttachments((c) => c.filter((x) => x.id !== a.id));

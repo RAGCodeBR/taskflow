@@ -164,7 +164,10 @@ async function syncOperation(operation: OfflineOperation) {
     const table = operation.payload.table;
     if (typeof table !== "string") throw new Error("Registro offline invÃ¡lido.");
     if (operation.action === "create") {
-      const { error } = await (supabase.from(table as any) as any).insert(operation.payload.record);
+      const request = operation.payload.upsert
+        ? (supabase.from(table as any) as any).upsert(operation.payload.record, { onConflict: String(operation.payload.onConflict || "id") })
+        : (supabase.from(table as any) as any).insert(operation.payload.record);
+      const { error } = await request;
       if (error) throw error;
       return false;
     }
@@ -201,6 +204,13 @@ async function syncOperation(operation: OfflineOperation) {
       contentType: String(attachment.mime_type || "application/octet-stream"), upsert: false,
     });
     if (uploadError) throw uploadError;
+    if (operation.payload.table === "client_avatar_updates") {
+      const { error } = await (supabase.from("clients") as any)
+        .update({ avatar_path: attachment.storage_path })
+        .eq("id", attachment.client_id);
+      if (error) throw error;
+      return false;
+    }
     const { error: insertError } = await (supabase.from(String(operation.payload.table) as any) as any).insert(attachment);
     if (insertError) throw insertError;
     return false;

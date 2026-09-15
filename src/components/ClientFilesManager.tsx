@@ -27,6 +27,7 @@ import {
   taskAttachmentIdFromClientFilePath,
 } from "@/lib/sync-task-attachment-to-client";
 import { canPreviewAttachment } from "@/lib/attachment-preview";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export interface ClientFile {
   id: string;
@@ -157,6 +158,20 @@ export function ClientFilesManager({
     setUploading(true);
     let uploadedCount = 0;
     try {
+      if (isOffline()) {
+        let nextPosition = (files.reduce((maximum, file) => Math.max(maximum, file.position), -1) + 1);
+        for (const file of selectedFiles) {
+          const safeName = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_");
+          const path = `clients/${clientId}/files/${Date.now()}_${crypto.randomUUID()}_${safeName}`;
+          const localFile: ClientFile = { id: crypto.randomUUID(), client_id: clientId, title: file.name, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id, position: nextPosition, created_at: new Date().toISOString(), source_attachment_id: null };
+          await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: localFile.id, payload: { table: "client_files", bucket: "task-attachments", blob: file, attachment: localFile } });
+          setFiles((current) => [...current, localFile]);
+          nextPosition += 1;
+          uploadedCount += 1;
+        }
+        toast.success(`${uploadedCount} arquivo${uploadedCount === 1 ? "" : "s"} salvo${uploadedCount === 1 ? "" : "s"} neste aparelho.`);
+        return;
+      }
       const { data: lastFile, error: positionError } = await supabase
         .from("client_files")
         .select("position")

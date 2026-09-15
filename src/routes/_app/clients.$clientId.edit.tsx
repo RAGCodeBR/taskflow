@@ -64,6 +64,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toJpeg } from "html-to-image";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export const Route = createFileRoute("/_app/clients/$clientId/edit")({
   component: EditClientPage,
@@ -78,6 +79,7 @@ function EditClientPage() {
   const { clientId } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: client, isLoading } = useQuery({
     queryKey: ["clients", clientId],
     queryFn: async () => {
@@ -303,6 +305,21 @@ function EditClientPage() {
     const name = tradeName.trim() || legalName.trim() || client?.name;
     if (!name) {
       toast.error("Preencha o Nome fantasia ou a Razão social.");
+      return;
+    }
+
+    if (user && isOffline()) {
+      const nextAvatarPath = avatarFile
+        ? `clients/${clientId}/avatar-${Date.now()}.${avatarFile.name.split(".").pop()?.toLowerCase() || "png"}`
+        : client.avatar_path;
+      if (avatarFile) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: crypto.randomUUID(), payload: { table: "client_avatar_updates", bucket: "task-attachments", blob: avatarFile, attachment: { client_id: clientId, storage_path: nextAvatarPath, mime_type: avatarFile.type || "image/png" } } });
+      }
+      const patch = { name, cnpj: cnpj || null, legal_name: legalName || null, trade_name: tradeName || null, state_registration: stateRegistration || null, municipal_registration: municipalRegistration || null, address: address || null, phone: phone || null, email: email || null, responsible: responsible || null, color, avatar_path: nextAvatarPath };
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: clientId, payload: { table: "clients", patch } });
+      queryClient.setQueryData<Client>(["clients", clientId], { ...client, ...patch });
+      toast.success("Cliente salvo neste aparelho. SerÃ¡ sincronizado ao reconectar.");
+      navigate({ to: "/clients" });
       return;
     }
 

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useClients, useProfiles } from "@/hooks/use-data";
 import { useWorkspaceDeletedTasks } from "@/hooks/use-workspace-tasks";
 import { useAuth } from "@/hooks/use-auth";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export const Route = createFileRoute("/_app/trash")({
   component: TrashPage,
@@ -24,6 +25,12 @@ function TrashPage() {
   const deletableTasks = tasks.filter(canDeleteTask);
 
   const restore = async (id: string) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "task", action: "update", entityId: id, payload: { patch: { deleted_at: null, deleted_by: null } } });
+      qc.setQueryData<any[]>(["tasks", "deleted"], (current = []) => current.filter((task) => task.id !== id));
+      toast.success("RestauraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     const { error } = await supabase
       .from("tasks")
       .update({ deleted_at: null, deleted_by: null })

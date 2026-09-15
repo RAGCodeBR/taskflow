@@ -53,6 +53,7 @@ import {
 import { toast } from "sonner";
 import { MAX_TASK_ATTACHMENT_BYTES } from "@/lib/attachment-limits";
 import { requestUnreadKey } from "@/hooks/use-request-unread";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export const Route = createFileRoute("/_app/requests")({ component: RequestsPage });
 
@@ -278,6 +279,15 @@ function RequestsPage() {
   };
   const createRequest = useMutation({
     mutationFn: async () => {
+      if (user && isOffline()) {
+        if (!form.title.trim()) throw new Error("Informe o assunto da solicitaÃ§Ã£o.");
+        const now = new Date().toISOString();
+        const request: Request = { id: crypto.randomUUID(), title: form.title.trim(), description: form.description.trim() || null, status: "new", priority: form.priority, client_id: form.clientId || null, due_date: form.dueDate || null, created_by: user.id, created_at: now, updated_at: now };
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: request.id, payload: { table: "service_requests", record: request } });
+        await Promise.all(selectedParticipants.map((participantId) => enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: crypto.randomUUID(), payload: { table: "service_request_participants", record: { request_id: request.id, user_id: participantId, added_by: user.id } } })));
+        qc.setQueryData<Request[]>(["service_requests"], (current = []) => [...current, request]);
+        return { id: request.id };
+      }
       if (!user || !form.title.trim()) throw new Error("Informe o assunto da solicitação.");
       const { data: requestId, error } = await (supabase.rpc as any)("create_service_request", {
         p_title: form.title.trim(),
@@ -304,6 +314,10 @@ function RequestsPage() {
   const sendMessage = useMutation({
     mutationFn: async () => {
       if (!selected || !user || !message.trim()) return;
+      if (isOffline()) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: crypto.randomUUID(), payload: { table: "service_request_messages", record: { id: crypto.randomUUID(), request_id: selected.id, author_id: user.id, body: message.trim() } } });
+        return;
+      }
       const { error } = await (supabase.from("service_request_messages") as any).insert({
         request_id: selected.id,
         author_id: user.id,
@@ -333,6 +347,10 @@ function RequestsPage() {
       label: string;
     }) => {
       if (!selected) return;
+      if (user && isOffline()) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: selected.id, payload: { table: "service_requests", patch: { [field]: value } } });
+        return;
+      }
       const { error } = await (supabase.from("service_requests") as any)
         .update({ [field]: value })
         .eq("id", selected.id);
@@ -365,6 +383,11 @@ function RequestsPage() {
   });
   const cancelRequest = useMutation({
     mutationFn: async () => {
+      if (selected && user && isOffline()) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: selected.id, payload: { table: "service_requests" } });
+        qc.setQueryData<Request[]>(["service_requests"], (current = []) => current.filter((request) => request.id !== selected.id));
+        return;
+      }
       if (!selected) return;
       const { error } = await (supabase.from("service_requests") as any)
         .delete()
@@ -387,6 +410,10 @@ function RequestsPage() {
     try {
       for (const file of chosen) {
         const path = `service-requests/${selected.id}/${crypto.randomUUID()}-${file.name}`;
+        if (isOffline()) {
+          await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: crypto.randomUUID(), payload: { table: "service_request_attachments", bucket: "service-request-attachments", blob: file, attachment: { id: crypto.randomUUID(), request_id: selected.id, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id } } });
+          continue;
+        }
         const { error: uploadError } = await supabase.storage
           .from("service-request-attachments")
           .upload(path, file);

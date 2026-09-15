@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { AttachmentPreviewDialog, type PreviewableAttachment } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
 import { canPreviewAttachment } from "@/lib/attachment-preview";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 
 interface ClientNote {
@@ -78,6 +79,13 @@ export function ClientNotesSheet({ open, onOpenChange, initialClientId, embedded
 
   const addNote = async () => {
     if (!clientId || !user) return;
+    if (isOffline()) {
+      const now = new Date().toISOString();
+      const note: ClientNote = { id: crypto.randomUUID(), client_id: clientId, title: "Nova anotaÃ§Ã£o", content: "", done: false, position: 0, created_at: now, updated_at: now };
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: note.id, payload: { table: "client_notes", record: { ...note, created_by: user.id } } });
+      setNotes((current) => [note, ...current]);
+      return;
+    }
     const { data, error } = await sb.from("client_notes").insert({
       client_id: clientId, title: "Nova anotação", content: "", created_by: user.id,
     }).select().single();
@@ -87,6 +95,10 @@ export function ClientNotesSheet({ open, onOpenChange, initialClientId, embedded
 
   const updateNote = async (id: string, patch: Partial<ClientNote>) => {
     setNotes((n) => n.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: id, payload: { table: "client_notes", patch } });
+      return;
+    }
     const { error } = await sb.from("client_notes").update(patch).eq("id", id);
     if (error) toast.error(error.message);
   };
@@ -94,6 +106,10 @@ export function ClientNotesSheet({ open, onOpenChange, initialClientId, embedded
   const deleteNote = async (id: string) => {
     if (!confirm("Excluir esta anotação?")) return;
     setNotes((n) => n.filter((x) => x.id !== id));
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: id, payload: { table: "client_notes" } });
+      return;
+    }
     const { error } = await sb.from("client_notes").delete().eq("id", id);
     if (error) toast.error(error.message);
   };
