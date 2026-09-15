@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useAssignableProfiles, type Client, type KanbanColumn, type Profile, type Task, type TaskTag } from "@/hooks/use-data";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteTaskWithOfflineSupport, updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 
 interface Attachment {
   id: string;
@@ -149,7 +150,17 @@ export function InlineTaskEditor({
       completed_at: merged.status === "done" ? task.completed_at ?? new Date().toISOString() : null,
     };
 
-    const { error } = await supabase.from("tasks").update(payload).eq("id", task.id);
+    if (!user) {
+      setSaving(false);
+      return;
+    }
+    let queued = false;
+    let error: any = null;
+    try {
+      ({ queued } = await updateTaskWithOfflineSupport({ userId: user.id, task, patch: payload, queryClient: qc }));
+    } catch (cause: any) {
+      error = cause;
+    }
     setSaving(false);
 
     if (error) {
@@ -158,20 +169,35 @@ export function InlineTaskEditor({
     }
 
     toast.success("Alterações salvas");
+    if (queued) {
+      toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     void qc.invalidateQueries({ queryKey: ["tasks"] });
   };
 
   const remove = async () => {
     if (!confirm("Excluir esta tarefa?")) return;
 
-    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+    if (!user) return;
+    let queued = false;
+    let error: any = null;
+    try {
+      ({ queued } = await deleteTaskWithOfflineSupport({ userId: user.id, task, queryClient: qc }));
+    } catch (cause: any) {
+      error = cause;
+    }
     if (error) {
       toast.error(error.message);
       return;
     }
 
     toast.success("Tarefa excluída");
-    void qc.invalidateQueries({ queryKey: ["tasks"] });
+    if (queued) {
+      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ concluÃ­da ao reconectar.");
+    } else {
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+    }
     onClose?.();
   };
 

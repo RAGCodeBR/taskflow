@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { participantColor } from "@/lib/participant-color";
 import { toast } from "sonner";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 type Comment = {
   id: string;
@@ -481,6 +482,22 @@ export function TaskConversationPanel({
   const sendMessage = async () => {
     if (!message.trim() || !user || readOnly) return;
     const body = message.trim();
+    if (isOffline()) {
+      const localComment: Comment = {
+        id: crypto.randomUUID(), task_id: taskId, author_id: user.id, body,
+        created_at: new Date().toISOString(), reply_to_id: replyingTo?.id ?? null, edited_at: null,
+      };
+      await enqueueOfflineOperation({
+        userId: user.id, entity: "comment", action: "create", entityId: localComment.id,
+        payload: { comment: localComment },
+      });
+      setComments((current) => [...current, localComment]);
+      setMessage("");
+      setReplyingTo(null);
+      onActivity?.();
+      toast.success("Mensagem salva neste aparelho. SerÃ¡ enviada ao reconectar.");
+      return;
+    }
     const { data, error } = await supabase
       .from("comments")
       .insert({
@@ -522,6 +539,33 @@ export function TaskConversationPanel({
     if (!audioBlob || !user || readOnly || sendingAudio) return;
     setSendingAudio(true);
     try {
+      if (isOffline()) {
+        const extension = audioBlob.type.includes("wav") ? "wav" : audioBlob.type.includes("ogg") ? "ogg" : "webm";
+        const localComment: Comment = {
+          id: crypto.randomUUID(), task_id: taskId, author_id: user.id, body: "ðŸŽ¤ Ãudio",
+          created_at: new Date().toISOString(), reply_to_id: null, edited_at: null,
+        };
+        await enqueueOfflineOperation({
+          userId: user.id, entity: "comment", action: "create", entityId: localComment.id,
+          payload: {
+            comment: localComment,
+            audio: {
+              blob: audioBlob, extension, contentType: audioBlob.type || `audio/${extension}`,
+              fileName: `Ãudio ${format(new Date(), "dd/MM HH:mm")}.${extension}`,
+            },
+          },
+        });
+        const localUrl = URL.createObjectURL(audioBlob);
+        setAudioByComment((current) => ({
+          ...current,
+          [localComment.id]: [{ id: `local-${localComment.id}`, comment_id: localComment.id, file_name: "Ãudio", storage_path: "", mime_type: audioBlob.type, signed_url: localUrl }],
+        }));
+        setComments((current) => [...current, localComment]);
+        clearAudioPreview();
+        onActivity?.();
+        toast.success("Ãudio salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
+        return;
+      }
       const { data: comment, error: commentError } = await supabase
         .from("comments")
         .insert({
@@ -593,6 +637,14 @@ export function TaskConversationPanel({
   const saveEdit = async (id: string) => {
     const body = editDraft.trim();
     if (!body) return;
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "comment", action: "update", entityId: id, payload: { patch: { body } } });
+      setComments((current) => current.map((item) => (item.id === id ? { ...item, body, edited_at: new Date().toISOString() } : item)));
+      setEditingId(null);
+      setEditDraft("");
+      toast.success("EdiÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     const { data, error } = await supabase
       .from("comments")
       .update({ body })
@@ -606,6 +658,13 @@ export function TaskConversationPanel({
   };
 
   const deleteMessage = async (id: string) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "comment", action: "delete", entityId: id, payload: {} });
+      setComments((current) => current.filter((comment) => comment.id !== id));
+      onActivity?.();
+      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     const { error } = await supabase.from("comments").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setComments((current) => current.filter((comment) => comment.id !== id));

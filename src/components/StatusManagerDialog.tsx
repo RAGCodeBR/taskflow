@@ -11,6 +11,7 @@ import { useTaskStatuses, type TaskStatus } from "@/hooks/use-data";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 interface Props {
   open: boolean;
@@ -33,6 +34,14 @@ export function StatusManagerDialog({ open, onOpenChange }: Props) {
 
   const create = async () => {
     if (!name.trim() || !user) return;
+    if (isOffline()) {
+      const status = { id: crypto.randomUUID(), name: name.trim(), color, is_active: isActive, is_completed: false, position: statuses.length };
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: status.id, payload: { table: "task_statuses", record: { ...status, created_by: user.id } } });
+      qc.setQueryData<TaskStatus[]>(["task_statuses"], (current = []) => [...current, status]);
+      setName(""); setIsActive(false);
+      toast.success("Status salvo neste aparelho. SerÃ¡ sincronizado ao reconectar.");
+      return;
+    }
     const { error } = await supabase.from("task_statuses").insert({
       name: name.trim(),
       color,
@@ -49,6 +58,11 @@ export function StatusManagerDialog({ open, onOpenChange }: Props) {
   };
 
   const update = async (s: TaskStatus, patch: Partial<TaskStatus>) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: s.id, payload: { table: "task_statuses", patch } });
+      qc.setQueryData<TaskStatus[]>(["task_statuses"], (current = []) => current.map((item) => item.id === s.id ? { ...item, ...patch } : item));
+      return;
+    }
     const { error } = await supabase.from("task_statuses").update(patch).eq("id", s.id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["task_statuses"] });
@@ -57,6 +71,12 @@ export function StatusManagerDialog({ open, onOpenChange }: Props) {
 
   const remove = async (s: TaskStatus) => {
     if (!confirm(`Excluir status "${s.name}"?`)) return;
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: s.id, payload: { table: "task_statuses" } });
+      qc.setQueryData<TaskStatus[]>(["task_statuses"], (current = []) => current.filter((item) => item.id !== s.id));
+      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     const { error } = await supabase.from("task_statuses").delete().eq("id", s.id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["task_statuses"] });
@@ -72,6 +92,10 @@ export function StatusManagerDialog({ open, onOpenChange }: Props) {
     if (oldIndex < 0 || newIndex < 0) return;
     const reordered = arrayMove(statuses, oldIndex, newIndex);
     qc.setQueryData(["task_statuses"], reordered.map((s, i) => ({ ...s, position: i })));
+    if (user && isOffline()) {
+      await Promise.all(reordered.map((status, position) => enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: status.id, payload: { table: "task_statuses", patch: { position } } })));
+      return;
+    }
     await Promise.all(
       reordered.map((s, i) =>
         supabase.from("task_statuses").update({ position: i }).eq("id", s.id),

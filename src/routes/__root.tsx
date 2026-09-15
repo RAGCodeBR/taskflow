@@ -3,6 +3,9 @@ import { Outlet, createRootRouteWithContext, HeadContent, Scripts } from "@tanst
 import type { ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
+import { OfflineQueryCache } from "@/components/OfflineQueryCache";
+import { OfflineSyncManager } from "@/components/OfflineSyncManager";
+import { OfflineConflictDialog } from "@/components/OfflineConflictDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import taskflowMark from "@/assets/taskflow-mark.png";
@@ -50,6 +53,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "icon", type: "image/png", href: taskflowMark },
       { rel: "apple-touch-icon", href: taskflowMark },
+      { rel: "manifest", href: "/manifest.webmanifest" },
     ],
   }),
   shellComponent: isGitHubPages ? undefined : RootShell,
@@ -84,6 +88,7 @@ function RootShell({ children }: { children: ReactNode }) {
       <body>
         {children}
         <Scripts />
+        <script src="/registerSW.js" />
       </body>
     </html>
   );
@@ -94,11 +99,15 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+      <OfflineQueryCache queryClient={queryClient}>
+        <OfflineSyncManager />
+        <OfflineConflictDialog />
         <TooltipProvider>
-          {isGitHubPages ? <HeadContent /> : null}
-          <Outlet />
-          <Toaster richColors position="top-right" />
-        </TooltipProvider>
+            {isGitHubPages ? <HeadContent /> : null}
+            <Outlet />
+            <Toaster richColors position="top-right" />
+          </TooltipProvider>
+        </OfflineQueryCache>
       </AuthProvider>
     </QueryClientProvider>
   );

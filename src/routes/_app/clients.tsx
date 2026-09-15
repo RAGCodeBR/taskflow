@@ -38,6 +38,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useClients, useProfiles, useSubtasks, type Client } from "@/hooks/use-data";
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { toast } from "sonner";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 type ReportPeriod =
   "all" | "current_month" | "last_3_months" | "last_6_months" | "last_12_months" | "custom";
@@ -326,6 +327,19 @@ export function ClientsIndexPage() {
       email: email || null,
       responsible: responsible || null,
     };
+    if (user && isOffline()) {
+      if (edit) {
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: edit.id, payload: { table: "clients", patch: clientData } });
+        qc.setQueryData<Client[]>(["clients"], (current = []) => current.map((client) => client.id === edit.id ? { ...client, ...clientData } : client));
+      } else {
+        const client: Client = { id: crypto.randomUUID(), ...clientData, avatar_path: null, is_active: true };
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: client.id, payload: { table: "clients", record: { ...client, created_by: user.id } } });
+        qc.setQueryData<Client[]>(["clients"], (current = []) => [...current, client]);
+      }
+      setOpen(false);
+      toast.success("Cliente salvo neste aparelho. SerÃ¡ sincronizado ao reconectar.");
+      return;
+    }
     if (edit) {
       await supabase.from("clients").update(clientData).eq("id", edit.id);
     } else {
@@ -338,6 +352,12 @@ export function ClientsIndexPage() {
 
   const remove = async (c: Client) => {
     if (!confirm(`Excluir cliente "${c.name}"?`)) return;
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: c.id, payload: { table: "clients" } });
+      qc.setQueryData<Client[]>(["clients"], (current = []) => current.filter((client) => client.id !== c.id));
+      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     await supabase.from("clients").delete().eq("id", c.id);
     qc.invalidateQueries({ queryKey: ["clients"] });
   };
@@ -348,6 +368,12 @@ export function ClientsIndexPage() {
       ? `Reativar o cliente "${client.name}"? Ele voltará a aparecer nas listas de clientes ativos.`
       : `Inativar o cliente "${client.name}"? As tarefas abertas e concluídas serão arquivadas no cadastro do cliente e as obrigações recorrentes serão pausadas. Nenhum histórico, dado ou anexo será excluído.`;
     if (!confirm(description)) return;
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: client.id, payload: { table: "clients", patch: { is_active: isActive } } });
+      qc.setQueryData<Client[]>(["clients"], (current = []) => current.map((item) => item.id === client.id ? { ...item, is_active: isActive } : item));
+      toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     const { error } = await supabase
       .from("clients")
       .update({ is_active: isActive })

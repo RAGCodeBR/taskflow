@@ -59,6 +59,12 @@ import {
 } from "@/lib/sync-task-attachment-to-client";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
+import {
+  createSubtaskWithOfflineSupport,
+  createTaskWithOfflineSupport,
+  updateTaskWithOfflineSupport,
+} from "@/lib/offline-task-mutations";
+import { isOffline } from "@/lib/offline-sync";
 
 interface Props {
   open: boolean;
@@ -580,9 +586,70 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       toast.error("Conclua todas as subtarefas antes de concluir a tarefa.");
       return;
     }
+    const existingTaskId = currentTaskIdRef.current ?? currentTaskId;
+    if (isOffline()) {
+      if (!user) return;
+      if (!existingTaskId && !dueDate) {
+        toast.error("Prazo Ã© obrigatÃ³rio para criar uma tarefa");
+        return;
+      }
+      setSaving(true);
+      try {
+        const payload = buildPayload();
+        const now = new Date().toISOString();
+        let taskId = existingTaskId;
+        if (taskId) {
+          const localTask = task ?? qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === taskId);
+          if (!localTask) throw new Error("NÃ£o foi possÃ­vel localizar a tarefa neste aparelho.");
+          await updateTaskWithOfflineSupport({ userId: user.id, task: localTask, patch: payload, queryClient: qc });
+        } else {
+          taskId = crypto.randomUUID();
+          const localTask: Task = {
+            id: taskId,
+            ...payload,
+            due_time: payload.due_time ?? null,
+            assigned_by: null,
+            assigned_at: null,
+            position: 0,
+            color: null,
+            created_by: user.id,
+            tag_id: null,
+            deleted_at: null,
+            deleted_by: null,
+            archived_at: null,
+            archived_reason: null,
+            created_at: now,
+            updated_at: now,
+            card_width: null,
+            workspace_id: targetWorkspaceId || null,
+          };
+          await createTaskWithOfflineSupport({ userId: user.id, task: localTask, queryClient: qc });
+          currentTaskIdRef.current = taskId;
+          setCurrentTaskId(taskId);
+        }
+        if (newSubtask.trim()) {
+          const localSubtask = {
+            id: crypto.randomUUID(), task_id: taskId, title: newSubtask.trim(), done: false,
+            position: subtasks.length, due_date: deadlineToIso(newSubtaskDue),
+            assignee_id: newSubtaskAssignee || null, notes: null, completed_at: null,
+          };
+          await createSubtaskWithOfflineSupport({ userId: user.id, subtask: localSubtask, queryClient: qc });
+          setSubtasks((current) => [...current, localSubtask as Subtask]);
+          setNewSubtask("");
+          setNewSubtaskDue("");
+          setNewSubtaskAssignee("");
+        }
+        toast.success("Tarefa salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+        onOpenChange(false);
+      } catch (error: any) {
+        toast.error(error.message);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     const authenticated = await getAuthenticatedUser();
     if (!authenticated) return;
-    const existingTaskId = currentTaskIdRef.current ?? currentTaskId;
     if (!existingTaskId && !dueDate) {
       toast.error("Prazo é obrigatório para criar uma tarefa");
       return;

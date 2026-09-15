@@ -101,6 +101,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { matchDateFilter, normalizeTasksWithOpenSubtasks, type DateFilter } from "@/lib/task-utils";
 import { isTaskFromAnotherWorkspace, splitTasksByWorkspace } from "@/lib/workspace-tasks";
+import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export const Route = createFileRoute("/_app/tasks/kanban")({
   component: KanbanPage,
@@ -889,9 +891,14 @@ function KanbanPage() {
       qc.setQueryData<Task[]>(["tasks"], (curr = []) =>
         curr.map((t) => (t.id === taskId ? ({ ...t, ...patch } as Task) : t)),
       );
-      const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
-      if (error) toast.error(error.message);
-      qc.invalidateQueries({ queryKey: ["tasks"] });
+      if (!user) return;
+      try {
+        const { queued } = await updateTaskWithOfflineSupport({ userId: user.id, task, patch, queryClient: qc });
+        if (!queued) qc.invalidateQueries({ queryKey: ["tasks"] });
+      } catch (error: any) {
+        toast.error(error.message);
+        return;
+      }
       toast.success("Tarefa concluída");
       return;
     }
@@ -908,9 +915,14 @@ function KanbanPage() {
       qc.setQueryData<Task[]>(["tasks"], (curr = []) =>
         curr.map((t) => (t.id === taskId ? ({ ...t, ...patch } as Task) : t)),
       );
-      const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
-      if (error) toast.error(error.message);
-      qc.invalidateQueries({ queryKey: ["tasks"] });
+      if (!user) return;
+      try {
+        const { queued } = await updateTaskWithOfflineSupport({ userId: user.id, task, patch, queryClient: qc });
+        if (!queued) qc.invalidateQueries({ queryKey: ["tasks"] });
+      } catch (error: any) {
+        toast.error(error.message);
+        return;
+      }
       toast.success("Tarefa restaurada");
       return;
     }
@@ -951,18 +963,30 @@ function KanbanPage() {
       const reopenParent =
         openSubtaskTaskIds.has(taskId) &&
         (persistedTask?.status === "done" || !!persistedTask?.completed_at);
-      const { error } = await supabase
-        .from("tasks")
-        .update({
-          column_id: targetCol,
-          ...(reopenParent
-            ? { status: "todo", completed_at: null, status_id: fallbackStatus?.id ?? null }
-            : {}),
-        })
-        .eq("id", taskId);
-      if (error) toast.error(error.message);
+      const patch: Partial<Task> = {
+        column_id: targetCol,
+        ...(reopenParent
+          ? { status: "todo", completed_at: null, status_id: fallbackStatus?.id ?? null }
+          : {}),
+      };
+      try {
+        const { queued } = await updateTaskWithOfflineSupport({ userId: user.id, task, patch, queryClient: qc });
+        if (queued) toast.success("MovimentaÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      } catch (error: any) {
+        toast.error(error.message);
+      }
     }
     const rows = nextTargetList.map((t, i) => ({ user_id: user.id, task_id: t.id, position: i }));
+    if (isOffline()) {
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "task_order",
+        action: "update",
+        entityId: targetCol,
+        payload: { rows },
+      });
+      return;
+    }
     const { error: ordErr } = await supabase
       .from("user_task_order")
       .upsert(rows, { onConflict: "user_id,task_id" });

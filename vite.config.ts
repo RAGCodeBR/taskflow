@@ -5,6 +5,7 @@
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { VitePWA } from "vite-plugin-pwa";
 import { readFileSync } from "node:fs";
 import { deflateSync, inflateSync } from "node:zlib";
 
@@ -40,7 +41,8 @@ function extractTimbradoPng(pdfPath: string) {
   const rgb = inflateSync(pdf.subarray(streamStart, streamStart + length));
   const width = 1414;
   const height = 2000;
-  if (rgb.length !== width * height * 3) throw new Error("A imagem do papel timbrado tem um formato inesperado.");
+  if (rgb.length !== width * height * 3)
+    throw new Error("A imagem do papel timbrado tem um formato inesperado.");
   const scanlines = Buffer.alloc((width * 3 + 1) * height);
   for (let row = 0; row < height; row += 1) {
     rgb.copy(scanlines, row * (width * 3 + 1) + 1, row * width * 3, (row + 1) * width * 3);
@@ -69,7 +71,44 @@ const timbradoImagePlugin = {
 };
 
 export default defineConfig({
-  plugins: [timbradoImagePlugin],
+  plugins: [
+    timbradoImagePlugin,
+    VitePWA({
+      outDir: ".vercel/output/static",
+      registerType: "autoUpdate",
+      injectRegister: "auto",
+      includeAssets: ["taskflow-mark.png"],
+      manifest: {
+        name: "TaskFlow",
+        short_name: "TaskFlow",
+        description: "Gestão de tarefas e conversas.",
+        theme_color: "#142e63",
+        background_color: "#f8fafc",
+        display: "standalone",
+        icons: [
+          {
+            src: "/taskflow-mark.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable",
+          },
+        ],
+      },
+      workbox: {
+        navigateFallback: null,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "taskflow-pages",
+              networkTimeoutSeconds: 3,
+            },
+          },
+        ],
+      },
+    }),
+  ],
   // Generate Vercel Build Output instead of the previous Cloudflare target.
   nitro: { preset: "vercel" },
   tanstackStart: {

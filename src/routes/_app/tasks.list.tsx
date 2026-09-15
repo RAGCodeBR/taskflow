@@ -28,6 +28,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
+import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 
 export const Route = createFileRoute("/_app/tasks/list")({
   component: ListPage,
@@ -199,21 +200,27 @@ function ListPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from("tasks")
-      .update({
-        status: "done",
-        status_id: completedStatus.id,
-        completed_at: new Date().toISOString(),
-      })
-      .eq("id", taskId);
+    const task = tasks.find((item) => item.id === taskId);
+    if (!user || !task) return;
+    let queued = false;
+    let error: any = null;
+    try {
+      ({ queued } = await updateTaskWithOfflineSupport({
+        userId: user.id,
+        task,
+        patch: { status: "done", status_id: completedStatus.id, completed_at: new Date().toISOString() },
+        queryClient,
+      }));
+    } catch (cause: any) {
+      error = cause;
+    }
 
     if (error) {
       toast.error(error.message);
       return;
     }
 
-    await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    if (!queued) await queryClient.invalidateQueries({ queryKey: ["tasks"] });
     toast.success("Tarefa concluída.");
   };
 

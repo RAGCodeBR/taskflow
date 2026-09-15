@@ -11,6 +11,7 @@ import { useTaskTags, type TaskTag } from "@/hooks/use-data";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 interface Props {
   open: boolean;
@@ -33,6 +34,14 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
 
   const create = async () => {
     if (!name.trim() || !user) return;
+    if (isOffline()) {
+      const tag = { id: crypto.randomUUID(), name: name.trim(), color, position: tags.length };
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: tag.id, payload: { table: "task_tags", record: { ...tag, created_by: user.id } } });
+      qc.setQueryData<TaskTag[]>(["task_tags"], (current = []) => [...current, tag]);
+      setName("");
+      toast.success("Tag salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     const { error } = await supabase.from("task_tags").insert({
       name: name.trim(), color, created_by: user.id, position: tags.length,
     });
@@ -43,6 +52,11 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
   };
 
   const update = async (tag: TaskTag, patch: Partial<TaskTag>) => {
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: tag.id, payload: { table: "task_tags", patch } });
+      qc.setQueryData<TaskTag[]>(["task_tags"], (current = []) => current.map((item) => item.id === tag.id ? { ...item, ...patch } : item));
+      return;
+    }
     const { error } = await supabase.from("task_tags").update(patch).eq("id", tag.id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["task_tags"] });
@@ -50,6 +64,12 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
 
   const remove = async (tag: TaskTag) => {
     if (!confirm(`Excluir tag "${tag.name}"?`)) return;
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: tag.id, payload: { table: "task_tags" } });
+      qc.setQueryData<TaskTag[]>(["task_tags"], (current = []) => current.filter((item) => item.id !== tag.id));
+      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+      return;
+    }
     const { error } = await supabase.from("task_tags").delete().eq("id", tag.id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["task_tags"] });
@@ -65,6 +85,10 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
     if (oldIndex < 0 || newIndex < 0) return;
     const reordered = arrayMove(tags, oldIndex, newIndex);
     qc.setQueryData(["task_tags"], reordered.map((t, i) => ({ ...t, position: i })));
+    if (user && isOffline()) {
+      await Promise.all(reordered.map((tag, position) => enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: tag.id, payload: { table: "task_tags", patch: { position } } })));
+      return;
+    }
     await Promise.all(
       reordered.map((t, i) =>
         supabase.from("task_tags").update({ position: i }).eq("id", t.id),

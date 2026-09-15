@@ -79,6 +79,7 @@ import {
 import { useBoardPreferences, type CardField } from "@/hooks/use-board-preferences";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 
 interface Attachment {
   id: string;
@@ -484,12 +485,18 @@ export function TaskCard({
   );
 
   const update = async (patch: Partial<Task>) => {
-    const { error } = await supabase.from("tasks").update(patch).eq("id", task.id);
-    if (error) {
+    if (!user) return;
+    try {
+      const { queued } = await updateTaskWithOfflineSupport({ userId: user.id, task, patch, queryClient: qc });
+      if (queued) {
+        toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+        return;
+      }
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+    } catch (error: any) {
       toast.error(error.message);
       return;
     }
-    void qc.invalidateQueries({ queryKey: ["tasks"] });
   };
 
   const saveTitle = async () => {
