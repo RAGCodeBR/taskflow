@@ -11,6 +11,8 @@ import {
   LoaderCircle,
   Mic,
   Square,
+  Paperclip,
+  FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,6 +32,8 @@ import { cn } from "@/lib/utils";
 import { participantColor } from "@/lib/participant-color";
 import { toast } from "sonner";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
+import { CommentAttachments } from "@/components/CommentAttachments";
 
 type Comment = {
   id: string;
@@ -193,7 +197,9 @@ export function TaskConversationPanel({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [sendingAudio, setSendingAudio] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const messageRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const restoreScrollRef = useRef<{ height: number; top: number } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -236,9 +242,10 @@ export function TaskConversationPanel({
       // continua com o seu histórico disponível no modo avião.
       const cachedComments =
         queryClient.getQueryData<Comment[]>(cacheKey) ??
-        (queryClient
+        queryClient
           .getQueryData<Comment[]>(["task-conversation-messages"])
-          ?.filter((comment) => comment.task_id === taskId) ?? []);
+          ?.filter((comment) => comment.task_id === taskId) ??
+        [];
       setAudioByComment({});
       setComments(cachedComments);
       setHasOlderComments(false);
@@ -508,15 +515,31 @@ export function TaskConversationPanel({
       .map((profile) => profile.id);
 
   const sendMessage = async () => {
-    if (!message.trim() || !user || readOnly) return;
-    const body = message.trim();
+    if ((!message.trim() && pendingFiles.length === 0) || !user || readOnly) return;
+    if (pendingFiles.length > 0 && isOffline()) {
+      toast.error("Conecte-se à internet para enviar arquivos nesta conversa.");
+      return;
+    }
+    const files = pendingFiles;
+    const body =
+      files.length > 0
+        ? `📎 ${message.trim() || `${files.length} arquivo${files.length > 1 ? "s" : ""}`}`
+        : message.trim();
     if (isOffline()) {
       const localComment: Comment = {
-        id: crypto.randomUUID(), task_id: taskId, author_id: user.id, body,
-        created_at: new Date().toISOString(), reply_to_id: replyingTo?.id ?? null, edited_at: null,
+        id: crypto.randomUUID(),
+        task_id: taskId,
+        author_id: user.id,
+        body,
+        created_at: new Date().toISOString(),
+        reply_to_id: replyingTo?.id ?? null,
+        edited_at: null,
       };
       await enqueueOfflineOperation({
-        userId: user.id, entity: "comment", action: "create", entityId: localComment.id,
+        userId: user.id,
+        entity: "comment",
+        action: "create",
+        entityId: localComment.id,
         payload: { comment: localComment },
       });
       setComments((current) => [...current, localComment]);
@@ -549,6 +572,47 @@ export function TaskConversationPanel({
       .single();
     if (error) return toast.error(error.message);
 
+    if (files.length > 0) {
+      try {
+        for (const file of files) {
+          const safeName =
+            file.name
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-zA-Z0-9._-]+/g, "_")
+              .replace(/_+/g, "_")
+              .slice(-120) || "arquivo";
+          const path = `${taskId}/comments/${data.id}/${crypto.randomUUID()}-${safeName}`;
+          const contentType = file.type || "application/octet-stream";
+          const { error: uploadError } = await supabase.storage
+            .from("task-attachments")
+            .upload(path, file, { contentType, upsert: false });
+          if (uploadError) throw uploadError;
+          const { error: attachmentError } = await (
+            supabase.from("comment_attachments") as any
+          ).insert({
+            comment_id: data.id,
+            task_id: taskId,
+            file_name: file.name,
+            storage_path: path,
+            mime_type: contentType,
+            size_bytes: file.size,
+            uploaded_by: user.id,
+          });
+          if (attachmentError) {
+            await supabase.storage.from("task-attachments").remove([path]);
+            throw attachmentError;
+          }
+        }
+      } catch (attachmentError) {
+        toast.error(
+          `Mensagem enviada, mas um arquivo não foi anexado: ${
+            attachmentError instanceof Error ? attachmentError.message : "tente anexá-lo novamente"
+          }`,
+        );
+      }
+    }
+
     const mentionedIds = mentionedProfileIds(body).filter((id) => id !== user.id);
     if (mentionedIds.length) {
       const { error: mentionError } = await supabase.from("comment_mentions").insert(
@@ -566,6 +630,7 @@ export function TaskConversationPanel({
       current.some((item) => item.id === data.id) ? current : [...current, data as Comment],
     );
     setMessage("");
+    setPendingFiles([]);
     setReplyingTo(null);
     // Quem manda mensagem obviamente tem a janela aberta agora — a faixa de
     // presença não pode mostrar "ainda não entrou" pra quem acabou de falar.
@@ -573,22 +638,46 @@ export function TaskConversationPanel({
     onActivity?.();
   };
 
+  const chooseFiles = (files: FileList | null) => {
+    const chosen = Array.from(files ?? []);
+    const oversized = chosen.find(isTaskAttachmentTooLarge);
+    if (oversized) {
+      toast.error(`"${oversized.name}" excede o limite de ${MAX_TASK_ATTACHMENT_LABEL}.`);
+      return;
+    }
+    setPendingFiles(chosen);
+  };
+
   const sendAudio = async () => {
     if (!audioBlob || !user || readOnly || sendingAudio) return;
     setSendingAudio(true);
     try {
       if (isOffline()) {
-        const extension = audioBlob.type.includes("wav") ? "wav" : audioBlob.type.includes("ogg") ? "ogg" : "webm";
+        const extension = audioBlob.type.includes("wav")
+          ? "wav"
+          : audioBlob.type.includes("ogg")
+            ? "ogg"
+            : "webm";
         const localComment: Comment = {
-          id: crypto.randomUUID(), task_id: taskId, author_id: user.id, body: "ðŸŽ¤ Ãudio",
-          created_at: new Date().toISOString(), reply_to_id: null, edited_at: null,
+          id: crypto.randomUUID(),
+          task_id: taskId,
+          author_id: user.id,
+          body: "ðŸŽ¤ Ãudio",
+          created_at: new Date().toISOString(),
+          reply_to_id: null,
+          edited_at: null,
         };
         await enqueueOfflineOperation({
-          userId: user.id, entity: "comment", action: "create", entityId: localComment.id,
+          userId: user.id,
+          entity: "comment",
+          action: "create",
+          entityId: localComment.id,
           payload: {
             comment: localComment,
             audio: {
-              blob: audioBlob, extension, contentType: audioBlob.type || `audio/${extension}`,
+              blob: audioBlob,
+              extension,
+              contentType: audioBlob.type || `audio/${extension}`,
               fileName: `Ãudio ${format(new Date(), "dd/MM HH:mm")}.${extension}`,
             },
           },
@@ -596,7 +685,16 @@ export function TaskConversationPanel({
         const localUrl = URL.createObjectURL(audioBlob);
         setAudioByComment((current) => ({
           ...current,
-          [localComment.id]: [{ id: `local-${localComment.id}`, comment_id: localComment.id, file_name: "Ãudio", storage_path: "", mime_type: audioBlob.type, signed_url: localUrl }],
+          [localComment.id]: [
+            {
+              id: `local-${localComment.id}`,
+              comment_id: localComment.id,
+              file_name: "Ãudio",
+              storage_path: "",
+              mime_type: audioBlob.type,
+              signed_url: localUrl,
+            },
+          ],
         }));
         setComments((current) => [...current, localComment]);
         clearAudioPreview();
@@ -676,8 +774,18 @@ export function TaskConversationPanel({
     const body = editDraft.trim();
     if (!body) return;
     if (user && isOffline()) {
-      await enqueueOfflineOperation({ userId: user.id, entity: "comment", action: "update", entityId: id, payload: { patch: { body } } });
-      setComments((current) => current.map((item) => (item.id === id ? { ...item, body, edited_at: new Date().toISOString() } : item)));
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "comment",
+        action: "update",
+        entityId: id,
+        payload: { patch: { body } },
+      });
+      setComments((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, body, edited_at: new Date().toISOString() } : item,
+        ),
+      );
       setEditingId(null);
       setEditDraft("");
       toast.success("EdiÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
@@ -697,7 +805,13 @@ export function TaskConversationPanel({
 
   const deleteMessage = async (id: string) => {
     if (user && isOffline()) {
-      await enqueueOfflineOperation({ userId: user.id, entity: "comment", action: "delete", entityId: id, payload: {} });
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "comment",
+        action: "delete",
+        entityId: id,
+        payload: {},
+      });
       setComments((current) => current.filter((comment) => comment.id !== id));
       onActivity?.();
       toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
@@ -924,6 +1038,9 @@ export function TaskConversationPanel({
                     Seu navegador não suporta a reprodução de áudio.
                   </audio>
                 ))}
+                {comment.body.startsWith("📎 ") && (
+                  <CommentAttachments taskId={taskId} commentId={comment.id} readOnly={readOnly} />
+                )}
                 {receipt.totalRecipients > 0 && (
                   <div
                     className={cn(
@@ -1044,6 +1161,26 @@ export function TaskConversationPanel({
               </Button>
             </div>
           )}
+          {pendingFiles.length > 0 && (
+            <div className="mb-2 flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+              <FileText className="h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0 flex-1 truncate">
+                {pendingFiles.length === 1
+                  ? pendingFiles[0].name
+                  : `${pendingFiles.length} arquivos prontos para enviar`}
+              </span>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={() => setPendingFiles([])}
+                title="Remover arquivos selecionados"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <Textarea
             ref={messageRef}
             rows={3}
@@ -1080,6 +1217,27 @@ export function TaskConversationPanel({
               <Button
                 type="button"
                 size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isRecordingAudio || sendingAudio}
+                title={`Anexar imagens, documentos, vídeos ou outros arquivos (até ${MAX_TASK_ATTACHMENT_LABEL} cada)`}
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(event) => {
+                  chooseFiles(event.target.files);
+                  event.currentTarget.value = "";
+                }}
+              />
+              <Button
+                type="button"
+                size="icon"
                 variant={isRecordingAudio ? "destructive" : "ghost"}
                 className="h-7 w-7"
                 onClick={() =>
@@ -1110,7 +1268,11 @@ export function TaskConversationPanel({
             <span className="hidden text-[11px] text-muted-foreground sm:block">
               Use @ para marcar · Ctrl/⌘ + Enter para enviar
             </span>
-            <Button onClick={() => void sendMessage()} size="sm" disabled={!message.trim()}>
+            <Button
+              onClick={() => void sendMessage()}
+              size="sm"
+              disabled={!message.trim() && pendingFiles.length === 0}
+            >
               <Send className="mr-1 h-4 w-4" /> Enviar
             </Button>
           </div>

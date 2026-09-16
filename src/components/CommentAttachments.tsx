@@ -6,6 +6,7 @@ import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { FileDropZone } from "@/components/FileDropZone";
 import { toast } from "sonner";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 
 interface CommentAttachment {
   id: string;
@@ -25,9 +26,11 @@ function stop(e: { stopPropagation: () => void }) {
 export function CommentAttachments({
   taskId,
   commentId,
+  readOnly = false,
 }: {
   taskId: string;
   commentId: string;
+  readOnly?: boolean;
 }) {
   const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,10 +69,16 @@ export function CommentAttachments({
   }, [commentId]);
 
   const upload = async (files: FileList | null) => {
-    if (!user || !files || files.length === 0) return;
+    if (readOnly || !user || !files || files.length === 0) return;
+    const fileList = Array.from(files);
+    const oversized = fileList.find(isTaskAttachmentTooLarge);
+    if (oversized) {
+      toast.error(`"${oversized.name}" excede o limite de ${MAX_TASK_ATTACHMENT_LABEL}.`);
+      return;
+    }
     setUploading(true);
     try {
-      for (const file of Array.from(files)) {
+      for (const file of fileList) {
         const safe =
           file.name
             .normalize("NFD")
@@ -80,8 +89,28 @@ export function CommentAttachments({
         const path = `${taskId}/comments/${commentId}/${Date.now()}-${safe}`;
         const contentType = file.type || "application/octet-stream";
         if (isOffline()) {
-          const att: CommentAttachment = { id: crypto.randomUUID(), comment_id: commentId, task_id: taskId, file_name: file.name, storage_path: path, mime_type: contentType, size_bytes: file.size, created_at: new Date().toISOString() };
-          await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: att.id, payload: { table: "comment_attachments", bucket: "task-attachments", blob: file, attachment: { ...att, uploaded_by: user.id } } });
+          const att: CommentAttachment = {
+            id: crypto.randomUUID(),
+            comment_id: commentId,
+            task_id: taskId,
+            file_name: file.name,
+            storage_path: path,
+            mime_type: contentType,
+            size_bytes: file.size,
+            created_at: new Date().toISOString(),
+          };
+          await enqueueOfflineOperation({
+            userId: user.id,
+            entity: "attachment",
+            action: "create",
+            entityId: att.id,
+            payload: {
+              table: "comment_attachments",
+              bucket: "task-attachments",
+              blob: file,
+              attachment: { ...att, uploaded_by: user.id },
+            },
+          });
           setItems((current) => [...current, att]);
           continue;
         }
@@ -125,9 +154,15 @@ export function CommentAttachments({
   };
 
   const remove = async (a: CommentAttachment) => {
-    if (!window.confirm(`Remover "${a.file_name}"?`)) return;
+    if (readOnly || !window.confirm(`Remover "${a.file_name}"?`)) return;
     if (user && isOffline()) {
-      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: a.id, payload: { table: "comment_attachments" } });
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "record",
+        action: "delete",
+        entityId: a.id,
+        payload: { table: "comment_attachments" },
+      });
       setItems((current) => current.filter((item) => item.id !== a.id));
       return;
     }
@@ -139,27 +174,29 @@ export function CommentAttachments({
   return (
     <FileDropZone
       onFiles={(files) => void upload(files)}
-      disabled={uploading}
+      disabled={uploading || readOnly}
       className="border-t bg-muted/10 px-2 py-1.5"
     >
       <div className="mb-1 flex items-center justify-between">
         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Arquivos ({items.length})
         </span>
-        <button
-          type="button"
-          onPointerDown={stop}
-          onClick={(e) => {
-            stop(e);
-            inputRef.current?.click();
-          }}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/10 disabled:opacity-50"
-          disabled={uploading}
-          title="Anexar arquivo"
-        >
-          <Paperclip className="h-3 w-3" />
-          {uploading ? "Enviando..." : "Anexar"}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onPointerDown={stop}
+            onClick={(e) => {
+              stop(e);
+              inputRef.current?.click();
+            }}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/10 disabled:opacity-50"
+            disabled={uploading}
+            title="Anexar arquivo"
+          >
+            <Paperclip className="h-3 w-3" />
+            {uploading ? "Enviando..." : "Anexar"}
+          </button>
+        )}
         <input
           ref={inputRef}
           type="file"
@@ -173,7 +210,10 @@ export function CommentAttachments({
           {items.map((a) => {
             const isImg = a.mime_type?.startsWith("image/");
             return (
-              <div key={a.id} className="group/cf relative aspect-square overflow-hidden rounded border bg-background">
+              <div
+                key={a.id}
+                className="group/cf relative aspect-square overflow-hidden rounded border bg-background"
+              >
                 {isImg && thumbs[a.id] ? (
                   <button
                     type="button"
@@ -185,7 +225,11 @@ export function CommentAttachments({
                     className="block h-full w-full"
                     title={a.file_name}
                   >
-                    <img src={thumbs[a.id]} alt={a.file_name} className="h-full w-full object-cover" />
+                    <img
+                      src={thumbs[a.id]}
+                      alt={a.file_name}
+                      className="h-full w-full object-cover"
+                    />
                   </button>
                 ) : (
                   <button
@@ -204,18 +248,20 @@ export function CommentAttachments({
                     </span>
                   </button>
                 )}
-                <button
-                  type="button"
-                  onPointerDown={stop}
-                  onClick={(e) => {
-                    stop(e);
-                    void remove(a);
-                  }}
-                  className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 opacity-0 transition group-hover/cf:opacity-100"
-                  title="Remover"
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onPointerDown={stop}
+                    onClick={(e) => {
+                      stop(e);
+                      void remove(a);
+                    }}
+                    className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 opacity-0 transition group-hover/cf:opacity-100"
+                    title="Remover"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                )}
               </div>
             );
           })}
@@ -230,7 +276,9 @@ export function CommentAttachments({
             mime_type: preview.mime_type,
           }}
           open={!!preview}
-          onOpenChange={(o) => { if (!o) setPreview(null); }}
+          onOpenChange={(o) => {
+            if (!o) setPreview(null);
+          }}
         />
       ) : null}
     </FileDropZone>
