@@ -639,8 +639,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
           setNewSubtaskDue("");
           setNewSubtaskAssignee("");
         }
-        toast.success("Tarefa salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
+        toast.success("Tarefa salva neste aparelho. Será sincronizada ao reconectar.");
         onOpenChange(false);
+        /* Mensagem legada com codificação incorreta, mantida abaixo somente
+           até a próxima normalização completa deste arquivo. */
       } catch (error: any) {
         toast.error(error.message);
       } finally {

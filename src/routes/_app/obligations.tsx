@@ -169,7 +169,9 @@ function ObligationsPage() {
   const [clientLogoUrls, setClientLogoUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (!activeWorkspace?.id || materializedWorkspace.current === activeWorkspace.id) return;
+    // A materialização é uma rotina do servidor. Offline, a última lista de
+    // vencimentos persistida é exibida sem tentar chamar o banco.
+    if (isOffline() || !activeWorkspace?.id || materializedWorkspace.current === activeWorkspace.id) return;
     materializedWorkspace.current = activeWorkspace.id;
     void (async () => {
       const { error } = await (supabase as any).rpc("materialize_obligations", {
@@ -177,6 +179,7 @@ function ObligationsPage() {
       });
       if (error) {
         materializedWorkspace.current = null;
+        if (/failed to fetch/i.test(error.message ?? "")) return;
         toast.error(`Não foi possível atualizar os próximos vencimentos: ${error.message}`);
         return;
       }

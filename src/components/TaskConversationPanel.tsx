@@ -230,7 +230,7 @@ export function TaskConversationPanel({
 
   const loadComments = useCallback(async () => {
     const cacheKey = ["task-conversation-panel", taskId] as const;
-    if (isOffline()) {
+    const restoreCachedComments = () => {
       // A tela de Conversas já carrega o resumo completo das mensagens. Assim,
       // mesmo uma conversa cujo painel ainda não foi aberto individualmente
       // continua com o seu histórico disponível no modo avião.
@@ -242,6 +242,9 @@ export function TaskConversationPanel({
       setAudioByComment({});
       setComments(cachedComments);
       setHasOlderComments(false);
+    };
+    if (isOffline()) {
+      restoreCachedComments();
       return;
     }
     const { data, error } = await supabase
@@ -250,7 +253,13 @@ export function TaskConversationPanel({
       .eq("task_id", taskId)
       .order("created_at", { ascending: false })
       .limit(COMMENTS_PAGE_SIZE);
-    if (error) return toast.error(error.message);
+    if (error) {
+      if (/failed to fetch/i.test(error.message ?? "")) {
+        restoreCachedComments();
+        return;
+      }
+      return toast.error(error.message);
+    }
     const latestComments = ((data ?? []) as Comment[]).reverse();
     setAudioByComment({});
     setComments(latestComments);
@@ -511,10 +520,20 @@ export function TaskConversationPanel({
         payload: { comment: localComment },
       });
       setComments((current) => [...current, localComment]);
+      queryClient.setQueryData<Comment[]>(["task-conversation-panel", taskId], (current = []) =>
+        current.some((comment) => comment.id === localComment.id)
+          ? current
+          : [...current, localComment],
+      );
+      queryClient.setQueryData<Comment[]>(["task-conversation-messages"], (current = []) =>
+        current.some((comment) => comment.id === localComment.id)
+          ? current
+          : [...current, localComment],
+      );
       setMessage("");
       setReplyingTo(null);
       onActivity?.();
-      toast.success("Mensagem salva neste aparelho. SerÃ¡ enviada ao reconectar.");
+      toast.success("Mensagem salva neste aparelho. Será enviada ao reconectar.");
       return;
     }
     const { data, error } = await supabase

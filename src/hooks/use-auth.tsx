@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { isOffline } from "@/lib/offline-sync";
 
 interface Profile {
   id: string;
@@ -39,6 +40,15 @@ interface AuthCtx {
 
 const AuthContext = createContext<AuthCtx | undefined>(undefined);
 
+type OfflineAccessSnapshot = Pick<
+  AuthCtx,
+  "profile" | "isAdmin" | "isCollaborator" | "isClient" | "clientId" | "permissions" | "workspaces" | "activeWorkspace"
+>;
+
+function offlineAccessKey(userId: string) {
+  return `taskflow-offline-access-v1:${userId}`;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -53,7 +63,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const loadedUserIdRef = useRef<string | null>(null);
 
+  const restoreOfflineAccess = (uid: string) => {
+    try {
+      const raw = localStorage.getItem(offlineAccessKey(uid));
+      if (!raw) return false;
+      const snapshot = JSON.parse(raw) as OfflineAccessSnapshot;
+      if (!Array.isArray(snapshot.permissions) || !Array.isArray(snapshot.workspaces)) return false;
+      setProfile(snapshot.profile);
+      setIsAdmin(snapshot.isAdmin);
+      setIsCollaborator(snapshot.isCollaborator);
+      setIsClient(snapshot.isClient);
+      setClientId(snapshot.clientId);
+      setPermissions(snapshot.permissions);
+      setWorkspaces(snapshot.workspaces);
+      setActiveWorkspaceState(snapshot.activeWorkspace);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const saveOfflineAccess = (uid: string, snapshot: OfflineAccessSnapshot) => {
+    try {
+      localStorage.setItem(offlineAccessKey(uid), JSON.stringify(snapshot));
+    } catch {
+      // O cache de acesso melhora o modo offline, mas não impede o acesso online.
+    }
+  };
+
   const loadProfile = async (uid: string) => {
+    if (isOffline() && restoreOfflineAccess(uid)) return;
     // Profiles live in public.profiles, keyed by the Supabase auth user id.
     // The trigger in the migrations creates this row when a new user signs up.
     // Load independent access records together.  Previously the layout was
@@ -95,6 +134,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("user_id", uid),
       (supabase.from("workspaces") as any).select("id, slug, name"),
     ]);
+    const results = [
+      profileResult,
+      activeWorkspaceResult,
+      authResult,
+      rolesResult,
+      linkResult,
+      permissionsResult,
+      membershipsResult,
+      workspaceResult,
+    ] as Array<{ error?: { message?: string } | null }>;
+    const networkFailed = results.some((result) => /failed to fetch/i.test(result.error?.message ?? ""));
+    if (networkFailed && restoreOfflineAccess(uid)) return;
     const profileWorkspaceId = activeWorkspaceResult.error
       ? null
       : (activeWorkspaceResult.data ?? null);
@@ -164,6 +215,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : (selectedWorkspace?.permissions ??
             (Array.isArray(access?.permissions) ? access.permissions : [])),
     );
+    saveOfflineAccess(uid, {
+      profile: prof ? ({ ...prof, email: authResult.data.user?.email ?? null } as Profile) : null,
+      isAdmin: admin,
+      isCollaborator: collaborator,
+      isClient: client,
+      clientId: link?.client_id ?? null,
+      permissions: admin
+        ? systemPermissions
+        : (selectedWorkspace?.permissions ??
+            (Array.isArray(access?.permissions) ? access.permissions : [])),
+      workspaces: memberships,
+      activeWorkspace: selectedWorkspace,
+    });
   };
 
   useEffect(() => {
