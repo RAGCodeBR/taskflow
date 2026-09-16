@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { taskCreatePayloadForSync } from "@/lib/offline-task-payload";
 import {
   addOfflineConflict,
   isOffline,
@@ -95,7 +96,10 @@ async function syncTaskDelete(client: SyncClient, operation: OfflineOperation) {
 async function syncOperation(client: SyncClient, operation: OfflineOperation) {
   if (operation.entity === "task") {
     if (operation.action === "create") {
-      const { error } = await (client.from("tasks") as any).upsert(operation.payload.task, {
+      const taskPayload = taskCreatePayloadForSync(
+        operation.payload.task as Record<string, unknown>,
+      );
+      const { error } = await (client.from("tasks") as any).upsert(taskPayload, {
         onConflict: "id",
         ignoreDuplicates: true,
       });

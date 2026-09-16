@@ -39,4 +39,19 @@ describe("pending task overlay", () => {
 
     expect(result).toEqual([task("one", "Editada offline")]);
   });
+
+  it("hides a pending creation that was moved to trash before synchronization", () => {
+    const pending = task("local-1", "Tarefa offline");
+    const result = overlayPendingTaskOperations(
+      [],
+      [
+        operation(pending.id, "create", { task: pending }),
+        operation(pending.id, "update", {
+          patch: { deleted_at: "2026-09-16T21:00:00.000Z" },
+        }),
+      ],
+    );
+
+    expect(result).toEqual([]);
+  });
 });

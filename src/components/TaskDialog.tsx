@@ -62,6 +62,7 @@ import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog"
 import {
   createSubtaskWithOfflineSupport,
   createTaskWithOfflineSupport,
+  deleteTaskWithOfflineSupport,
   updateTaskWithOfflineSupport,
 } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isNetworkFailure, isOffline } from "@/lib/offline-sync";
@@ -774,13 +775,18 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const remove = async () => {
     if (!currentTaskId) return;
     if (!confirm("Mover esta tarefa para a lixeira? Você pode restaurá-la depois.")) return;
-    const { error } = await supabase
-      .from("tasks")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", currentTaskId);
-    if (error) return toast.error(error.message);
+    if (!user) return toast.error("Sua sessão local não está disponível.");
+    const localTask =
+      task ?? qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === currentTaskId);
+    if (!localTask) return toast.error("Não foi possível localizar a tarefa neste aparelho.");
+    try {
+      await deleteTaskWithOfflineSupport({ userId: user.id, task: localTask, queryClient: qc });
+    } catch (error) {
+      return toast.error(
+        error instanceof Error ? error.message : "Não foi possível excluir a tarefa.",
+      );
+    }
     toast.success("Tarefa movida para a lixeira");
-    qc.invalidateQueries({ queryKey: ["tasks"] });
     onOpenChange(false);
   };
 

@@ -58,22 +58,23 @@ export async function deleteTaskWithOfflineSupport({
   task: Task;
   queryClient: QueryClient;
 }) {
-  if (!isOffline()) {
-    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
-    if (error) throw error;
-    return { queued: false };
-  }
-
+  const wasOffline = isOffline();
+  const patch: TaskPatch = {
+    deleted_at: new Date().toISOString(),
+    deleted_by: userId,
+  };
   queryClient.setQueryData<Task[]>(["tasks"], (current = []) => current.filter((item) => item.id !== task.id));
+  const baseValues = Object.fromEntries(Object.keys(patch).map((key) => [key, task[key as keyof Task]]));
   await enqueueOfflineOperation({
     userId,
     entity: "task",
-    action: "delete",
+    action: "update",
     entityId: task.id,
-    payload: { task },
+    payload: { patch },
     baseUpdatedAt: task.updated_at ?? null,
+    baseValues,
   });
-  return { queued: true };
+  return { queued: wasOffline };
 }
 
 export async function createTaskWithOfflineSupport({

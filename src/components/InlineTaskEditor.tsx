@@ -195,7 +195,7 @@ export function InlineTaskEditor({
 
     toast.success("Tarefa excluída");
     if (queued) {
-      toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ concluÃ­da ao reconectar.");
+      toast.success("Exclusão salva neste aparelho. Será concluída ao reconectar.");
     } else {
       void qc.invalidateQueries({ queryKey: ["tasks"] });
     }

@@ -28,5 +28,5 @@ export function overlayPendingTaskOperations(serverTasks: Task[], operations: Of
     }
   }
 
-  return Array.from(tasks.values());
+  return Array.from(tasks.values()).filter((task) => !task.deleted_at && !task.archived_at);
 }
