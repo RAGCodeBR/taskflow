@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { createClient } from "@supabase/supabase-js";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import {
   addOfflineConflict,
   isOffline,
@@ -11,6 +13,8 @@ import {
   replaceOfflineOperation,
   type OfflineOperation,
 } from "@/lib/offline-sync";
+
+type SyncClient = ReturnType<typeof createClient<Database>>;
 
 const sameValue = (first: unknown, second: unknown) => JSON.stringify(first) === JSON.stringify(second);
 
@@ -39,15 +43,15 @@ async function storeTaskFieldConflicts(operation: OfflineOperation, server: Reco
   return conflictingFields;
 }
 
-async function syncTaskUpdate(operation: OfflineOperation) {
-  const { data, error } = await supabase.from("tasks").select("*").eq("id", operation.entityId).single();
+async function syncTaskUpdate(client: SyncClient, operation: OfflineOperation) {
+  const { data, error } = await client.from("tasks").select("*").eq("id", operation.entityId).single();
   if (error) throw error;
   const server = data as Record<string, unknown>;
   const changedOnServer = operation.baseUpdatedAt && server.updated_at !== operation.baseUpdatedAt;
   const patch = (operation.payload.patch ?? {}) as Record<string, unknown>;
 
   if (!changedOnServer) {
-    const { error: updateError } = await (supabase.from("tasks") as any).update(patch).eq("id", operation.entityId);
+    const { error: updateError } = await (client.from("tasks") as any).update(patch).eq("id", operation.entityId);
     if (updateError) throw updateError;
     return false;
   }
@@ -57,14 +61,14 @@ async function syncTaskUpdate(operation: OfflineOperation) {
     Object.entries(patch).filter(([field]) => !conflictingFields.includes(field)),
   );
   if (Object.keys(safePatch).length > 0) {
-    const { error: updateError } = await (supabase.from("tasks") as any).update(safePatch).eq("id", operation.entityId);
+    const { error: updateError } = await (client.from("tasks") as any).update(safePatch).eq("id", operation.entityId);
     if (updateError) throw updateError;
   }
   return conflictingFields.length > 0;
 }
 
-async function syncTaskDelete(operation: OfflineOperation) {
-  const { data, error } = await supabase.from("tasks").select("*").eq("id", operation.entityId).maybeSingle();
+async function syncTaskDelete(client: SyncClient, operation: OfflineOperation) {
+  const { data, error } = await client.from("tasks").select("*").eq("id", operation.entityId).maybeSingle();
   if (error) throw error;
   if (!data) return false;
   const server = data as Record<string, unknown>;
@@ -81,34 +85,34 @@ async function syncTaskDelete(operation: OfflineOperation) {
     });
     return true;
   }
-  const { error: deleteError } = await supabase.from("tasks").delete().eq("id", operation.entityId);
+  const { error: deleteError } = await client.from("tasks").delete().eq("id", operation.entityId);
   if (deleteError) throw deleteError;
   return false;
 }
 
-async function syncOperation(operation: OfflineOperation) {
+async function syncOperation(client: SyncClient, operation: OfflineOperation) {
   if (operation.entity === "task") {
     if (operation.action === "create") {
-      const { error } = await (supabase.from("tasks") as any).insert(operation.payload.task);
+      const { error } = await (client.from("tasks") as any).insert(operation.payload.task);
       if (error) throw error;
       return false;
     }
-    if (operation.action === "update") return syncTaskUpdate(operation);
-    return syncTaskDelete(operation);
+    if (operation.action === "update") return syncTaskUpdate(client, operation);
+    return syncTaskDelete(client, operation);
   }
 
   if (operation.entity === "subtask") {
     if (operation.action === "create") {
-      const { error } = await (supabase.from("subtasks") as any).insert(operation.payload.subtask);
+      const { error } = await (client.from("subtasks") as any).insert(operation.payload.subtask);
       if (error) throw error;
       return false;
     }
     if (operation.action === "update") {
-      const { error } = await (supabase.from("subtasks") as any).update(operation.payload.patch).eq("id", operation.entityId);
+      const { error } = await (client.from("subtasks") as any).update(operation.payload.patch).eq("id", operation.entityId);
       if (error) throw error;
       return false;
     }
-    const { error } = await supabase.from("subtasks").delete().eq("id", operation.entityId);
+    const { error } = await client.from("subtasks").delete().eq("id", operation.entityId);
     if (error) throw error;
     return false;
   }
@@ -116,18 +120,18 @@ async function syncOperation(operation: OfflineOperation) {
   if (operation.entity === "comment") {
     if (operation.action === "create") {
       const comment = operation.payload.comment as Record<string, unknown>;
-      const { error: commentError } = await (supabase.from("comments") as any).insert(comment);
+      const { error: commentError } = await (client.from("comments") as any).insert(comment);
       if (commentError) throw commentError;
       const audio = operation.payload.audio as
         | { blob: Blob; extension: string; contentType: string; fileName: string }
         | undefined;
       if (audio) {
         const path = `${String(comment.task_id)}/comments/${String(comment.id)}/${Date.now()}-audio.${audio.extension}`;
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await client.storage
           .from("task-attachments")
           .upload(path, audio.blob, { contentType: audio.contentType, upsert: false });
         if (uploadError) throw uploadError;
-        const { error: attachmentError } = await (supabase.from("comment_attachments") as any).insert({
+        const { error: attachmentError } = await (client.from("comment_attachments") as any).insert({
           comment_id: comment.id,
           task_id: comment.task_id,
           file_name: audio.fileName,
@@ -141,19 +145,19 @@ async function syncOperation(operation: OfflineOperation) {
       return false;
     }
     if (operation.action === "update") {
-      const { error } = await (supabase.from("comments") as any)
+      const { error } = await (client.from("comments") as any)
         .update(operation.payload.patch)
         .eq("id", operation.entityId);
       if (error) throw error;
       return false;
     }
-    const { error } = await supabase.from("comments").delete().eq("id", operation.entityId);
+    const { error } = await client.from("comments").delete().eq("id", operation.entityId);
     if (error) throw error;
     return false;
   }
 
   if (operation.entity === "task_order") {
-    const { error } = await supabase
+    const { error } = await client
       .from("user_task_order")
       .upsert(operation.payload.rows as any[], { onConflict: "user_id,task_id" });
     if (error) throw error;
@@ -165,20 +169,20 @@ async function syncOperation(operation: OfflineOperation) {
     if (typeof table !== "string") throw new Error("Registro offline invÃ¡lido.");
     if (operation.action === "create") {
       const request = operation.payload.upsert
-        ? (supabase.from(table as any) as any).upsert(operation.payload.record, { onConflict: String(operation.payload.onConflict || "id") })
-        : (supabase.from(table as any) as any).insert(operation.payload.record);
+        ? (client.from(table as any) as any).upsert(operation.payload.record, { onConflict: String(operation.payload.onConflict || "id") })
+        : (client.from(table as any) as any).insert(operation.payload.record);
       const { error } = await request;
       if (error) throw error;
       return false;
     }
     if (operation.action === "update") {
-      const { error } = await (supabase.from(table as any) as any)
+      const { error } = await (client.from(table as any) as any)
         .update(operation.payload.patch)
         .eq("id", operation.entityId);
       if (error) throw error;
       return false;
     }
-    const { error } = await (supabase.from(table as any) as any).delete().eq("id", operation.entityId);
+    const { error } = await (client.from(table as any) as any).delete().eq("id", operation.entityId);
     if (error) throw error;
     return false;
   }
@@ -186,12 +190,12 @@ async function syncOperation(operation: OfflineOperation) {
   if (operation.entity === "reaction") {
     const reaction = operation.payload.reaction as Record<string, unknown>;
     if (operation.action === "delete") {
-      const { error } = await (supabase.from("mural_post_reactions") as any)
+      const { error } = await (client.from("mural_post_reactions") as any)
         .delete().match({ post_id: reaction.post_id, user_id: reaction.user_id, emoji: reaction.emoji });
       if (error) throw error;
       return false;
     }
-    const { error } = await (supabase.from("mural_post_reactions") as any).insert(reaction);
+    const { error } = await (client.from("mural_post_reactions") as any).insert(reaction);
     if (error && !String(error.message).toLowerCase().includes("duplicate")) throw error;
     return false;
   }
@@ -200,18 +204,18 @@ async function syncOperation(operation: OfflineOperation) {
     const attachment = operation.payload.attachment as Record<string, unknown>;
     const bucket = String(operation.payload.bucket);
     const blob = operation.payload.blob as Blob;
-    const { error: uploadError } = await supabase.storage.from(bucket).upload(String(attachment.storage_path), blob, {
+    const { error: uploadError } = await client.storage.from(bucket).upload(String(attachment.storage_path), blob, {
       contentType: String(attachment.mime_type || "application/octet-stream"), upsert: false,
     });
     if (uploadError) throw uploadError;
     if (operation.payload.table === "client_avatar_updates") {
-      const { error } = await (supabase.from("clients") as any)
+      const { error } = await (client.from("clients") as any)
         .update({ avatar_path: attachment.storage_path })
         .eq("id", attachment.client_id);
       if (error) throw error;
       return false;
     }
-    const { error: insertError } = await (supabase.from(String(operation.payload.table) as any) as any).insert(attachment);
+    const { error: insertError } = await (client.from(String(operation.payload.table) as any) as any).insert(attachment);
     if (insertError) throw insertError;
     return false;
   }
@@ -220,6 +224,28 @@ async function syncOperation(operation: OfflineOperation) {
 }
 
 /** Envia alterações locais quando a conexão volta, sem bloquear a interface. */
+async function createAuthenticatedSyncClient(): Promise<SyncClient> {
+  // A fila pode ter sido criada enquanto o navegador estava sem rede. Ao voltar,
+  // renovamos a sessão antes de escrever: o cliente global pode ainda carregar
+  // um token antigo e o PostgREST então trata a requisição como anônima.
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error || !data.session?.access_token) {
+    throw error ?? new Error("Não foi possível renovar a sessão para sincronizar os dados offline.");
+  }
+
+  const url = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const publishableKey =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) {
+    throw new Error("A conexão com o servidor não está configurada.");
+  }
+
+  return createClient<Database>(url, publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
+  });
+}
+
 export function OfflineSyncManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -233,10 +259,20 @@ export function OfflineSyncManager() {
     let failed = 0;
     try {
       const operations = await listOfflineOperations(user.id);
+      if (operations.length === 0) return;
+      let client: SyncClient;
+      try {
+        client = await createAuthenticatedSyncClient();
+      } catch (error) {
+        // A conexão pode voltar alguns instantes antes de o servidor de sessão
+        // estar acessível. Mantemos toda a fila e repetimos automaticamente.
+        console.warn("[offline sync] aguardando uma sessão autenticada:", error);
+        return;
+      }
       for (const operation of operations) {
         if (isOffline()) break;
         try {
-          const hasConflict = await syncOperation(operation);
+          const hasConflict = await syncOperation(client, operation);
           await removeOfflineOperation(user.id, operation.id);
           synced += 1;
           if (hasConflict) conflicts += 1;
