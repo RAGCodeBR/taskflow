@@ -265,7 +265,15 @@ export function OfflineSyncManager() {
   useEffect(() => {
     void sync();
     window.addEventListener("online", sync);
-    return () => window.removeEventListener("online", sync);
+    window.addEventListener("focus", sync);
+    // A opção Offline do DevTools pode voltar a rede sem disparar o evento
+    // `online`. A checagem periódica garante que a fila não fique parada.
+    const interval = window.setInterval(() => void sync(), 5_000);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener("focus", sync);
+      window.clearInterval(interval);
+    };
   }, [sync]);
 
   return null;

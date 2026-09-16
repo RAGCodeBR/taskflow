@@ -590,7 +590,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (isOffline()) {
       if (!user) return;
       if (!existingTaskId && !dueDate) {
-        toast.error("Prazo Ã© obrigatÃ³rio para criar uma tarefa");
+        toast.error("Prazo é obrigatório para criar uma tarefa");
         return;
       }
       setSaving(true);
