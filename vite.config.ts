@@ -75,7 +75,10 @@ export default defineConfig({
     timbradoImagePlugin,
     VitePWA({
       outDir: ".vercel/output/static",
-      registerType: "autoUpdate",
+      // Não substitua o service worker no meio de uma sessão. Com atualização
+      // automática, uma página ainda usando chunks antigos podia perder esses
+      // arquivos do cache e falhar ao abrir Dashboard/Clientes sem internet.
+      registerType: "prompt",
       injectRegister: "auto",
       includeAssets: ["taskflow-mark.png"],
       manifest: {
@@ -95,7 +98,12 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: null,
+        // O HTML raiz é a casca do SPA: ao abrir /clientes, /dashboard etc.
+        // sem rede, ele permite que o roteador renderize a rota atual usando
+        // os módulos e dados já persistidos no aparelho.
+        navigateFallback: "/",
+        navigateFallbackDenylist: [/^\/api\//],
+        additionalManifestEntries: [{ url: "/", revision: String(Date.now()) }],
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.mode === "navigate",
