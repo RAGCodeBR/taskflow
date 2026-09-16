@@ -47,7 +47,7 @@ export function useMuralLaunchDigest() {
         (supabase.from("mural_post_attachments") as any)
           .select("post_id, file_name, uploaded_by, created_at")
           .gt("created_at", sinceIso),
-        (supabase.from("profiles") as any).select("id, full_name, email"),
+        (supabase.from("profiles") as any).select("id, full_name"),
       ]);
 
       const posts = (postsRes.data ?? []) as Array<{
@@ -60,12 +60,11 @@ export function useMuralLaunchDigest() {
       const profiles = (profilesRes.data ?? []) as Array<{
         id: string;
         full_name: string | null;
-        email: string | null;
       }>;
       const nameOf = (id: string | null | undefined) => {
         if (!id) return "Alguém";
         const p = profiles.find((item) => item.id === id);
-        return p?.full_name || p?.email || "Alguém";
+        return p?.full_name || "Alguém";
       };
       const titleOf = (id: string | null | undefined) =>
         posts.find((item) => item.id === id)?.title || "um recado";

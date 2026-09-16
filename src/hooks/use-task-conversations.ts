@@ -6,6 +6,8 @@ import { useProfiles, useTaskCollaborators } from "@/hooks/use-data";
 import { activityToast } from "@/lib/activity-toast";
 import { isConversationRoom, unreadMessageCount } from "@/lib/task-conversations";
 import { isOffline } from "@/lib/offline-sync";
+import { saveConversationRead } from "@/lib/save-conversation-read";
+import { toast } from "sonner";
 
 type RoomTask = {
   id: string;
@@ -158,16 +160,15 @@ export function useMarkConversationRead() {
         ]);
         return;
       }
-      await (supabase.from("task_conversation_reads") as any).upsert(
-        {
-          user_id: user.id,
-          task_id: taskId,
-          last_read_at: new Date().toISOString(),
-          manual_unread: false,
-        },
-        { onConflict: "user_id,task_id" },
-      );
-      await qc.invalidateQueries({ queryKey: readsKey(user.id) });
+      try {
+        await saveConversationRead(supabase as any, taskId, false);
+        await qc.invalidateQueries({ queryKey: readsKey(user.id) });
+      } catch (error) {
+        console.warn("[conversas] Não foi possível salvar a leitura:", error);
+        toast.error("Não foi possível atualizar a leitura da conversa. Tente novamente.", {
+          id: "conversation-read-error",
+        });
+      }
     },
     [qc, user?.id],
   );
@@ -183,20 +184,25 @@ export function useMarkConversationUnread() {
       if (isOffline()) {
         qc.setQueryData<Read[]>(readsKey(user.id), (current = []) => [
           ...current.filter((read) => read.task_id !== taskId),
-          { task_id: taskId, last_read_at: new Date().toISOString(), manual_unread: true },
+          {
+            task_id: taskId,
+            last_read_at:
+              current.find((read) => read.task_id === taskId)?.last_read_at ??
+              new Date(0).toISOString(),
+            manual_unread: true,
+          },
         ]);
         return;
       }
-      await (supabase.from("task_conversation_reads") as any).upsert(
-        {
-          user_id: user.id,
-          task_id: taskId,
-          last_read_at: new Date().toISOString(),
-          manual_unread: true,
-        },
-        { onConflict: "user_id,task_id" },
-      );
-      await qc.invalidateQueries({ queryKey: readsKey(user.id) });
+      try {
+        await saveConversationRead(supabase as any, taskId, true);
+        await qc.invalidateQueries({ queryKey: readsKey(user.id) });
+      } catch (error) {
+        console.warn("[conversas] Não foi possível salvar a leitura:", error);
+        toast.error("Não foi possível atualizar a leitura da conversa. Tente novamente.", {
+          id: "conversation-read-error",
+        });
+      }
     },
     [qc, user?.id],
   );
