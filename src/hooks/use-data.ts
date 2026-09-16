@@ -1,5 +1,6 @@
 ﻿import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { get, set } from "idb-keyval";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -290,9 +291,18 @@ export function useClientInvoices() {
 }
 
 export function useTasks() {
-  return useQuery({
+  const { user } = useAuth();
+  const offlineKey = user?.id ? `taskflow-offline-tasks-v1:${user.id}` : null;
+  const query = useQuery({
     queryKey: ["tasks"],
+    // Executa a função também no modo avião para que ela possa devolver o
+    // espelho local, em vez de deixar a consulta pausada e o Kanban vazio.
+    networkMode: "always",
     queryFn: async () => {
+      if (!offlineKey) return [] as Task[];
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return (await get<Task[]>(offlineKey)) ?? [];
+      }
       // Read through the current verified session. Without an explicit bearer
       // token, a stale browser auth state can make RLS return an empty task list.
       const {
@@ -315,10 +325,22 @@ export function useTasks() {
         .is("deleted_at", null)
         .order("position", { ascending: true })
         .order("created_at", { ascending: false });
-      if (error) throw error;
-      return ((data ?? []) as Task[]).filter((task) => !task.archived_at);
+      if (error) {
+        const cached = await get<Task[]>(offlineKey);
+        if (cached) return cached;
+        throw error;
+      }
+      const tasks = ((data ?? []) as Task[]).filter((task) => !task.archived_at);
+      await set(offlineKey, tasks);
+      return tasks;
     },
   });
+  // Também registra alterações otimistas feitas offline (criação, edição,
+  // exclusão) antes que exista uma nova resposta do servidor.
+  useEffect(() => {
+    if (offlineKey && query.data) void set(offlineKey, query.data);
+  }, [offlineKey, query.data]);
+  return query;
 }
 
 export function useArchivedClientTasks(clientId: string, includeLegacyClientTasks = false) {
