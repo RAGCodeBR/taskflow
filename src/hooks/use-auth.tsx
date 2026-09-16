@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { isOffline } from "@/lib/offline-sync";
+import { clearOfflineUserData, offlineAccessKey } from "@/lib/offline-user-storage";
 
 interface Profile {
   id: string;
@@ -44,10 +45,6 @@ type OfflineAccessSnapshot = Pick<
   AuthCtx,
   "profile" | "isAdmin" | "isCollaborator" | "isClient" | "clientId" | "permissions" | "workspaces" | "activeWorkspace"
 >;
-
-function offlineAccessKey(userId: string) {
-  return `taskflow-offline-access-v1:${userId}`;
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -303,8 +300,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   const signOut = async () => {
-    // Supabase clears the persisted browser session; the listener above resets local React state.
-    await supabase.auth.signOut();
+    const userId = user?.id;
+    // Oscilacoes automaticas de sessao preservam o trabalho pendente. A limpeza
+    // acontece somente depois de um logout solicitado e confirmado.
+    const { error } = await supabase.auth.signOut();
+    if (!error && userId) await clearOfflineUserData(userId);
   };
 
   const refreshProfile = async () => {

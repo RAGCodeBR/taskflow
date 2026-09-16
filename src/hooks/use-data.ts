@@ -1,6 +1,9 @@
 ﻿import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { get, set } from "idb-keyval";
+import { offlineTaskCacheKey } from "@/lib/offline-user-storage";
+import { listOfflineOperations } from "@/lib/offline-sync";
+import { overlayPendingTaskOperations } from "@/lib/offline-task-overlay";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -292,14 +295,15 @@ export function useClientInvoices() {
 
 export function useTasks() {
   const { user } = useAuth();
-  const offlineKey = user?.id ? `taskflow-offline-tasks-v1:${user.id}` : null;
+  const userId = user?.id;
+  const offlineKey = userId ? offlineTaskCacheKey(userId) : null;
   const query = useQuery({
     queryKey: ["tasks"],
     // Executa a função também no modo avião para que ela possa devolver o
     // espelho local, em vez de deixar a consulta pausada e o Kanban vazio.
     networkMode: "always",
     queryFn: async () => {
-      if (!offlineKey) return [] as Task[];
+      if (!offlineKey || !userId) return [] as Task[];
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         return (await get<Task[]>(offlineKey)) ?? [];
       }
@@ -330,7 +334,12 @@ export function useTasks() {
         if (cached) return cached;
         throw error;
       }
-      const tasks = ((data ?? []) as Task[]).filter((task) => !task.archived_at);
+      const serverTasks = ((data ?? []) as Task[]).filter((task) => !task.archived_at);
+      // A leitura remota pode terminar antes do sincronizador. Sobrepor a fila
+      // evita que um card local suma durante essa pequena janela ou numa falha
+      // temporaria de envio.
+      const pendingOperations = await listOfflineOperations(userId);
+      const tasks = overlayPendingTaskOperations(serverTasks, pendingOperations);
       await set(offlineKey, tasks);
       return tasks;
     },

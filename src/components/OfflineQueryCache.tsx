@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   persistQueryClientRestore,
@@ -7,12 +7,14 @@ import {
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { del, get, set } from "idb-keyval";
 import { useAuth } from "@/hooks/use-auth";
-import { clearOfflineSyncData } from "@/lib/offline-sync";
+import {
+  OFFLINE_QUERY_CACHE_VERSION,
+  offlineQueryCacheKey,
+} from "@/lib/offline-user-storage";
 
 // A versão 2 passa a preservar todas as consultas de dados de trabalho já
 // abertas pelo usuário. Isso evita que uma tela fique vazia no modo avião
 // apenas porque sua chave não estava na lista inicial.
-const CACHE_VERSION = "offline-cache-v2";
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
 // Agenda e integrações Google deliberadamente ficam fora da primeira etapa offline.
@@ -26,10 +28,6 @@ const ONLINE_ONLY_QUERY_ROOTS = new Set([
   "meeting_minutes",
   "client_invoices",
 ]);
-
-function storageKey(userId: string) {
-  return `taskflow-query-cache:${CACHE_VERSION}:${userId}`;
-}
 
 function shouldPersistQuery(query: { queryKey: readonly unknown[]; state: { status: string } }) {
   return (
@@ -51,25 +49,21 @@ type Props = {
 export function OfflineQueryCache({ queryClient, children }: Props) {
   const { user, loading } = useAuth();
   const [restoredFor, setRestoredFor] = useState<string | null>(null);
-  const previousKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const userId = user?.id;
     if (!userId) {
+      // A sessao pode ficar momentaneamente indisponivel enquanto a rede volta.
+      // Limpar IndexedDB aqui apagava a operacao pendente e o card otimista.
+      // Dados persistidos so sao removidos no logout solicitado pela pessoa.
       queryClient.clear();
-      const previousKey = previousKeyRef.current;
-      const previousUserId = previousKey?.split(":").at(-1);
-      previousKeyRef.current = null;
       setRestoredFor(null);
-      if (previousKey) void del(previousKey);
-      if (previousUserId) void clearOfflineSyncData(previousUserId);
       return;
     }
 
     let active = true;
     let unsubscribe: (() => void) | undefined;
-    const key = storageKey(userId);
-    previousKeyRef.current = key;
+    const key = offlineQueryCacheKey(userId);
     setRestoredFor(null);
     // A restauração local nunca pode impedir a abertura do sistema. Em modo
     // avião o perfil remoto pode continuar carregando, mas a sessão já existe
@@ -93,7 +87,7 @@ export function OfflineQueryCache({ queryClient, children }: Props) {
     void persistQueryClientRestore({
       queryClient,
       persister,
-      buster: CACHE_VERSION,
+      buster: OFFLINE_QUERY_CACHE_VERSION,
       maxAge: CACHE_MAX_AGE,
     })
       .catch(() => {
@@ -105,7 +99,7 @@ export function OfflineQueryCache({ queryClient, children }: Props) {
         unsubscribe = persistQueryClientSubscribe({
           queryClient,
           persister,
-          buster: CACHE_VERSION,
+          buster: OFFLINE_QUERY_CACHE_VERSION,
           dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
         });
         setRestoredFor(userId);

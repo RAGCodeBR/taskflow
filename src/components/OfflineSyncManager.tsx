@@ -245,12 +245,24 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
 
 /** Envia alterações locais quando a conexão volta, sem bloquear a interface. */
 async function createAuthenticatedSyncClient(): Promise<SyncClient> {
-  // A fila pode ter sido criada enquanto o navegador estava sem rede. Ao voltar,
-  // renovamos a sessão antes de escrever: o cliente global pode ainda carregar
-  // um token antigo e o PostgREST então trata a requisição como anônima.
-  const { data, error } = await supabase.auth.refreshSession();
-  if (error || !data.session?.access_token) {
-    throw error ?? new Error("Não foi possível renovar a sessão para sincronizar os dados offline.");
+  // Use primeiro a sessao persistida. Forcar refresh em toda reconexao rotaciona
+  // o token sem necessidade e pode oscilar a autenticacao antes de processar a fila.
+  const {
+    data: { session: storedSession },
+  } = await supabase.auth.getSession();
+  let session = storedSession;
+  const expiresSoon = !session?.expires_at || session.expires_at * 1000 <= Date.now() + 30_000;
+
+  if (expiresSoon) {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error || !data.session?.access_token) {
+      throw error ?? new Error("Não foi possível renovar a sessão para sincronizar os dados offline.");
+    }
+    session = data.session;
+  }
+
+  if (!session?.access_token) {
+    throw new Error("Não foi possível localizar uma sessão para sincronizar os dados offline.");
   }
 
   const url = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -262,7 +274,7 @@ async function createAuthenticatedSyncClient(): Promise<SyncClient> {
 
   return createClient<Database>(url, publishableKey, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
+    global: { headers: { Authorization: `Bearer ${session.access_token}` } },
   });
 }
 
@@ -270,6 +282,7 @@ export function OfflineSyncManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const syncing = useRef(false);
+  const warnedFailure = useRef(false);
 
   const sync = useCallback(async () => {
     if (!user || isOffline() || syncing.current) return;
@@ -287,6 +300,10 @@ export function OfflineSyncManager() {
         // A conexão pode voltar alguns instantes antes de o servidor de sessão
         // estar acessível. Mantemos toda a fila e repetimos automaticamente.
         console.warn("[offline sync] aguardando uma sessão autenticada:", error);
+        if (!warnedFailure.current) {
+          warnedFailure.current = true;
+          toast.warning("Os dados offline continuam salvos neste aparelho e a sincronização será repetida.");
+        }
         return;
       }
       for (const operation of operations) {
@@ -307,6 +324,10 @@ export function OfflineSyncManager() {
       }
       if (failed > 0) {
         console.warn(`[offline sync] ${failed} operação(ões) permaneceram na fila para nova tentativa.`);
+        if (!warnedFailure.current) {
+          warnedFailure.current = true;
+          toast.warning("Algumas alterações ainda não foram sincronizadas. Elas continuam salvas neste aparelho.");
+        }
       }
       if (synced > 0) {
         await Promise.all([
@@ -316,9 +337,10 @@ export function OfflineSyncManager() {
         ]);
         toast.success(
           conflicts > 0
-            ? "Dados sincronizados. HÃ¡ alteraÃ§Ãµes que precisam de revisÃ£o."
+            ? "Dados sincronizados. Há alterações que precisam de revisão."
             : "Dados offline sincronizados.",
         );
+        if (failed === 0) warnedFailure.current = false;
         if (conflicts > 0) window.dispatchEvent(new Event("taskflow:offline-conflicts"));
       }
     } finally {
