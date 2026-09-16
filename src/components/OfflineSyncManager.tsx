@@ -230,6 +230,7 @@ export function OfflineSyncManager() {
     syncing.current = true;
     let synced = 0;
     let conflicts = 0;
+    let failed = 0;
     try {
       const operations = await listOfflineOperations(user.id);
       for (const operation of operations) {
@@ -239,10 +240,17 @@ export function OfflineSyncManager() {
           await removeOfflineOperation(user.id, operation.id);
           synced += 1;
           if (hasConflict) conflicts += 1;
-        } catch {
+        } catch (error) {
+          // Uma operação inválida ou temporariamente recusada não pode prender
+          // toda a fila. Ela permanece guardada para nova tentativa, enquanto
+          // criações posteriores e independentes (como uma tarefa) seguem.
           await replaceOfflineOperation({ ...operation, attempts: operation.attempts + 1 });
-          break;
+          failed += 1;
+          console.warn("[offline sync] operação pendente após falha:", operation.entity, operation.action, error);
         }
+      }
+      if (failed > 0) {
+        console.warn(`[offline sync] ${failed} operação(ões) permaneceram na fila para nova tentativa.`);
       }
       if (synced > 0) {
         await Promise.all([
