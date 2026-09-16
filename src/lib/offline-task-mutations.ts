@@ -21,13 +21,15 @@ export async function updateTaskWithOfflineSupport({
   task,
   patch,
   queryClient,
+  forceQueue = false,
 }: {
   userId: string;
   task: Task;
   patch: TaskPatch;
   queryClient: QueryClient;
+  forceQueue?: boolean;
 }) {
-  if (!isOffline()) {
+  if (!forceQueue && !isOffline()) {
     const { error } = await supabase.from("tasks").update(patch).eq("id", task.id);
     if (error) throw error;
     return { queued: false };

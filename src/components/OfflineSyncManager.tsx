@@ -17,6 +17,8 @@ import {
 type SyncClient = ReturnType<typeof createClient<Database>>;
 
 const sameValue = (first: unknown, second: unknown) => JSON.stringify(first) === JSON.stringify(second);
+const isAlreadyStored = (error: { message?: string } | null) =>
+  !!error && /duplicate|already exists|resource already exists/i.test(error.message ?? "");
 
 async function storeTaskFieldConflicts(operation: OfflineOperation, server: Record<string, unknown>) {
   const patch = (operation.payload.patch ?? {}) as Record<string, unknown>;
@@ -93,7 +95,10 @@ async function syncTaskDelete(client: SyncClient, operation: OfflineOperation) {
 async function syncOperation(client: SyncClient, operation: OfflineOperation) {
   if (operation.entity === "task") {
     if (operation.action === "create") {
-      const { error } = await (client.from("tasks") as any).insert(operation.payload.task);
+      const { error } = await (client.from("tasks") as any).upsert(operation.payload.task, {
+        onConflict: "id",
+        ignoreDuplicates: true,
+      });
       if (error) throw error;
       return false;
     }
@@ -103,7 +108,10 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
 
   if (operation.entity === "subtask") {
     if (operation.action === "create") {
-      const { error } = await (client.from("subtasks") as any).insert(operation.payload.subtask);
+      const { error } = await (client.from("subtasks") as any).upsert(operation.payload.subtask, {
+        onConflict: "id",
+        ignoreDuplicates: true,
+      });
       if (error) throw error;
       return false;
     }
@@ -120,18 +128,22 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
   if (operation.entity === "comment") {
     if (operation.action === "create") {
       const comment = operation.payload.comment as Record<string, unknown>;
-      const { error: commentError } = await (client.from("comments") as any).insert(comment);
+      const { error: commentError } = await (client.from("comments") as any).upsert(comment, {
+        onConflict: "id",
+        ignoreDuplicates: true,
+      });
       if (commentError) throw commentError;
       const audio = operation.payload.audio as
         | { blob: Blob; extension: string; contentType: string; fileName: string }
         | undefined;
       if (audio) {
-        const path = `${String(comment.task_id)}/comments/${String(comment.id)}/${Date.now()}-audio.${audio.extension}`;
+        const path = `${String(comment.task_id)}/comments/${String(comment.id)}/${String(comment.id)}-audio.${audio.extension}`;
         const { error: uploadError } = await client.storage
           .from("task-attachments")
           .upload(path, audio.blob, { contentType: audio.contentType, upsert: false });
-        if (uploadError) throw uploadError;
-        const { error: attachmentError } = await (client.from("comment_attachments") as any).insert({
+        if (uploadError && !isAlreadyStored(uploadError)) throw uploadError;
+        const { error: attachmentError } = await (client.from("comment_attachments") as any).upsert({
+          id: comment.id,
           comment_id: comment.id,
           task_id: comment.task_id,
           file_name: audio.fileName,
@@ -139,7 +151,7 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
           mime_type: audio.contentType,
           size_bytes: audio.blob.size,
           uploaded_by: comment.author_id,
-        });
+        }, { onConflict: "id", ignoreDuplicates: true });
         if (attachmentError) throw attachmentError;
       }
       return false;
@@ -168,9 +180,16 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
     const table = operation.payload.table;
     if (typeof table !== "string") throw new Error("Registro offline invÃ¡lido.");
     if (operation.action === "create") {
-      const request = operation.payload.upsert
-        ? (client.from(table as any) as any).upsert(operation.payload.record, { onConflict: String(operation.payload.onConflict || "id") })
-        : (client.from(table as any) as any).insert(operation.payload.record);
+      const record = operation.payload.record as Record<string, unknown>;
+      const compositeConflict =
+        table === "service_request_participants" ? "request_id,user_id" : undefined;
+      const canRetrySafely = Boolean(operation.payload.upsert || "id" in record || compositeConflict);
+      const request = canRetrySafely
+        ? (client.from(table as any) as any).upsert(record, {
+            onConflict: String(operation.payload.onConflict || compositeConflict || "id"),
+            ignoreDuplicates: !operation.payload.upsert,
+          })
+        : (client.from(table as any) as any).insert(record);
       const { error } = await request;
       if (error) throw error;
       return false;
@@ -190,12 +209,12 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
   if (operation.entity === "reaction") {
     const reaction = operation.payload.reaction as Record<string, unknown>;
     if (operation.action === "delete") {
-      const { error } = await (client.from("mural_post_reactions") as any)
+      const { error } = await ((client as any).from("mural_post_reactions") as any)
         .delete().match({ post_id: reaction.post_id, user_id: reaction.user_id, emoji: reaction.emoji });
       if (error) throw error;
       return false;
     }
-    const { error } = await (client.from("mural_post_reactions") as any).insert(reaction);
+    const { error } = await ((client as any).from("mural_post_reactions") as any).insert(reaction);
     if (error && !String(error.message).toLowerCase().includes("duplicate")) throw error;
     return false;
   }
@@ -207,7 +226,7 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
     const { error: uploadError } = await client.storage.from(bucket).upload(String(attachment.storage_path), blob, {
       contentType: String(attachment.mime_type || "application/octet-stream"), upsert: false,
     });
-    if (uploadError) throw uploadError;
+    if (uploadError && !isAlreadyStored(uploadError)) throw uploadError;
     if (operation.payload.table === "client_avatar_updates") {
       const { error } = await (client.from("clients") as any)
         .update({ avatar_path: attachment.storage_path })
@@ -215,7 +234,8 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
       if (error) throw error;
       return false;
     }
-    const { error: insertError } = await (client.from(String(operation.payload.table) as any) as any).insert(attachment);
+    const { error: insertError } = await (client.from(String(operation.payload.table) as any) as any)
+      .upsert(attachment, { onConflict: "id", ignoreDuplicates: true });
     if (insertError) throw insertError;
     return false;
   }
@@ -310,12 +330,14 @@ export function OfflineSyncManager() {
     void sync();
     window.addEventListener("online", sync);
     window.addEventListener("focus", sync);
+    window.addEventListener("taskflow:offline-queue-changed", sync);
     // A opção Offline do DevTools pode voltar a rede sem disparar o evento
     // `online`. A checagem periódica garante que a fila não fique parada.
     const interval = window.setInterval(() => void sync(), 5_000);
     return () => {
       window.removeEventListener("online", sync);
       window.removeEventListener("focus", sync);
+      window.removeEventListener("taskflow:offline-queue-changed", sync);
       window.clearInterval(interval);
     };
   }, [sync]);

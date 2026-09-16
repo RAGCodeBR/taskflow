@@ -47,9 +47,53 @@ export type OfflineConflict = {
 const store = createStore("taskflow-offline", "sync");
 const operationsKey = (userId: string) => `operations:${userId}`;
 const conflictsKey = (userId: string) => `conflicts:${userId}`;
+const localWriteLocks = new Map<string, Promise<void>>();
 
 function makeId() {
   return crypto.randomUUID();
+}
+
+async function withLocalWriteLock<T>(userId: string, callback: () => Promise<T>): Promise<T> {
+  const previous = localWriteLocks.get(userId) ?? Promise.resolve();
+  let release: () => void = () => undefined;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = previous.then(() => current);
+  localWriteLocks.set(userId, tail);
+
+  await previous;
+  try {
+    return await callback();
+  } finally {
+    release();
+    if (localWriteLocks.get(userId) === tail) localWriteLocks.delete(userId);
+  }
+}
+
+async function withOfflineWriteLock<T>(userId: string, callback: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== "undefined" && navigator.locks) {
+    return navigator.locks.request(`taskflow-offline-queue:${userId}`, callback);
+  }
+  return withLocalWriteLock(userId, callback);
+}
+
+async function mutateOfflineOperations(
+  userId: string,
+  mutate: (current: OfflineOperation[]) => OfflineOperation[],
+) {
+  return withOfflineWriteLock(userId, async () => {
+    const key = operationsKey(userId);
+    const current = (await get<OfflineOperation[]>(key, store)) ?? [];
+    const next = mutate(current);
+    await set(key, next, store);
+    return next;
+  });
+}
+
+function notifyQueueChanged(userId: string) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("taskflow:offline-queue-changed", { detail: { userId } }));
 }
 
 export async function listOfflineOperations(userId: string) {
@@ -65,26 +109,22 @@ export async function enqueueOfflineOperation(
     createdAt: new Date().toISOString(),
     attempts: 0,
   };
-  const current = await listOfflineOperations(operation.userId);
-  await set(operationsKey(operation.userId), [...current, operation], store);
+  await mutateOfflineOperations(operation.userId, (current) => [...current, operation]);
+  notifyQueueChanged(operation.userId);
   return operation;
 }
 
 export async function replaceOfflineOperation(operation: OfflineOperation) {
-  const current = await listOfflineOperations(operation.userId);
-  await set(
-    operationsKey(operation.userId),
-    current.map((item) => (item.id === operation.id ? operation : item)),
-    store,
+  await mutateOfflineOperations(
+    operation.userId,
+    (current) => current.map((item) => (item.id === operation.id ? operation : item)),
   );
 }
 
 export async function removeOfflineOperation(userId: string, operationId: string) {
-  const current = await listOfflineOperations(userId);
-  await set(
-    operationsKey(userId),
-    current.filter((item) => item.id !== operationId),
-    store,
+  await mutateOfflineOperations(
+    userId,
+    (current) => current.filter((item) => item.id !== operationId),
   );
 }
 
@@ -119,4 +159,22 @@ export async function clearOfflineSyncData(userId: string) {
 
 export function isOffline() {
   return typeof navigator !== "undefined" && !navigator.onLine;
+}
+
+/**
+ * `navigator.onLine` indica apenas se o navegador enxerga uma interface de rede.
+ * Wi-Fi sem internet, DevTools Offline e a transição de reconexão podem produzir
+ * uma falha real de `fetch` enquanto esse sinal ainda está `true`.
+ */
+export function isNetworkFailure(error: unknown) {
+  const message =
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : typeof error === "object" && error && "message" in error
+        ? String((error as { message?: unknown }).message)
+        : String(error ?? "");
+
+  return /failed to fetch|fetch failed|networkerror|network request failed|load failed|err_internet_disconnected|connection.*(closed|reset)|offline/i.test(
+    message,
+  );
 }

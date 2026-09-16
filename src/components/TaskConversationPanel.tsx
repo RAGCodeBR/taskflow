@@ -31,7 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { participantColor } from "@/lib/participant-color";
 import { toast } from "sonner";
-import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { enqueueOfflineOperation, isNetworkFailure, isOffline } from "@/lib/offline-sync";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import { CommentAttachments } from "@/components/CommentAttachments";
 
@@ -276,7 +276,7 @@ export function TaskConversationPanel({
 
   const loadOlderComments = async () => {
     const oldestComment = comments[0];
-    if (!oldestComment || isLoadingOlderComments || !hasOlderComments) return;
+    if (!oldestComment || isLoadingOlderComments || !hasOlderComments || isOffline()) return;
     setIsLoadingOlderComments(true);
     const container = commentsContainerRef.current;
     if (container) {
@@ -290,13 +290,17 @@ export function TaskConversationPanel({
       .order("created_at", { ascending: false })
       .limit(COMMENTS_PAGE_SIZE);
     setIsLoadingOlderComments(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      if (isNetworkFailure(error)) return;
+      return toast.error(error.message);
+    }
     const olderComments = ((data ?? []) as Comment[]).reverse();
     setComments((current) => [...olderComments, ...current]);
     setHasOlderComments(olderComments.length === COMMENTS_PAGE_SIZE);
   };
 
   const loadAudioAttachments = useCallback(async () => {
+    if (isOffline()) return;
     const commentIds = comments.map((comment) => comment.id);
     if (!commentIds.length) {
       setAudioByComment({});
@@ -514,6 +518,36 @@ export function TaskConversationPanel({
       })
       .map((profile) => profile.id);
 
+  const queueMessageLocally = async (localComment: Comment) => {
+    if (!user) return;
+    await enqueueOfflineOperation({
+      userId: user.id,
+      entity: "comment",
+      action: "create",
+      entityId: localComment.id,
+      payload: { comment: localComment },
+    });
+    setComments((current) =>
+      current.some((comment) => comment.id === localComment.id)
+        ? current
+        : [...current, localComment],
+    );
+    queryClient.setQueryData<Comment[]>(["task-conversation-panel", taskId], (current = []) =>
+      current.some((comment) => comment.id === localComment.id)
+        ? current
+        : [...current, localComment],
+    );
+    queryClient.setQueryData<Comment[]>(["task-conversation-messages"], (current = []) =>
+      current.some((comment) => comment.id === localComment.id)
+        ? current
+        : [...current, localComment],
+    );
+    setMessage("");
+    setReplyingTo(null);
+    onActivity?.();
+    toast.success("Mensagem salva neste aparelho. Será enviada ao reconectar.");
+  };
+
   const sendMessage = async () => {
     if ((!message.trim() && pendingFiles.length === 0) || !user || readOnly) return;
     if (pendingFiles.length > 0 && isOffline()) {
@@ -525,43 +559,23 @@ export function TaskConversationPanel({
       files.length > 0
         ? `📎 ${message.trim() || `${files.length} arquivo${files.length > 1 ? "s" : ""}`}`
         : message.trim();
+    const localComment: Comment = {
+      id: crypto.randomUUID(),
+      task_id: taskId,
+      author_id: user.id,
+      body,
+      created_at: new Date().toISOString(),
+      reply_to_id: replyingTo?.id ?? null,
+      edited_at: null,
+    };
     if (isOffline()) {
-      const localComment: Comment = {
-        id: crypto.randomUUID(),
-        task_id: taskId,
-        author_id: user.id,
-        body,
-        created_at: new Date().toISOString(),
-        reply_to_id: replyingTo?.id ?? null,
-        edited_at: null,
-      };
-      await enqueueOfflineOperation({
-        userId: user.id,
-        entity: "comment",
-        action: "create",
-        entityId: localComment.id,
-        payload: { comment: localComment },
-      });
-      setComments((current) => [...current, localComment]);
-      queryClient.setQueryData<Comment[]>(["task-conversation-panel", taskId], (current = []) =>
-        current.some((comment) => comment.id === localComment.id)
-          ? current
-          : [...current, localComment],
-      );
-      queryClient.setQueryData<Comment[]>(["task-conversation-messages"], (current = []) =>
-        current.some((comment) => comment.id === localComment.id)
-          ? current
-          : [...current, localComment],
-      );
-      setMessage("");
-      setReplyingTo(null);
-      onActivity?.();
-      toast.success("Mensagem salva neste aparelho. Será enviada ao reconectar.");
+      await queueMessageLocally(localComment);
       return;
     }
     const { data, error } = await supabase
       .from("comments")
       .insert({
+        id: localComment.id,
         task_id: taskId,
         author_id: user.id,
         body,
@@ -570,7 +584,13 @@ export function TaskConversationPanel({
       })
       .select(SELECT)
       .single();
-    if (error) return toast.error(error.message);
+    if (error) {
+      if (isNetworkFailure(error)) {
+        await queueMessageLocally(localComment);
+        return;
+      }
+      return toast.error(error.message);
+    }
 
     if (files.length > 0) {
       try {

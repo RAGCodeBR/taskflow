@@ -64,7 +64,7 @@ import {
   createTaskWithOfflineSupport,
   updateTaskWithOfflineSupport,
 } from "@/lib/offline-task-mutations";
-import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { enqueueOfflineOperation, isNetworkFailure, isOffline } from "@/lib/offline-sync";
 
 interface Props {
   open: boolean;
@@ -478,6 +478,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       data: { user: authenticatedUser },
       error,
     } = await supabase.auth.getUser();
+    if (error && isNetworkFailure(error)) throw error;
     if (error || !authenticatedUser) {
       toast.error("Não foi possível validar sua sessão. Entre novamente para criar uma tarefa.");
       return null;
@@ -574,6 +575,76 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     return true;
   };
 
+  const queueTaskLocally = async (existingTaskId: string | null, createTaskId?: string) => {
+    if (!user) throw new Error("Sua sessão local não está disponível.");
+    const payload = buildPayload();
+    const now = new Date().toISOString();
+    let taskId = existingTaskId;
+
+    if (taskId) {
+      const localTask =
+        task ?? qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === taskId);
+      if (!localTask) throw new Error("Não foi possível localizar a tarefa neste aparelho.");
+      await updateTaskWithOfflineSupport({
+        userId: user.id,
+        task: localTask,
+        patch: payload,
+        queryClient: qc,
+        forceQueue: true,
+      });
+    } else {
+      taskId = createTaskId ?? crypto.randomUUID();
+      const localTask: Task = {
+        id: taskId,
+        ...payload,
+        due_time: payload.due_time ?? null,
+        assigned_by: null,
+        assigned_at: null,
+        position: 0,
+        color: null,
+        created_by: user.id,
+        tag_id: null,
+        deleted_at: null,
+        deleted_by: null,
+        archived_at: null,
+        archived_reason: null,
+        created_at: now,
+        updated_at: now,
+        card_width: null,
+        workspace_id: targetWorkspaceId || activeWorkspace?.id || null,
+      };
+      await createTaskWithOfflineSupport({ userId: user.id, task: localTask, queryClient: qc });
+      currentTaskIdRef.current = taskId;
+      setCurrentTaskId(taskId);
+    }
+
+    if (newSubtask.trim()) {
+      const localSubtask = {
+        id: crypto.randomUUID(),
+        task_id: taskId,
+        title: newSubtask.trim(),
+        done: false,
+        position: subtasks.length,
+        due_date: deadlineToIso(newSubtaskDue),
+        assignee_id: newSubtaskAssignee || null,
+        notes: null,
+        completed_at: null,
+      };
+      await createSubtaskWithOfflineSupport({
+        userId: user.id,
+        subtask: localSubtask,
+        queryClient: qc,
+      });
+      setSubtasks((current) => [...current, localSubtask as Subtask]);
+      setNewSubtask("");
+      setNewSubtaskDue("");
+      setNewSubtaskAssignee("");
+    }
+
+    toast.success("Tarefa salva neste aparelho. Será sincronizada ao reconectar.");
+    onOpenChange(false);
+  };
+
   const save = async () => {
     if (!title.trim()) {
       toast.error("Título é obrigatório");
@@ -588,74 +659,44 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     }
     const existingTaskId = currentTaskIdRef.current ?? currentTaskId;
     if (isOffline()) {
-      if (!user) return;
       if (!existingTaskId && !dueDate) {
         toast.error("Prazo é obrigatório para criar uma tarefa");
         return;
       }
       setSaving(true);
       try {
-        const payload = buildPayload();
-        const now = new Date().toISOString();
-        let taskId = existingTaskId;
-        if (taskId) {
-          const localTask = task ?? qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === taskId);
-          if (!localTask) throw new Error("NÃ£o foi possÃ­vel localizar a tarefa neste aparelho.");
-          await updateTaskWithOfflineSupport({ userId: user.id, task: localTask, patch: payload, queryClient: qc });
-        } else {
-          taskId = crypto.randomUUID();
-          const localTask: Task = {
-            id: taskId,
-            ...payload,
-            due_time: payload.due_time ?? null,
-            assigned_by: null,
-            assigned_at: null,
-            position: 0,
-            color: null,
-            created_by: user.id,
-            tag_id: null,
-            deleted_at: null,
-            deleted_by: null,
-            archived_at: null,
-            archived_reason: null,
-            created_at: now,
-            updated_at: now,
-            card_width: null,
-            workspace_id: targetWorkspaceId || null,
-          };
-          await createTaskWithOfflineSupport({ userId: user.id, task: localTask, queryClient: qc });
-          currentTaskIdRef.current = taskId;
-          setCurrentTaskId(taskId);
-        }
-        if (newSubtask.trim()) {
-          const localSubtask = {
-            id: crypto.randomUUID(), task_id: taskId, title: newSubtask.trim(), done: false,
-            position: subtasks.length, due_date: deadlineToIso(newSubtaskDue),
-            assignee_id: newSubtaskAssignee || null, notes: null, completed_at: null,
-          };
-          await createSubtaskWithOfflineSupport({ userId: user.id, subtask: localSubtask, queryClient: qc });
-          setSubtasks((current) => [...current, localSubtask as Subtask]);
-          setNewSubtask("");
-          setNewSubtaskDue("");
-          setNewSubtaskAssignee("");
-        }
-        toast.success("Tarefa salva neste aparelho. Será sincronizada ao reconectar.");
-        onOpenChange(false);
-        /* Mensagem legada com codificação incorreta, mantida abaixo somente
-           até a próxima normalização completa deste arquivo. */
-      } catch (error: any) {
-        toast.error(error.message);
+        await queueTaskLocally(existingTaskId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Não foi possível salvar a tarefa neste aparelho.");
       } finally {
         setSaving(false);
       }
       return;
     }
-    const authenticated = await getAuthenticatedUser();
-    if (!authenticated) return;
     if (!existingTaskId && !dueDate) {
       toast.error("Prazo é obrigatório para criar uma tarefa");
       return;
     }
+    let authenticated: Awaited<ReturnType<typeof getAuthenticatedUser>>;
+    try {
+      authenticated = await getAuthenticatedUser();
+    } catch (error) {
+      if (!isNetworkFailure(error)) {
+        toast.error(error instanceof Error ? error.message : "Não foi possível validar sua sessão.");
+        return;
+      }
+      setSaving(true);
+      try {
+        await queueTaskLocally(existingTaskId);
+      } catch (localError) {
+        toast.error(localError instanceof Error ? localError.message : "Não foi possível salvar a tarefa neste aparelho.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    if (!authenticated) return;
+    let attemptedCreateTaskId: string | undefined;
     setSaving(true);
     try {
       const payload = buildPayload();
@@ -670,7 +711,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
           toast.error("Informe a justificativa para alterar o prazo da tarefa.");
           return;
         }
-        const { error } = await supabase.from("tasks").update(payload).eq("id", existingTaskId);
+        const { error } = await authenticated.client
+          .from("tasks")
+          .update(payload)
+          .eq("id", existingTaskId);
         if (error) throw error;
         if (dueDateChanged && previousDueDate) {
           const { error: historyError } = await supabase.from("task_due_date_changes").insert({
@@ -689,10 +733,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         if (!(await commitPendingSubtask(existingTaskId))) return;
       } else {
         const taskId = crypto.randomUUID();
+        attemptedCreateTaskId = taskId;
         const { error } = await authenticated.client.from("tasks").insert({
           id: taskId,
           ...payload,
-          workspace_id: targetWorkspaceId || null,
+          workspace_id: targetWorkspaceId || activeWorkspace?.id || null,
           created_by: authenticated.user.id,
         });
         if (error) throw error;
@@ -711,8 +756,16 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         qc.invalidateQueries({ queryKey: ["task_collaborators"] }),
       ]);
       onOpenChange(false);
-    } catch (e) {
-      toast.error((e as Error).message);
+    } catch (error) {
+      if (isNetworkFailure(error)) {
+        try {
+          await queueTaskLocally(existingTaskId, attemptedCreateTaskId);
+        } catch (localError) {
+          toast.error(localError instanceof Error ? localError.message : "Não foi possível salvar a tarefa neste aparelho.");
+        }
+      } else {
+        toast.error(error instanceof Error ? error.message : "Não foi possível salvar a tarefa.");
+      }
     } finally {
       setSaving(false);
     }
