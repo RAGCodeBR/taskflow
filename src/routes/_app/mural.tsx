@@ -199,7 +199,7 @@ function profileName(
 }
 
 function MuralPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, activeWorkspace } = useAuth();
   const { data: profiles = [] } = useProfiles();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -225,7 +225,15 @@ function MuralPage() {
   } | null>(null);
   const draftPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const { data: posts = [], isLoading } = useQuery({
-    queryKey: ["mural_posts"],
+    // Sem o id do ambiente na chave, trocar de Marketing pra Consultoria (ou
+    // vice-versa) reaproveitava o cache do outro ambiente: mostrava os posts
+    // errados por um instante e, pior, se o refetch caísse num momento em que
+    // o backend ainda não tinha virado o ambiente ativo, gravava um resultado
+    // vazio nesse MESMO slot de cache — que então persistia mesmo voltando
+    // pro ambiente certo, porque a chave nunca mudava pra forçar um refetch
+    // novo. Cada ambiente agora tem sua própria entrada de cache.
+    queryKey: ["mural_posts", activeWorkspace?.id],
+    enabled: !!activeWorkspace?.id,
     queryFn: async () => {
       const { data, error } = await (supabase.from("mural_posts") as any)
         .select("*")
@@ -245,7 +253,8 @@ function MuralPage() {
     },
   });
   const { data: attachments = [] } = useQuery({
-    queryKey: ["mural_post_attachments"],
+    queryKey: ["mural_post_attachments", activeWorkspace?.id],
+    enabled: !!activeWorkspace?.id,
     queryFn: async () => {
       const { data, error } = await (supabase.from("mural_post_attachments") as any)
         .select(
@@ -257,7 +266,8 @@ function MuralPage() {
     },
   });
   const { data: reactions = [] } = useQuery({
-    queryKey: ["mural_post_reactions"],
+    queryKey: ["mural_post_reactions", activeWorkspace?.id],
+    enabled: !!activeWorkspace?.id,
     queryFn: async () => {
       const { data, error } = await (supabase.from("mural_post_reactions") as any)
         .select("id, post_id, user_id, emoji, created_at")
@@ -327,14 +337,29 @@ function MuralPage() {
         const localPost: MuralPost = editingPost
           ? { ...editingPost, ...payload, updated_at: now }
           : {
-              id: crypto.randomUUID(), ...payload, created_by: user.id, created_at: now, updated_at: now,
-              completed_at: null, canvas_x: newPostPosition?.x ?? 0, canvas_y: newPostPosition?.y ?? 0,
+              id: crypto.randomUUID(),
+              ...payload,
+              created_by: user.id,
+              created_at: now,
+              updated_at: now,
+              completed_at: null,
+              canvas_x: newPostPosition?.x ?? 0,
+              canvas_y: newPostPosition?.y ?? 0,
             };
         await enqueueOfflineOperation({
-          userId: user.id, entity: "record", action: editingPost ? "update" : "create", entityId: localPost.id,
-          payload: editingPost ? { table: "mural_posts", patch: payload } : { table: "mural_posts", record: localPost },
+          userId: user.id,
+          entity: "record",
+          action: editingPost ? "update" : "create",
+          entityId: localPost.id,
+          payload: editingPost
+            ? { table: "mural_posts", patch: payload }
+            : { table: "mural_posts", record: localPost },
         });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => editingPost ? current.map((post) => post.id === localPost.id ? localPost : post) : [...current, localPost]);
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+          editingPost
+            ? current.map((post) => (post.id === localPost.id ? localPost : post))
+            : [...current, localPost],
+        );
         return localPost;
       }
       const { data, error } = editingPost
@@ -372,8 +397,16 @@ function MuralPage() {
         itemIndex === index ? { ...item, done: !item.done } : item,
       );
       if (user && isOffline()) {
-        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: post.id, payload: { table: "mural_posts", patch: { checklist } } });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => current.map((item) => item.id === post.id ? { ...item, checklist } : item));
+        await enqueueOfflineOperation({
+          userId: user.id,
+          entity: "record",
+          action: "update",
+          entityId: post.id,
+          payload: { table: "mural_posts", patch: { checklist } },
+        });
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+          current.map((item) => (item.id === post.id ? { ...item, checklist } : item)),
+        );
         return;
       }
       const { error } = await (supabase.from("mural_posts") as any)
@@ -388,8 +421,16 @@ function MuralPage() {
   const removePost = useMutation({
     mutationFn: async (id: string) => {
       if (user && isOffline()) {
-        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: id, payload: { table: "mural_posts" } });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => current.filter((post) => post.id !== id));
+        await enqueueOfflineOperation({
+          userId: user.id,
+          entity: "record",
+          action: "delete",
+          entityId: id,
+          payload: { table: "mural_posts" },
+        });
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+          current.filter((post) => post.id !== id),
+        );
         return;
       }
       const { error } = await (supabase.from("mural_posts") as any).delete().eq("id", id);
@@ -403,10 +444,21 @@ function MuralPage() {
   });
   const setPostCompleted = useMutation({
     mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
-      const patch = { completed_at: completed ? new Date().toISOString() : null, ...(completed ? { is_pinned: false } : {}) };
+      const patch = {
+        completed_at: completed ? new Date().toISOString() : null,
+        ...(completed ? { is_pinned: false } : {}),
+      };
       if (user && isOffline()) {
-        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: id, payload: { table: "mural_posts", patch } });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => current.map((post) => post.id === id ? { ...post, ...patch } : post));
+        await enqueueOfflineOperation({
+          userId: user.id,
+          entity: "record",
+          action: "update",
+          entityId: id,
+          payload: { table: "mural_posts", patch },
+        });
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+          current.map((post) => (post.id === id ? { ...post, ...patch } : post)),
+        );
         return;
       }
       const { error } = await (supabase.from("mural_posts") as any)
@@ -430,8 +482,16 @@ function MuralPage() {
       patch: Partial<Pick<MuralPost, "is_pinned" | "card_size" | "canvas_x" | "canvas_y">>;
     }) => {
       if (user && isOffline()) {
-        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: id, payload: { table: "mural_posts", patch } });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) => current.map((post) => post.id === id ? { ...post, ...patch } : post));
+        await enqueueOfflineOperation({
+          userId: user.id,
+          entity: "record",
+          action: "update",
+          entityId: id,
+          payload: { table: "mural_posts", patch },
+        });
+        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+          current.map((post) => (post.id === id ? { ...post, ...patch } : post)),
+        );
         return;
       }
       const { error } = await (supabase.from("mural_posts") as any).update(patch).eq("id", id);
@@ -443,10 +503,23 @@ function MuralPage() {
   const toggleReaction = useMutation({
     mutationFn: async ({ postId, emoji }: { postId: string; emoji: string }) => {
       if (user && isOffline()) {
-        const existing = (reactions as any[]).find((reaction) => reaction.post_id === postId && reaction.user_id === user.id && reaction.emoji === emoji);
+        const existing = (reactions as any[]).find(
+          (reaction) =>
+            reaction.post_id === postId && reaction.user_id === user.id && reaction.emoji === emoji,
+        );
         const reaction = { post_id: postId, user_id: user.id, emoji };
-        await enqueueOfflineOperation({ userId: user.id, entity: "reaction", action: existing ? "delete" : "create", entityId: existing?.id ?? crypto.randomUUID(), payload: { reaction } });
-        qc.setQueryData<any[]>(["mural_post_reactions"], (current = []) => existing ? current.filter((item) => item.id !== existing.id) : [...current, { id: crypto.randomUUID(), ...reaction }]);
+        await enqueueOfflineOperation({
+          userId: user.id,
+          entity: "reaction",
+          action: existing ? "delete" : "create",
+          entityId: existing?.id ?? crypto.randomUUID(),
+          payload: { reaction },
+        });
+        qc.setQueryData<any[]>(["mural_post_reactions"], (current = []) =>
+          existing
+            ? current.filter((item) => item.id !== existing.id)
+            : [...current, { id: crypto.randomUUID(), ...reaction }],
+        );
         return;
       }
       if (!user) throw new Error("Sua sessão expirou. Entre novamente.");
@@ -626,10 +699,23 @@ function MuralPage() {
         const path = `mural/${post.id}/${crypto.randomUUID()}-${safeName}`;
         if (isOffline()) {
           await enqueueOfflineOperation({
-            userId: user.id, entity: "attachment", action: "create", entityId: crypto.randomUUID(),
+            userId: user.id,
+            entity: "attachment",
+            action: "create",
+            entityId: crypto.randomUUID(),
             payload: {
-              table: "mural_post_attachments", bucket: "mural-attachments", blob: file,
-              attachment: { id: crypto.randomUUID(), post_id: post.id, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id },
+              table: "mural_post_attachments",
+              bucket: "mural-attachments",
+              blob: file,
+              attachment: {
+                id: crypto.randomUUID(),
+                post_id: post.id,
+                file_name: file.name,
+                storage_path: path,
+                mime_type: file.type || null,
+                size_bytes: file.size,
+                uploaded_by: user.id,
+              },
             },
           });
           continue;
