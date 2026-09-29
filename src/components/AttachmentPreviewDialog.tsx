@@ -4,6 +4,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  formatSpreadsheetCell,
+  spreadsheetColumnHeader,
+  type SpreadsheetCellValue,
+} from "@/lib/spreadsheet-format";
 
 export interface PreviewableAttachment {
   file_name: string;
@@ -19,7 +24,7 @@ interface Props {
 
 interface SpreadsheetSheet {
   name: string;
-  rows: string[][];
+  rows: SpreadsheetCellValue[][];
   totalRows: number;
   totalColumns: number;
 }
@@ -213,13 +218,9 @@ export function AttachmentPreviewDialog({ open, onOpenChange, attachment }: Prop
           );
           return {
             name: sheetName,
-            rows: sourceRows.slice(0, MAX_SPREADSHEET_ROWS).map((row) =>
-              row.slice(0, MAX_SPREADSHEET_COLUMNS).map((cell) => {
-                if (cell === null || cell === undefined) return "";
-                if (cell instanceof Date) return cell.toLocaleString("pt-BR");
-                return String(cell);
-              }),
-            ),
+            rows: sourceRows
+              .slice(0, MAX_SPREADSHEET_ROWS)
+              .map((row) => row.slice(0, MAX_SPREADSHEET_COLUMNS)),
             totalRows: sourceRows.length,
             totalColumns,
           };
@@ -386,7 +387,14 @@ export function AttachmentPreviewDialog({ open, onOpenChange, attachment }: Prop
                                 key={columnIndex}
                                 className="max-w-80 whitespace-pre-wrap border px-2 py-1 align-top"
                               >
-                                {cell}
+                                {formatSpreadsheetCell(
+                                  cell,
+                                  spreadsheetColumnHeader(
+                                    selectedSheet.rows,
+                                    rowIndex,
+                                    columnIndex,
+                                  ),
+                                )}
                               </td>
                             ))}
                           </tr>
