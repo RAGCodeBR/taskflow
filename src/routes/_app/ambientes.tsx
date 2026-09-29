@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Megaphone, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ export const Route = createFileRoute("/_app/ambientes")({ component: Environment
 
 function Environments() {
   const { workspaces, activeWorkspace, setActiveWorkspace } = useAuth();
+  const navigate = useNavigate();
   const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   if (!workspaces.length) {
@@ -22,6 +23,7 @@ function Environments() {
     setSwitchingId(workspaceId);
     try {
       await setActiveWorkspace(workspaceId);
+      await navigate({ to: "/dashboard" });
     } catch (error) {
       // PostgREST errors are plain objects, not instances of Error. Show the
       // database message so an access or migration problem is actionable.
@@ -85,7 +87,7 @@ function Environments() {
       </section>
 
       <p className="text-center text-xs text-muted-foreground">
-        A mudança de ambiente recarrega o painel para não manter dados do outro ambiente em tela.
+        A mudança de ambiente atualiza o painel sem manter dados do outro ambiente em tela.
       </p>
     </div>
   );

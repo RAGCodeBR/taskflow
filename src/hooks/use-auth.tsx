@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { isOffline } from "@/lib/offline-sync";
 import { clearOfflineUserData, offlineAccessKey } from "@/lib/offline-user-storage";
@@ -47,6 +48,7 @@ type OfflineAccessSnapshot = Pick<
 >;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -321,22 +323,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       target_workspace_id: workspaceId,
     });
     if (error) throw error;
-    // Confirm the database state before leaving this screen. This guards
-    // against a stale RPC schema or a policy that acknowledged a call but
-    // did not persist the profile preference.
-    const { data: confirmedWorkspaceId, error: confirmError } = await (supabase as any).rpc(
-      "current_workspace_id",
-    );
-    if (confirmError) throw confirmError;
-    if (confirmedWorkspaceId !== workspaceId) {
-      throw new Error("O ambiente não foi confirmado. Tente novamente.");
-    }
+    const nextWorkspace = workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
+
+    // The RPC only resolves after the active environment is persisted. Clear
+    // data queries before changing the context so a cached card, client or
+    // report from the previous environment can never render in the next one.
+    // Keeping the authenticated shell mounted avoids repeating the full
+    // profile/session bootstrap on every environment change.
+    queryClient.clear();
     setProfile((current) => (current ? { ...current, active_workspace_id: workspaceId } : current));
-    setActiveWorkspaceState(workspaces.find((workspace) => workspace.id === workspaceId) ?? null);
-    // A full navigation drops every cached query from the other environment.
-    // This prevents a previously rendered client or task from briefly appearing
-    // during the environment transition.
-    window.location.assign("/dashboard");
+    setActiveWorkspaceState(nextWorkspace);
+    saveOfflineAccess(user.id, {
+      profile: profile ? { ...profile, active_workspace_id: workspaceId } : null,
+      isAdmin,
+      isCollaborator,
+      isClient,
+      clientId,
+      permissions,
+      workspaces,
+      activeWorkspace: nextWorkspace,
+    });
   };
   const hasPermission = (permission: string) => isAdmin || permissions.includes(permission);
 
