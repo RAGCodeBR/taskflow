@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
+import { CompletionDateDialog } from "@/components/CompletionDateDialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { priorityColors, priorityLabels, dueUrgencyState, dueUrgencyTextClass } from "@/lib/task-utils";
@@ -61,6 +62,7 @@ function ListPage() {
   const [duplicateTaskTarget, setDuplicateTaskTarget] = useState<Task | null>(null);
   const [duplicateDueDate, setDuplicateDueDate] = useState("");
   const [duplicatingTask, setDuplicatingTask] = useState(false);
+  const [completionTaskTarget, setCompletionTaskTarget] = useState<Task | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -188,7 +190,7 @@ function ListPage() {
     });
   }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, dueDateSortDirection]);
 
-  const completeTask = async (taskId: string) => {
+  const completeTask = async (taskId: string, completionDate: string) => {
     const completedStatus = statuses.find((status) => status.is_completed);
 
     if (!completedStatus) {
@@ -208,7 +210,7 @@ function ListPage() {
       ({ queued } = await updateTaskWithOfflineSupport({
         userId: user.id,
         task,
-        patch: { status: "done", status_id: completedStatus.id, completed_at: new Date().toISOString() },
+        patch: { status: "done", status_id: completedStatus.id, completed_at: new Date(`${completionDate}T12:00:00`).toISOString() },
         queryClient,
       }));
     } catch (cause: any) {
@@ -221,6 +223,7 @@ function ListPage() {
     }
 
     if (!queued) await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    setCompletionTaskTarget(null);
     toast.success("Tarefa concluída.");
   };
 
@@ -405,7 +408,7 @@ function ListPage() {
                         disabled={t.completed_at !== null}
                         onClick={(event) => {
                           event.stopPropagation();
-                          void completeTask(t.id);
+                          setCompletionTaskTarget(t);
                         }}
                       >
                         <Check className="h-4 w-4" />
@@ -421,6 +424,13 @@ function ListPage() {
         </table>
       </div>
       <TaskDialog open={open} onOpenChange={setOpen} task={edit} />
+      <CompletionDateDialog
+        open={!!completionTaskTarget}
+        onOpenChange={(isOpen) => !isOpen && setCompletionTaskTarget(null)}
+        onConfirm={(completionDate) =>
+          completionTaskTarget ? completeTask(completionTaskTarget.id, completionDate) : undefined
+        }
+      />
       <Dialog open={!!duplicateTaskTarget} onOpenChange={(isOpen) => !isOpen && !duplicatingTask && setDuplicateTaskTarget(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Duplicar tarefa</DialogTitle></DialogHeader>

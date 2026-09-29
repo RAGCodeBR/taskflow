@@ -111,6 +111,8 @@ interface Comment {
 const DEFAULT_DEADLINE_TIME = "12:00";
 const deadlineToIso = (date: string) =>
   date ? new Date(`${date}T${DEFAULT_DEADLINE_TIME}:00`).toISOString() : null;
+const completionDateToIso = (date: string) =>
+  date ? new Date(`${date}T${DEFAULT_DEADLINE_TIME}:00`).toISOString() : new Date().toISOString();
 const hasDueDateChanged = (previousDueDate: string | null | undefined, nextDueDate: string) =>
   previousDueDate
     ? format(new Date(previousDueDate), "yyyy-MM-dd") !== nextDueDate
@@ -173,6 +175,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   const [collaboratorPickerOpen, setCollaboratorPickerOpen] = useState(false);
   const [dueDate, setDueDate] = useState<string>("");
   const [dueTime, setDueTime] = useState<string>("");
+  const [completionDate, setCompletionDate] = useState<string>("");
   const [dueDateChangeReason, setDueDateChangeReason] = useState("");
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
@@ -267,6 +270,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       void loadCollaborators(task.id);
       setDueDate(task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : "");
       setDueTime(normalizeDueTime(task.due_time));
+      setCompletionDate(task.completed_at ? format(new Date(task.completed_at), "yyyy-MM-dd") : "");
       setDueDateChangeReason("");
       currentTaskIdRef.current = task.id;
       setCurrentTaskId(task.id);
@@ -286,6 +290,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setCollaboratorIds([]);
       setDueDate("");
       setDueTime("");
+      setCompletionDate("");
       setDueDateChangeReason("");
       currentTaskIdRef.current = null;
       setCurrentTaskId(null);
@@ -460,7 +465,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       assignee_id: assigneeId || null,
       due_date: deadlineToIso(dueDate),
       due_time: dueDate ? dueTime || null : null,
-      completed_at: status === "done" ? (task?.completed_at ?? new Date().toISOString()) : null,
+      completed_at: status === "done" ? completionDateToIso(completionDate) : null,
     };
   };
 
@@ -1353,6 +1358,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 onValueChange={(value) => {
                   if (value === COMPLETED_STATUS_VALUE) {
                     setStatus("done");
+                    setCompletionDate((current) => current || format(new Date(), "yyyy-MM-dd"));
                     return;
                   }
                   setStatus("todo");
@@ -1373,6 +1379,22 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </SelectContent>
               </Select>
             </div>
+            {status === "done" ? (
+              <div className="order-4 space-y-2">
+                <Label htmlFor="completion-date" className="text-xs">Data de conclusão</Label>
+                <Input
+                  id="completion-date"
+                  type="date"
+                  value={completionDate}
+                  max={format(new Date(), "yyyy-MM-dd")}
+                  onChange={(event) => setCompletionDate(event.target.value)}
+                  required
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Esta data define se a entrega foi feita dentro do prazo. O sistema também mantém o momento em que este lançamento foi salvo.
+                </p>
+              </div>
+            ) : null}
             <div className="order-3 space-y-2">
               <Label className="text-xs">Cliente</Label>
               <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen}>

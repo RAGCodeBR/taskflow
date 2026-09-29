@@ -52,6 +52,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
+import { CompletionDateDialog } from "@/components/CompletionDateDialog";
 import { FileDropZone } from "@/components/FileDropZone";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import {
@@ -216,6 +217,7 @@ export function TaskCard({
     reason: string;
   }>({ open: false, pending: null, pendingTime: null, reason: "" });
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [completionDateOpen, setCompletionDateOpen] = useState(false);
   const { data: dueHistory = [] } = useQuery({
     queryKey: ["task_due_date_changes", task.id],
     queryFn: async () => {
@@ -1069,16 +1071,21 @@ export function TaskCard({
 
   const completedStatus = useMemo(() => statuses.find((s) => s.is_completed) ?? null, [statuses]);
 
-  const completeTask = async () => {
+  const startCompletion = () => {
     if (subtasks.some((subtask) => !subtask.done)) {
       toast.error("Conclua as subtarefas pendentes antes de concluir esta tarefa.");
       return;
     }
+    setCompletionDateOpen(true);
+  };
+
+  const completeTask = async (completionDate: string) => {
     await update({
       status: "done",
       status_id: completedStatus?.id ?? task.status_id,
-      completed_at: new Date().toISOString(),
+      completed_at: new Date(`${completionDate}T12:00:00`).toISOString(),
     });
+    setCompletionDateOpen(false);
     toast.success("Tarefa concluída");
   };
 
@@ -1153,7 +1160,7 @@ export function TaskCard({
             onPointerDown={stop}
             onClick={(event) => {
               stop(event);
-              void completeTask();
+              startCompletion();
             }}
             title="Concluir tarefa"
             aria-label="Concluir tarefa"
@@ -1366,7 +1373,7 @@ export function TaskCard({
                 onPointerDown={stop}
                 onClick={(e) => {
                   stop(e);
-                  void completeTask();
+                  startCompletion();
                 }}
                 title="Concluir tarefa"
               >
@@ -2239,6 +2246,12 @@ export function TaskCard({
           </div>
         </div>
       </div>
+
+      <CompletionDateDialog
+        open={completionDateOpen}
+        onOpenChange={setCompletionDateOpen}
+        onConfirm={completeTask}
+      />
 
       <AttachmentPreviewDialog
         open={!!previewAttachment}
