@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   type Task,
   useClients,
@@ -391,19 +391,41 @@ function TaskDetailPanel({
 }
 
 function Dashboard() {
-  const { profile, user, isAdmin } = useAuth();
-  const { data: tasks = [] } = useWorkspaceTasks();
-  const { data: clients = [] } = useClients();
+  const { profile, user, isAdmin, isWorkspaceTransitioning, finishWorkspaceTransition } = useAuth();
+  const tasksQuery = useWorkspaceTasks();
+  const clientsQuery = useClients();
   // The chart only includes users eligible to receive tasks (admins and collaborators).
   // The database query excludes client accounts, including future ones.
-  const { data: assignableProfiles = [] } = useAssignableProfiles();
-  useColumns();
+  const assignableProfilesQuery = useAssignableProfiles();
+  const columnsQuery = useColumns();
+  const tasks = tasksQuery.data ?? [];
+  const clients = clientsQuery.data ?? [];
+  const assignableProfiles = assignableProfilesQuery.data ?? [];
   const [filter, setFilter] = useState<DateFilter>("this_month");
   const [periodOpen, setPeriodOpen] = useState(false);
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [customPeriod, setCustomPeriod] = useState<{ start: string; end: string } | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<DashboardMetric | null>(null);
+
+  useEffect(() => {
+    if (
+      isWorkspaceTransitioning &&
+      !tasksQuery.isLoading &&
+      !clientsQuery.isLoading &&
+      !assignableProfilesQuery.isLoading &&
+      !columnsQuery.isLoading
+    ) {
+      finishWorkspaceTransition();
+    }
+  }, [
+    assignableProfilesQuery.isLoading,
+    clientsQuery.isLoading,
+    columnsQuery.isLoading,
+    finishWorkspaceTransition,
+    isWorkspaceTransitioning,
+    tasksQuery.isLoading,
+  ]);
 
   const greetingName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
 

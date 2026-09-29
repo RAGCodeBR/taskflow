@@ -44,6 +44,7 @@ import {
   useTaskConversationRealtime,
 } from "@/hooks/use-task-conversations";
 import { canSwitchTaskFlowEnvironment } from "@/lib/environment-access";
+import { WorkspaceLoadingScreen } from "@/components/WorkspaceLoadingScreen";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -77,7 +78,16 @@ const allNav: readonly NavItem[] = [
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { profile, user, signOut, isAdmin, hasPermission, workspaces, activeWorkspace } = useAuth();
+  const {
+    profile,
+    user,
+    signOut,
+    isAdmin,
+    hasPermission,
+    workspaces,
+    activeWorkspace,
+    isWorkspaceTransitioning,
+  } = useAuth();
   const muralUnreadCount = useMuralUnreadCount();
   // Resumo da atividade leve do mural desde a última visita — em qualquer
   // tela, uma vez por carregamento do sistema.
@@ -404,6 +414,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <AssignmentPopup />
+      {isWorkspaceTransitioning && <WorkspaceLoadingScreen workspaceName={activeWorkspace?.name} />}
     </div>
   );
 }

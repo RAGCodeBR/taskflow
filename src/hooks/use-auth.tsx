@@ -33,7 +33,9 @@ interface AuthCtx {
   permissions: string[];
   workspaces: WorkspaceMembership[];
   activeWorkspace: WorkspaceMembership | null;
+  isWorkspaceTransitioning: boolean;
   setActiveWorkspace: (workspaceId: string) => Promise<void>;
+  finishWorkspaceTransition: () => void;
   hasPermission: (permission: string) => boolean;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -59,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [workspaces, setWorkspaces] = useState<WorkspaceMembership[]>([]);
   const [activeWorkspace, setActiveWorkspaceState] = useState<WorkspaceMembership | null>(null);
+  const [isWorkspaceTransitioning, setIsWorkspaceTransitioning] = useState(false);
   const [loading, setLoading] = useState(true);
   const loadedUserIdRef = useRef<string | null>(null);
 
@@ -256,6 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPermissions([]);
         setWorkspaces([]);
         setActiveWorkspaceState(null);
+        setIsWorkspaceTransitioning(false);
       }
     });
     // Initial page load: restore any saved session from localStorage.
@@ -330,6 +334,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // report from the previous environment can never render in the next one.
     // Keeping the authenticated shell mounted avoids repeating the full
     // profile/session bootstrap on every environment change.
+    setIsWorkspaceTransitioning(true);
     queryClient.clear();
     setProfile((current) => (current ? { ...current, active_workspace_id: workspaceId } : current));
     setActiveWorkspaceState(nextWorkspace);
@@ -344,6 +349,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activeWorkspace: nextWorkspace,
     });
   };
+  const finishWorkspaceTransition = () => setIsWorkspaceTransitioning(false);
   const hasPermission = (permission: string) => isAdmin || permissions.includes(permission);
 
   return (
@@ -359,7 +365,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         permissions,
         workspaces,
         activeWorkspace,
+        isWorkspaceTransitioning,
         setActiveWorkspace,
+        finishWorkspaceTransition,
         hasPermission,
         loading,
         signOut,
