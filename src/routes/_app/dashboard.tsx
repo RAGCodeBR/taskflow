@@ -9,7 +9,7 @@ import {
 } from "@/hooks/use-data";
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { DateFilterBar } from "@/components/DateFilterBar";
-import { matchDateFilter, priorityLabels, statusLabels, type DateFilter } from "@/lib/task-utils";
+import { isTaskCompleted, matchDateFilter, priorityLabels, statusLabels, type DateFilter } from "@/lib/task-utils";
 import {
   countCompletedSubtasks,
   subtaskStatus,
@@ -67,7 +67,7 @@ type Detail = {
   prioritizeOpen?: boolean;
 };
 
-const isTaskDone = (task: Task) => task.status === "done" || !!task.completed_at;
+const isTaskDone = (task: Task) => isTaskCompleted(task);
 
 const SUBTASK_DOT: Record<SubtaskStatus, string> = {
   concluida: "bg-emerald-500",
@@ -434,8 +434,12 @@ function Dashboard() {
     () =>
       customPeriod
         ? tasks.filter((task) => {
-            const dueDate = task.due_date?.slice(0, 10);
-            return Boolean(dueDate && dueDate >= customPeriod.start && dueDate <= customPeriod.end);
+            // A closed delivery belongs to the period in which it was delivered;
+            // open work remains grouped by its due date.
+            const referenceDate = (isTaskDone(task) ? task.completed_at : task.due_date)?.slice(0, 10);
+            return Boolean(
+              referenceDate && referenceDate >= customPeriod.start && referenceDate <= customPeriod.end,
+            );
           })
         : tasks.filter((task) => matchDateFilter(task, filter)),
     [tasks, filter, customPeriod],

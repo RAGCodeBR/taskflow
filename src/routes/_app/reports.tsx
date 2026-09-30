@@ -70,9 +70,9 @@ import {
   startOfDay,
   startOfMonth,
   subDays,
-  subMonths,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { isTaskCompleted } from "@/lib/task-utils";
 
 export const Route = createFileRoute("/_app/reports")({
   component: ReportsPage,
@@ -130,14 +130,6 @@ const currentMonthPeriod = () => {
   return {
     start: format(startOfMonth(today), "yyyy-MM-dd"),
     end: format(endOfMonth(today), "yyyy-MM-dd"),
-  };
-};
-
-const previousMonthPeriod = () => {
-  const previousMonth = subMonths(new Date(), 1);
-  return {
-    start: format(startOfMonth(previousMonth), "yyyy-MM-dd"),
-    end: format(endOfMonth(previousMonth), "yyyy-MM-dd"),
   };
 };
 
@@ -792,7 +784,9 @@ function ReportsPage() {
       ).data ?? []) as Array<{ user_id: string }>,
   });
 
-  const [period, setPeriod] = useState(previousMonthPeriod);
+  // Reports should open on the current month so work just registered is visible
+  // without requiring an extra filter change.
+  const [period, setPeriod] = useState(currentMonthPeriod);
   const [userFilter, setUserFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
@@ -831,8 +825,7 @@ function ReportsPage() {
 
   const periodStart = startOfDay(parseISO(period.start));
   const periodEnd = endOfDay(parseISO(period.end));
-  const isDone = (task: { status: string | null; completed_at: string | null }) =>
-    task.status === "done" || Boolean(task.completed_at);
+  const isDone = isTaskCompleted;
   const isOverdue = (task: {
     due_date: string | null;
     status: string | null;
@@ -907,8 +900,8 @@ function ReportsPage() {
 
   const totals = {
     total: filteredTasks.length,
-    done: filteredTasks.filter((t) => t.status === "done").length,
-    pending: filteredTasks.filter((t) => t.status !== "done").length,
+    done: filteredTasks.filter(isDone).length,
+    pending: filteredTasks.filter((t) => !isDone(t)).length,
     overdue: filteredTasks.filter(isOverdue).length,
     subtasks: sumSubtasks(filteredTasks),
   };
@@ -917,7 +910,7 @@ function ReportsPage() {
     .filter((profile) => userFilter === "all" || profile.id === userFilter)
     .map((p) => {
       const userTasks = periodTasks.filter((t) => t.assignee_id === p.id);
-      const done = userTasks.filter((t) => t.status === "done");
+      const done = userTasks.filter(isDone);
       const overdue = userTasks.filter(isOverdue);
       const completedWithDeadline = done.filter((t) => t.due_date && t.completed_at);
       const onTime = completedWithDeadline.filter(
@@ -992,7 +985,7 @@ function ReportsPage() {
   const byClient = clients
     .map((client) => {
       const clientTasks = filteredTasks.filter((task) => task.client_id === client.id);
-      const concluded = clientTasks.filter((task) => task.status === "done").length;
+      const concluded = clientTasks.filter(isDone).length;
       const overdue = clientTasks.filter(isOverdue).length;
       return {
         name: client.name,
@@ -1010,7 +1003,7 @@ function ReportsPage() {
       const clientTasks = filteredTasks.filter((task) => task.client_id === client.id);
       if (clientTasks.length === 0) return null;
 
-      const doneTasks = clientTasks.filter((task) => task.status === "done");
+      const doneTasks = clientTasks.filter(isDone);
       const overdue = clientTasks.filter(isOverdue).length;
       const unassigned = clientTasks.filter((task) => !task.assignee_id).length;
       const people = new Set(clientTasks.map((task) => task.assignee_id).filter(Boolean)).size;
@@ -1058,8 +1051,8 @@ function ReportsPage() {
           const profile = profiles.find((item) => item.id === assigneeId);
           return {
             name: profile?.full_name || profile?.email || "Sem responsável",
-            done: consultantTasks.filter((task) => task.status === "done").length,
-            pending: consultantTasks.filter((task) => task.status !== "done").length,
+            done: consultantTasks.filter(isDone).length,
+            pending: consultantTasks.filter((task) => !isDone(task)).length,
             overdue: consultantTasks.filter(isOverdue).length,
           };
         })
@@ -1920,7 +1913,7 @@ function ClientByUserTable({
                   </td>
                   {users.map((u) => {
                     const ut = clientTasks.filter((t) => t.assignee_id === u.id);
-                    const done = ut.filter((t) => t.status === "done").length;
+                    const done = ut.filter(isDone).length;
                     return (
                       <td key={u.id} className="py-2 px-2 text-center">
                         {ut.length === 0 ? (

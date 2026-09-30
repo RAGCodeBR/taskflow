@@ -43,6 +43,11 @@ export interface TaskLike {
   completed_at: string | null;
 }
 
+/** A task is complete as soon as either persisted completion marker is present. */
+export function isTaskCompleted(task: Pick<TaskLike, "status" | "completed_at">): boolean {
+  return task.status === "done" || Boolean(task.completed_at);
+}
+
 /**
  * A parent task cannot be considered concluded while it still has an open
  * subtask.  This also repairs the display of legacy records that were marked
@@ -67,7 +72,7 @@ export function normalizeTasksWithOpenSubtasks<
 export function matchDateFilter(task: TaskLike, filter: DateFilter): boolean {
   const now = new Date();
   const due = task.due_date ? new Date(task.due_date) : null;
-  const isDone = task.status === "done" || !!task.completed_at;
+  const isDone = isTaskCompleted(task);
 
   switch (filter) {
     case "all":
@@ -115,7 +120,7 @@ export function dueUrgencyState(task: {
   status?: string | null;
   completed_at?: string | null;
 }): DueUrgencyState {
-  const isDone = task.status === "done" || !!task.completed_at;
+  const isDone = isTaskCompleted(task);
   if (!task.due_date || isDone) return "none";
   const now = new Date();
   const due = new Date(task.due_date);
@@ -140,7 +145,7 @@ export const dueUrgencyTextClass: Record<DueUrgencyState, string> = {
 
 export function taskUrgency(task: TaskLike): "overdue" | "due_today" | "due_soon" | "ok" {
   if (!task.due_date) return "ok";
-  if (task.status === "done") return "ok";
+  if (isTaskCompleted(task)) return "ok";
   const due = new Date(task.due_date);
   const now = new Date();
   if (isWithinInterval(due, { start: startOfDay(now), end: endOfDay(now) })) return "due_today";

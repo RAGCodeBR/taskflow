@@ -492,17 +492,18 @@ export function TaskCard({
   );
 
   const update = async (patch: Partial<Task>) => {
-    if (!user) return;
+    if (!user) return false;
     try {
       const { queued } = await updateTaskWithOfflineSupport({ userId: user.id, task, patch, queryClient: qc });
       if (queued) {
         toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
-        return;
+        return true;
       }
       void qc.invalidateQueries({ queryKey: ["tasks"] });
+      return true;
     } catch (error: any) {
-      toast.error(error.message);
-      return;
+      toast.error(error?.message || "Não foi possível salvar a tarefa.");
+      return false;
     }
   };
 
@@ -1084,11 +1085,12 @@ export function TaskCard({
   };
 
   const completeTask = async (completionDate: string) => {
-    await update({
+    const saved = await update({
       status: "done",
       status_id: completedStatus?.id ?? task.status_id,
       completed_at: new Date(`${completionDate}T12:00:00`).toISOString(),
     });
+    if (!saved) return;
     setCompletionDateOpen(false);
     toast.success("Tarefa concluída");
   };
@@ -1133,6 +1135,7 @@ export function TaskCard({
 
   if (minimal) {
     return (
+      <>
       <div
         {...dragHandleProps}
         className="group flex min-h-[132px] w-full cursor-grab touch-none flex-col overflow-hidden rounded-[0.75rem] border bg-card shadow-sm transition hover:border-primary/40 hover:shadow active:cursor-grabbing"
@@ -1236,6 +1239,12 @@ export function TaskCard({
           <span className="truncate">{dueLabel ? `Prazo: ${dueLabel}` : "Sem prazo"}</span>
         </div>
       </div>
+      <CompletionDateDialog
+        open={completionDateOpen}
+        onOpenChange={setCompletionDateOpen}
+        onConfirm={completeTask}
+      />
+      </>
     );
   }
   return (
