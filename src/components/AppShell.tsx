@@ -26,6 +26,7 @@ import {
   Layers3,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
+import { RecurringMeetingReminderPopup } from "@/components/RecurringMeetingReminderPopup";
 import { AssignmentPopup } from "@/components/AssignmentPopup";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import businessMentoringLogo from "@/assets/la-business-mentoring.png";
@@ -67,6 +68,7 @@ const allNav: readonly NavItem[] = [
   { to: "/tasks", label: "Minhas Tarefas", icon: ListChecks },
   { to: "/conversations", label: "Conversas", icon: MessagesSquare },
   { to: "/obligations", label: "Obrigações", icon: CalendarCog },
+  { to: "/meetings", label: "Reuniões", icon: CalendarDays },
   { to: "/import-ata", label: "Importar Ata", icon: FileUp },
   { to: "/clients", label: "Clientes", icon: Building2 },
   { to: "/reports", label: "Relatórios", icon: BarChart3 },
@@ -105,6 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       "/tasks": "tasks",
       "/conversations": "conversations",
       "/obligations": "obligations",
+      "/meetings": "meetings",
       "/import-ata": "import_ata",
       "/clients": "clients",
       "/reports": "reports",
@@ -394,6 +397,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
+      <RecurringMeetingReminderPopup />
       <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:pt-0 pt-12">
         <div className="hidden md:flex sticky top-0 z-30 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
           {canSwitchEnvironments && workspaces.length > 1 && (

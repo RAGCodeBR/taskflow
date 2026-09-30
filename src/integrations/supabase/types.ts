@@ -1104,6 +1104,7 @@ export type Database = {
           interruptions: number
           position: number
           priority: Database["public"]["Enums"]["task_priority"] | null
+          recurring_meeting_agenda_item_id: string | null
           status: Database["public"]["Enums"]["task_status"] | null
           status_id: string | null
           tag_id: string | null
@@ -1133,6 +1134,7 @@ export type Database = {
           interruptions?: number
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"] | null
+          recurring_meeting_agenda_item_id?: string | null
           status?: Database["public"]["Enums"]["task_status"] | null
           status_id?: string | null
           tag_id?: string | null
@@ -1162,6 +1164,7 @@ export type Database = {
           interruptions?: number
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"] | null
+          recurring_meeting_agenda_item_id?: string | null
           status?: Database["public"]["Enums"]["task_status"] | null
           status_id?: string | null
           tag_id?: string | null

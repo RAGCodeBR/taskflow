@@ -46,7 +46,14 @@ const AuthContext = createContext<AuthCtx | undefined>(undefined);
 
 type OfflineAccessSnapshot = Pick<
   AuthCtx,
-  "profile" | "isAdmin" | "isCollaborator" | "isClient" | "clientId" | "permissions" | "workspaces" | "activeWorkspace"
+  | "profile"
+  | "isAdmin"
+  | "isCollaborator"
+  | "isClient"
+  | "clientId"
+  | "permissions"
+  | "workspaces"
+  | "activeWorkspace"
 >;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -146,7 +153,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       membershipsResult,
       workspaceResult,
     ] as Array<{ error?: { message?: string } | null }>;
-    const networkFailed = results.some((result) => /failed to fetch/i.test(result.error?.message ?? ""));
+    const networkFailed = results.some((result) =>
+      /failed to fetch/i.test(result.error?.message ?? ""),
+    );
     if (networkFailed && restoreOfflineAccess(uid)) return;
     const profileWorkspaceId = activeWorkspaceResult.error
       ? null
@@ -192,6 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "tasks",
       "conversations",
       "obligations",
+      "meetings",
       "import_ata",
       "clients",
       "reports",
@@ -226,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       permissions: admin
         ? systemPermissions
         : (selectedWorkspace?.permissions ??
-            (Array.isArray(access?.permissions) ? access.permissions : [])),
+          (Array.isArray(access?.permissions) ? access.permissions : [])),
       workspaces: memberships,
       activeWorkspace: selectedWorkspace,
     });

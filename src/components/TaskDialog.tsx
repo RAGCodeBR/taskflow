@@ -73,6 +73,15 @@ interface Props {
   onOpenChange: (o: boolean) => void;
   task?: Task | null;
   defaultColumnId?: string | null;
+  recurringMeetingAgendaItemId?: string | null;
+  defaults?: {
+    title?: string;
+    description?: string;
+    dueDate?: string;
+    dueTime?: string;
+    assigneeId?: string | null;
+    priority?: Task["priority"];
+  };
 }
 
 interface Subtask extends EditableSubtask {
@@ -149,7 +158,14 @@ function AssigneeOption({
   );
 }
 
-export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props) {
+export function TaskDialog({
+  open,
+  onOpenChange,
+  task,
+  defaultColumnId,
+  recurringMeetingAgendaItemId,
+  defaults,
+}: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, profile, isAdmin, activeWorkspace, workspaces } = useAuth();
@@ -293,18 +309,18 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setNewSubtaskAssignee("");
       loadRelated(task.id);
     } else {
-      setTitle("");
-      setDescription("");
+      setTitle(defaults?.title ?? "");
+      setDescription(defaults?.description ?? "");
       setStatus("todo");
-      setPriority("medium");
+      setPriority(defaults?.priority ?? "medium");
       setCategoryId("");
       setColumnId(defaultColumnId ?? "");
       setTargetWorkspaceId(activeWorkspace?.id ?? "");
       setClientId("");
-      setAssigneeId(user?.id ?? "");
+      setAssigneeId(defaults?.assigneeId ?? user?.id ?? "");
       setCollaboratorIds([]);
-      setDueDate("");
-      setDueTime("");
+      setDueDate(defaults?.dueDate ?? "");
+      setDueTime(defaults?.dueTime ?? "");
       setCompletionDate("");
       setDueDateChangeReason("");
       currentTaskIdRef.current = null;
@@ -317,7 +333,19 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setNewSubtaskDue("");
       setNewSubtaskAssignee("");
     }
-  }, [open, task, defaultColumnId, user?.id, activeWorkspace?.id]);
+  }, [
+    open,
+    task,
+    defaultColumnId,
+    user?.id,
+    activeWorkspace?.id,
+    defaults?.title,
+    defaults?.description,
+    defaults?.priority,
+    defaults?.assigneeId,
+    defaults?.dueDate,
+    defaults?.dueTime,
+  ]);
 
   const loadRelated = async (taskId: string) => {
     const [s, c, a] = await Promise.all([
@@ -435,10 +463,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       .eq("task_id", taskId);
     if (loadError) throw loadError;
 
-    const existingIds = new Set(
+    const existingIds = new Set<string>(
       (data ?? []).map((collaborator: { collaborator_id: string }) => collaborator.collaborator_id),
     );
-    const wantedIds = new Set(collaboratorIds);
+    const wantedIds = new Set<string>(collaboratorIds);
     const removedIds = [...existingIds].filter((collaboratorId) => !wantedIds.has(collaboratorId));
     const addedIds = [...wantedIds].filter((collaboratorId) => !existingIds.has(collaboratorId));
 
@@ -562,6 +590,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const { error } = await authenticated.client.from("tasks").insert({
       id: taskId,
       ...buildPayload(),
+      recurring_meeting_agenda_item_id: recurringMeetingAgendaItemId ?? null,
       workspace_id: targetWorkspaceId || null,
       created_by: authenticated.user.id,
     });
@@ -650,6 +679,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         created_at: now,
         updated_at: now,
         card_width: null,
+        recurring_meeting_agenda_item_id: recurringMeetingAgendaItemId ?? null,
         workspace_id: targetWorkspaceId || activeWorkspace?.id || null,
       };
       await createTaskWithOfflineSupport({ userId: user.id, task: localTask, queryClient: qc });
@@ -706,7 +736,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       try {
         await queueTaskLocally(existingTaskId);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Não foi possível salvar a tarefa neste aparelho.");
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível salvar a tarefa neste aparelho.",
+        );
       } finally {
         setSaving(false);
       }
@@ -721,14 +755,20 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       authenticated = await getAuthenticatedUser();
     } catch (error) {
       if (!isNetworkFailure(error)) {
-        toast.error(error instanceof Error ? error.message : "Não foi possível validar sua sessão.");
+        toast.error(
+          error instanceof Error ? error.message : "Não foi possível validar sua sessão.",
+        );
         return;
       }
       setSaving(true);
       try {
         await queueTaskLocally(existingTaskId);
       } catch (localError) {
-        toast.error(localError instanceof Error ? localError.message : "Não foi possível salvar a tarefa neste aparelho.");
+        toast.error(
+          localError instanceof Error
+            ? localError.message
+            : "Não foi possível salvar a tarefa neste aparelho.",
+        );
       } finally {
         setSaving(false);
       }
@@ -776,6 +816,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         const { error } = await authenticated.client.from("tasks").insert({
           id: taskId,
           ...payload,
+          recurring_meeting_agenda_item_id: recurringMeetingAgendaItemId ?? null,
           workspace_id: targetWorkspaceId || activeWorkspace?.id || null,
           created_by: authenticated.user.id,
         });
@@ -800,7 +841,11 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         try {
           await queueTaskLocally(existingTaskId, attemptedCreateTaskId);
         } catch (localError) {
-          toast.error(localError instanceof Error ? localError.message : "Não foi possível salvar a tarefa neste aparelho.");
+          toast.error(
+            localError instanceof Error
+              ? localError.message
+              : "Não foi possível salvar a tarefa neste aparelho.",
+          );
         }
       } else {
         toast.error(error instanceof Error ? error.message : "Não foi possível salvar a tarefa.");
@@ -862,8 +907,16 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
 
   const toggleSubtask = async (st: Subtask) => {
     if (user && isOffline()) {
-      await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: st.id, payload: { patch: { done: !st.done } } });
-      setSubtasks((current) => current.map((item) => item.id === st.id ? { ...item, done: !item.done } : item));
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "subtask",
+        action: "update",
+        entityId: st.id,
+        payload: { patch: { done: !st.done } },
+      });
+      setSubtasks((current) =>
+        current.map((item) => (item.id === st.id ? { ...item, done: !item.done } : item)),
+      );
       toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
       return;
     }
@@ -872,7 +925,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
   const deleteSubtask = async (id: string) => {
     if (user && isOffline()) {
-      await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "delete", entityId: id, payload: {} });
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "subtask",
+        action: "delete",
+        entityId: id,
+        payload: {},
+      });
       setSubtasks((current) => current.filter((item) => item.id !== id));
       toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
       return;
@@ -895,8 +954,16 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       return;
     }
     if (user && isOffline()) {
-      await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: subtask.id, payload: { patch: { title: nextTitle } } });
-      setSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: nextTitle } : item));
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "subtask",
+        action: "update",
+        entityId: subtask.id,
+        payload: { patch: { title: nextTitle } },
+      });
+      setSubtasks((current) =>
+        current.map((item) => (item.id === subtask.id ? { ...item, title: nextTitle } : item)),
+      );
       setEditingSubtaskId((current) => (current === subtask.id ? null : current));
       toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
       return;
@@ -920,8 +987,16 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     const prev = st.due_date;
     setSubDueSaving(true);
     if (user && isOffline()) {
-      await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: st.id, payload: { patch: { due_date: next } } });
-      setSubtasks((current) => current.map((item) => item.id === st.id ? { ...item, due_date: next } : item));
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "subtask",
+        action: "update",
+        entityId: st.id,
+        payload: { patch: { due_date: next } },
+      });
+      setSubtasks((current) =>
+        current.map((item) => (item.id === st.id ? { ...item, due_date: next } : item)),
+      );
       setSubDueSaving(false);
       toast.success("Prazo salvo neste aparelho. SerÃ¡ sincronizado ao reconectar.");
       return true;
@@ -1011,9 +1086,33 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (!tid) return;
     const path = `${tid}/subtasks/${st.id}/${storageObjectName()}`;
     if (isOffline()) {
-      const attachment = { id: crypto.randomUUID(), subtask_id: st.id, task_id: tid, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id, created_at: new Date().toISOString() };
-      await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: attachment.id, payload: { table: "subtask_attachments", bucket: "task-attachments", blob: file, attachment } });
-      setSubAttachments((prev) => ({ ...prev, [st.id]: [...(prev[st.id] ?? []), attachment as SubtaskAttachment] }));
+      const attachment = {
+        id: crypto.randomUUID(),
+        subtask_id: st.id,
+        task_id: tid,
+        file_name: file.name,
+        storage_path: path,
+        mime_type: file.type || null,
+        size_bytes: file.size,
+        uploaded_by: user.id,
+        created_at: new Date().toISOString(),
+      };
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "attachment",
+        action: "create",
+        entityId: attachment.id,
+        payload: {
+          table: "subtask_attachments",
+          bucket: "task-attachments",
+          blob: file,
+          attachment,
+        },
+      });
+      setSubAttachments((prev) => ({
+        ...prev,
+        [st.id]: [...(prev[st.id] ?? []), attachment as SubtaskAttachment],
+      }));
       toast.success("Arquivo salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
       return;
     }
@@ -1055,8 +1154,17 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
   const deleteSubFile = async (att: SubtaskAttachment) => {
     if (user && isOffline()) {
-      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: att.id, payload: { table: "subtask_attachments" } });
-      setSubAttachments((prev) => ({ ...prev, [att.subtask_id]: (prev[att.subtask_id] ?? []).filter((item) => item.id !== att.id) }));
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "record",
+        action: "delete",
+        entityId: att.id,
+        payload: { table: "subtask_attachments" },
+      });
+      setSubAttachments((prev) => ({
+        ...prev,
+        [att.subtask_id]: (prev[att.subtask_id] ?? []).filter((item) => item.id !== att.id),
+      }));
       return;
     }
     await supabase.storage.from("task-attachments").remove([att.storage_path]);
@@ -1100,8 +1208,23 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     if (!tid) return false;
     const path = `${tid}/${storageObjectName()}`;
     if (isOffline()) {
-      const attachment = { id: crypto.randomUUID(), task_id: tid, file_name: file.name, storage_path: path, mime_type: file.type || null, size_bytes: file.size, uploaded_by: user.id, created_at: new Date().toISOString() };
-      await enqueueOfflineOperation({ userId: user.id, entity: "attachment", action: "create", entityId: attachment.id, payload: { table: "attachments", bucket: "task-attachments", blob: file, attachment } });
+      const attachment = {
+        id: crypto.randomUUID(),
+        task_id: tid,
+        file_name: file.name,
+        storage_path: path,
+        mime_type: file.type || null,
+        size_bytes: file.size,
+        uploaded_by: user.id,
+        created_at: new Date().toISOString(),
+      };
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "attachment",
+        action: "create",
+        entityId: attachment.id,
+        payload: { table: "attachments", bucket: "task-attachments", blob: file, attachment },
+      });
       setAttachments((current) => [...current, attachment as Attachment]);
       toast.success("Arquivo salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
       return true;
@@ -1210,7 +1333,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
   };
   const deleteAttachment = async (att: Attachment) => {
     if (user && isOffline()) {
-      await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: att.id, payload: { table: "attachments" } });
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "record",
+        action: "delete",
+        entityId: att.id,
+        payload: { table: "attachments" },
+      });
       setAttachments((current) => current.filter((item) => item.id !== att.id));
       return;
     }
@@ -1442,7 +1571,9 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
             </div>
             {status === "done" ? (
               <div className="order-4 space-y-2">
-                <Label htmlFor="completion-date" className="text-xs">Data de conclusão</Label>
+                <Label htmlFor="completion-date" className="text-xs">
+                  Data de conclusão
+                </Label>
                 <Input
                   id="completion-date"
                   type="date"
@@ -1452,7 +1583,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                   required
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Esta data define se a entrega foi feita dentro do prazo. O sistema também mantém o momento em que este lançamento foi salvo.
+                  Esta data define se a entrega foi feita dentro do prazo. O sistema também mantém o
+                  momento em que este lançamento foi salvo.
                 </p>
               </div>
             ) : null}

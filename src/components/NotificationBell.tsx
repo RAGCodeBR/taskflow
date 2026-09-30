@@ -13,6 +13,8 @@ interface Notification {
   id: string;
   user_id: string;
   task_id: string | null;
+  recurring_meeting_occurrence_id?: string | null;
+  recurring_meeting_occurrences?: { workspace_id: string } | null;
   type: string;
   title: string;
   body: string | null;
@@ -28,7 +30,7 @@ const NAVIGATION_NOTIFICATION_TYPES = new Set([
 ]);
 
 export function NotificationBell() {
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [items, setItems] = useState<Notification[]>([]);
@@ -44,12 +46,16 @@ export function NotificationBell() {
     // Mural e Conversas têm indicadores próprios na navegação. Filtrar no banco
     // evita que esses avisos ocupem espaço no sino.
     const { data } = await (supabase.from("notifications") as any)
-      .select("*")
+      .select("*, recurring_meeting_occurrences(workspace_id)")
       .eq("user_id", user.id)
       .not("type", "in", `(${[...NAVIGATION_NOTIFICATION_TYPES].join(",")})`)
       .order("created_at", { ascending: false })
       .limit(30);
-    const next = (data ?? []) as Notification[];
+    const next = ((data ?? []) as Notification[]).filter(
+      (notification) =>
+        notification.type !== "recurring_meeting_reminder" ||
+        notification.recurring_meeting_occurrences?.workspace_id === activeWorkspace?.id,
+    );
     setItems(next);
   };
 
@@ -81,7 +87,7 @@ export function NotificationBell() {
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, activeWorkspace?.id]);
 
   const unread = items.filter((n) => !n.is_read).length;
 
@@ -92,11 +98,12 @@ export function NotificationBell() {
 
   const markAllRead = async () => {
     if (!user) return;
+    const unreadIds = items.filter((notification) => !notification.is_read).map(({ id }) => id);
+    if (unreadIds.length === 0) return;
     await (supabase.from("notifications") as any)
       .update({ is_read: true })
       .eq("user_id", user.id)
-      .eq("is_read", false)
-      .not("type", "in", `(${[...NAVIGATION_NOTIFICATION_TYPES].join(",")})`);
+      .in("id", unreadIds);
     setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 
@@ -108,6 +115,10 @@ export function NotificationBell() {
   const openNotification = async (n: Notification) => {
     if (!n.is_read) await markRead(n.id);
     setOpen(false);
+    if (n.type === "recurring_meeting_reminder" && n.recurring_meeting_occurrence_id) {
+      navigate({ to: "/meetings", search: { meeting: n.recurring_meeting_occurrence_id } });
+      return;
+    }
     if (n.task_id) {
       navigate({ to: "/tasks/list", search: { task: n.task_id, mine: true } as any });
     } else {

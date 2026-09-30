@@ -18,6 +18,7 @@ import { Route as AppClientsRouteImport } from './routes/_app/clients'
 import { Route as AppConversationsRouteImport } from './routes/_app/conversations'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppImportAtaRouteImport } from './routes/_app/import-ata'
+import { Route as AppMeetingsRouteImport } from './routes/_app/meetings'
 import { Route as AppMuralRouteImport } from './routes/_app/mural'
 import { Route as AppNotesRouteImport } from './routes/_app/notes'
 import { Route as AppObligationsRouteImport } from './routes/_app/obligations'
@@ -81,6 +82,11 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
 const AppImportAtaRoute = AppImportAtaRouteImport.update({
   id: '/import-ata',
   path: '/import-ata',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMeetingsRoute = AppMeetingsRouteImport.update({
+  id: '/meetings',
+  path: '/meetings',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMuralRoute = AppMuralRouteImport.update({
@@ -194,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/conversations': typeof AppConversationsRoute
   '/dashboard': typeof AppDashboardRoute
   '/import-ata': typeof AppImportAtaRoute
+  '/meetings': typeof AppMeetingsRoute
   '/mural': typeof AppMuralRoute
   '/notes': typeof AppNotesRoute
   '/obligations': typeof AppObligationsRoute
@@ -223,6 +230,7 @@ export interface FileRoutesByTo {
   '/conversations': typeof AppConversationsRoute
   '/dashboard': typeof AppDashboardRoute
   '/import-ata': typeof AppImportAtaRoute
+  '/meetings': typeof AppMeetingsRoute
   '/mural': typeof AppMuralRoute
   '/notes': typeof AppNotesRoute
   '/obligations': typeof AppObligationsRoute
@@ -254,6 +262,7 @@ export interface FileRoutesById {
   '/_app/conversations': typeof AppConversationsRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/import-ata': typeof AppImportAtaRoute
+  '/_app/meetings': typeof AppMeetingsRoute
   '/_app/mural': typeof AppMuralRoute
   '/_app/notes': typeof AppNotesRoute
   '/_app/obligations': typeof AppObligationsRoute
@@ -286,6 +295,7 @@ export interface FileRouteTypes {
     | '/conversations'
     | '/dashboard'
     | '/import-ata'
+    | '/meetings'
     | '/mural'
     | '/notes'
     | '/obligations'
@@ -315,6 +325,7 @@ export interface FileRouteTypes {
     | '/conversations'
     | '/dashboard'
     | '/import-ata'
+    | '/meetings'
     | '/mural'
     | '/notes'
     | '/obligations'
@@ -345,6 +356,7 @@ export interface FileRouteTypes {
     | '/_app/conversations'
     | '/_app/dashboard'
     | '/_app/import-ata'
+    | '/_app/meetings'
     | '/_app/mural'
     | '/_app/notes'
     | '/_app/obligations'
@@ -436,6 +448,13 @@ declare module '@tanstack/react-router' {
       path: '/import-ata'
       fullPath: '/import-ata'
       preLoaderRoute: typeof AppImportAtaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/meetings': {
+      id: '/_app/meetings'
+      path: '/meetings'
+      fullPath: '/meetings'
+      preLoaderRoute: typeof AppMeetingsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/mural': {
@@ -624,6 +643,7 @@ interface AppRouteChildren {
   AppConversationsRoute: typeof AppConversationsRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppImportAtaRoute: typeof AppImportAtaRoute
+  AppMeetingsRoute: typeof AppMeetingsRoute
   AppMuralRoute: typeof AppMuralRoute
   AppNotesRoute: typeof AppNotesRoute
   AppObligationsRoute: typeof AppObligationsRoute
@@ -645,6 +665,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppConversationsRoute: AppConversationsRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppImportAtaRoute: AppImportAtaRoute,
+  AppMeetingsRoute: AppMeetingsRoute,
   AppMuralRoute: AppMuralRoute,
   AppNotesRoute: AppNotesRoute,
   AppObligationsRoute: AppObligationsRoute,

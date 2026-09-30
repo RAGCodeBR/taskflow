@@ -40,6 +40,7 @@ const ACCESS_OPTIONS = [
   ["tasks", "Minhas tarefas"],
   ["conversations", "Conversas"],
   ["obligations", "Obrigações"],
+  ["meetings", "Reuniões"],
   ["import_ata", "Importar ata"],
   ["clients", "Clientes"],
   ["reports", "Relatórios"],
