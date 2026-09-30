@@ -401,7 +401,7 @@ function Dashboard() {
   const tasks = tasksQuery.data ?? [];
   const clients = clientsQuery.data ?? [];
   const assignableProfiles = assignableProfilesQuery.data ?? [];
-  const [filter, setFilter] = useState<DateFilter>("this_month");
+  const [filter, setFilter] = useState<DateFilter>("all");
   const [periodOpen, setPeriodOpen] = useState(false);
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");

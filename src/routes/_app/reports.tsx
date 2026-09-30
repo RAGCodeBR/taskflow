@@ -1913,7 +1913,7 @@ function ClientByUserTable({
                   </td>
                   {users.map((u) => {
                     const ut = clientTasks.filter((t) => t.assignee_id === u.id);
-                    const done = ut.filter(isDone).length;
+                    const done = ut.filter(isTaskCompleted).length;
                     return (
                       <td key={u.id} className="py-2 px-2 text-center">
                         {ut.length === 0 ? (
