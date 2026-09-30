@@ -155,12 +155,25 @@ Deno.serve(async (request) => {
       if (typeof data.email !== "string" || !/^\S+@\S+\.\S+$/.test(data.email))
         return response({ error: "Informe um e-mail válido." }, 400);
       const invitedEmail = data.email.trim().toLowerCase();
+      // The allow-list must exist before Auth creates the invited user, because
+      // `handle_new_user` validates it inside that database transaction. Track
+      // whether it already existed so a failed email delivery does not leave a
+      // new, unusable invitation behind.
+      const { data: existingInvitation, error: existingInvitationError } = await admin
+        .from("access_invitations")
+        .select("email")
+        .eq("email", invitedEmail)
+        .maybeSingle();
+      if (existingInvitationError) throw existingInvitationError;
+
+      const invitationAlreadyExisted = Boolean(existingInvitation);
       const { error: allowInvitationError } = await admin.from("access_invitations").upsert({
         email: invitedEmail,
         invited_by: authData.user.id,
         expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
       });
       if (allowInvitationError) throw allowInvitationError;
+
       const redirectTo = Deno.env.get("INVITE_REDIRECT_URL");
       const { data: created, error: createError } = await admin.auth.admin.inviteUserByEmail(
         invitedEmail,
@@ -169,8 +182,23 @@ Deno.serve(async (request) => {
           data: { full_name: data.fullName.trim() },
         },
       );
-      if (createError || !created.user)
-        throw createError ?? new Error("Não foi possível enviar o convite.");
+      if (createError || !created.user) {
+        if (!invitationAlreadyExisted) {
+          const { error: cleanupInvitationError } = await admin
+            .from("access_invitations")
+            .delete()
+            .eq("email", invitedEmail);
+          if (cleanupInvitationError) console.error(cleanupInvitationError);
+        }
+
+        const providerMessage = createError?.message ?? "Não foi possível enviar o convite.";
+        if (/email rate limit exceeded/i.test(providerMessage)) {
+          throw new Error(
+            "O limite temporário de convites por e-mail foi atingido. Aguarde alguns minutos e tente novamente.",
+          );
+        }
+        throw createError ?? new Error(providerMessage);
+      }
 
       // The database trigger creates every invited account as a collaborator
       // first. Replace that temporary role with the category selected by the
