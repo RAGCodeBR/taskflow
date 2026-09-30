@@ -10,7 +10,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { ImageUp, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { MarketingCategorySettings } from "@/components/MarketingCategorySettings";
 
 export const Route = createFileRoute("/_app/settings")({
   component: Settings,
@@ -340,8 +339,6 @@ function Settings() {
           {changingPassword ? "Redefinindo…" : "Redefinir senha"}
         </Button>
       </Card>
-
-      <MarketingCategorySettings />
 
       <Card className="p-6">
         <h2 className="font-semibold">Como a foto é usada</h2>

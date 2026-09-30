@@ -48,6 +48,7 @@ import {
   PanelTop,
   PanelsTopLeft,
   ChevronDown,
+  Tags,
 } from "lucide-react";
 import {
   Select,
@@ -93,6 +94,7 @@ import { TaskCard } from "@/components/TaskCard";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
 import { TaskDialog } from "@/components/TaskDialog";
 import { TagManagerDialog } from "@/components/TagManagerDialog";
+import { MarketingCategorySettings } from "@/components/MarketingCategorySettings";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { CardFieldsPopover } from "@/components/CardFieldsPopover";
@@ -499,6 +501,7 @@ function KanbanPage() {
   const [duplicateDueDate, setDuplicateDueDate] = useState("");
   const [duplicatingTask, setDuplicatingTask] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
+  const [marketingCategoriesOpen, setMarketingCategoriesOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [completedRange, setCompletedRange] = useState<{ start: string; end: string }>({
@@ -1233,6 +1236,16 @@ function KanbanPage() {
                 Etiquetas
               </Button>
             ) : null}
+            {activeWorkspace?.slug === "marketing" && isAdmin ? (
+              <Button
+                variant="outline"
+                className="rounded-full"
+                onClick={() => setMarketingCategoriesOpen(true)}
+              >
+                <Tags className="mr-2 h-4 w-4" />
+                Categorias
+              </Button>
+            ) : null}
             {isAdmin && (
               <Button variant="outline" className="rounded-full" onClick={addColumn}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -1539,6 +1552,14 @@ function KanbanPage() {
       {activeWorkspace?.slug !== "marketing" ? (
         <TagManagerDialog open={tagsOpen} onOpenChange={setTagsOpen} />
       ) : null}
+      <Dialog open={marketingCategoriesOpen} onOpenChange={setMarketingCategoriesOpen}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Categorias de tarefas do Marketing</DialogTitle>
+          </DialogHeader>
+          <MarketingCategorySettings />
+        </DialogContent>
+      </Dialog>
       <ClientFilesSheet open={filesOpen} onOpenChange={setFilesOpen} />
 
       <Dialog
