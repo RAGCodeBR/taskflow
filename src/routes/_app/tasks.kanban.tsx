@@ -766,7 +766,22 @@ function KanbanPage() {
     return map;
   }, [sortedTasks, columns]);
 
-  const columnIds = useMemo(() => columns.map((c) => `col:${c.id}`), [columns]);
+  // The board has a dedicated completed lane. A legacy column with the same
+  // name is empty after completion and would otherwise display a duplicate
+  // “Concluído” heading beside it.
+  const visibleColumns = useMemo(() => {
+    const completedNames = new Set(
+      statuses
+        .filter((status) => status.is_completed)
+        .map((status) => status.name.trim().toLocaleLowerCase("pt-BR")),
+    );
+    return columns.filter((column) => {
+      if (!completedNames.has(column.name.trim().toLocaleLowerCase("pt-BR"))) return true;
+      return sortedTasks.some((task) => task.column_id === column.id);
+    });
+  }, [columns, sortedTasks, statuses]);
+
+  const columnIds = useMemo(() => visibleColumns.map((c) => `col:${c.id}`), [visibleColumns]);
 
   const collisionDetectionStrategy: CollisionDetection = (args) => {
     const activeType = args.active.data.current?.type;
@@ -786,7 +801,7 @@ function KanbanPage() {
     const overId = getFirstCollision(intersections, "id");
 
     if (overId) {
-      const matchedColumn = columns.find(
+      const matchedColumn = visibleColumns.find(
         (column) => `drop:${column.id}` === overId || `col:${column.id}` === overId,
       );
 
@@ -829,8 +844,8 @@ function KanbanPage() {
       }
       const overType = e.over.data.current?.type;
       if (overType !== "column") return;
-      const oldIndex = columns.findIndex((c) => `col:${c.id}` === e.active.id);
-      const newIndex = columns.findIndex((c) => `col:${c.id}` === e.over!.id);
+      const oldIndex = visibleColumns.findIndex((c) => `col:${c.id}` === e.active.id);
+      const newIndex = visibleColumns.findIndex((c) => `col:${c.id}` === e.over!.id);
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
       if (!user) return;
       const next = arrayMove(columns, oldIndex, newIndex);
@@ -1398,7 +1413,7 @@ function KanbanPage() {
                   : "flex flex-col gap-4"
               }
             >
-              {columns.map((col) => {
+              {visibleColumns.map((col) => {
                 const colTasks = tasksByCol.get(col.id) ?? [];
                 return (
                   <SortableColumn

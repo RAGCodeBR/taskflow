@@ -35,19 +35,31 @@ function normalize(prefs: Partial<BoardPreferences> | null | undefined): BoardPr
 }
 
 export function useBoardPreferences() {
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const qc = useQueryClient();
   return useQuery({
-    queryKey: ["board_preferences", user?.id], enabled: !!user,
+    queryKey: ["board_preferences", user?.id, activeWorkspace?.id],
+    enabled: !!user && !!activeWorkspace?.id,
     queryFn: async (): Promise<BoardPreferences> => {
-      if (!user) return DEFAULT_PREFS;
-      const { data } = await supabase.from("board_preferences").select("field_order, hidden_fields, kanban_orientation").eq("user_id", user.id).maybeSingle();
+      if (!user || !activeWorkspace?.id) return DEFAULT_PREFS;
+      const { data, error } = await supabase
+        .from("board_preferences")
+        .select("field_order, hidden_fields, kanban_orientation")
+        .eq("user_id", user.id)
+        .eq("workspace_id", activeWorkspace.id)
+        .maybeSingle();
+      if (error) throw error;
       const raw = data as Partial<BoardPreferences> | null;
       const normalized = normalize(raw);
       const rawOrder = Array.isArray(raw?.field_order) ? raw.field_order as string[] : [];
       const rawHidden = Array.isArray(raw?.hidden_fields) ? raw.hidden_fields as string[] : [];
       if (raw && (rawOrder.join("|") !== normalized.field_order.join("|") || rawHidden.join("|") !== normalized.hidden_fields.join("|"))) {
-        void supabase.from("board_preferences").upsert({ user_id: user.id, ...normalized }, { onConflict: "user_id" }).then(() => qc.setQueryData(["board_preferences", user.id], normalized));
+        void supabase
+          .from("board_preferences")
+          .update(normalized)
+          .eq("user_id", user.id)
+          .eq("workspace_id", activeWorkspace.id)
+          .then(() => qc.setQueryData(["board_preferences", user.id, activeWorkspace.id], normalized));
       }
       return normalized;
     },
@@ -55,19 +67,38 @@ export function useBoardPreferences() {
 }
 
 export function useUpdateBoardPreferences() {
-  const qc = useQueryClient(); const { user } = useAuth();
+  const qc = useQueryClient(); const { user, activeWorkspace } = useAuth();
   return useMutation({
     mutationFn: async (patch: Partial<BoardPreferences>) => {
-      if (!user) throw new Error("not authenticated");
-      const next = { ...(qc.getQueryData<BoardPreferences>(["board_preferences", user.id]) ?? DEFAULT_PREFS), ...patch };
+      if (!user || !activeWorkspace?.id) throw new Error("workspace not selected");
+      const queryKey = ["board_preferences", user.id, activeWorkspace.id];
+      const next = { ...(qc.getQueryData<BoardPreferences>(queryKey) ?? DEFAULT_PREFS), ...patch };
       if (isOffline()) {
-        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: user.id, payload: { table: "board_preferences", record: { user_id: user.id, ...next }, upsert: true, onConflict: "user_id" } });
+        await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: `${user.id}:${activeWorkspace.id}`, payload: { table: "board_preferences", record: { user_id: user.id, workspace_id: activeWorkspace.id, ...next }, upsert: true, onConflict: "user_id,workspace_id" } });
         return next;
       }
-      const { error } = await supabase.from("board_preferences").upsert({ user_id: user.id, ...next }, { onConflict: "user_id" });
-      if (error) throw error; return next;
+      const { data: existing, error: findError } = await supabase
+        .from("board_preferences")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("workspace_id", activeWorkspace.id)
+        .maybeSingle();
+      if (findError) throw findError;
+      const { error } = existing
+        ? await supabase.from("board_preferences").update(next).eq("id", existing.id)
+        : await supabase.from("board_preferences").insert({ user_id: user.id, workspace_id: activeWorkspace.id, ...next });
+      if (error) throw error;
+      return next;
     },
-    onMutate: async (patch) => { if (user) qc.setQueryData(["board_preferences", user.id], (current: BoardPreferences | undefined) => ({ ...(current ?? DEFAULT_PREFS), ...patch })); },
-    onSettled: () => { if (user) qc.invalidateQueries({ queryKey: ["board_preferences", user.id] }); },
+    onMutate: async (patch) => {
+      if (user && activeWorkspace?.id) {
+        qc.setQueryData(["board_preferences", user.id, activeWorkspace.id], (current: BoardPreferences | undefined) => ({ ...(current ?? DEFAULT_PREFS), ...patch }));
+      }
+    },
+    onSettled: () => {
+      if (user && activeWorkspace?.id) {
+        qc.invalidateQueries({ queryKey: ["board_preferences", user.id, activeWorkspace.id] });
+      }
+    },
   });
 }

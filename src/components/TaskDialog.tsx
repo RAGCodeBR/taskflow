@@ -189,6 +189,19 @@ export function TaskDialog({
     [activeWorkspace, targetWorkspaceId, workspaces],
   );
   const isMarketingTask = targetWorkspace?.slug === "marketing";
+  // Conclusão é uma situação da tarefa, não uma coluna adicional. Há uma
+  // coluna antiga chamada “Concluído” no quadro; sem este filtro ela aparece
+  // junto da opção real de concluir e duplica o seletor do formulário.
+  const selectableColumns = useMemo(() => {
+    const completedNames = new Set(
+      statuses
+        .filter((status) => status.is_completed)
+        .map((status) => status.name.trim().toLocaleLowerCase("pt-BR")),
+    );
+    return (cols ?? []).filter(
+      (column) => !completedNames.has(column.name.trim().toLocaleLowerCase("pt-BR")),
+    );
+  }, [cols, statuses]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -1560,7 +1573,7 @@ export function TaskDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhuma</SelectItem>
-                  {cols?.map((c) => (
+                  {selectableColumns.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
                     </SelectItem>
