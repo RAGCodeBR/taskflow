@@ -60,6 +60,9 @@ function Settings() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile?.avatar_url ?? null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
   const [avatarZoom, setAvatarZoom] = useState(1);
   const [avatarOffset, setAvatarOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
@@ -136,6 +139,32 @@ function Settings() {
       toast.error((error as Error).message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const changePassword = async () => {
+    if (newPassword.length < 8) {
+      toast.error("A nova senha deve ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (newPassword !== passwordConfirmation) {
+      toast.error("As senhas não coincidem.");
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      // This updates the authenticated user's password in Supabase Auth, which
+      // is the credential used on the next login as well as the current session.
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword("");
+      setPasswordConfirmation("");
+      toast.success("Senha redefinida. Use a nova senha nos próximos acessos.");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -266,6 +295,48 @@ function Settings() {
           ) : (
             "Salvar perfil"
           )}
+        </Button>
+      </Card>
+
+      <Card className="space-y-4 p-6">
+        <div>
+          <h2 className="font-semibold">Redefinir senha</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A nova senha passa a valer no login desta conta imediatamente.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="new-password">Nova senha</Label>
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="Mínimo de 8 caracteres"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              value={passwordConfirmation}
+              onChange={(event) => setPasswordConfirmation(event.target.value)}
+            />
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={changePassword}
+          disabled={changingPassword || !newPassword || !passwordConfirmation}
+        >
+          {changingPassword ? "Redefinindo…" : "Redefinir senha"}
         </Button>
       </Card>
 
