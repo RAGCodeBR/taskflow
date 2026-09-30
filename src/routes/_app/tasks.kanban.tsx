@@ -94,7 +94,8 @@ import { TaskCard } from "@/components/TaskCard";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
 import { TaskDialog } from "@/components/TaskDialog";
 import { TagManagerDialog } from "@/components/TagManagerDialog";
-import { MarketingCategorySettings } from "@/components/MarketingCategorySettings";
+import { MarketingFormatSettings } from "@/components/MarketingFormatSettings";
+import { MarketingObjectiveSettings } from "@/components/MarketingObjectiveSettings";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { CardFieldsPopover } from "@/components/CardFieldsPopover";
@@ -373,14 +374,19 @@ function SortableColumn({
 function KanbanPage() {
   const qc = useQueryClient();
   const { user, isAdmin, isCollaborator, activeWorkspace } = useAuth();
-  const { data: tasks = [] } = useTasks();
-  const { data: rawColumns = [] } = useColumns();
+  const [filters, setFilters] = useState<TaskFilterValue>({});
+  // O filtro permite ao administrador inspecionar outro ambiente sem trocar o
+  // ambiente ativo exibido no topo. Os dados auxiliares acompanham a escolha,
+  // para que colunas, status e clientes sejam os do quadro visualizado.
+  const viewedWorkspaceId = filters.workspace;
+  const { data: tasks = [] } = useTasks(viewedWorkspaceId);
+  const { data: rawColumns = [] } = useColumns(viewedWorkspaceId);
   const { data: userColOrder = [] } = useUserColumnOrder();
   const { data: userTaskOrder = [] } = useUserTaskOrder();
-  const { data: clients = [] } = useClients();
+  const { data: clients = [] } = useClients(viewedWorkspaceId);
   const { data: profiles = [] } = useProfiles();
-  const { data: tags = [] } = useTaskTags();
-  const { data: statuses = [] } = useTaskStatuses();
+  const { data: tags = [] } = useTaskTags(viewedWorkspaceId);
+  const { data: statuses = [] } = useTaskStatuses(viewedWorkspaceId);
   const { data: collaborators = [] } = useTaskCollaborators();
   const collaboratorTaskIds = useMemo(
     () =>
@@ -439,7 +445,6 @@ function KanbanPage() {
     return map;
   }, [allSubtasks]);
 
-  const [filters, setFilters] = useState<TaskFilterValue>({});
 
   const subtaskDateFilterTaskIds = useMemo(() => {
     const dateFilter = filters.date;
@@ -501,7 +506,8 @@ function KanbanPage() {
   const [duplicateDueDate, setDuplicateDueDate] = useState("");
   const [duplicatingTask, setDuplicatingTask] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
-  const [marketingCategoriesOpen, setMarketingCategoriesOpen] = useState(false);
+  const [marketingFormatsOpen, setMarketingFormatsOpen] = useState(false);
+  const [marketingObjectivesOpen, setMarketingObjectivesOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [completedRange, setCompletedRange] = useState<{ start: string; end: string }>({
@@ -1252,14 +1258,14 @@ function KanbanPage() {
               </Button>
             ) : null}
             {activeWorkspace?.slug === "marketing" && isAdmin ? (
-              <Button
-                variant="outline"
-                className="rounded-full"
-                onClick={() => setMarketingCategoriesOpen(true)}
-              >
-                <Tags className="mr-2 h-4 w-4" />
-                Categorias
-              </Button>
+              <>
+                <Button variant="outline" className="rounded-full" onClick={() => setMarketingFormatsOpen(true)}>
+                  <Tags className="mr-2 h-4 w-4" /> Formatos
+                </Button>
+                <Button variant="outline" className="rounded-full" onClick={() => setMarketingObjectivesOpen(true)}>
+                  <Tags className="mr-2 h-4 w-4" /> Objetivos
+                </Button>
+              </>
             ) : null}
             {isAdmin && (
               <Button variant="outline" className="rounded-full" onClick={addColumn}>
@@ -1567,12 +1573,18 @@ function KanbanPage() {
       {activeWorkspace?.slug !== "marketing" ? (
         <TagManagerDialog open={tagsOpen} onOpenChange={setTagsOpen} />
       ) : null}
-      <Dialog open={marketingCategoriesOpen} onOpenChange={setMarketingCategoriesOpen}>
+      <Dialog open={marketingFormatsOpen} onOpenChange={setMarketingFormatsOpen}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Categorias de tarefas do Marketing</DialogTitle>
+            <DialogTitle>Formatos de tarefas do Marketing</DialogTitle>
           </DialogHeader>
-          <MarketingCategorySettings />
+          <MarketingFormatSettings />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={marketingObjectivesOpen} onOpenChange={setMarketingObjectivesOpen}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+          <DialogHeader><DialogTitle>Objetivos das tarefas do Marketing</DialogTitle></DialogHeader>
+          <MarketingObjectiveSettings />
         </DialogContent>
       </Dialog>
       <ClientFilesSheet open={filesOpen} onOpenChange={setFilesOpen} />

@@ -40,20 +40,21 @@ export const Route = createFileRoute("/_app/tasks/list")({
 });
 
 function ListPage() {
-  const { data: tasks = [] } = useTasks();
-  const { data: clients = [] } = useClients();
-  const { data: columns = [] } = useColumns();
-  const { data: profiles = [] } = useProfiles();
-  const { data: subtasks = [] } = useSubtasks();
-  const { data: statuses = [] } = useTaskStatuses();
-  const { data: collaborators = [] } = useTaskCollaborators();
-  const queryClient = useQueryClient();
-  const { user, isCollaborator } = useAuth();
   const search = Route.useSearch();
-  const navigate = useNavigate();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
     search.mine ? { scope: "mine" } : {},
   );
+  const viewedWorkspaceId = filters.workspace;
+  const { data: tasks = [] } = useTasks(viewedWorkspaceId);
+  const { data: clients = [] } = useClients(viewedWorkspaceId);
+  const { data: columns = [] } = useColumns(viewedWorkspaceId);
+  const { data: profiles = [] } = useProfiles();
+  const { data: subtasks = [] } = useSubtasks();
+  const { data: statuses = [] } = useTaskStatuses(viewedWorkspaceId);
+  const { data: collaborators = [] } = useTaskCollaborators();
+  const queryClient = useQueryClient();
+  const { user, isCollaborator } = useAuth();
+  const navigate = useNavigate();
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);

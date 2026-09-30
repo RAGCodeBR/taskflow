@@ -32,6 +32,7 @@ import {
   useProfiles,
   useTaskStatuses,
   useTaskTags,
+  useTaskObjectives,
   type Task,
 } from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
@@ -181,6 +182,7 @@ export function TaskDialog({
   const { data: marketingCategories = [] } = useTaskTags(
     targetWorkspaceId || activeWorkspace?.id,
   );
+  const { data: marketingObjectives = [] } = useTaskObjectives();
   const targetWorkspace = useMemo(
     () =>
       workspaces.find((workspace) => workspace.id === (targetWorkspaceId || activeWorkspace?.id)) ??
@@ -208,6 +210,7 @@ export function TaskDialog({
   const [status, setStatus] = useState<Task["status"]>("todo");
   const [priority, setPriority] = useState<Task["priority"]>("medium");
   const [categoryId, setCategoryId] = useState("");
+  const [objectiveId, setObjectiveId] = useState("");
   const [columnId, setColumnId] = useState<string>("");
   const [clientId, setClientId] = useState<string>("");
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
@@ -306,6 +309,7 @@ export function TaskDialog({
       setStatus(task.status === "done" || task.completed_at ? "done" : (task.status ?? "todo"));
       setPriority(task.priority);
       setCategoryId(task.tag_id ?? "");
+      setObjectiveId(task.objective_id ?? "");
       setColumnId(task.column_id ?? "");
       setTargetWorkspaceId(task.workspace_id ?? activeWorkspace?.id ?? "");
       setClientId(task.client_id ?? "");
@@ -540,6 +544,7 @@ export function TaskDialog({
       // Marketing uses one category per task. Other environments keep their
       // current primary label untouched when a task is edited.
       tag_id: isMarketingTask ? categoryId || null : task?.tag_id ?? null,
+      objective_id: isMarketingTask ? objectiveId || null : task?.objective_id ?? null,
     };
   };
 
@@ -1425,7 +1430,7 @@ export function TaskDialog({
             </div>
             {isMarketingTask ? (
               <div className="order-2 space-y-2">
-                <Label className="text-xs">Categoria</Label>
+                <Label className="text-xs">Formato</Label>
                 <Select
                   value={categoryId || "__no_marketing_category__"}
                   onValueChange={(value) =>
@@ -1433,10 +1438,10 @@ export function TaskDialog({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma categoria" />
+                    <SelectValue placeholder="Selecione um formato" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__no_marketing_category__">Sem categoria</SelectItem>
+                    <SelectItem value="__no_marketing_category__">Sem formato</SelectItem>
                     {marketingCategories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
                         {category.name}
@@ -1446,9 +1451,21 @@ export function TaskDialog({
                 </Select>
                 {marketingCategories.length === 0 ? (
                   <p className="text-[11px] text-muted-foreground">
-                    Crie categorias em Personalizar para classificá-la.
+                    Crie formatos no botão Formatos para classificá-la.
                   </p>
                 ) : null}
+              </div>
+            ) : null}
+            {isMarketingTask ? (
+              <div className="order-3 space-y-2">
+                <Label className="text-xs">Objetivo da tarefa</Label>
+                <Select value={objectiveId || "__no_marketing_objective__"} onValueChange={(value) => setObjectiveId(value === "__no_marketing_objective__" ? "" : value)}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um objetivo" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__no_marketing_objective__">Sem objetivo</SelectItem>
+                    {marketingObjectives.map((objective) => <SelectItem key={objective.id} value={objective.id}>{objective.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             ) : null}
             <div className="order-6 space-y-2">

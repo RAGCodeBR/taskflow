@@ -47,17 +47,20 @@ export const Route = createFileRoute("/_app/tasks/calendar")({
 });
 
 function CalendarPage() {
-  const { data: tasks = [] } = useTasks();
-  const { data: clients = [] } = useClients();
-  const { data: columns = [] } = useColumns();
+  const { user, isCollaborator } = useAuth();
+  const [filters, setFilters] = useState<TaskFilterValue>({});
+  // O calendário acompanha o ambiente escolhido no filtro sem trocar o
+  // ambiente ativo da sessão administrativa.
+  const viewedWorkspaceId = filters.workspace;
+  const { data: tasks = [] } = useTasks(viewedWorkspaceId);
+  const { data: clients = [] } = useClients(viewedWorkspaceId);
+  const { data: columns = [] } = useColumns(viewedWorkspaceId);
   const { data: subtasks = [] } = useSubtasks();
-  const { data: statuses = [] } = useTaskStatuses();
+  const { data: statuses = [] } = useTaskStatuses(viewedWorkspaceId);
   const { data: profiles = [] } = useProfiles();
   const { data: collaborators = [] } = useTaskCollaborators();
-  const { user, isCollaborator, activeWorkspace } = useAuth();
   const [cursor, setCursor] = useState(new Date());
   const [calendarView, setCalendarView] = useState<"week" | "month">("month");
-  const [filters, setFilters] = useState<TaskFilterValue>({});
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
@@ -233,26 +236,24 @@ function CalendarPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {activeWorkspace?.slug === "marketing" && (
-            <div className="flex rounded-md border bg-muted/30 p-0.5" role="group" aria-label="Visão do calendário">
-              <Button
-                size="sm"
-                variant={calendarView === "week" ? "secondary" : "ghost"}
-                className="h-7 px-2.5 text-xs"
-                onClick={() => setCalendarView("week")}
-              >
-                Semana
-              </Button>
-              <Button
-                size="sm"
-                variant={calendarView === "month" ? "secondary" : "ghost"}
-                className="h-7 px-2.5 text-xs"
-                onClick={() => setCalendarView("month")}
-              >
-                Mês
-              </Button>
-            </div>
-          )}
+          <div className="flex rounded-md border bg-muted/30 p-0.5" role="group" aria-label="Visão do calendário">
+            <Button
+              size="sm"
+              variant={calendarView === "week" ? "secondary" : "ghost"}
+              className="h-7 px-2.5 text-xs"
+              onClick={() => setCalendarView("week")}
+            >
+              Semana
+            </Button>
+            <Button
+              size="sm"
+              variant={calendarView === "month" ? "secondary" : "ghost"}
+              className="h-7 px-2.5 text-xs"
+              onClick={() => setCalendarView("month")}
+            >
+              Mês
+            </Button>
+          </div>
           <Button
             onClick={() => {
               setEdit(null);

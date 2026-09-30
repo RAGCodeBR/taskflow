@@ -36,6 +36,7 @@ export interface Task {
   completed_at: string | null;
   created_by: string | null;
   tag_id: string | null;
+  objective_id: string | null;
   deleted_at: string | null;
   deleted_by: string | null;
   archived_at: string | null;
@@ -58,6 +59,12 @@ export interface TaskStatus {
   is_active: boolean;
 }
 export interface TaskTag {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+}
+export interface TaskObjective {
   id: string;
   name: string;
   color: string;
@@ -295,16 +302,20 @@ export function useClientInvoices() {
   });
 }
 
-export function useTasks() {
+export function useTasks(targetWorkspaceId?: string | null) {
   const { user, activeWorkspace } = useAuth();
   const userId = user?.id;
-  const workspaceId = activeWorkspace?.id ?? null;
+  const activeWorkspaceId = activeWorkspace?.id ?? null;
+  const workspaceId = targetWorkspaceId ?? activeWorkspaceId;
+  const isAdminPreview = Boolean(
+    targetWorkspaceId && activeWorkspaceId && targetWorkspaceId !== activeWorkspaceId,
+  );
   const offlineKey = userId ? offlineTaskCacheKey(userId) : null;
   const query = useQuery({
     // RLS resolves tasks from both the authenticated person and the active
     // workspace. Keep both in the cache key so an account/environment change
     // cannot briefly reuse another scope's task list.
-    queryKey: ["tasks", userId ?? null, workspaceId],
+    queryKey: ["tasks", userId ?? null, activeWorkspaceId, targetWorkspaceId ?? null],
     // Executa a função também no modo avião para que ela possa devolver o
     // espelho local, em vez de deixar a consulta pausada e o Kanban vazio.
     networkMode: "always",
@@ -328,13 +339,20 @@ export function useTasks() {
               global: { headers: { Authorization: `Bearer ${session.access_token}` } },
             })
           : supabase;
-      // Soft-delete strategy: deleted tasks stay in the database, but normal screens hide them.
-      const { data, error } = await taskClient
-        .from("tasks")
-        .select("*")
-        .is("deleted_at", null)
-        .order("position", { ascending: true })
-        .order("created_at", { ascending: false });
+      // A visualização administrativa de outro ambiente não altera o ambiente
+      // ativo. Ela usa uma RPC que só libera leitura para administradores
+      // associados ao ambiente escolhido.
+      const result = isAdminPreview
+        ? await (taskClient.rpc("list_workspace_tasks_for_admin_preview", {
+            target_workspace_id: workspaceId,
+          }) as any)
+        : await taskClient
+            .from("tasks")
+            .select("*")
+            .is("deleted_at", null)
+            .order("position", { ascending: true })
+            .order("created_at", { ascending: false });
+      const { data, error } = result;
       if (error) {
         const cached = await get<Task[]>(offlineKey);
         if (cached) return cached;
@@ -393,12 +411,21 @@ export function useDeletedTasks() {
   });
 }
 
-export function useColumns() {
+export function useColumns(targetWorkspaceId?: string | null) {
+  const { activeWorkspace } = useAuth();
+  const isAdminPreview = Boolean(
+    targetWorkspaceId && activeWorkspace?.id && targetWorkspaceId !== activeWorkspace.id,
+  );
   return useQuery({
-    queryKey: ["columns"],
+    queryKey: ["columns", targetWorkspaceId ?? activeWorkspace?.id ?? null],
     queryFn: async () => {
       // Kanban columns are global unless client_id is filled for client-specific boards.
-      const { data, error } = await supabase.from("kanban_columns").select("*").order("position");
+      const result = isAdminPreview
+        ? await (supabase.rpc("list_workspace_columns_for_admin_preview", {
+            target_workspace_id: targetWorkspaceId,
+          }) as any)
+        : await supabase.from("kanban_columns").select("*").order("position");
+      const { data, error } = result;
       if (error) throw error;
       return (data ?? []) as KanbanColumn[];
     },
@@ -465,11 +492,20 @@ export function useRelatedClients() {
   });
 }
 
-export function useClients() {
+export function useClients(targetWorkspaceId?: string | null) {
+  const { activeWorkspace } = useAuth();
+  const isAdminPreview = Boolean(
+    targetWorkspaceId && activeWorkspace?.id && targetWorkspaceId !== activeWorkspace.id,
+  );
   return useQuery({
-    queryKey: ["clients"],
+    queryKey: ["clients", targetWorkspaceId ?? activeWorkspace?.id ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase.from("clients").select("*").order("name");
+      const result = isAdminPreview
+        ? await (supabase.rpc("list_workspace_clients_for_admin_preview", {
+            target_workspace_id: targetWorkspaceId,
+          }) as any)
+        : await supabase.from("clients").select("*").order("name");
+      const { data, error } = result;
       if (error) throw error;
       return (data ?? []) as Client[];
     },
@@ -559,18 +595,40 @@ export function useTaskCollaborators() {
 export function useTaskTags(workspaceId?: string | null) {
   const { activeWorkspace } = useAuth();
   const resolvedWorkspaceId = workspaceId ?? activeWorkspace?.id ?? null;
+  const isAdminPreview = Boolean(
+    workspaceId && activeWorkspace?.id && workspaceId !== activeWorkspace.id,
+  );
   return useQuery({
     queryKey: ["task_tags", resolvedWorkspaceId],
     enabled: !!resolvedWorkspaceId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("task_tags")
-        .select("*")
-        .eq("workspace_id", resolvedWorkspaceId!)
-        .order("position", { ascending: true })
-        .order("name", { ascending: true });
+      const result = isAdminPreview
+        ? await (supabase.rpc("list_workspace_tags_for_admin_preview", {
+            target_workspace_id: resolvedWorkspaceId,
+          }) as any)
+        : await supabase
+            .from("task_tags")
+            .select("*")
+            .eq("workspace_id", resolvedWorkspaceId!)
+            .order("position", { ascending: true })
+            .order("name", { ascending: true });
+      const { data, error } = result;
       if (error) throw error;
       return (data ?? []) as TaskTag[];
+    },
+  });
+}
+
+export function useTaskObjectives() {
+  const { activeWorkspace } = useAuth();
+  return useQuery({
+    queryKey: ["task_objectives", activeWorkspace?.id ?? null],
+    enabled: activeWorkspace?.slug === "marketing",
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("task_objectives") as any)
+        .select("*").order("position", { ascending: true }).order("name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as TaskObjective[];
     },
   });
 }
@@ -631,11 +689,20 @@ export function useSubtasks() {
   });
 }
 
-export function useTaskStatuses() {
+export function useTaskStatuses(targetWorkspaceId?: string | null) {
+  const { activeWorkspace } = useAuth();
+  const isAdminPreview = Boolean(
+    targetWorkspaceId && activeWorkspace?.id && targetWorkspaceId !== activeWorkspace.id,
+  );
   return useQuery({
-    queryKey: ["task_statuses"],
+    queryKey: ["task_statuses", targetWorkspaceId ?? activeWorkspace?.id ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase.from("task_statuses").select("*").order("position");
+      const result = isAdminPreview
+        ? await (supabase.rpc("list_workspace_statuses_for_admin_preview", {
+            target_workspace_id: targetWorkspaceId,
+          }) as any)
+        : await supabase.from("task_statuses").select("*").order("position");
+      const { data, error } = result;
       if (error) throw error;
       return (data ?? []) as TaskStatus[];
     },

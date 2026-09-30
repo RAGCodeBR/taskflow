@@ -2,7 +2,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useProfiles, useClients, useTaskStatuses, useTaskTags } from "@/hooks/use-data";
+import { useProfiles, useClients, useTaskStatuses, useTaskTags, useTaskObjectives } from "@/hooks/use-data";
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -737,6 +737,7 @@ function ReportsPage() {
   const { data: clients = [] } = useClients();
   const { data: statuses = [] } = useTaskStatuses();
   const { data: marketingCategories = [] } = useTaskTags();
+  const { data: marketingObjectives = [] } = useTaskObjectives();
   const { data: subtasks = [] } = useQuery({
     queryKey: ["subtasks_all"],
     queryFn: async () => {
@@ -789,9 +790,10 @@ function ReportsPage() {
   const [period, setPeriod] = useState(currentMonthPeriod);
   const [userFilter, setUserFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [objectiveFilter, setObjectiveFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
   const [reportView, setReportView] = useState<
-    "briefing" | "summary" | "operations" | "clients" | "team" | "categories"
+    "briefing" | "summary" | "operations" | "clients" | "team" | "categories" | "objectives"
   >("briefing");
   const [lateTasksMember, setLateTasksMember] = useState<any | null>(null);
 
@@ -818,10 +820,10 @@ function ReportsPage() {
     .filter((profile) => workspaceMemberIds.size === 0 || workspaceMemberIds.has(profile.id));
   const visibleIds = new Set(visibleProfiles.map((p) => p.id));
 
-  const categoryScopedTasks =
-    activeWorkspace?.slug === "marketing" && categoryFilter !== "all"
-      ? tasks.filter((task) => task.tag_id === categoryFilter)
-      : tasks;
+  const categoryScopedTasks = activeWorkspace?.slug === "marketing" && categoryFilter !== "all"
+    ? tasks.filter((task) => task.tag_id === categoryFilter) : tasks;
+  const classifiedTasks = activeWorkspace?.slug === "marketing" && objectiveFilter !== "all"
+    ? categoryScopedTasks.filter((task) => task.objective_id === objectiveFilter) : categoryScopedTasks;
 
   const periodStart = startOfDay(parseISO(period.start));
   const periodEnd = endOfDay(parseISO(period.end));
@@ -842,7 +844,7 @@ function ReportsPage() {
     isDone(task)
       ? dateIsInPeriod(task.completed_at, periodStart, periodEnd)
       : dateIsInPeriod(task.due_date, periodStart, periodEnd);
-  const periodTasks = categoryScopedTasks
+  const periodTasks = classifiedTasks
     .filter(taskBelongsToPeriod)
     .filter((task) => !task.assignee_id || visibleIds.has(task.assignee_id));
   const filteredTasks = periodTasks.filter(
@@ -860,7 +862,7 @@ function ReportsPage() {
   );
   const previousStart = startOfDay(subDays(periodStart, periodDays));
   const previousEnd = endOfDay(subDays(periodStart, 1));
-  const previousTasks = categoryScopedTasks.filter((task) =>
+  const previousTasks = classifiedTasks.filter((task) =>
     isDone(task)
       ? dateIsInPeriod(task.completed_at, previousStart, previousEnd)
       : dateIsInPeriod(task.due_date, previousStart, previousEnd),
@@ -868,7 +870,7 @@ function ReportsPage() {
 
   // Tasks without a deadline are scoped by their creation date. This keeps the
   // risk view inside the chosen period while still showing the responsible people.
-  const noDueTasks = categoryScopedTasks
+  const noDueTasks = classifiedTasks
     .filter((task) => !isDone(task) && !task.due_date)
     .filter((task) => dateIsInPeriod(task.created_at, periodStart, periodEnd))
     .filter((task) => userFilter === "all" || task.assignee_id === userFilter)
@@ -1142,6 +1144,72 @@ function ReportsPage() {
           .filter(Boolean)
       : [];
 
+  const marketingObjectiveReport =
+    activeWorkspace?.slug === "marketing"
+      ? marketingObjectives
+          .map((category) => {
+            const categoryTasks = filteredTasks.filter((task) => task.objective_id === category.id);
+            if (categoryTasks.length === 0) return null;
+            const clientsById = new Map<string, typeof categoryTasks>();
+            categoryTasks.forEach((task) => {
+              const clientId = task.client_id ?? "__without_client__";
+              clientsById.set(clientId, [...(clientsById.get(clientId) ?? []), task]);
+            });
+            const contributors = Array.from(
+              new Set(categoryTasks.map((task) => task.assignee_id ?? "__unassigned__")),
+            )
+              .map((assigneeId) => {
+                const personTasks = categoryTasks.filter(
+                  (task) => (task.assignee_id ?? "__unassigned__") === assigneeId,
+                );
+                const profile = profiles.find((candidate) => candidate.id === assigneeId);
+                return {
+                  id: assigneeId,
+                  name: profile?.full_name || profile?.email || "Sem responsável",
+                  total: personTasks.length,
+                  done: personTasks.filter(isDone).length,
+                };
+              })
+              .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+            const clientRows = Array.from(clientsById.entries())
+              .map(([clientId, clientTasks]) => {
+                const client = clients.find((candidate) => candidate.id === clientId);
+                const people = Array.from(
+                  new Set(clientTasks.map((task) => task.assignee_id ?? "__unassigned__")),
+                )
+                  .map((assigneeId) => {
+                    const personTasks = clientTasks.filter(
+                      (task) => (task.assignee_id ?? "__unassigned__") === assigneeId,
+                    );
+                    const profile = profiles.find((candidate) => candidate.id === assigneeId);
+                    return {
+                      name: profile?.full_name || profile?.email || "Sem responsável",
+                      total: personTasks.length,
+                      done: personTasks.filter(isDone).length,
+                    };
+                  })
+                  .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+                return {
+                  id: clientId,
+                  name: client?.name || "Sem cliente vinculado",
+                  total: clientTasks.length,
+                  done: clientTasks.filter(isDone).length,
+                  people,
+                };
+              })
+              .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+            return {
+              category,
+              total: categoryTasks.length,
+              done: categoryTasks.filter(isDone).length,
+              clients: clientRows,
+              contributors,
+            };
+          })
+          .filter(Boolean)
+      : [];
+
+
   const admins = perUser.filter((u) => u.isAdmin);
   const members = perUser.filter((u) => !u.isAdmin);
   const teamRanking = perUser.map((person) => ({
@@ -1212,10 +1280,10 @@ function ReportsPage() {
     dateIsInPeriod(change.created_at, periodStart, periodEnd),
   ).length;
   const completedInPreviousPeriod = previousTasks.filter(isDone).length;
-  const createdInPeriod = categoryScopedTasks.filter((task) =>
+  const createdInPeriod = classifiedTasks.filter((task) =>
     dateIsInPeriod(task.created_at, periodStart, periodEnd),
   ).length;
-  const createdInPreviousPeriod = categoryScopedTasks.filter((task) =>
+  const createdInPreviousPeriod = classifiedTasks.filter((task) =>
     dateIsInPeriod(task.created_at, previousStart, previousEnd),
   ).length;
   const requestMetrics = (() => {
@@ -1272,15 +1340,23 @@ function ReportsPage() {
           {activeWorkspace?.slug === "marketing" ? (
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filtrar por categoria" />
+                <SelectValue placeholder="Filtrar por formato" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas as categorias</SelectItem>
+                <SelectItem value="all">Todos os formatos</SelectItem>
                 {marketingCategories.map((category) => (
                   <SelectItem key={category.id} value={category.id}>
                     {category.name}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          {activeWorkspace?.slug === "marketing" ? (
+            <Select value={objectiveFilter} onValueChange={setObjectiveFilter}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Filtrar por objetivo" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Todos os objetivos</SelectItem>
+                {marketingObjectives.map((objective) => <SelectItem key={objective.id} value={objective.id}>{objective.name}</SelectItem>)}
               </SelectContent>
             </Select>
           ) : null}
@@ -1358,7 +1434,7 @@ function ReportsPage() {
           ["operations", "Operação"],
           ["clients", "Desempenho por cliente"],
           ...(activeWorkspace?.slug === "marketing"
-            ? [["categories", "Categorias de tarefas"]]
+            ? [["categories", "Formatos das tarefas"], ["objectives", "Objetivos das tarefas"]]
             : []),
           ["team", "Ranking da equipe"],
         ].map(([id, label]) => (
@@ -1410,9 +1486,14 @@ function ReportsPage() {
       </div>
 
       {activeWorkspace?.slug === "marketing" ? (
-        <div className={reportView === "categories" ? "block" : "hidden"}>
-          <MarketingCategoryReport categories={marketingCategoryReport} />
-        </div>
+        <>
+          <div className={reportView === "categories" ? "block" : "hidden"}>
+            <MarketingCategoryReport categories={marketingCategoryReport} title="Formatos das tarefas" />
+          </div>
+          <div className={reportView === "objectives" ? "block" : "hidden"}>
+            <MarketingCategoryReport categories={marketingObjectiveReport} title="Objetivos das tarefas" />
+          </div>
+        </>
       ) : null}
 
       <div className={reportView === "operations" ? "space-y-4" : "hidden"}>
@@ -1690,7 +1771,9 @@ function ReportsPage() {
 
 function MarketingCategoryReport({
   categories,
+  title,
 }: {
+  title: string;
   categories: Array<{
     category: { id: string; name: string; color: string };
     total: number;
@@ -1708,7 +1791,7 @@ function MarketingCategoryReport({
   if (categories.length === 0) {
     return (
       <Card className="p-5">
-        <h2 className="font-semibold">Categorias de tarefas</h2>
+        <h2 className="font-semibold">{title}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Nenhuma tarefa categorizada no período ou nos filtros selecionados.
         </p>
@@ -1719,7 +1802,7 @@ function MarketingCategoryReport({
   return (
     <div className="space-y-4">
       <Card className="p-5">
-        <h2 className="font-semibold">Categorias de tarefas</h2>
+        <h2 className="font-semibold">{title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Mostra quais clientes tiveram cada tipo de entrega e quem trabalhou em cada demanda.
         </p>

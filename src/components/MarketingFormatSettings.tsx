@@ -47,10 +47,10 @@ function ColorField({
   );
 }
 
-export function MarketingCategorySettings() {
+export function MarketingFormatSettings() {
   const { user, isAdmin, activeWorkspace } = useAuth();
   const qc = useQueryClient();
-  const { data: categories = [] } = useTaskTags();
+  const { data: formats = [] } = useTaskTags();
   const [name, setName] = useState("");
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [saving, setSaving] = useState(false);
@@ -68,13 +68,13 @@ export function MarketingCategorySettings() {
       return;
     }
     if (
-      categories.some(
-        (category) =>
-          category.name.trim().toLocaleLowerCase("pt-BR") ===
+      formats.some(
+        (format) =>
+          format.name.trim().toLocaleLowerCase("pt-BR") ===
           trimmedName.toLocaleLowerCase("pt-BR"),
       )
     ) {
-      toast.error("Já existe uma categoria com esse nome.");
+      toast.error("Já existe um formato com esse nome.");
       return;
     }
     setSaving(true);
@@ -82,14 +82,14 @@ export function MarketingCategorySettings() {
       const { error } = await (supabase.from("task_tags") as any).insert({
         name: trimmedName,
         color: validColor,
-        position: categories.length,
+        position: formats.length,
         created_by: user.id,
         workspace_id: activeWorkspace.id,
       });
       if (error) throw error;
       setName("");
       await refresh();
-      toast.success("Categoria criada.");
+      toast.success("Formato criada.");
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -97,8 +97,8 @@ export function MarketingCategorySettings() {
     }
   };
 
-  const update = async (category: TaskTag, patch: Partial<TaskTag>) => {
-    const color = patch.color ? normalizeHexColor(patch.color) : category.color;
+  const update = async (format: TaskTag, patch: Partial<TaskTag>) => {
+    const color = patch.color ? normalizeHexColor(patch.color) : format.color;
     if (!color) {
       toast.error("Use uma cor hexadecimal válida, como #6366f1.");
       return;
@@ -106,27 +106,27 @@ export function MarketingCategorySettings() {
     try {
       const { error } = await (supabase.from("task_tags") as any)
         .update({ ...patch, color })
-        .eq("id", category.id);
+        .eq("id", format.id);
       if (error) throw error;
       await refresh();
-      toast.success("Categoria atualizada.");
+      toast.success("Formato atualizada.");
     } catch (error) {
       toast.error((error as Error).message);
     }
   };
 
-  const remove = async (category: TaskTag) => {
+  const remove = async (format: TaskTag) => {
     if (
       !window.confirm(
-        `Excluir a categoria “${category.name}”? A categoria será removida das tarefas que a utilizam.`,
+        `Excluir o formato “${format.name}”? A formato será removida das tarefas que a utilizam.`,
       )
     )
       return;
     try {
-      const { error } = await (supabase.from("task_tags") as any).delete().eq("id", category.id);
+      const { error } = await (supabase.from("task_tags") as any).delete().eq("id", format.id);
       if (error) throw error;
       await refresh();
-      toast.success("Categoria excluída.");
+      toast.success("Formato excluída.");
     } catch (error) {
       toast.error((error as Error).message);
     }
@@ -136,17 +136,17 @@ export function MarketingCategorySettings() {
     <Card className="space-y-4 border-0 p-0 shadow-none">
       <div>
         <p className="text-sm text-muted-foreground">
-          Crie categorias como Vídeo, Post ou Carrossel. Escolha qualquer cor pelo seletor ou
+          Crie formatos como Vídeo, Post ou Carrossel. Escolha qualquer cor pelo seletor ou
           informe o código hexadecimal.
         </p>
       </div>
       <div className="rounded-lg border p-3">
-        <Label htmlFor="marketing-category-name" className="text-xs">
-          Nova categoria
+        <Label htmlFor="marketing-format-name" className="text-xs">
+          Novo formato
         </Label>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <Input
-            id="marketing-category-name"
+            id="marketing-format-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Ex.: Vídeo"
@@ -157,20 +157,20 @@ export function MarketingCategorySettings() {
               }
             }}
           />
-          <ColorField color={color} onChange={setColor} label="Cor da nova categoria" />
+          <ColorField color={color} onChange={setColor} label="Cor da novo formato" />
           <Button type="button" onClick={() => void create()} disabled={saving || !name.trim()}>
             <Plus className="mr-1.5 h-4 w-4" /> Adicionar
           </Button>
         </div>
       </div>
       <div className="space-y-2">
-        {categories.length === 0 ? (
+        {formats.length === 0 ? (
           <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            Nenhuma categoria criada ainda.
+            Nenhum formato criada ainda.
           </p>
         ) : (
-          categories.map((category) => (
-            <CategoryRow key={category.id} category={category} onSave={update} onDelete={remove} />
+          formats.map((format) => (
+            <CategoryRow key={format.id} format={format} onSave={update} onDelete={remove} />
           ))
         )}
       </div>
@@ -179,20 +179,20 @@ export function MarketingCategorySettings() {
 }
 
 function CategoryRow({
-  category,
+  format,
   onSave,
   onDelete,
 }: {
-  category: TaskTag;
-  onSave: (category: TaskTag, patch: Partial<TaskTag>) => Promise<void>;
-  onDelete: (category: TaskTag) => Promise<void>;
+  format: TaskTag;
+  onSave: (format: TaskTag, patch: Partial<TaskTag>) => Promise<void>;
+  onDelete: (format: TaskTag) => Promise<void>;
 }) {
-  const [name, setName] = useState(category.name);
-  const [color, setColor] = useState(category.color);
-  const dirty = name.trim() !== category.name || color !== category.color;
+  const [name, setName] = useState(format.name);
+  const [color, setColor] = useState(format.color);
+  const dirty = name.trim() !== format.name || color !== format.color;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
-      <ColorField color={color} onChange={setColor} label={`Cor de ${category.name}`} />
+      <ColorField color={color} onChange={setColor} label={`Cor de ${format.name}`} />
       <Input
         value={name}
         onChange={(event) => setName(event.target.value)}
@@ -203,8 +203,8 @@ function CategoryRow({
           type="button"
           size="icon"
           variant="ghost"
-          aria-label={`Salvar ${category.name}`}
-          onClick={() => void onSave(category, { name: name.trim(), color })}
+          aria-label={`Salvar ${format.name}`}
+          onClick={() => void onSave(format, { name: name.trim(), color })}
         >
           <Save className="h-4 w-4" />
         </Button>
@@ -213,9 +213,9 @@ function CategoryRow({
         type="button"
         size="icon"
         variant="ghost"
-        aria-label={`Excluir ${category.name}`}
+        aria-label={`Excluir ${format.name}`}
         className="text-destructive hover:text-destructive"
-        onClick={() => void onDelete(category)}
+        onClick={() => void onDelete(format)}
       >
         <Trash2 className="h-4 w-4" />
       </Button>
