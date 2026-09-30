@@ -24,6 +24,7 @@ import {
   MessageSquareText,
   MessagesSquare,
   Layers3,
+  Handshake,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { RecurringMeetingReminderPopup } from "@/components/RecurringMeetingReminderPopup";
@@ -68,7 +69,7 @@ const allNav: readonly NavItem[] = [
   { to: "/tasks", label: "Minhas Tarefas", icon: ListChecks },
   { to: "/conversations", label: "Conversas", icon: MessagesSquare },
   { to: "/obligations", label: "Obrigações", icon: CalendarCog },
-  { to: "/meetings", label: "Reuniões", icon: CalendarDays },
+  { to: "/meetings", label: "Reuniões", icon: Handshake },
   { to: "/import-ata", label: "Importar Ata", icon: FileUp },
   { to: "/clients", label: "Clientes", icon: Building2 },
   { to: "/reports", label: "Relatórios", icon: BarChart3 },
