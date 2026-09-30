@@ -415,13 +415,28 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
 
   const syncCollaborators = async (taskId: string) => {
     if (!canManageCollaborators) return;
-    const { error: deleteError } = await (supabase.from("task_collaborators") as any)
-      .delete()
+    const { data, error: loadError } = await (supabase.from("task_collaborators") as any)
+      .select("collaborator_id")
       .eq("task_id", taskId);
-    if (deleteError) throw deleteError;
-    if (collaboratorIds.length === 0) return;
+    if (loadError) throw loadError;
+
+    const existingIds = new Set(
+      (data ?? []).map((collaborator: { collaborator_id: string }) => collaborator.collaborator_id),
+    );
+    const wantedIds = new Set(collaboratorIds);
+    const removedIds = [...existingIds].filter((collaboratorId) => !wantedIds.has(collaboratorId));
+    const addedIds = [...wantedIds].filter((collaboratorId) => !existingIds.has(collaboratorId));
+
+    if (removedIds.length > 0) {
+      const { error: deleteError } = await (supabase.from("task_collaborators") as any)
+        .delete()
+        .eq("task_id", taskId)
+        .in("collaborator_id", removedIds);
+      if (deleteError) throw deleteError;
+    }
+    if (addedIds.length === 0) return;
     const { error: insertError } = await (supabase.from("task_collaborators") as any).insert(
-      collaboratorIds.map((collaboratorId) => ({
+      addedIds.map((collaboratorId) => ({
         task_id: taskId,
         collaborator_id: collaboratorId,
         added_by: user?.id ?? null,

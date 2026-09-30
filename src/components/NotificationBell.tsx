@@ -50,16 +50,6 @@ export function NotificationBell() {
       .order("created_at", { ascending: false })
       .limit(30);
     const next = (data ?? []) as Notification[];
-    if (
-      next.some(
-        (n) =>
-          n.type === "assignment" ||
-          n.type === "subtask_assignment" ||
-          n.type === "collaborator_assignment",
-      )
-    ) {
-      refreshAssignedWork();
-    }
     setItems(next);
   };
 
@@ -76,9 +66,10 @@ export function NotificationBell() {
           const type = payload.new?.type ?? payload.old?.type;
           if (NAVIGATION_NOTIFICATION_TYPES.has(type)) return;
           if (
-            type === "assignment" ||
-            type === "subtask_assignment" ||
-            type === "collaborator_assignment"
+            payload.eventType === "INSERT" &&
+            (type === "assignment" ||
+              type === "subtask_assignment" ||
+              type === "collaborator_assignment")
           )
             refreshAssignedWork();
           void load();

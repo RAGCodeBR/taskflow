@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addMonths,
+  addWeeks,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -11,6 +12,7 @@ import {
   startOfMonth,
   startOfWeek,
   subMonths,
+  subWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
@@ -52,8 +54,9 @@ function CalendarPage() {
   const { data: statuses = [] } = useTaskStatuses();
   const { data: profiles = [] } = useProfiles();
   const { data: collaborators = [] } = useTaskCollaborators();
-  const { user, isCollaborator } = useAuth();
+  const { user, isCollaborator, activeWorkspace } = useAuth();
   const [cursor, setCursor] = useState(new Date());
+  const [calendarView, setCalendarView] = useState<"week" | "month">("month");
   const [filters, setFilters] = useState<TaskFilterValue>({});
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
@@ -73,10 +76,35 @@ function CalendarPage() {
   }, [user?.id, isCollaborator]);
 
   const days = useMemo(() => {
-    const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 });
+    const start =
+      calendarView === "week"
+        ? startOfWeek(cursor, { weekStartsOn: 1 })
+        : startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 });
+    const end =
+      calendarView === "week"
+        ? endOfWeek(cursor, { weekStartsOn: 1 })
+        : endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 });
     return eachDayOfInterval({ start, end });
-  }, [cursor]);
+  }, [calendarView, cursor]);
+
+  const calendarLabel = useMemo(() => {
+    if (calendarView === "month") return format(cursor, "MMMM yyyy", { locale: ptBR });
+    const start = startOfWeek(cursor, { weekStartsOn: 1 });
+    const end = endOfWeek(cursor, { weekStartsOn: 1 });
+    return `${format(start, "d 'de' MMM", { locale: ptBR })} a ${format(end, "d 'de' MMM", { locale: ptBR })}`;
+  }, [calendarView, cursor]);
+
+  const moveCursor = (direction: -1 | 1) => {
+    setCursor((current) =>
+      calendarView === "week"
+        ? direction === -1
+          ? subWeeks(current, 1)
+          : addWeeks(current, 1)
+        : direction === -1
+          ? subMonths(current, 1)
+          : addMonths(current, 1),
+    );
+  };
 
   const subtaskAssigneeTaskIds = useMemo(() => {
     const s = new Set<string>();
@@ -190,13 +218,13 @@ function CalendarPage() {
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium capitalize">
-            {format(cursor, "MMMM yyyy", { locale: ptBR })}
+            {calendarLabel}
           </span>
           <div className="flex gap-1">
-            <Button size="icon" variant="outline" onClick={() => setCursor(subMonths(cursor, 1))}>
+            <Button size="icon" variant="outline" onClick={() => moveCursor(-1)}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="outline" onClick={() => setCursor(addMonths(cursor, 1))}>
+            <Button size="icon" variant="outline" onClick={() => moveCursor(1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
             <Button variant="ghost" onClick={() => setCursor(new Date())}>
@@ -205,6 +233,26 @@ function CalendarPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {activeWorkspace?.slug === "marketing" && (
+            <div className="flex rounded-md border bg-muted/30 p-0.5" role="group" aria-label="Visão do calendário">
+              <Button
+                size="sm"
+                variant={calendarView === "week" ? "secondary" : "ghost"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => setCalendarView("week")}
+              >
+                Semana
+              </Button>
+              <Button
+                size="sm"
+                variant={calendarView === "month" ? "secondary" : "ghost"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => setCalendarView("month")}
+              >
+                Mês
+              </Button>
+            </div>
+          )}
           <Button
             onClick={() => {
               setEdit(null);
@@ -232,13 +280,13 @@ function CalendarPage() {
         </div>
         <div className="grid grid-cols-7">
           {days.map((day) => {
-            const inMonth = isSameMonth(day, cursor);
+            const inMonth = calendarView === "week" || isSameMonth(day, cursor);
             const today = isSameDay(day, new Date());
             const ts = dayTasks(day);
             return (
               <div
                 key={day.toISOString()}
-                className={`min-h-28 border-b border-r p-2 ${inMonth ? "" : "bg-muted/20 text-muted-foreground"}`}
+                className={`${calendarView === "week" ? "min-h-[26rem]" : "min-h-28"} border-b border-r p-2 ${inMonth ? "" : "bg-muted/20 text-muted-foreground"}`}
               >
                 <div
                   className={`mb-1 inline-grid h-6 min-w-6 place-items-center rounded-full text-xs ${today ? "bg-primary text-primary-foreground font-semibold" : ""}`}
