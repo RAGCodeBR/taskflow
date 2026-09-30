@@ -797,7 +797,7 @@ function ReportsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
   const [reportView, setReportView] = useState<
-    "briefing" | "summary" | "operations" | "clients" | "team"
+    "briefing" | "summary" | "operations" | "clients" | "team" | "categories"
   >("briefing");
   const [lateTasksMember, setLateTasksMember] = useState<any | null>(null);
 
@@ -1084,6 +1084,71 @@ function ReportsPage() {
     .filter((client): client is ClientPerformance => Boolean(client))
     .sort((a, b) => b.score - a.score || b.total - a.total);
 
+  const marketingCategoryReport =
+    activeWorkspace?.slug === "marketing"
+      ? marketingCategories
+          .map((category) => {
+            const categoryTasks = filteredTasks.filter((task) => task.tag_id === category.id);
+            if (categoryTasks.length === 0) return null;
+            const clientsById = new Map<string, typeof categoryTasks>();
+            categoryTasks.forEach((task) => {
+              const clientId = task.client_id ?? "__without_client__";
+              clientsById.set(clientId, [...(clientsById.get(clientId) ?? []), task]);
+            });
+            const contributors = Array.from(
+              new Set(categoryTasks.map((task) => task.assignee_id ?? "__unassigned__")),
+            )
+              .map((assigneeId) => {
+                const personTasks = categoryTasks.filter(
+                  (task) => (task.assignee_id ?? "__unassigned__") === assigneeId,
+                );
+                const profile = profiles.find((candidate) => candidate.id === assigneeId);
+                return {
+                  id: assigneeId,
+                  name: profile?.full_name || profile?.email || "Sem responsável",
+                  total: personTasks.length,
+                  done: personTasks.filter(isDone).length,
+                };
+              })
+              .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+            const clientRows = Array.from(clientsById.entries())
+              .map(([clientId, clientTasks]) => {
+                const client = clients.find((candidate) => candidate.id === clientId);
+                const people = Array.from(
+                  new Set(clientTasks.map((task) => task.assignee_id ?? "__unassigned__")),
+                )
+                  .map((assigneeId) => {
+                    const personTasks = clientTasks.filter(
+                      (task) => (task.assignee_id ?? "__unassigned__") === assigneeId,
+                    );
+                    const profile = profiles.find((candidate) => candidate.id === assigneeId);
+                    return {
+                      name: profile?.full_name || profile?.email || "Sem responsável",
+                      total: personTasks.length,
+                      done: personTasks.filter(isDone).length,
+                    };
+                  })
+                  .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+                return {
+                  id: clientId,
+                  name: client?.name || "Sem cliente vinculado",
+                  total: clientTasks.length,
+                  done: clientTasks.filter(isDone).length,
+                  people,
+                };
+              })
+              .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+            return {
+              category,
+              total: categoryTasks.length,
+              done: categoryTasks.filter(isDone).length,
+              clients: clientRows,
+              contributors,
+            };
+          })
+          .filter(Boolean)
+      : [];
+
   const admins = perUser.filter((u) => u.isAdmin);
   const members = perUser.filter((u) => !u.isAdmin);
   const teamRanking = perUser.map((person) => ({
@@ -1299,6 +1364,9 @@ function ReportsPage() {
           ["summary", "Resumo"],
           ["operations", "Operação"],
           ["clients", "Desempenho por cliente"],
+          ...(activeWorkspace?.slug === "marketing"
+            ? [["categories", "Categorias de tarefas"]]
+            : []),
           ["team", "Ranking da equipe"],
         ].map(([id, label]) => (
           <button
@@ -1347,6 +1415,12 @@ function ReportsPage() {
       <div className={reportView === "clients" ? "block" : "hidden"}>
         <ClientBattlePanel clients={clientPerformance} />
       </div>
+
+      {activeWorkspace?.slug === "marketing" ? (
+        <div className={reportView === "categories" ? "block" : "hidden"}>
+          <MarketingCategoryReport categories={marketingCategoryReport} />
+        </div>
+      ) : null}
 
       <div className={reportView === "operations" ? "space-y-4" : "hidden"}>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1617,6 +1691,103 @@ function ReportsPage() {
         open={Boolean(lateTasksMember)}
         onOpenChange={(open) => !open && setLateTasksMember(null)}
       />
+    </div>
+  );
+}
+
+function MarketingCategoryReport({
+  categories,
+}: {
+  categories: Array<{
+    category: { id: string; name: string; color: string };
+    total: number;
+    done: number;
+    clients: Array<{
+      id: string;
+      name: string;
+      total: number;
+      done: number;
+      people: Array<{ name: string; total: number; done: number }>;
+    }>;
+    contributors: Array<{ id: string; name: string; total: number; done: number }>;
+  }>;
+}) {
+  if (categories.length === 0) {
+    return (
+      <Card className="p-5">
+        <h2 className="font-semibold">Categorias de tarefas</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Nenhuma tarefa categorizada no período ou nos filtros selecionados.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <h2 className="font-semibold">Categorias de tarefas</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Mostra quais clientes tiveram cada tipo de entrega e quem trabalhou em cada demanda.
+        </p>
+      </Card>
+      {categories.map((entry) => (
+        <Card key={entry.category.id} className="overflow-hidden">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b p-5">
+            <div className="flex items-center gap-3">
+              <span
+                className="h-4 w-4 rounded-full"
+                style={{ backgroundColor: entry.category.color }}
+              />
+              <div>
+                <h3 className="font-semibold">{entry.category.name}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {entry.clients.length} {entry.clients.length === 1 ? "cliente" : "clientes"} ·{" "}
+                  {entry.total} {entry.total === 1 ? "tarefa" : "tarefas"} · {entry.done}{" "}
+                  concluída(s)
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {entry.contributors.map((person) => (
+                <Badge key={person.id} variant="secondary">
+                  {person.name}: {person.total} ({person.done} concl.)
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+                  <th className="px-5 py-3">Cliente</th>
+                  <th className="px-3 py-3 text-center">Tarefas</th>
+                  <th className="px-3 py-3 text-center">Concluídas</th>
+                  <th className="px-5 py-3">Quem fez</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entry.clients.map((client) => (
+                  <tr key={client.id} className="border-b last:border-0">
+                    <td className="px-5 py-3 font-medium">{client.name}</td>
+                    <td className="px-3 py-3 text-center">{client.total}</td>
+                    <td className="px-3 py-3 text-center text-emerald-600">{client.done}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {client.people.map((person) => (
+                          <Badge key={person.name} variant="outline">
+                            {person.name}: {person.total} ({person.done} concl.)
+                          </Badge>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ))}
     </div>
   );
 }
