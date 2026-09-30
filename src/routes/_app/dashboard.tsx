@@ -401,7 +401,9 @@ function Dashboard() {
   const tasks = tasksQuery.data ?? [];
   const clients = clientsQuery.data ?? [];
   const assignableProfiles = assignableProfilesQuery.data ?? [];
-  const [filter, setFilter] = useState<DateFilter>("all");
+  // O painel sempre começa no mês vigente. A própria opção "Todas" permite
+  // consultar o histórico quando necessário.
+  const [filter, setFilter] = useState<DateFilter>("this_month");
   const [periodOpen, setPeriodOpen] = useState(false);
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
