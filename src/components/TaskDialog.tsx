@@ -31,6 +31,7 @@ import {
   useColumns,
   useProfiles,
   useTaskStatuses,
+  useTaskTags,
   type Task,
 } from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
@@ -161,11 +162,23 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
     targetWorkspaceId || activeWorkspace?.id,
   );
   const { data: statuses = [] } = useTaskStatuses();
+  const { data: marketingCategories = [] } = useTaskTags(
+    targetWorkspaceId || activeWorkspace?.id,
+  );
+  const targetWorkspace = useMemo(
+    () =>
+      workspaces.find((workspace) => workspace.id === (targetWorkspaceId || activeWorkspace?.id)) ??
+      activeWorkspace ??
+      null,
+    [activeWorkspace, targetWorkspaceId, workspaces],
+  );
+  const isMarketingTask = targetWorkspace?.slug === "marketing";
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Task["status"]>("todo");
   const [priority, setPriority] = useState<Task["priority"]>("medium");
+  const [categoryId, setCategoryId] = useState("");
   const [columnId, setColumnId] = useState<string>("");
   const [clientId, setClientId] = useState<string>("");
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
@@ -263,6 +276,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setDescription(task.description ?? "");
       setStatus(task.status === "done" || task.completed_at ? "done" : (task.status ?? "todo"));
       setPriority(task.priority);
+      setCategoryId(task.tag_id ?? "");
       setColumnId(task.column_id ?? "");
       setTargetWorkspaceId(task.workspace_id ?? activeWorkspace?.id ?? "");
       setClientId(task.client_id ?? "");
@@ -283,6 +297,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       setDescription("");
       setStatus("todo");
       setPriority("medium");
+      setCategoryId("");
       setColumnId(defaultColumnId ?? "");
       setTargetWorkspaceId(activeWorkspace?.id ?? "");
       setClientId("");
@@ -481,6 +496,9 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
       due_date: deadlineToIso(dueDate),
       due_time: dueDate ? dueTime || null : null,
       completed_at: status === "done" ? completionDateToIso(completionDate) : null,
+      // Marketing uses one category per task. Other environments keep their
+      // current primary label untouched when a task is edited.
+      tag_id: isMarketingTask ? categoryId || null : task?.tag_id ?? null,
     };
   };
 
@@ -624,7 +642,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
         position: 0,
         color: null,
         created_by: user.id,
-        tag_id: null,
+        tag_id: payload.tag_id ?? null,
         deleted_at: null,
         deleted_by: null,
         archived_at: null,
@@ -1263,6 +1281,34 @@ export function TaskDialog({ open, onOpenChange, task, defaultColumnId }: Props)
                 </SelectContent>
               </Select>
             </div>
+            {isMarketingTask ? (
+              <div className="order-2 space-y-2">
+                <Label className="text-xs">Categoria</Label>
+                <Select
+                  value={categoryId || "__no_marketing_category__"}
+                  onValueChange={(value) =>
+                    setCategoryId(value === "__no_marketing_category__" ? "" : value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__no_marketing_category__">Sem categoria</SelectItem>
+                    {marketingCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {marketingCategories.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    Crie categorias em Personalizar para classificá-la.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="order-6 space-y-2">
               <Label className="text-xs">
                 Prazo {!task ? <span className="text-destructive">*</span> : null}

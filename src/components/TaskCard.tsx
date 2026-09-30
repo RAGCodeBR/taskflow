@@ -178,7 +178,7 @@ export function TaskCard({
 }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { user, profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin, activeWorkspace } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const descTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -404,9 +404,13 @@ export function TaskCard({
     };
   }, [task.id, subsRefreshTick]);
 
+  const isMarketingWorkspace = activeWorkspace?.slug === "marketing";
   const selectedTags = useMemo(
-    () => tagIds.map((id) => tags.find((t) => t.id === id)).filter(Boolean) as TaskTag[],
-    [tagIds, tags],
+    () =>
+      [...new Set([...(task.tag_id ? [task.tag_id] : []), ...tagIds])]
+        .map((id) => tags.find((tag) => tag.id === id))
+        .filter(Boolean) as TaskTag[],
+    [tagIds, tags, task.tag_id],
   );
   // O cliente pode ser do outro ambiente, quando a tarefa foi lançada para lá.
   // Nesse caso ele não está na lista do ambiente ativo, e o nome vem da consulta
@@ -1259,7 +1263,29 @@ export function TaskCard({
         <div className="min-h-0 flex-1 overflow-visible p-2">
           <div className="flex flex-col gap-0.5">
             {/* Tags — multiple, click chip to manage */}
-            {isVisible("tags") ? (
+            {isVisible("tags") && isMarketingWorkspace ? (
+              <div className="mb-2 -mx-1" style={{ order: orderOf("tags") }}>
+                {selectedTags.length > 0 ? (
+                  <span className="flex flex-wrap items-center gap-1">
+                    {selectedTags.map((tag) => (
+                      <span
+                        key={tag.id}
+                        className="inline-flex rounded-md px-2 py-1 text-[11px] font-bold uppercase tracking-wider shadow-sm"
+                        style={{
+                          background: tag.color,
+                          color: readableText(tag.color),
+                          boxShadow: `0 2px 8px -2px ${tag.color}80`,
+                        }}
+                      >
+                        {tag.name}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">Sem categoria</span>
+                )}
+              </div>
+            ) : isVisible("tags") ? (
               <div className="mb-2 -mx-1" style={{ order: orderOf("tags") }}>
                 <ChipPopover
                   value={

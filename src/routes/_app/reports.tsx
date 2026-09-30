@@ -2,7 +2,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useProfiles, useClients, useTaskStatuses } from "@/hooks/use-data";
+import { useProfiles, useClients, useTaskStatuses, useTaskTags } from "@/hooks/use-data";
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -744,6 +744,7 @@ function ReportsPage() {
   const { data: profiles = [] } = useProfiles();
   const { data: clients = [] } = useClients();
   const { data: statuses = [] } = useTaskStatuses();
+  const { data: marketingCategories = [] } = useTaskTags();
   const { data: subtasks = [] } = useQuery({
     queryKey: ["subtasks_all"],
     queryFn: async () => {
@@ -793,6 +794,7 @@ function ReportsPage() {
 
   const [period, setPeriod] = useState(previousMonthPeriod);
   const [userFilter, setUserFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
   const [reportView, setReportView] = useState<
     "briefing" | "summary" | "operations" | "clients" | "team"
@@ -822,6 +824,11 @@ function ReportsPage() {
     .filter((profile) => workspaceMemberIds.size === 0 || workspaceMemberIds.has(profile.id));
   const visibleIds = new Set(visibleProfiles.map((p) => p.id));
 
+  const categoryScopedTasks =
+    activeWorkspace?.slug === "marketing" && categoryFilter !== "all"
+      ? tasks.filter((task) => task.tag_id === categoryFilter)
+      : tasks;
+
   const periodStart = startOfDay(parseISO(period.start));
   const periodEnd = endOfDay(parseISO(period.end));
   const isDone = (task: { status: string | null; completed_at: string | null }) =>
@@ -842,7 +849,7 @@ function ReportsPage() {
     isDone(task)
       ? dateIsInPeriod(task.completed_at, periodStart, periodEnd)
       : dateIsInPeriod(task.due_date, periodStart, periodEnd);
-  const periodTasks = tasks
+  const periodTasks = categoryScopedTasks
     .filter(taskBelongsToPeriod)
     .filter((task) => !task.assignee_id || visibleIds.has(task.assignee_id));
   const filteredTasks = periodTasks.filter(
@@ -860,7 +867,7 @@ function ReportsPage() {
   );
   const previousStart = startOfDay(subDays(periodStart, periodDays));
   const previousEnd = endOfDay(subDays(periodStart, 1));
-  const previousTasks = tasks.filter((task) =>
+  const previousTasks = categoryScopedTasks.filter((task) =>
     isDone(task)
       ? dateIsInPeriod(task.completed_at, previousStart, previousEnd)
       : dateIsInPeriod(task.due_date, previousStart, previousEnd),
@@ -868,7 +875,7 @@ function ReportsPage() {
 
   // Tasks without a deadline are scoped by their creation date. This keeps the
   // risk view inside the chosen period while still showing the responsible people.
-  const noDueTasks = tasks
+  const noDueTasks = categoryScopedTasks
     .filter((task) => !isDone(task) && !task.due_date)
     .filter((task) => dateIsInPeriod(task.created_at, periodStart, periodEnd))
     .filter((task) => userFilter === "all" || task.assignee_id === userFilter)
@@ -1147,10 +1154,10 @@ function ReportsPage() {
     dateIsInPeriod(change.created_at, periodStart, periodEnd),
   ).length;
   const completedInPreviousPeriod = previousTasks.filter(isDone).length;
-  const createdInPeriod = tasks.filter((task) =>
+  const createdInPeriod = categoryScopedTasks.filter((task) =>
     dateIsInPeriod(task.created_at, periodStart, periodEnd),
   ).length;
-  const createdInPreviousPeriod = tasks.filter((task) =>
+  const createdInPreviousPeriod = categoryScopedTasks.filter((task) =>
     dateIsInPeriod(task.created_at, previousStart, previousEnd),
   ).length;
   const requestMetrics = (() => {
@@ -1204,6 +1211,21 @@ function ReportsPage() {
               <SelectItem value="all">Ativos + inativos</SelectItem>
             </SelectContent>
           </Select>
+          {activeWorkspace?.slug === "marketing" ? (
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filtrar por categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                {marketingCategories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
           <Select value={userFilter} onValueChange={setUserFilter}>
             <SelectTrigger className="w-56">
               <SelectValue placeholder="Filtrar por usuário" />

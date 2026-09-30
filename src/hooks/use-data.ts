@@ -554,13 +554,17 @@ export function useTaskCollaborators() {
   });
 }
 
-export function useTaskTags() {
+export function useTaskTags(workspaceId?: string | null) {
+  const { activeWorkspace } = useAuth();
+  const resolvedWorkspaceId = workspaceId ?? activeWorkspace?.id ?? null;
   return useQuery({
-    queryKey: ["task_tags"],
+    queryKey: ["task_tags", resolvedWorkspaceId],
+    enabled: !!resolvedWorkspaceId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("task_tags")
         .select("*")
+        .eq("workspace_id", resolvedWorkspaceId!)
         .order("position", { ascending: true })
         .order("name", { ascending: true });
       if (error) throw error;

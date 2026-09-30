@@ -1228,9 +1228,11 @@ function KanbanPage() {
               <FolderOpen className="mr-2 h-4 w-4" />
               Arquivos Cliente
             </Button>
-            <Button variant="outline" className="rounded-full" onClick={() => setTagsOpen(true)}>
-              Etiquetas
-            </Button>
+            {activeWorkspace?.slug !== "marketing" ? (
+              <Button variant="outline" className="rounded-full" onClick={() => setTagsOpen(true)}>
+                Etiquetas
+              </Button>
+            ) : null}
             {isAdmin && (
               <Button variant="outline" className="rounded-full" onClick={addColumn}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -1534,7 +1536,9 @@ function KanbanPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <TagManagerDialog open={tagsOpen} onOpenChange={setTagsOpen} />
+      {activeWorkspace?.slug !== "marketing" ? (
+        <TagManagerDialog open={tagsOpen} onOpenChange={setTagsOpen} />
+      ) : null}
       <ClientFilesSheet open={filesOpen} onOpenChange={setFilesOpen} />
 
       <Dialog
