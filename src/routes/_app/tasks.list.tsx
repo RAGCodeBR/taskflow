@@ -227,6 +227,17 @@ function ListPage() {
     toast.success("Tarefa concluída.");
   };
 
+  const startCompletion = (task: Task) => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    // Só perguntamos a data quando a tarefa já venceu e pode estar sendo
+    // registrada retroativamente. Conclusões normais são gravadas no dia atual.
+    if (task.due_date?.slice(0, 10) && task.due_date.slice(0, 10) < today) {
+      setCompletionTaskTarget(task);
+      return;
+    }
+    void completeTask(task.id, today);
+  };
+
   return (
     <div className="space-y-4 p-6">
       <header className="flex items-center justify-end gap-3 flex-wrap">
@@ -408,7 +419,7 @@ function ListPage() {
                         disabled={t.completed_at !== null}
                         onClick={(event) => {
                           event.stopPropagation();
-                          setCompletionTaskTarget(t);
+                          startCompletion(t);
                         }}
                       >
                         <Check className="h-4 w-4" />

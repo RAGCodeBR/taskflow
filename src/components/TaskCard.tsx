@@ -1081,7 +1081,15 @@ export function TaskCard({
       toast.error("Conclua as subtarefas pendentes antes de concluir esta tarefa.");
       return;
     }
-    setCompletionDateOpen(true);
+    const today = format(new Date(), "yyyy-MM-dd");
+    // A data só é perguntada quando o card já venceu: nesse caso a entrega pode
+    // ter sido feita antes e estar sendo lançada agora. Nas demais conclusões,
+    // registrar hoje é o comportamento direto esperado.
+    if (task.due_date?.slice(0, 10) && task.due_date.slice(0, 10) < today) {
+      setCompletionDateOpen(true);
+      return;
+    }
+    void completeTask(today);
   };
 
   const completeTask = async (completionDate: string) => {
