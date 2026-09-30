@@ -294,11 +294,15 @@ export function useClientInvoices() {
 }
 
 export function useTasks() {
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const userId = user?.id;
+  const workspaceId = activeWorkspace?.id ?? null;
   const offlineKey = userId ? offlineTaskCacheKey(userId) : null;
   const query = useQuery({
-    queryKey: ["tasks"],
+    // RLS resolves tasks from both the authenticated person and the active
+    // workspace. Keep both in the cache key so an account/environment change
+    // cannot briefly reuse another scope's task list.
+    queryKey: ["tasks", userId ?? null, workspaceId],
     // Executa a função também no modo avião para que ela possa devolver o
     // espelho local, em vez de deixar a consulta pausada e o Kanban vazio.
     networkMode: "always",
@@ -533,8 +537,13 @@ export function useAssignableProfiles(targetWorkspaceId?: string | null) {
 }
 
 export function useTaskCollaborators() {
+  const { user, activeWorkspace } = useAuth();
   return useQuery({
-    queryKey: ["task_collaborators"],
+    // This list feeds the "Atribuídas a mim" filter. Scope it exactly like
+    // tasks so collaborator-only assignments are never read from a stale user
+    // or workspace cache.
+    queryKey: ["task_collaborators", user?.id ?? null, activeWorkspace?.id ?? null],
+    enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await (supabase.from("task_collaborators") as any).select(
         "task_id, collaborator_id, added_by, created_at",
