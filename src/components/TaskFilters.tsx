@@ -27,6 +27,7 @@ import { dateFilterLabels, matchDateFilter, type DateFilter } from "@/lib/task-u
 export type TaskScope = "all" | "mine" | "created";
 const COMPLETED_STATUS_FILTER = "completed";
 const COLUMN_STATUS_PREFIX = "column:";
+const UNASSIGNED_FILTER = "unassigned";
 
 interface Filters {
   scope?: TaskScope;
@@ -236,6 +237,7 @@ export function TaskFilters({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos responsáveis</SelectItem>
+              <SelectItem value={UNASSIGNED_FILTER}>Sem responsável</SelectItem>
               {assignableProfiles?.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.full_name || p.email}
@@ -431,7 +433,9 @@ export function applyTaskFilters<
       if (!supportsSubtaskDueDates || !opts?.subtaskDateFilterTaskIds?.has(t.id)) return false;
     }
     if (clientIds && (!t.client_id || !clientIds.includes(t.client_id))) return false;
-    if (f.assignee) {
+    if (f.assignee === UNASSIGNED_FILTER) {
+      if (t.assignee_id !== null) return false;
+    } else if (f.assignee) {
       const assigneeSubtasks = opts?.subtaskAssigneeTaskIdsByUser?.get(f.assignee);
       // When filtering by the logged-in user, include direct assignments,
       // collaborations and subtasks. Merely creating a task for another

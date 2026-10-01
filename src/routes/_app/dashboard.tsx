@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type Task,
   useClients,
@@ -48,6 +48,11 @@ import {
   CircleCheck,
   Flag,
   UserRound,
+  ArrowUpRight,
+  Building2,
+  Gauge,
+  UserX,
+  UsersRound,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { format, parseISO } from "date-fns";
@@ -57,7 +62,16 @@ export const Route = createFileRoute("/_app/dashboard")({
   component: Dashboard,
 });
 
-type DashboardMetric = "total" | "done" | "pending" | "overdue" | "today" | "week" | "month";
+type DashboardMetric =
+  | "total"
+  | "done"
+  | "pending"
+  | "overdue"
+  | "today"
+  | "week"
+  | "month"
+  | "unassigned"
+  | "urgent";
 
 type Detail = {
   label: string;
@@ -288,11 +302,13 @@ function TaskDetailPanel({
   clientsById,
   profilesById,
   onClose,
+  onOpenTask,
 }: {
   detail: Detail;
   clientsById: Map<string, string>;
   profilesById: Map<string, string>;
   onClose: () => void;
+  onOpenTask?: (task: Task) => void;
 }) {
   const [previewTask, setPreviewTask] = useState<Task | null>(null);
   const orderedTasks = useMemo(
@@ -345,7 +361,7 @@ function TaskDetailPanel({
                 <div key={task.id} className="text-sm">
                   <button
                     type="button"
-                    onClick={() => setPreviewTask(task)}
+                    onClick={() => (onOpenTask ? onOpenTask(task) : setPreviewTask(task))}
                     className="flex w-full flex-wrap items-center justify-between gap-x-5 gap-y-2 px-5 py-3 text-left transition hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
                   >
                     <div className="min-w-0 flex-1">
@@ -391,7 +407,7 @@ function TaskDetailPanel({
 }
 
 function Dashboard() {
-  const { profile, user, isAdmin, isWorkspaceTransitioning, finishWorkspaceTransition } = useAuth();
+  const { profile, user, isAdmin, activeWorkspace, isWorkspaceTransitioning, finishWorkspaceTransition } = useAuth();
   const tasksQuery = useWorkspaceTasks();
   const clientsQuery = useClients();
   // The chart only includes users eligible to receive tasks (admins and collaborators).
@@ -409,6 +425,9 @@ function Dashboard() {
   const [periodEnd, setPeriodEnd] = useState("");
   const [customPeriod, setCustomPeriod] = useState<{ start: string; end: string } | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<DashboardMetric | null>(null);
+  const [selectedInsight, setSelectedInsight] = useState<Detail | null>(null);
+  const detailSectionRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (
@@ -454,7 +473,9 @@ function Dashboard() {
     const today = filtered.filter((t) => matchDateFilter(t, "today")).length;
     const week = filtered.filter((t) => matchDateFilter(t, "this_week")).length;
     const month = filtered.filter((t) => matchDateFilter(t, "this_month")).length;
-    return { total, done, pending, overdue, today, week, month };
+    const unassigned = filtered.filter((task) => !task.assignee_id && !isTaskDone(task)).length;
+    const urgent = filtered.filter((task) => !isTaskDone(task) && task.priority === "urgent").length;
+    return { total, done, pending, overdue, today, week, month, unassigned, urgent };
   }, [filtered]);
   const currentScopeLabel = useMemo(() => {
     if (customPeriod) {
@@ -478,6 +499,7 @@ function Dashboard() {
           const concluded = clientTasks.filter(isTaskDone).length;
           const overdue = clientTasks.filter((task) => matchDateFilter(task, "overdue")).length;
           return {
+            id: client.id,
             name: client.name,
             concluídas: concluded,
             emAberto: clientTasks.length - concluded - overdue,
@@ -492,12 +514,16 @@ function Dashboard() {
   const byUser = useMemo(
     () =>
       assignableProfiles.map((p) => ({
+        id: p.id,
         name: (p.full_name || p.email || "?").slice(0, 12),
         feitas: filtered.filter((t) => t.assignee_id === p.id && isTaskDone(t)).length,
         pendentes: filtered.filter((t) => t.assignee_id === p.id && !isTaskDone(t)).length,
       })),
     [assignableProfiles, filtered],
   );
+  const completionRate = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+  const clientChartHeight = Math.max(440, byClient.length * 68);
+  const leadingClient = byClient[0] ?? null;
   const clientsById = useMemo(
     () => new Map(clients.map((client) => [client.id, client.name])),
     [clients],
@@ -561,13 +587,35 @@ function Dashboard() {
         tasks: filtered.filter((task) => matchDateFilter(task, "this_month")),
         accent: "#0891b2",
       },
+      unassigned: {
+        label: "Sem responsável",
+        description: "Tarefas abertas que ainda não têm uma pessoa responsável.",
+        tasks: filtered.filter((task) => !task.assignee_id && !isTaskDone(task)),
+        accent: "#64748b",
+        prioritizeOpen: true,
+      },
+      urgent: {
+        label: "Prioridade urgente",
+        description: "Tarefas abertas marcadas como urgentes.",
+        tasks: filtered.filter((task) => !isTaskDone(task) && task.priority === "urgent"),
+        accent: "#dc2626",
+        prioritizeOpen: true,
+      },
     }),
     [filtered],
   );
 
   const toggleDetail = (metric: DashboardMetric) => {
     setSelectedMetric((current) => (current === metric ? null : metric));
+    setSelectedInsight(null);
   };
+  useEffect(() => {
+    if (!selectedMetric && !selectedInsight) return;
+    const animationFrame = requestAnimationFrame(() => {
+      detailSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => cancelAnimationFrame(animationFrame);
+  }, [selectedMetric, selectedInsight]);
   const memberTasks = useMemo(
     () => filtered.filter((task) => task.assignee_id === user?.id || task.created_by === user?.id),
     [filtered, user?.id],
@@ -616,9 +664,25 @@ function Dashboard() {
         tasks: memberTasks.filter((task) => matchDateFilter(task, "this_month")),
         accent: "#0891b2",
       },
+      unassigned: {
+        label: "Sem responsável",
+        description: "Tarefas abertas sem pessoa responsável.",
+        tasks: memberTasks.filter((task) => !task.assignee_id && !isTaskDone(task)),
+        accent: "#64748b",
+      },
+      urgent: {
+        label: "Prioridade urgente",
+        description: "Tarefas abertas marcadas como urgentes.",
+        tasks: memberTasks.filter((task) => !isTaskDone(task) && task.priority === "urgent"),
+        accent: "#dc2626",
+      },
     }),
     [memberTasks],
   );
+
+  const openTask = (task: Task) => {
+    navigate({ to: "/tasks/list", search: { task: task.id } });
+  };
 
   // Member dashboard — only own pending/overdue tasks
   if (!isAdmin) {
@@ -634,7 +698,8 @@ function Dashboard() {
           <p className="text-muted-foreground">Suas tarefas pendentes e atrasadas</p>
         </header>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat
             label="Minhas pendentes"
             value={myPending.length}
@@ -675,6 +740,7 @@ function Dashboard() {
             clientsById={clientsById}
             profilesById={profilesById}
             onClose={() => setSelectedMetric(null)}
+            onOpenTask={openTask}
           />
         )}
       </div>
@@ -682,6 +748,34 @@ function Dashboard() {
   }
 
   // Admin dashboard — global view (hooks must run for all users to satisfy Rules of Hooks)
+
+  const openClientInsight = (clientId: string) => {
+    const client = clients.find((item) => item.id === clientId);
+    if (!client) return;
+    const clientTasks = filtered.filter((task) => task.client_id === clientId);
+    setSelectedInsight({
+      label: `Tarefas — ${client.name}`,
+      description: "Clique em uma tarefa para abri-la na lista e fazer a gestão.",
+      tasks: clientTasks,
+      accent: client.color || "#2563eb",
+      prioritizeOpen: true,
+    });
+    setSelectedMetric(null);
+  };
+
+  const openUserInsight = (userId: string) => {
+    const profile = assignableProfiles.find((item) => item.id === userId);
+    if (!profile) return;
+    const name = profile.full_name || profile.email || "Responsável";
+    setSelectedInsight({
+      label: `Tarefas — ${name}`,
+      description: "Clique em uma tarefa para abri-la na lista e fazer a gestão.",
+      tasks: filtered.filter((task) => task.assignee_id === userId),
+      accent: "#f59e0b",
+      prioritizeOpen: true,
+    });
+    setSelectedMetric(null);
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -693,6 +787,7 @@ function Dashboard() {
           total inclui tarefas concluídas e em aberto.
         </p>
       </header>
+
 
       <div className="flex flex-wrap items-center gap-2">
         <DateFilterBar
@@ -857,87 +952,185 @@ function Dashboard() {
         />
       </div>
 
-      {selectedMetric && (
-        <TaskDetailPanel
-          detail={details[selectedMetric]}
-          clientsById={clientsById}
-          profilesById={profilesById}
-          onClose={() => setSelectedMetric(null)}
-        />
-      )}
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="p-5">
-          <h3 className="mb-4 font-semibold">Tarefas por usuário</h3>
-          <div className="h-64">
+      <div className="grid gap-6">
+        <Card className="p-5 sm:p-6">
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <UsersRound className="h-5 w-5 text-amber-500" />
+                <h2 className="font-semibold">Distribuição da equipe</h2>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">Clique na barra de uma pessoa para abrir a carga dela.</p>
+            </div>
+          </div>
+          <div className="h-[26rem] lg:h-[30rem]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byUser}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" fontSize={12} />
-                <YAxis fontSize={12} />
+              <BarChart data={byUser} margin={{ top: 10, right: 12, left: 0, bottom: 14 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="name" fontSize={12} interval={0} />
+                <YAxis allowDecimals={false} fontSize={12} />
                 <Tooltip />
-                <Bar dataKey="feitas" stackId="a" fill="#059669" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="pendentes" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="feitas" name="Concluídas" stackId="equipe" fill="#059669" onClick={(data: any) => openUserInsight(data.id)} />
+                <Bar dataKey="pendentes" name="Em aberto" stackId="equipe" fill="#f59e0b" radius={[5, 5, 0, 0]} onClick={(data: any) => openUserInsight(data.id)} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </Card>
-        <Card className="p-5">
-          <div className="mb-1 flex items-baseline justify-between gap-3">
-            <h3 className="font-semibold">Panorama das atividades por cliente</h3>
-            <span className="text-xs text-muted-foreground">Conclusão × pendências</span>
-          </div>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Veja onde a equipe está avançando e quais clientes concentram atrasos.
-          </p>
-          <div className="h-72">
-            {byClient.length === 0 ? (
-              <div className="grid h-full place-items-center text-sm text-muted-foreground">
-                Nenhum cliente com tarefas ainda
+          <div className="mt-6 border-t pt-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold">Explorar tarefas por cliente</p>
+              <p className="text-xs text-muted-foreground">Clique para abrir as tarefas</p>
+            </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {byClient.map((client) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => openClientInsight(client.id)}
+                    className="group flex items-center justify-between gap-3 rounded-xl border bg-background px-3 py-2.5 text-left transition hover:border-primary/40 hover:bg-primary/[0.03]"
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium">{client.name}</span>
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
+                      {client.total}
+                    </span>
+                  </button>
+                ))}
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={byClient}
-                  layout="vertical"
-                  margin={{ top: 4, right: 12, left: 10, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    horizontal={false}
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                  />
-                  <XAxis type="number" allowDecimals={false} fontSize={11} />
-                  <YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }} />
-                  <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.45 }} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                  <Bar
-                    dataKey="concluídas"
-                    name="Concluídas"
-                    stackId="atividade"
-                    fill="#059669"
-                    radius={[0, 0, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="emAberto"
-                    name="Em aberto"
-                    stackId="atividade"
-                    fill="#2563eb"
-                    radius={[0, 0, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="atrasadas"
-                    name="Atrasadas"
-                    stackId="atividade"
-                    fill="#dc2626"
-                    radius={[0, 4, 4, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+          </div>
+        </Card>
+        <Card className="p-5 sm:p-6">
+          <div className="flex items-center gap-2">
+            <Gauge className="h-5 w-5 text-emerald-600" />
+            <h2 className="font-semibold">Ritmo do período</h2>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">Acompanhe os próximos passos sem sair do dashboard.</p>
+          <div className="mt-6 rounded-2xl bg-emerald-500/[0.09] p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Conclusão</p>
+            <p className="mt-2 text-4xl font-bold tracking-tight">{completionRate}%</p>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-emerald-950/10">
+              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${completionRate}%` }} />
+            </div>
+            <button type="button" onClick={() => toggleDetail("done")} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline dark:text-emerald-300">
+              Ver concluídas <ArrowUpRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => toggleDetail("pending")} className="rounded-xl border p-3 text-left transition hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-950/15">
+              <p className="text-2xl font-bold">{stats.pending}</p>
+              <p className="mt-1 text-xs text-muted-foreground">em aberto</p>
+            </button>
+            <button type="button" onClick={() => toggleDetail("week")} className="rounded-xl border p-3 text-left transition hover:border-primary/40 hover:bg-primary/[0.03]">
+              <p className="text-2xl font-bold">{stats.week}</p>
+              <p className="mt-1 text-xs text-muted-foreground">na semana</p>
+            </button>
           </div>
         </Card>
       </div>
+
+      {(selectedMetric || selectedInsight) && (
+        <div ref={detailSectionRef} className="scroll-mt-6">
+          {selectedMetric && (
+            <TaskDetailPanel
+              detail={details[selectedMetric]}
+              clientsById={clientsById}
+              profilesById={profilesById}
+              onClose={() => setSelectedMetric(null)}
+              onOpenTask={openTask}
+            />
+          )}
+          {selectedInsight && (
+            <TaskDetailPanel
+              detail={selectedInsight}
+              clientsById={clientsById}
+              profilesById={profilesById}
+              onClose={() => setSelectedInsight(null)}
+              onOpenTask={openTask}
+            />
+          )}
+        </div>
+      )}
+
+      <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.07] via-background to-emerald-500/[0.06]">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b bg-background/45 px-5 py-5 sm:px-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <Gauge className="h-5 w-5 text-primary" />
+              <h2 className="font-semibold">Painel de execução</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Indicadores de ação rápida. Clique para abrir as tarefas correspondentes.
+            </p>
+          </div>
+          <div className="rounded-full border bg-background/80 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            {completionRate}% concluído no período
+          </div>
+        </div>
+        <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
+          <button
+            type="button"
+            onClick={() => toggleDetail("unassigned")}
+            className="group bg-background p-5 text-left transition hover:bg-slate-50 dark:hover:bg-slate-950/30"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium">Sem responsável</span>
+              <UserX className="h-5 w-5 text-slate-500" />
+            </div>
+            <p className="mt-3 text-3xl font-bold tracking-tight">{stats.unassigned}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Distribua antes de perder o prazo</p>
+            <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary group-hover:underline">
+              Ver tarefas <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleDetail("urgent")}
+            className="group bg-background p-5 text-left transition hover:bg-rose-50/40 dark:hover:bg-rose-950/15"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium">Prioridade urgente</span>
+              <AlertTriangle className="h-5 w-5 text-rose-600" />
+            </div>
+            <p className="mt-3 text-3xl font-bold tracking-tight">{stats.urgent}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Itens que pedem atenção imediata</p>
+            <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary group-hover:underline">
+              Ver tarefas <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleDetail("overdue")}
+            className="group bg-background p-5 text-left transition hover:bg-amber-50/50 dark:hover:bg-amber-950/15"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium">Risco de prazo</span>
+              <Clock className="h-5 w-5 text-amber-600" />
+            </div>
+            <p className="mt-3 text-3xl font-bold tracking-tight">{stats.overdue}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Tarefas vencidas ainda em aberto</p>
+            <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary group-hover:underline">
+              Revisar agora <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => leadingClient && openClientInsight(leadingClient.id)}
+            disabled={!leadingClient}
+            className="group bg-background p-5 text-left transition hover:bg-primary/[0.04] disabled:cursor-default"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium">Maior volume</span>
+              <Building2 className="h-5 w-5 text-primary" />
+            </div>
+            <p className="mt-3 truncate text-xl font-bold tracking-tight">{leadingClient?.name || "—"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {leadingClient ? `${leadingClient.total} tarefa(s) no período` : "Sem tarefas no período"}
+            </p>
+            <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary group-hover:underline">
+              Ver cliente <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </button>
+        </div>
+      </Card>
 
       <Card className="p-5">
         <h3 className="mb-2 font-semibold">Resultado do filtro</h3>
@@ -945,6 +1138,54 @@ function Dashboard() {
           {filtered.length} tarefas correspondem ao filtro selecionado.
         </p>
       </Card>
+
+      <div className="pt-5">
+        <Card className="overflow-hidden shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b px-5 py-5 sm:px-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              <h2 className="font-semibold">Mapa de execução por cliente</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Uma leitura ampliada da carteira. Clique em uma barra ou cliente para abrir as tarefas.
+            </p>
+          </div>
+          <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            {byClient.length} cliente(s) com atividade
+          </span>
+        </div>
+        <div className="p-4 sm:p-6">
+          {byClient.length === 0 ? (
+            <div className="grid h-80 place-items-center text-sm text-muted-foreground">
+              Nenhum cliente com tarefas ainda
+            </div>
+          ) : (
+            <>
+              <div style={{ height: clientChartHeight }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={byClient}
+                    layout="vertical"
+                    margin={{ top: 8, right: 28, left: 16, bottom: 8 }}
+                  >
+                    <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis type="number" allowDecimals={false} fontSize={12} />
+                    <YAxis type="category" dataKey="name" width={172} tick={{ fontSize: 12 }} />
+                    <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.55 }} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+                    <Bar dataKey="concluídas" name="Concluídas" stackId="atividade" fill="#059669" onClick={(data: any) => openClientInsight(data.id)} />
+                    <Bar dataKey="emAberto" name="Em aberto" stackId="atividade" fill="#2563eb" onClick={(data: any) => openClientInsight(data.id)} />
+                    <Bar dataKey="atrasadas" name="Atrasadas" stackId="atividade" fill="#dc2626" radius={[0, 5, 5, 0]} onClick={(data: any) => openClientInsight(data.id)} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+            </>
+          )}
+        </div>
+        </Card>
+      </div>
     </div>
   );
 }
