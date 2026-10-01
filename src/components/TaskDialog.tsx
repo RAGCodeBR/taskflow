@@ -216,8 +216,11 @@ export function TaskDialog({
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("");
+  const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
+  const [assigneeSearch, setAssigneeSearch] = useState("");
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>([]);
   const [collaboratorPickerOpen, setCollaboratorPickerOpen] = useState(false);
+  const [collaboratorSearch, setCollaboratorSearch] = useState("");
   const [dueDate, setDueDate] = useState<string>("");
   const [dueTime, setDueTime] = useState<string>("");
   const [completionDate, setCompletionDate] = useState<string>("");
@@ -270,6 +273,27 @@ export function TaskDialog({
       : activeClients;
   }, [clients, clientSearch]);
   const selectedClient = clients?.find((client) => client.id === clientId);
+  const filteredAssignees = useMemo(() => {
+    const term = assigneeSearch.trim().toLocaleLowerCase("pt-BR");
+    return term
+      ? assignableProfiles.filter((candidate) =>
+          `${candidate.full_name ?? ""} ${candidate.email ?? ""}`
+            .toLocaleLowerCase("pt-BR")
+            .includes(term),
+        )
+      : assignableProfiles;
+  }, [assignableProfiles, assigneeSearch]);
+  const selectedAssignee = assignableProfiles.find((candidate) => candidate.id === assigneeId);
+  const filteredCollaborators = useMemo(() => {
+    const term = collaboratorSearch.trim().toLocaleLowerCase("pt-BR");
+    return term
+      ? assignableProfiles.filter((candidate) =>
+          `${candidate.full_name ?? ""} ${candidate.email ?? ""}`
+            .toLocaleLowerCase("pt-BR")
+            .includes(term),
+        )
+      : assignableProfiles;
+  }, [assignableProfiles, collaboratorSearch]);
   const mentionableProfiles = useMemo(
     () => (profiles ?? []).filter((candidate) => candidate.is_active !== false),
     [profiles],
@@ -1550,9 +1574,16 @@ export function TaskDialog({
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="start" className="w-64 p-2">
+                <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
+                  <Input
+                    autoFocus
+                    value={collaboratorSearch}
+                    onChange={(event) => setCollaboratorSearch(event.target.value)}
+                    placeholder="Pesquisar pessoa..."
+                    className="mb-2 h-8 text-xs"
+                  />
                   <div className="max-h-56 space-y-0.5 overflow-y-auto overscroll-contain pr-1">
-                    {assignableProfiles.map((profile) => {
+                    {filteredCollaborators.map((profile) => {
                       const selected = collaboratorIds.includes(profile.id);
                       return (
                         <label
@@ -1567,6 +1598,11 @@ export function TaskDialog({
                         </label>
                       );
                     })}
+                    {filteredCollaborators.length === 0 && (
+                      <p className="px-2 py-2 text-xs text-muted-foreground">
+                        Nenhuma pessoa encontrada.
+                      </p>
+                    )}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -1677,22 +1713,58 @@ export function TaskDialog({
             </div>
             <div className="order-4 space-y-2">
               <Label className="text-xs">Responsável</Label>
-              <Select
-                value={assigneeId || "none"}
-                onValueChange={(v) => setAssigneeId(v === "none" ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Ninguém" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ninguém</SelectItem>
-                  {assignableProfiles.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <AssigneeOption profile={p} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={assigneePickerOpen} onOpenChange={setAssigneePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between font-normal">
+                    <span className="truncate">
+                      {selectedAssignee?.full_name || selectedAssignee?.email || "Ninguém"}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-[var(--radix-popover-trigger-width)] p-2"
+                >
+                  <Input
+                    autoFocus
+                    value={assigneeSearch}
+                    onChange={(event) => setAssigneeSearch(event.target.value)}
+                    placeholder="Pesquisar pessoa..."
+                    className="mb-2 h-8 text-xs"
+                  />
+                  <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssigneeId("");
+                        setAssigneePickerOpen(false);
+                      }}
+                      className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${!assigneeId ? "bg-muted font-medium" : ""}`}
+                    >
+                      Ninguém
+                    </button>
+                    {filteredAssignees.map((candidate) => (
+                      <button
+                        key={candidate.id}
+                        type="button"
+                        onClick={() => {
+                          setAssigneeId(candidate.id);
+                          setAssigneePickerOpen(false);
+                        }}
+                        className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${assigneeId === candidate.id ? "bg-muted font-medium" : ""}`}
+                      >
+                        <AssigneeOption profile={candidate} />
+                      </button>
+                    ))}
+                    {filteredAssignees.length === 0 && (
+                      <p className="px-2 py-2 text-xs text-muted-foreground">
+                        Nenhuma pessoa encontrada.
+                      </p>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
               {task && (
                 <div className="pt-1">
                   <Label className="text-xs text-muted-foreground">Criada por</Label>
