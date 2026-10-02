@@ -117,6 +117,13 @@ interface CardComment {
 
 const LINK_MIME = "text/uri-list";
 const DESCRIPTION_COLLAPSED_LIMIT = 140;
+const withoutStoredPrints = (description: string) =>
+  description.replace(/<img\b[^>]*(?:data-task-attachment-id|src="taskflow-attachment:\/\/)[^>]*>/gi, "");
+const hasDescriptionText = (description: string) =>
+  withoutStoredPrints(description)
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .trim().length > 0;
 const DEFAULT_DEADLINE_TIME = "12:00";
 const formatDueTime = (time: string | null) => time?.slice(0, 5) ?? null;
 const hasExplicitDueTime = (time: string | null) => Boolean(formatDueTime(time));
@@ -190,7 +197,7 @@ export function TaskCard({
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descEditing, setDescEditing] = useState(false);
-  const [descDraft, setDescDraft] = useState(task.description ?? "");
+  const [descDraft, setDescDraft] = useState(withoutStoredPrints(task.description ?? ""));
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [collaboratorsOpen, setCollaboratorsOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
@@ -269,7 +276,7 @@ export function TaskCard({
   };
 
   useEffect(() => setTitleDraft(task.title), [task.title]);
-  useEffect(() => setDescDraft(task.description ?? ""), [task.description]);
+  useEffect(() => setDescDraft(withoutStoredPrints(task.description ?? "")), [task.description]);
   // A expansão é local ao card: ao trocar/sair da tarefa ou recarregar, volta fechada.
   useEffect(() => setDescriptionExpanded(false), [task.id]);
 
@@ -1532,7 +1539,7 @@ export function TaskCard({
                       onBlur={() => void saveDesc()}
                     />
                   </div>
-                ) : task.description ? (
+                ) : task.description && hasDescriptionText(task.description) ? (
                   <div className="mb-2">
                     <div
                       onPointerDown={stop}
@@ -1549,11 +1556,11 @@ export function TaskCard({
                       }}
                     >
                       <RichTextView
-                        html={task.description}
+                        html={withoutStoredPrints(task.description)}
                         className="text-sm text-muted-foreground"
                       />
                     </div>
-                    {task.description.length > DESCRIPTION_COLLAPSED_LIMIT ? (
+                    {withoutStoredPrints(task.description).length > DESCRIPTION_COLLAPSED_LIMIT ? (
                       <button
                         type="button"
                         onPointerDown={stop}

@@ -59,7 +59,7 @@ import {
   removeTaskAttachmentAndClientCopy,
   syncTaskAttachmentToClient,
 } from "@/lib/sync-task-attachment-to-client";
-import { RichTextEditor } from "@/components/RichTextEditor";
+import { RichTextEditor, type PastedEditorImage } from "@/components/RichTextEditor";
 import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
 import {
   createSubtaskWithOfflineSupport,
@@ -139,6 +139,9 @@ interface Attachment {
 const LINK_MIME = "text/uri-list";
 const COMPLETED_STATUS_VALUE = "__completed__";
 const storageObjectName = () => `arquivo-${Date.now()}-${crypto.randomUUID()}`;
+const isImageAttachment = (file: File) => file.type.startsWith("image/");
+const stripDescriptionPrintImages = (html: string) =>
+  html.replace(/<img\b[^>]*(?:data-taskflow-pending-id|data-task-attachment-id|src="taskflow-attachment:\/\/)[^>]*>/gi, "");
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -251,6 +254,8 @@ export function TaskDialog({
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [pendingDescriptionImages, setPendingDescriptionImages] = useState<PastedEditorImage[]>([]);
+  const [descriptionImagesUploading, setDescriptionImagesUploading] = useState(false);
   const [fileUploadProgress, setFileUploadProgress] = useState<{
     current: number;
     total: number;
@@ -329,7 +334,7 @@ export function TaskDialog({
     setSubtaskTitleDraft("");
     if (task) {
       setTitle(task.title);
-      setDescription(task.description ?? "");
+      setDescription(stripDescriptionPrintImages(task.description ?? ""));
       setStatus(task.status === "done" || task.completed_at ? "done" : (task.status ?? "todo"));
       setPriority(task.priority);
       setCategoryId(task.tag_id ?? "");
@@ -348,6 +353,7 @@ export function TaskDialog({
       setNewSubtask("");
       setNewSubtaskDue("");
       setNewSubtaskAssignee("");
+      setPendingDescriptionImages([]);
       loadRelated(task.id);
     } else {
       setTitle(defaults?.title ?? "");
@@ -369,6 +375,7 @@ export function TaskDialog({
       setSubtasks([]);
       setComments([]);
       setAttachments([]);
+      setPendingDescriptionImages([]);
       setNewComment("");
       setNewSubtask("");
       setNewSubtaskDue("");
@@ -555,7 +562,9 @@ export function TaskDialog({
     );
     return {
       title: title.trim() || "Sem título",
-      description: description || null,
+      // Prints colados ficam no Storage como anexos. URLs blob do navegador não
+      // podem ser persistidas na descrição, então o texto salvo não recebe URLs temporárias.
+      description: stripDescriptionPrintImages(description) || null,
       status,
       status_id: matchingStatus?.id ?? null,
       priority,
@@ -752,6 +761,7 @@ export function TaskDialog({
       setNewSubtaskAssignee("");
     }
 
+    await uploadDescriptionImages(taskId);
     toast.success("Tarefa salva neste aparelho. Será sincronizada ao reconectar.");
     onOpenChange(false);
   };
@@ -821,6 +831,7 @@ export function TaskDialog({
     setSaving(true);
     try {
       const payload = buildPayload();
+      let savedTaskId = existingTaskId;
       if (existingTaskId) {
         const previousDueDate = task?.due_date ?? null;
         const dueDateChanged = hasDueDateChanged(previousDueDate, dueDate);
@@ -868,8 +879,16 @@ export function TaskDialog({
           .insert({ task_id: taskId, user_id: authenticated.user.id, action: "created" });
         currentTaskIdRef.current = taskId;
         setCurrentTaskId(taskId);
+        savedTaskId = taskId;
         await syncCollaborators(taskId);
         if (!(await commitPendingSubtask(taskId))) return;
+      }
+      if (savedTaskId) {
+        const printResult = await uploadDescriptionImages(savedTaskId);
+        if (!printResult.allUploaded) {
+          toast.error("A tarefa foi salva, mas um ou mais prints não foram enviados. Tente salvar novamente.");
+          return;
+        }
       }
       toast.success(currentTaskId || task ? "Tarefa atualizada" : "Tarefa criada");
       await Promise.all([
@@ -1239,15 +1258,46 @@ export function TaskDialog({
     setComments(comments.filter((c) => c.id !== id));
   };
 
+  const addDescriptionImages = (images: PastedEditorImage[]) => {
+    const accepted = images.filter((image) => isImageAttachment(image.file) && !isTaskAttachmentTooLarge(image.file));
+    if (accepted.length !== images.length) {
+      toast.error(`Alguns prints ultrapassam o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+    }
+    if (!accepted.length) return;
+    setPendingDescriptionImages((current) => {
+      const known = new Set(current.map((image) => image.id));
+      return [...current, ...accepted.filter((image) => !known.has(image.id))];
+    });
+  };
+
+  const uploadDescriptionImages = async (taskId: string) => {
+    if (!pendingDescriptionImages.length) return { allUploaded: true };
+    setDescriptionImagesUploading(true);
+    let allUploaded = true;
+    try {
+      for (const image of pendingDescriptionImages) {
+        const uploaded = await uploadFile(image.file, taskId);
+        if (uploaded) {
+          setPendingDescriptionImages((current) => current.filter((candidate) => candidate.id !== image.id));
+        } else {
+          allUploaded = false;
+        }
+      }
+    } finally {
+      setDescriptionImagesUploading(false);
+    }
+    return { allUploaded };
+  };
+
   // Attachments
-  const uploadFile = async (file: File, taskId?: string): Promise<boolean> => {
-    if (!user) return false;
+  const uploadFile = async (file: File, taskId?: string): Promise<Attachment | null> => {
+    if (!user) return null;
     if (isTaskAttachmentTooLarge(file)) {
       toast.error(`${file.name} ultrapassa o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
-      return false;
+      return null;
     }
     const tid = taskId ?? (await ensureTask());
-    if (!tid) return false;
+    if (!tid) return null;
     const path = `${tid}/${storageObjectName()}`;
     if (isOffline()) {
       const attachment = {
@@ -1269,12 +1319,12 @@ export function TaskDialog({
       });
       setAttachments((current) => [...current, attachment as Attachment]);
       toast.success("Arquivo salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
-      return true;
+      return attachment as Attachment;
     }
     const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
     if (upErr) {
       toast.error(`${file.name}: ${upErr.message}`);
-      return false;
+      return null;
     }
     const { data, error } = await supabase
       .from("attachments")
@@ -1291,7 +1341,7 @@ export function TaskDialog({
     if (error) {
       await supabase.storage.from("task-attachments").remove([path]);
       toast.error(`${file.name}: ${error.message}`);
-      return false;
+      return null;
     }
     const attachment = data as Attachment;
     try {
@@ -1307,7 +1357,7 @@ export function TaskDialog({
       await supabase.storage.from("task-attachments").remove([path]);
       toast.error(`${file.name}: não foi possível salvar o arquivo do cliente.`);
       console.error("Could not sync task attachment to client files", syncError);
-      return false;
+      return null;
     }
     // A subscription realtime já pode ter inserido este anexo (o INSERT no
     // banco dispara o evento antes deste await terminar); sem checar, os dois
@@ -1315,7 +1365,7 @@ export function TaskDialog({
     setAttachments((current) =>
       current.some((item) => item.id === attachment.id) ? current : [...current, attachment],
     );
-    return true;
+    return attachment;
   };
 
   const uploadFiles = async (files: FileList) => {
@@ -1779,7 +1829,8 @@ export function TaskDialog({
             <RichTextEditor
               value={description}
               onChange={setDescription}
-              placeholder="Descreva a tarefa..."
+              onImagePaste={addDescriptionImages}
+              placeholder="Descreva a tarefa... Cole um print com ⌘V / Ctrl+V."
               minHeight={100}
               copyable
             />
@@ -2197,8 +2248,8 @@ export function TaskDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button onClick={save} disabled={saving}>
-                {saving ? "Salvando…" : "Salvar"}
+              <Button onClick={save} disabled={saving || descriptionImagesUploading}>
+                {saving || descriptionImagesUploading ? "Salvando…" : "Salvar"}
               </Button>
             </div>
           </div>

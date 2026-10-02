@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
-import { Mark, mergeAttributes } from "@tiptap/core";
+import { Mark, Node, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Highlight from "@tiptap/extension-highlight";
@@ -24,6 +24,7 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 const UnderlineMark = Mark.create({
   name: "underline",
@@ -51,6 +52,89 @@ const UnderlineMark = Mark.create({
   },
 });
 
+const TaskImage = Node.create({
+  name: "taskImage",
+  group: "block",
+  atom: true,
+  draggable: true,
+  selectable: true,
+  addAttributes() {
+    return {
+      src: { default: null },
+      alt: { default: null },
+      pendingId: { default: null, parseHTML: (element) => element.getAttribute("data-taskflow-pending-id") },
+      attachmentId: { default: null, parseHTML: (element) => element.getAttribute("data-task-attachment-id") },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "img[data-taskflow-pending-id]" }, { tag: "img[data-task-attachment-id]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    const { pendingId, attachmentId, ...attrs } = HTMLAttributes;
+    return [
+      "img",
+      mergeAttributes(attrs, {
+        class: "my-3 block max-h-56 max-w-[80%] rounded-lg border bg-muted p-1 shadow-sm object-contain",
+        ...(pendingId ? { "data-taskflow-pending-id": pendingId } : {}),
+        ...(attachmentId ? { "data-task-attachment-id": attachmentId } : {}),
+      }),
+    ];
+  },
+});
+
+export type PastedEditorImage = { id: string; file: File; src: string };
+
+function clipboardImageFiles(clipboardData: DataTransfer | null) {
+  const fromItems = Array.from(clipboardData?.items ?? [])
+    .filter((item) => item.type.startsWith("image/"))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null);
+  return [...Array.from(clipboardData?.files ?? []), ...fromItems]
+    .filter((file) => file.type.startsWith("image/"))
+    .filter((file, index, all) =>
+      all.findIndex((candidate) =>
+        candidate.name === file.name &&
+        candidate.size === file.size &&
+        candidate.lastModified === file.lastModified,
+      ) === index,
+    );
+}
+
+function clipboardHtmlImageData(clipboardData: DataTransfer | null) {
+  const html = clipboardData?.getData("text/html") || "";
+  const sources = [...html.matchAll(/<img[^>]+src=["'](data:image\/[a-zA-Z0-9.+-]+;base64,[^"']+)["']/gi)]
+    .map((match) => match[1]);
+
+  return sources.map((source, index) => {
+    const [, mimeType = "image/png", encoded = ""] = source.match(/^data:([^;]+);base64,(.+)$/i) || [];
+    const binary = atob(encoded);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return new File([bytes], `print-colado-${Date.now()}-${index}.${mimeType.split("/")[1] || "png"}`, { type: mimeType });
+  });
+}
+
+function allClipboardImageFiles(clipboardData: DataTransfer | null) {
+  // Windows, macOS e a maior parte das extensões entregam o binário em
+  // files/items. Algumas extensões entregam somente HTML com data:image.
+  // Preferimos o binário quando ambos existem para não duplicar o print.
+  const binaryFiles = clipboardImageFiles(clipboardData);
+  return binaryFiles.length ? binaryFiles : clipboardHtmlImageData(clipboardData);
+}
+
+function attachmentIdFromImage(image: HTMLImageElement) {
+  const dataId = image.dataset.taskAttachmentId;
+  if (dataId) return dataId;
+  const source = image.getAttribute("src") || "";
+  return source.match(/^taskflow-attachment:\/\/([^/?#]+)/)?.[1] || null;
+}
+
+function stripStoredPrintImages(html: string) {
+  // Prints colados são anexos da tarefa após o salvamento. Não os repetimos
+  // dentro da descrição do cartão; a galeria de Arquivos é a visualização
+  // única, com miniatura e download.
+  return html.replace(/<img\b[^>]*(?:data-task-attachment-id|src="taskflow-attachment:\/\/)[^>]*>/gi, "");
+}
+
 interface Props {
   value: string;
   onChange: (html: string) => void;
@@ -63,6 +147,8 @@ interface Props {
   maxHeight?: number;
   /** Shows a footer button that copies the written content to the clipboard. */
   copyable?: boolean;
+  /** Recebe imagens coladas diretamente no texto (⌘V / Ctrl+V). */
+  onImagePaste?: (images: PastedEditorImage[]) => void;
 }
 
 function ToolbarBtn({
@@ -260,11 +346,66 @@ export function RichTextEditor({
   minHeight = 60,
   maxHeight = 320,
   copyable = false,
+  onImagePaste,
 }: Props) {
+  const onImagePasteRef = useRef(onImagePaste);
+  const imageHandledFromPasteRef = useRef(false);
+  const clipboardReadInFlightRef = useRef(false);
+
+  useEffect(() => {
+    onImagePasteRef.current = onImagePaste;
+  }, [onImagePaste]);
+
+  const insertPastedImages = (files: File[]) => {
+    if (!files.length || !onImagePasteRef.current) return false;
+    const images = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      src: URL.createObjectURL(file),
+    }));
+    images.forEach((image) => {
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: "taskImage",
+          attrs: { src: image.src, alt: image.file.name, pendingId: image.id },
+        })
+        .run();
+    });
+    onImagePasteRef.current(images);
+    return true;
+  };
+
+  const readClipboardImage = async () => {
+    if (!navigator.clipboard?.read || clipboardReadInFlightRef.current) return;
+    clipboardReadInFlightRef.current = true;
+    try {
+      const items = await navigator.clipboard.read();
+      const files: File[] = [];
+      for (const item of items) {
+        const imageType = item.types.find((type) => type.startsWith("image/"));
+        if (!imageType) continue;
+        const blob = await item.getType(imageType);
+        files.push(new File([blob], `print-${Date.now()}.${imageType.split("/")[1] || "png"}`, { type: imageType }));
+      }
+      // Se o evento nativo já entregou o PNG, não duplica o print. Caso o
+      // Lightshot só tenha liberado a imagem na API, este é o caminho que a
+      // coloca diretamente no cursor.
+      if (!imageHandledFromPasteRef.current) insertPastedImages(files);
+    } catch {
+      // O navegador pode bloquear a leitura extra do clipboard; os itens do
+      // evento continuam sendo a primeira via para imagens copiadas.
+    } finally {
+      clipboardReadInFlightRef.current = false;
+    }
+  };
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [2, 3] } }),
       UnderlineMark,
+      TaskImage,
       Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { class: "underline text-primary" } }),
       Highlight.configure({ multicolor: true }),
     ],
@@ -290,6 +431,83 @@ export function RichTextEditor({
       editor.commands.setContent(value || "", { emitUpdate: false });
     }
   }, [value, editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    // Depois de salvar, a descrição mantém um identificador seguro do anexo
+    // (taskflow-attachment://...), não uma URL pública. No editor, trocamos
+    // apenas a imagem exibida por um blob local, sem alterar o HTML salvo.
+    const container = editor.view.dom;
+    const images = Array.from(container.querySelectorAll<HTMLImageElement>("img[data-task-attachment-id], img[src^='taskflow-attachment://']"));
+    if (!images.length) return;
+
+    let active = true;
+    const urls: string[] = [];
+    void (async () => {
+      const ids = [...new Set(images.map(attachmentIdFromImage).filter(Boolean))] as string[];
+      const { data: attachments } = await supabase
+        .from("attachments")
+        .select("id, storage_path")
+        .in("id", ids);
+      if (!active || !attachments) return;
+
+      const pathById = new Map(attachments.map((attachment) => [attachment.id, attachment.storage_path]));
+      await Promise.all(images.map(async (image) => {
+        const path = pathById.get(attachmentIdFromImage(image) ?? "");
+        if (!path) return;
+        const { data } = await supabase.storage.from("task-attachments").download(path);
+        if (!active || !data) return;
+        const url = URL.createObjectURL(data);
+        urls.push(url);
+        image.src = url;
+      }));
+    })();
+
+    return () => {
+      active = false;
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [editor, value]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    // A captura nativa no próprio ProseMirror é necessária para aplicativos
+    // como Lightshot no macOS. Ela recebe o PNG antes dos handlers do React e
+    // do Tiptap, que poderiam consumir o ⌘V sem inserir a imagem.
+    const target = editor.view.dom;
+    const handleNativePaste = (event: ClipboardEvent) => {
+      const files = allClipboardImageFiles(event.clipboardData);
+      if (files.length) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        imageHandledFromPasteRef.current = insertPastedImages(files);
+        return;
+      }
+      void readClipboardImage();
+    };
+
+    target.addEventListener("paste", handleNativePaste, true);
+    return () => target.removeEventListener("paste", handleNativePaste, true);
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    // Alguns apps de captura do macOS atualizam o clipboard no atalho, mas
+    // não propagam o evento paste até o campo rico. Este fallback começa a
+    // leitura ainda dentro do gesto ⌘V/Ctrl+V, quando o navegador autoriza a
+    // Clipboard API.
+    const handlePasteShortcut = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "v" || !editor.isFocused) return;
+      imageHandledFromPasteRef.current = false;
+      void readClipboardImage();
+    };
+
+    window.addEventListener("keydown", handlePasteShortcut, true);
+    return () => window.removeEventListener("keydown", handlePasteShortcut, true);
+  }, [editor]);
 
   if (!editor) return null;
 
@@ -329,7 +547,7 @@ export function RichTextView({
   // Some descriptions were persisted with the HTML escaped more than once
   // (for example, `&amp;lt;p&amp;gt;...`). Decode up to three levels, but only when
   // that value represents one of the tags supported by the editor.
-  const hasEncodedHtmlTag = /&(?:amp;)*lt;\/?(p|h[1-6]|ul|ol|li|strong|em|u|code|blockquote|a|br|s|hr|mark)\b/i.test(html);
+  const hasEncodedHtmlTag = /&(?:amp;)*lt;\/?(p|h[1-6]|ul|ol|li|strong|em|u|code|blockquote|a|br|s|hr|mark|img)\b/i.test(html);
   let renderedHtml = html;
   if (hasEncodedHtmlTag) {
     for (let depth = 0; depth < 3; depth += 1) {
@@ -343,7 +561,42 @@ export function RichTextView({
       renderedHtml = decoded;
     }
   }
-  const looksLikeHtml = /<\/?(p|h[1-6]|ul|ol|li|strong|em|u|code|blockquote|a|br|s|hr|mark)\b/i.test(renderedHtml);
+  renderedHtml = stripStoredPrintImages(renderedHtml);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+    const images = Array.from(container.querySelectorAll<HTMLImageElement>("img[data-task-attachment-id], img[src^='taskflow-attachment://']"));
+    if (!images.length) return;
+
+    let active = true;
+    const urls: string[] = [];
+    void (async () => {
+      const ids = [...new Set(images.map(attachmentIdFromImage).filter(Boolean))] as string[];
+      const { data: attachments } = await supabase
+        .from("attachments")
+        .select("id, storage_path")
+        .in("id", ids);
+      if (!active || !attachments) return;
+      const pathById = new Map(attachments.map((attachment) => [attachment.id, attachment.storage_path]));
+      await Promise.all(images.map(async (image) => {
+        const path = pathById.get(attachmentIdFromImage(image) ?? "");
+        if (!path) return;
+        const { data } = await supabase.storage.from("task-attachments").download(path);
+        if (!active || !data) return;
+        const url = URL.createObjectURL(data);
+        urls.push(url);
+        image.src = url;
+      }));
+    })();
+
+    return () => {
+      active = false;
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [renderedHtml]);
+  const looksLikeHtml = /<\/?(p|h[1-6]|ul|ol|li|strong|em|u|code|blockquote|a|br|s|hr|mark|img)\b/i.test(renderedHtml);
   if (!looksLikeHtml) {
     const formattedHtml = renderedHtml
       .replace(/&/g, "&amp;")
@@ -354,6 +607,7 @@ export function RichTextView({
       .replace(/\r?\n/g, "<br />");
     return (
       <div
+        ref={contentRef}
         onClick={onClick}
         className={cn(
           "text-xs leading-snug [overflow-wrap:anywhere] [&_strong]:font-bold [&_em]:italic [&_u]:underline",
@@ -365,9 +619,10 @@ export function RichTextView({
   }
   return (
     <div
+      ref={contentRef}
       onClick={onClick}
       className={cn(
-        "tiptap prose prose-sm dark:prose-invert max-w-none text-xs leading-snug [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_h2]:text-sm [&_h3]:text-xs [&_a]:underline [&_a]:text-primary [&_u]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1",
+        "tiptap prose prose-sm dark:prose-invert max-w-none text-xs leading-snug [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_h2]:text-sm [&_h3]:text-xs [&_a]:underline [&_a]:text-primary [&_u]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_img]:my-3 [&_img]:block [&_img]:max-h-56 [&_img]:max-w-[80%] [&_img]:rounded-lg [&_img]:border [&_img]:bg-muted [&_img]:p-1 [&_img]:shadow-sm",
         className,
       )}
       dangerouslySetInnerHTML={{ __html: renderedHtml }}

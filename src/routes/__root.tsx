@@ -11,6 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import taskflowMark from "@/assets/taskflow-mark.png";
 
 const isGitHubPages = import.meta.env.VITE_GITHUB_PAGES === "true";
+const isLocalDevelopment = import.meta.env.DEV;
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -88,7 +89,21 @@ function RootShell({ children }: { children: ReactNode }) {
       <body>
         {children}
         <Scripts />
-        <script src="/registerSW.js" />
+        {isLocalDevelopment ? (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ("serviceWorker" in navigator) {
+                  navigator.serviceWorker.getRegistrations().then((registrations) =>
+                    Promise.all(registrations.map((registration) => registration.unregister()))
+                  );
+                }
+              `,
+            }}
+          />
+        ) : (
+          <script src="/registerSW.js" />
+        )}
       </body>
     </html>
   );

@@ -1,7 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, History, LayoutDashboard, MousePointer2, RefreshCw, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  History,
+  ImagePlus,
+  LayoutDashboard,
+  MousePointer2,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -10,45 +24,35 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const UPDATE_VERSION = "dashboard-interativo-2026-10-01";
+const UPDATE_VERSION = "prints-organizados-em-arquivos-2026-10-02";
+const DASHBOARD_UPDATE_VERSION = "dashboard-interativo-2026-10-01";
 
-function DashboardPreview() {
+function TaskDescriptionPreview() {
   return (
-    <div
-      className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-950"
-      aria-label="Prévia visual do Dashboard atualizado"
-    >
-      <div className="flex items-center gap-1.5 border-b bg-white px-3 py-2 dark:bg-slate-900">
+    <div className="overflow-hidden rounded-xl border bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-950" aria-label="Prévia do novo campo de prints na descrição">
+      <div className="flex items-center gap-2 border-b bg-white px-3 py-2 dark:bg-slate-900">
         <span className="h-2 w-2 rounded-full bg-rose-400" />
         <span className="h-2 w-2 rounded-full bg-amber-400" />
         <span className="h-2 w-2 rounded-full bg-emerald-400" />
-        <span className="ml-2 text-[9px] font-semibold text-slate-500">Dashboard TaskFlow</span>
+        <span className="ml-1 text-[10px] font-semibold text-slate-500">Nova tarefa</span>
       </div>
-      <div className="grid grid-cols-[0.32fr_1fr] gap-2 p-3">
-        <div className="space-y-1.5 rounded-lg bg-slate-200/80 p-2 dark:bg-slate-800">
-          <div className="h-1.5 w-8 rounded bg-slate-400/70" />
-          <div className="h-1.5 w-full rounded bg-slate-300 dark:bg-slate-700" />
-          <div className="h-1.5 w-4/5 rounded bg-slate-300 dark:bg-slate-700" />
-          <div className="h-1.5 w-3/5 rounded bg-blue-300" />
+      <div className="space-y-2.5 p-3">
+        <div className="rounded-md border bg-white px-2.5 py-2 dark:bg-slate-900">
+          <span className="text-[9px] font-medium text-slate-500">Título</span>
+          <div className="mt-1 h-2 w-2/5 rounded bg-slate-300 dark:bg-slate-700" />
         </div>
-        <div className="space-y-2">
-          <div className="grid grid-cols-3 gap-1.5">
-            {["bg-blue-100", "bg-emerald-100", "bg-amber-100"].map((color) => (
-              <div key={color} className={`h-9 rounded-md ${color} p-1.5`}>
-                <div className="h-1.5 w-1/2 rounded bg-slate-400/50" />
-                <div className="mt-1.5 h-2 w-1/3 rounded bg-slate-700/70" />
-              </div>
-            ))}
+        <div className="rounded-md border-2 border-primary/40 bg-white p-2.5 shadow-sm dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200">Descrição</span>
+            <span className="rounded bg-primary px-1.5 py-0.5 text-[8px] font-semibold text-primary-foreground">NOVO</span>
           </div>
-          <div className="rounded-md border bg-white p-2 dark:bg-slate-900">
-            <div className="mb-2 h-1.5 w-20 rounded bg-slate-300 dark:bg-slate-700" />
-            <div className="flex h-14 items-end gap-1">
-              <span className="h-[34%] flex-1 rounded-t bg-amber-400" />
-              <span className="h-[58%] flex-1 rounded-t bg-emerald-500" />
-              <span className="h-[82%] flex-1 rounded-t bg-amber-400" />
-              <span className="h-[48%] flex-1 rounded-t bg-emerald-500" />
-              <span className="h-[68%] flex-1 rounded-t bg-amber-400" />
-              <span className="h-[42%] flex-1 rounded-t bg-emerald-500" />
+          <div className="mt-1.5 rounded border border-dashed border-slate-300 bg-slate-50 p-2 text-[9px] text-slate-400 dark:border-slate-700 dark:bg-slate-950">
+            <p>Escreva aqui e cole um print com ⌘V</p>
+            <div className="mt-1.5 flex items-center gap-2 rounded border border-slate-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex h-8 w-10 shrink-0 items-center justify-center rounded bg-gradient-to-br from-sky-200 to-indigo-300">
+                <ImagePlus className="h-3.5 w-3.5 text-indigo-700" />
+              </div>
+              <p className="text-[8px] text-slate-500">Print colado — será organizado em Arquivos ao salvar</p>
             </div>
           </div>
         </div>
@@ -57,10 +61,85 @@ function DashboardPreview() {
   );
 }
 
+function DashboardUpdatePreview() {
+  return (
+    <div className="overflow-hidden rounded-xl border bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-950" aria-label="Prévia da atualização anterior do Dashboard">
+      <div className="flex items-center gap-2 border-b bg-white px-3 py-2 dark:bg-slate-900">
+        <LayoutDashboard className="h-3.5 w-3.5 text-primary" />
+        <span className="text-[10px] font-semibold text-slate-500">Dashboard TaskFlow</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2 p-3">
+        {[
+          ["Tarefas", "bg-blue-100"],
+          ["Pendentes", "bg-amber-100"],
+          ["Concluídas", "bg-emerald-100"],
+        ].map(([label, color]) => (
+          <div key={label} className={`rounded-lg ${color} p-2`}>
+            <p className="text-[8px] font-medium text-slate-500">{label}</p>
+            <div className="mt-1.5 h-3 w-1/3 rounded bg-slate-700/70" />
+          </div>
+        ))}
+      </div>
+      <div className="mx-3 mb-3 space-y-1.5 rounded-lg border bg-white p-2 dark:bg-slate-900">
+        <div className="h-2 w-1/3 rounded bg-slate-300 dark:bg-slate-700" />
+        <div className="flex items-center justify-between rounded bg-slate-100 px-2 py-1.5 text-[8px] text-slate-500 dark:bg-slate-800">
+          <span>Cliente com mais atividades</span><MousePointer2 className="h-3 w-3 text-primary" />
+        </div>
+        <div className="flex items-center justify-between rounded bg-slate-100 px-2 py-1.5 text-[8px] text-slate-500 dark:bg-slate-800">
+          <span>Distribuição da equipe</span><MousePointer2 className="h-3 w-3 text-primary" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReleaseSection({
+  title,
+  date,
+  status,
+  updated = false,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  date: string;
+  status: ReactNode;
+  updated?: boolean;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="rounded-xl border bg-background">
+      <CollapsibleTrigger asChild>
+        <button type="button" className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/35">
+          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${updated ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/[0.09] text-primary"}`}>
+            {status}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">{title}</span>
+            <span className="block text-xs text-muted-foreground">{date}</span>
+          </span>
+          {updated ? (
+            <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Versão atual</span>
+          ) : null}
+          <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="border-t data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+        <div className="space-y-4 p-4">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function UpdateCenter() {
   const { user, isAdmin, activeWorkspace } = useAuth();
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(true);
+  const [dashboardAcknowledged, setDashboardAcknowledged] = useState(false);
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const isSupportedWorkspace = activeWorkspace?.slug === "consultoria" || activeWorkspace?.slug === "marketing";
@@ -68,16 +147,46 @@ export function UpdateCenter() {
     () => (user?.id ? `taskflow:update:${UPDATE_VERSION}:${user.id}` : null),
     [user?.id],
   );
-  const canSeeUpdates = isAdmin && isSupportedWorkspace && Boolean(storageKey);
+  const dashboardStorageKey = useMemo(
+    () => (user?.id ? `taskflow:update:${DASHBOARD_UPDATE_VERSION}:${user.id}` : null),
+    [user?.id],
+  );
+  const promptKey = useMemo(
+    () => (user?.id && activeWorkspace?.id ? `taskflow:update-prompt:${UPDATE_VERSION}:${user.id}:${activeWorkspace.id}` : null),
+    [activeWorkspace?.id, user?.id],
+  );
+  // A novidade de prints vale para todas as pessoas dos dois ambientes.
+  // O histórico administrativo do Dashboard continua reservado aos admins.
+  const canSeeUpdates = isSupportedWorkspace && Boolean(storageKey);
 
   useEffect(() => {
     if (!canSeeUpdates || !storageKey) return;
     setAcknowledged(window.localStorage.getItem(storageKey) === UPDATE_VERSION);
   }, [canSeeUpdates, storageKey]);
 
-  if (!canSeeUpdates) return null;
+  useEffect(() => {
+    if (!canSeeUpdates || !dashboardStorageKey) return;
+    setDashboardAcknowledged(window.localStorage.getItem(dashboardStorageKey) === DASHBOARD_UPDATE_VERSION);
+  }, [canSeeUpdates, dashboardStorageKey]);
 
   const hasUpdate = !acknowledged;
+  const dashboardIsCurrent = acknowledged || dashboardAcknowledged;
+
+  useEffect(() => {
+    if (!canSeeUpdates || !hasUpdate || !promptKey) {
+      setShowUpdatePrompt(false);
+      return;
+    }
+    setShowUpdatePrompt(window.sessionStorage.getItem(promptKey) !== UPDATE_VERSION);
+  }, [canSeeUpdates, hasUpdate, promptKey]);
+
+  if (!canSeeUpdates) return null;
+
+  const openPendingUpdate = () => {
+    if (promptKey) window.sessionStorage.setItem(promptKey, UPDATE_VERSION);
+    setShowUpdatePrompt(false);
+    setOpen(true);
+  };
   const updateApplication = async () => {
     if (!storageKey) return;
     setRefreshing(true);
@@ -99,25 +208,62 @@ export function UpdateCenter() {
     }
   };
 
+  const printUpdateDetails = (pending: boolean) => (
+    <>
+      <TaskDescriptionPreview />
+      <div className="rounded-lg bg-muted/35 p-3 text-sm leading-6 text-muted-foreground">
+        Na criação ou edição da tarefa, escreva normalmente na descrição e cole uma imagem com ⌘V ou Ctrl+V. Enquanto edita, o print aparece no texto; ao salvar, ele fica organizado somente em Arquivos, com miniatura e download.
+      </div>
+      {pending ? (
+        <div className="rounded-xl border border-primary/20 bg-primary/[0.05] p-4">
+          <p className="text-sm font-medium">Atualize para carregar esta versão no seu navegador.</p>
+          <Button type="button" className="mt-3 gap-2" onClick={() => void updateApplication()} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Atualizando…" : "Atualizar agora"}
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">O TaskFlow buscará a versão nova e fará uma recarga forçada.</p>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+          <CheckCircle2 className="h-4 w-4 shrink-0" /> Esta versão já foi atualizada neste navegador.
+        </div>
+      )}
+    </>
+  );
+
   return (
     <>
+      {showUpdatePrompt ? (
+        <div className="fixed inset-x-3 top-14 z-[70] animate-in slide-in-from-top-2 fade-in md:left-auto md:right-4 md:w-[380px]" role="status">
+          <div className="rounded-2xl border border-primary/25 bg-background p-4 shadow-xl">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">Nova atualização disponível</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Esta tela está em uma versão anterior. Veja a novidade e recarregue o TaskFlow para atualizar.</p>
+                <Button type="button" size="sm" className="mt-3" onClick={openPendingUpdate}>Ver atualizações</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <Button
         type="button"
-        variant={hasUpdate ? "default" : "ghost"}
+        variant={hasUpdate ? "default" : "outline"}
         size="sm"
-        onClick={() => setOpen(true)}
-        className={`relative h-9 gap-2 rounded-full px-3 text-sm ${hasUpdate ? "animate-pulse shadow-[0_0_0_4px_hsl(var(--primary)/0.14)]" : ""}`}
-        title={hasUpdate ? "Há uma atualização disponível" : "Ver histórico de atualizações"}
+        onClick={hasUpdate ? openPendingUpdate : () => setOpen(true)}
+        className={`relative h-9 gap-2 rounded-full px-3 text-sm ${hasUpdate ? "animate-pulse shadow-[0_0_0_4px_hsl(var(--primary)/0.14)]" : "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"}`}
+        title={hasUpdate ? "Há uma atualização disponível" : "Este navegador está na versão atual"}
       >
-        {hasUpdate ? <Sparkles className="h-4 w-4" /> : <History className="h-4 w-4" />}
-        <span className="hidden lg:inline">Novas atualizações</span>
+        {hasUpdate ? <Sparkles className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+        <span className="hidden lg:inline">{hasUpdate ? "Novas atualizações" : "Versão atual"}</span>
         {hasUpdate && (
-          <>
-            <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
-            </span>
-          </>
+          <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
+          </span>
         )}
       </Button>
 
@@ -127,48 +273,64 @@ export function UpdateCenter() {
             <DialogHeader>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
-                  {hasUpdate ? <Sparkles className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                  {hasUpdate ? "Atualização disponível" : "Atualizado"}
+                  <History className="h-3.5 w-3.5" /> Histórico de atualizações
                 </span>
                 <span className="text-xs font-medium text-muted-foreground">{activeWorkspace?.name}</span>
               </div>
-              <DialogTitle className="pt-3 text-2xl">Seu Dashboard ficou mais completo</DialogTitle>
+              <DialogTitle className="pt-3 text-2xl">Novas atualizações</DialogTitle>
               <DialogDescription className="leading-6">
-                Versão de 01 de outubro de 2026. Este registro continua disponível aqui para consulta.
+                Veja o que mudou no TaskFlow e atualize o navegador quando houver uma nova versão.
               </DialogDescription>
             </DialogHeader>
           </div>
 
-          <div className="space-y-5 px-6 pb-6">
-            <DashboardPreview />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border bg-muted/30 p-3">
-                <LayoutDashboard className="mb-2 h-4 w-4 text-primary" />
-                <p className="text-sm font-semibold">Gráfico de equipe ampliado</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">A distribuição da equipe agora ocupa toda a largura.</p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 p-3">
-                <MousePointer2 className="mb-2 h-4 w-4 text-primary" />
-                <p className="text-sm font-semibold">Indicadores clicáveis</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">Clientes e indicadores abrem as tarefas relacionadas.</p>
-              </div>
-            </div>
-
+          <div className="space-y-6 px-6 py-5">
             {hasUpdate ? (
-              <div className="rounded-xl border border-primary/20 bg-primary/[0.05] p-4">
-                <p className="text-sm font-medium">Atualize para carregar a versão nova no seu navegador.</p>
-                <Button type="button" className="mt-3 gap-2" onClick={() => void updateApplication()} disabled={refreshing}>
-                  <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                  {refreshing ? "Atualizando…" : "Atualizar agora"}
-                </Button>
-                <p className="mt-2 text-xs text-muted-foreground">O TaskFlow buscará a versão nova e fará uma recarga forçada.</p>
+              <section className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Atualizações pendentes</p>
+                <ReleaseSection
+                  title="Agora você pode colar prints nas tarefas"
+                  date="02 de outubro de 2026"
+                  defaultOpen
+                  status={<Sparkles className="h-4 w-4" />}
+                >
+                  {printUpdateDetails(true)}
+                </ReleaseSection>
+              </section>
+            ) : null}
+
+            <section className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Atualizações instaladas neste navegador</p>
+              <div className="space-y-3">
+                {!hasUpdate ? (
+                  <ReleaseSection
+                    title="Agora você pode colar prints nas tarefas"
+                    date="02 de outubro de 2026"
+                    defaultOpen
+                    status={<CheckCircle2 className="h-4 w-4" />}
+                    updated
+                  >
+                    {printUpdateDetails(false)}
+                  </ReleaseSection>
+                ) : null}
+
+                {isAdmin ? (
+                  <ReleaseSection
+                    title="Dashboard mais interativo"
+                    date="01 de outubro de 2026"
+                    status={<CheckCircle2 className="h-4 w-4" />}
+                    updated={dashboardIsCurrent}
+                  >
+                    <DashboardUpdatePreview />
+                    <p className="text-sm leading-6 text-muted-foreground">A distribuição da equipe ganhou mais espaço e os indicadores passaram a abrir as tarefas relacionadas por cliente.</p>
+                  </ReleaseSection>
+                ) : null}
+
+                {hasUpdate && !isAdmin ? (
+                  <p className="rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">As atualizações aparecerão aqui em verde depois de instaladas neste navegador.</p>
+                ) : null}
               </div>
-            ) : (
-              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                Esta versão já foi atualizada neste navegador.
-              </div>
-            )}
+            </section>
           </div>
         </DialogContent>
       </Dialog>
