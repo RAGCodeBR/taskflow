@@ -7,10 +7,7 @@ import {
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { del, get, set } from "idb-keyval";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  OFFLINE_QUERY_CACHE_VERSION,
-  offlineQueryCacheKey,
-} from "@/lib/offline-user-storage";
+import { OFFLINE_QUERY_CACHE_VERSION, offlineQueryCacheKey } from "@/lib/offline-user-storage";
 
 // A versão 2 passa a preservar todas as consultas de dados de trabalho já
 // abertas pelo usuário. Isso evita que uma tela fique vazia no modo avião
@@ -26,6 +23,7 @@ const ONLINE_ONLY_QUERY_ROOTS = new Set([
   "agenda_events",
   "agenda_calendar_sources",
   "meeting_minutes",
+  "meeting_transcripts",
   "client_invoices",
 ]);
 

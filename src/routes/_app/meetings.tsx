@@ -25,6 +25,7 @@ import {
   Video,
   ExternalLink,
   Copy,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,6 +57,7 @@ import {
 } from "@/hooks/use-meetings";
 import { RecurringMeetingDialog } from "@/components/RecurringMeetingDialog";
 import { MeetingMinutesPanel } from "@/components/AgendaEventDialog";
+import { MeetingTranscriptsDialog } from "@/components/MeetingTranscriptsDialog";
 import { TaskDialog } from "@/components/TaskDialog";
 import {
   AlertDialog,
@@ -159,6 +161,7 @@ function RecurringMeetingsPage() {
   const cycledWorkspace = useRef<string | null>(null);
   const googleSyncAttemptedFor = useRef<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [transcriptsOpen, setTranscriptsOpen] = useState(false);
   const [editingRecurringMeeting, setEditingRecurringMeeting] = useState<RecurringMeeting | null>(
     null,
   );
@@ -443,27 +446,34 @@ function RecurringMeetingsPage() {
 
   return (
     <div className="space-y-5 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <header className="space-y-1">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <CalendarClock className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-semibold tracking-tight">Reuniões</h1>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Reuniões por cliente: pauta, resultado de cada item e tarefas geradas.
-          </p>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              className="h-9 rounded-full px-4 shadow-sm"
+              onClick={() => setTranscriptsOpen(true)}
+            >
+              <FileText className="mr-2 h-4 w-4" /> Transcrições
+            </Button>
+            <Button
+              className="h-9 rounded-full px-4 shadow-sm"
+              onClick={() => {
+                setEditingRecurringMeeting(null);
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" /> Nova reunião
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            className="h-9 rounded-full px-4 shadow-sm"
-            onClick={() => {
-              setEditingRecurringMeeting(null);
-              setDialogOpen(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" /> Nova reunião
-          </Button>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Reuniões por cliente: pauta, resultado de cada item e tarefas geradas.
+        </p>
       </header>
 
       {recurring_meetingsError ? (
@@ -744,6 +754,14 @@ function RecurringMeetingsPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         recurringMeeting={editingRecurringMeeting}
+      />
+      <MeetingTranscriptsDialog
+        open={transcriptsOpen}
+        onOpenChange={setTranscriptsOpen}
+        clients={clients}
+        meetings={recurring_meetings}
+        occurrences={occurrences}
+        onOpenMeeting={setMeetingId}
       />
       {meeting && meetingRecurringMeeting ? (
         <MeetingDialog
@@ -1365,10 +1383,14 @@ function MeetingDialog({
                       : "O compromisso será preparado quando esta data entrar nos próximos 30 dias.")}
                 </p>
               )}
-              {!occurrence.calendar_event_disabled &&
-                calendarEvent?.meeting_url &&
-                recurringMeeting.create_google_meet &&
-                recurringMeeting.auto_smart_notes && <MeetingMinutesPanel event={calendarEvent} />}
+              {!occurrence.calendar_event_disabled && calendarEvent?.meeting_url && (
+                <MeetingMinutesPanel
+                  event={calendarEvent}
+                  clientId={recurringMeeting.client_id}
+                  occurrenceId={occurrence.id}
+                  meetingId={recurringMeeting.id}
+                />
+              )}
             </div>
           )}
 

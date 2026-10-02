@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Supabase types are regenerated after migrations. */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { flushSync } from "react-dom";
 import { format } from "date-fns";
 import { Copy, ExternalLink, FileText, RefreshCw } from "lucide-react";
@@ -31,9 +32,11 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { formatAtaWithGemini } from "@/lib/format-ata.functions";
 import {
   useAgendaCalendarSources,
   useAssignableProfiles,
+  useGoogleCalendarConnection,
   type AgendaEvent,
 } from "@/hooks/use-data";
 
@@ -90,11 +93,25 @@ async function edgeFunctionErrorMessage(error: unknown) {
 
 export function MeetingMinutesPanel({
   event,
+  clientId,
+  occurrenceId,
+  meetingId,
 }: {
   event: Pick<AgendaEvent, "id" | "ends_at" | "meeting_url">;
+  clientId?: string | null;
+  occurrenceId?: string | null;
+  meetingId?: string | null;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { data: googleConnection, isLoading: loadingConnection } = useGoogleCalendarConnection();
+  const runFormat = useServerFn(formatAtaWithGemini);
   const [syncing, setSyncing] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [savingReview, setSavingReview] = useState(false);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewTranscriptId, setReviewTranscriptId] = useState<string | null>(null);
+  const automaticAttempt = useRef<string | null>(null);
   const isMeet = /meet\.google\.com\/[a-z]{3,}-[a-z]{3,}-[a-z]{3,}/i.test(event.meeting_url ?? "");
   const { data: minutes, isLoading } = useQuery({
     queryKey: ["meeting_minutes", event.id],
@@ -109,8 +126,27 @@ export function MeetingMinutesPanel({
     },
     enabled: isMeet,
   });
+  const { data: transcripts = [], isLoading: loadingTranscripts } = useQuery({
+    queryKey: ["meeting_transcripts", event.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("meeting_transcripts" as any) as any)
+        .select("id, transcript_name, content, entry_count, google_doc_url, imported_at")
+        .eq("calendar_event_id", event.id)
+        .order("imported_at");
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        transcript_name: string;
+        content: string;
+        entry_count: number;
+        google_doc_url: string | null;
+        imported_at: string;
+      }>;
+    },
+    enabled: isMeet,
+  });
   const ended = new Date(event.ends_at) <= new Date();
-  const syncMinutes = async () => {
+  const syncMinutes = useCallback(async () => {
     setSyncing(true);
     const { data, error } = await supabase.functions.invoke("google-meet-minutes-sync", {
       body: { eventId: event.id },
@@ -118,9 +154,99 @@ export function MeetingMinutesPanel({
     setSyncing(false);
     if (error) return toast.error(await edgeFunctionErrorMessage(error));
     if (data?.error) return toast.error(data.error);
-    await queryClient.invalidateQueries({ queryKey: ["meeting_minutes", event.id] });
-    if (data.status === "ready") toast.success("Ata da reunião encontrada.");
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["meeting_minutes", event.id] }),
+      queryClient.invalidateQueries({ queryKey: ["meeting_transcripts", event.id] }),
+    ]);
+    if (data.importedTranscripts > 0) toast.success("Transcrição do Meet importada.");
+    else if (data.status === "ready") toast.success("Ata da reunião encontrada.");
     else toast.message(data.reason || "A ata ainda não está disponível.");
+  }, [event.id, queryClient]);
+
+  useEffect(() => {
+    if (
+      !isMeet ||
+      !ended ||
+      isLoading ||
+      loadingTranscripts ||
+      loadingConnection ||
+      !googleConnection?.granted_scopes
+        ?.split(/\s+/)
+        .includes("https://www.googleapis.com/auth/meetings.space.readonly") ||
+      transcripts.length > 0
+    )
+      return;
+    if (automaticAttempt.current === event.id) return;
+    automaticAttempt.current = event.id;
+    void syncMinutes();
+  }, [
+    event.id,
+    ended,
+    googleConnection,
+    isMeet,
+    isLoading,
+    loadingConnection,
+    loadingTranscripts,
+    syncMinutes,
+    transcripts.length,
+  ]);
+
+  const generateReview = async (transcript: (typeof transcripts)[number]) => {
+    setGenerating(true);
+    try {
+      const result = await runFormat({ data: { text: transcript.content } });
+      const lineBreaks = result.html
+        .replace(/<\/(?:td|th)>/gi, " · ")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/(?:p|li|tr|h[1-6])>/gi, "\n");
+      const text = new DOMParser().parseFromString(lineBreaks, "text/html").body.textContent ?? "";
+      setReviewText(text.replace(/\n{3,}/g, "\n\n").trim());
+      setReviewTranscriptId(transcript.id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível gerar a ata.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const saveReviewedAta = async () => {
+    if (
+      !clientId ||
+      !occurrenceId ||
+      !meetingId ||
+      !reviewTranscriptId ||
+      !reviewText.trim() ||
+      !user
+    )
+      return;
+    setSavingReview(true);
+    try {
+      const { error } = await (supabase.from("client_notes" as any) as any).upsert(
+        {
+          client_id: clientId,
+          recurring_meeting_id: meetingId,
+          recurring_meeting_occurrence_id: occurrenceId,
+          meet_transcript_id: reviewTranscriptId,
+          title: `Ata do Google Meet · ${format(new Date(event.ends_at), "dd/MM/yyyy")}`,
+          content: reviewText.trim(),
+          content_html: null,
+          created_by: user.id,
+        },
+        { onConflict: "meet_transcript_id" },
+      );
+      if (error) throw error;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client_notes"] }),
+        queryClient.invalidateQueries({ queryKey: ["meeting-ata-notes"] }),
+      ]);
+      setReviewText("");
+      setReviewTranscriptId(null);
+      toast.success("Ata revisada salva na reunião e nas anotações do cliente.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar a ata.");
+    } finally {
+      setSavingReview(false);
+    }
   };
 
   const statusText = !isMeet
@@ -129,17 +255,19 @@ export function MeetingMinutesPanel({
       ? "A ata será procurada após o término da reunião."
       : minutes?.status === "ready"
         ? "Ata do Gemini disponível."
-        : minutes?.status === "unavailable"
-          ? "Nenhuma ata do Gemini foi encontrada para esta reunião."
-          : minutes?.status === "error"
-            ? minutes.error_message || "Não foi possível consultar a ata."
-            : "Aguardando a ata do Gemini ser gerada.";
+        : transcripts.length > 0
+          ? "Transcrição importada. A ata do Gemini ainda não está disponível."
+          : minutes?.status === "unavailable"
+            ? "Nenhuma ata do Gemini foi encontrada para esta reunião."
+            : minutes?.status === "error"
+              ? minutes.error_message || "Não foi possível consultar a ata."
+              : "Aguardando a ata do Gemini ser gerada.";
 
   return (
     <div className="flex gap-3 rounded-lg border bg-muted/30 p-3">
       <FileText className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="text-sm font-medium">Ata da reunião</div>
+        <div className="text-sm font-medium">Ata e transcrição da reunião</div>
         <p className="text-xs text-muted-foreground">
           {isLoading ? "Consultando status…" : statusText}
         </p>
@@ -167,9 +295,58 @@ export function MeetingMinutesPanel({
             ) : (
               <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
             )}
-            {minutes?.google_doc_url ? "Atualizar" : "Buscar ata"}
+            {minutes?.google_doc_url ? "Atualizar" : "Buscar ata e transcrição"}
           </Button>
         </div>
+        {transcripts.map((transcript, index) => (
+          <div key={transcript.id} className="mt-3 rounded-md border bg-background p-2">
+            <details>
+              <summary className="cursor-pointer text-xs font-medium">
+                Transcrição {index + 1} · {transcript.entry_count} falas
+              </summary>
+              <div className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap text-xs">
+                {transcript.content || "A transcrição foi criada sem falas disponíveis."}
+              </div>
+            </details>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {transcript.google_doc_url && (
+                <Button asChild size="sm" variant="ghost">
+                  <a href={transcript.google_doc_url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="mr-1 h-3.5 w-3.5" /> Abrir no Google
+                  </a>
+                </Button>
+              )}
+              {clientId && occurrenceId && meetingId && Boolean(transcript.content) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={generating}
+                  onClick={() => void generateReview(transcript)}
+                >
+                  {generating ? "Gerando..." : "Gerar ata para revisão"}
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+        {reviewTranscriptId && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs font-medium">Revise a ata antes de salvar</p>
+            <Textarea
+              value={reviewText}
+              onChange={(event) => setReviewText(event.target.value)}
+              rows={12}
+              aria-label="Ata gerada a partir da transcrição"
+            />
+            <Button
+              size="sm"
+              disabled={savingReview || !reviewText.trim()}
+              onClick={() => void saveReviewedAta()}
+            >
+              {savingReview ? "Salvando..." : "Salvar ata revisada"}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

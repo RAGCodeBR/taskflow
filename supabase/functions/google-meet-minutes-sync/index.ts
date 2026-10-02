@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Google Meet and Supabase Edge responses are not generated as local types. */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -36,7 +37,7 @@ async function authenticatedTeamUser(request: Request) {
   if (roleError) throw roleError;
   if (!roles?.some((item) => item.role === "admin" || item.role === "collaborator"))
     throw new Error("Sua conta não possui acesso à Agenda.");
-  return { user: data.user, admin };
+  return { user: data.user, admin, auth };
 }
 
 async function accessToken(admin: any, connection: any) {
@@ -78,15 +79,31 @@ async function meetRequest(token: string, url: string) {
   return data;
 }
 
+async function listMeetResources(token: string, url: string, field: string): Promise<any[]> {
+  const items: any[] = [];
+  let pageToken: string | undefined;
+  do {
+    const pageUrl = new URL(url);
+    pageUrl.searchParams.set("pageSize", "100");
+    if (pageToken) pageUrl.searchParams.set("pageToken", pageToken);
+    const page = await meetRequest(token, pageUrl.toString());
+    items.push(...(Array.isArray(page[field]) ? page[field] : []));
+    pageToken = page.nextPageToken || undefined;
+  } while (pageToken);
+  return items;
+}
+
 function meetingCode(url: string | null) {
   const match = url?.match(/meet\.google\.com\/([a-z]{3,}-[a-z]{3,}-[a-z]{3,})/i);
   return match?.[1]?.toLowerCase() ?? null;
 }
 
-async function syncEvent(admin: any, userId: string, eventId: string) {
-  const { data: event, error: eventError } = await admin
+async function syncEvent(auth: any, admin: any, userId: string, eventId: string) {
+  // Read with the caller's token first. The service client below must never
+  // make an arbitrary eventId supplied by the browser sufficient authorization.
+  const { data: event, error: eventError } = await auth
     .from("calendar_events")
-    .select("id, title, ends_at, meeting_url, deleted_at")
+    .select("id, title, starts_at, ends_at, meeting_url, deleted_at")
     .eq("id", eventId)
     .maybeSingle();
   if (eventError) throw eventError;
@@ -112,26 +129,138 @@ async function syncEvent(admin: any, userId: string, eventId: string) {
     throw new Error("Reconecte sua conta Google para autorizar o acesso às atas do Google Meet.");
 
   const token = await accessToken(admin, connection);
-  const filter = `space.meeting_code = "${code}"`;
-  const records = await meetRequest(
+  const eventStart = new Date(event.starts_at).getTime();
+  const from = new Date(eventStart - 6 * 60 * 60 * 1000).toISOString();
+  const until = new Date(eventStart + 6 * 60 * 60 * 1000).toISOString();
+  const filter = `space.meeting_code = "${code}" AND start_time >= "${from}" AND start_time <= "${until}"`;
+  const records = await listMeetResources(
     token,
-    `https://meet.googleapis.com/v2/conferenceRecords?filter=${encodeURIComponent(filter)}&pageSize=10`,
+    `https://meet.googleapis.com/v2/conferenceRecords?filter=${encodeURIComponent(filter)}`,
+    "conferenceRecords",
   );
-  const record =
-    (records.conferenceRecords ?? []).find((item: any) => item.endTime) ??
-    records.conferenceRecords?.[0];
+  // A Meet link can be reused. Match this occurrence by time and keep the
+  // selected record stable after the first successful lookup.
+  const { data: savedMinutes } = await admin
+    .from("meeting_minutes")
+    .select("conference_record_name, smart_note_name, google_doc_url, generated_at")
+    .eq("calendar_event_id", eventId)
+    .maybeSingle();
+  const record = savedMinutes?.conference_record_name
+    ? records.find((item: any) => item.name === savedMinutes.conference_record_name)
+    : records
+        .filter((item: any) => item.endTime)
+        .sort(
+          (a: any, b: any) =>
+            Math.abs(new Date(a.startTime).getTime() - eventStart) -
+            Math.abs(new Date(b.startTime).getTime() - eventStart),
+        )[0];
+  if (!record && savedMinutes?.google_doc_url)
+    return {
+      status: "ready",
+      conferenceRecordName: savedMinutes.conference_record_name,
+      smartNoteName: savedMinutes.smart_note_name,
+      googleDocUrl: savedMinutes.google_doc_url,
+      generatedAt: savedMinutes.generated_at,
+      importedTranscripts: 0,
+    };
   if (!record)
-    return { status: "pending", reason: "A conferência ainda não está disponível no Google Meet." };
+    return {
+      status: "pending",
+      conferenceRecordName: savedMinutes?.conference_record_name ?? null,
+      reason: "A conferência ainda não está disponível no Google Meet.",
+    };
 
-  const notes = await meetRequest(
+  const transcripts = await listMeetResources(
     token,
-    `https://meet.googleapis.com/v2/${record.name}/smartNotes?pageSize=10`,
+    `https://meet.googleapis.com/v2/${record.name}/transcripts`,
+    "transcripts",
   );
-  const note = (notes.smartNotes ?? []).find((item: any) => item.state === "FILE_GENERATED");
+  let importedTranscripts = 0;
+  const readyTranscripts = transcripts.filter((item: any) => item.state === "FILE_GENERATED");
+  if (readyTranscripts.length) {
+    const participants = await listMeetResources(
+      token,
+      `https://meet.googleapis.com/v2/${record.name}/participants`,
+      "participants",
+    );
+    const participantNames = new Map<string, string>(
+      participants.map((participant: any) => [
+        participant.name,
+        participant.signedinUser?.displayName ??
+          participant.anonymousUser?.displayName ??
+          participant.phoneUser?.displayName ??
+          "Participante",
+      ]),
+    );
+    for (const transcript of readyTranscripts) {
+      const { data: existing } = await admin
+        .from("meeting_transcripts")
+        .select("calendar_event_id")
+        .eq("transcript_name", transcript.name)
+        .maybeSingle();
+      if (existing && existing.calendar_event_id !== eventId)
+        throw new Error("Esta transcrição já está vinculada a outra reunião.");
+      const entries = await listMeetResources(
+        token,
+        `https://meet.googleapis.com/v2/${transcript.name}/entries`,
+        "transcriptEntries",
+      );
+      const normalizedEntries = entries.map((entry: any) => ({
+        name: entry.name,
+        participant: entry.participant,
+        participant_name: participantNames.get(entry.participant) ?? "Participante",
+        text: entry.text ?? "",
+        start_time: entry.startTime,
+        end_time: entry.endTime,
+        language_code: entry.languageCode ?? null,
+      }));
+      const content = normalizedEntries
+        .map((entry: any) => {
+          const at = new Date(entry.start_time).toLocaleTimeString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          return `[${at}] ${entry.participant_name}: ${entry.text}`;
+        })
+        .join("\n\n");
+      const { error: transcriptError } = await admin.from("meeting_transcripts").upsert(
+        {
+          calendar_event_id: eventId,
+          conference_record_name: record.name,
+          transcript_name: transcript.name,
+          google_doc_url: transcript.docsDestination?.exportUri ?? null,
+          entries: normalizedEntries,
+          content,
+          entry_count: normalizedEntries.length,
+          imported_at: new Date().toISOString(),
+        },
+        { onConflict: "transcript_name" },
+      );
+      if (transcriptError) throw transcriptError;
+      importedTranscripts += 1;
+    }
+  }
+
+  // Some meetings have transcription enabled without Gemini notes. Failure to
+  // read notes must not discard a transcript that was already imported.
+  let notes: any[] = [];
+  try {
+    notes = await listMeetResources(
+      token,
+      `https://meet.googleapis.com/v2/${record.name}/smartNotes`,
+      "smartNotes",
+    );
+  } catch (error) {
+    if (!readyTranscripts.length) throw error;
+  }
+  const note = notes.find((item: any) => item.state === "FILE_GENERATED");
   if (!note)
     return {
       status: "pending",
       conferenceRecordName: record.name,
+      importedTranscripts,
+      transcriptStatus: readyTranscripts.length ? "ready" : "pending",
       reason: "A ata do Gemini ainda está sendo gerada.",
     };
 
@@ -143,6 +272,8 @@ async function syncEvent(admin: any, userId: string, eventId: string) {
     return {
       status: "pending",
       conferenceRecordName: record.name,
+      importedTranscripts,
+      transcriptStatus: readyTranscripts.length ? "ready" : "pending",
       reason: "A ata ainda não tem um documento disponível.",
     };
   return {
@@ -151,6 +282,8 @@ async function syncEvent(admin: any, userId: string, eventId: string) {
     smartNoteName: note.name,
     googleDocUrl,
     generatedAt: note.endTime ?? new Date().toISOString(),
+    importedTranscripts,
+    transcriptStatus: readyTranscripts.length ? "ready" : "pending",
   };
 }
 
@@ -158,11 +291,11 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
-    const { user, admin } = await authenticatedTeamUser(request);
+    const { user, admin, auth } = await authenticatedTeamUser(request);
     const body = await request.json().catch(() => ({}));
     const eventId = typeof body?.eventId === "string" ? body.eventId : "";
     if (!eventId) throw new Error("Informe a reunião a sincronizar.");
-    const result = await syncEvent(admin, user.id, eventId);
+    const result = await syncEvent(auth, admin, user.id, eventId);
     const payload = {
       calendar_event_id: eventId,
       status: result.status,
