@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
   ChevronDown,
@@ -140,7 +140,9 @@ export function UpdateCenter() {
   const [acknowledged, setAcknowledged] = useState(true);
   const [dashboardAcknowledged, setDashboardAcknowledged] = useState(false);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
+  const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const watchedRegistrationsRef = useRef(new Set<ServiceWorkerRegistration>());
 
   const isSupportedWorkspace = activeWorkspace?.slug === "consultoria" || activeWorkspace?.slug === "marketing";
   const storageKey = useMemo(
@@ -169,16 +171,74 @@ export function UpdateCenter() {
     setDashboardAcknowledged(window.localStorage.getItem(dashboardStorageKey) === DASHBOARD_UPDATE_VERSION);
   }, [canSeeUpdates, dashboardStorageKey]);
 
-  const hasUpdate = !acknowledged;
+  const hasReleaseUpdate = !acknowledged;
+  const hasUpdate = hasReleaseUpdate || serviceWorkerUpdateReady;
   const dashboardIsCurrent = acknowledged || dashboardAcknowledged;
+
+  useEffect(() => {
+    if (!canSeeUpdates || !("serviceWorker" in navigator)) return;
+
+    let active = true;
+    const cleanup: Array<() => void> = [];
+    const watchRegistration = (registration: ServiceWorkerRegistration) => {
+      if (watchedRegistrationsRef.current.has(registration)) return;
+      watchedRegistrationsRef.current.add(registration);
+
+      const watchInstallingWorker = () => {
+        const worker = registration.installing;
+        if (!worker) return;
+        const onStateChange = () => {
+          if (active && worker.state === "installed" && navigator.serviceWorker.controller) {
+            setServiceWorkerUpdateReady(true);
+          }
+        };
+        worker.addEventListener("statechange", onStateChange);
+        cleanup.push(() => worker.removeEventListener("statechange", onStateChange));
+      };
+      registration.addEventListener("updatefound", watchInstallingWorker);
+      cleanup.push(() => registration.removeEventListener("updatefound", watchInstallingWorker));
+      watchInstallingWorker();
+    };
+
+    const checkForUpdate = async () => {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      if (!active) return;
+      registrations.forEach((registration) => {
+        watchRegistration(registration);
+        if (registration.waiting && navigator.serviceWorker.controller) setServiceWorkerUpdateReady(true);
+        void registration.update().catch(() => undefined);
+      });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void checkForUpdate();
+    };
+    void checkForUpdate();
+    const interval = window.setInterval(() => void checkForUpdate(), 60_000);
+    window.addEventListener("focus", onVisibilityChange);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onVisibilityChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      cleanup.forEach((remove) => remove());
+      watchedRegistrationsRef.current.clear();
+    };
+  }, [canSeeUpdates]);
 
   useEffect(() => {
     if (!canSeeUpdates || !hasUpdate || !promptKey) {
       setShowUpdatePrompt(false);
       return;
     }
+    if (serviceWorkerUpdateReady) {
+      setShowUpdatePrompt(true);
+      return;
+    }
     setShowUpdatePrompt(window.sessionStorage.getItem(promptKey) !== UPDATE_VERSION);
-  }, [canSeeUpdates, hasUpdate, promptKey]);
+  }, [canSeeUpdates, hasUpdate, promptKey, serviceWorkerUpdateReady]);
 
   if (!canSeeUpdates) return null;
 
@@ -192,6 +252,7 @@ export function UpdateCenter() {
     setRefreshing(true);
     window.localStorage.setItem(storageKey, UPDATE_VERSION);
     setAcknowledged(true);
+    setServiceWorkerUpdateReady(false);
 
     try {
       if ("serviceWorker" in navigator) {
