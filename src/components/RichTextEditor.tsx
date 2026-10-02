@@ -89,18 +89,15 @@ function clipboardImageFiles(clipboardData: DataTransfer | null) {
     .filter((item) => item.type.startsWith("image/"))
     .map((item) => item.getAsFile())
     .filter((file): file is File => file !== null);
+
   return [...Array.from(clipboardData?.files ?? []), ...fromItems]
     .filter((file) => file.type.startsWith("image/"))
-    .filter((file, index, all) =>
-      all.findIndex((candidate) =>
-        candidate.name === file.name &&
-        candidate.size === file.size &&
-        candidate.lastModified === file.lastModified,
-      ) === index,
-    );
+    .filter((file, index, all) => all.findIndex((candidate) =>
+      candidate.name === file.name && candidate.size === file.size && candidate.lastModified === file.lastModified,
+    ) === index);
 }
 
-function clipboardHtmlImageData(clipboardData: DataTransfer | null) {
+function clipboardHtmlImageFiles(clipboardData: DataTransfer | null) {
   const html = clipboardData?.getData("text/html") || "";
   const sources = [...html.matchAll(/<img[^>]+src=["'](data:image\/[a-zA-Z0-9.+-]+;base64,[^"']+)["']/gi)]
     .map((match) => match[1]);
@@ -114,11 +111,30 @@ function clipboardHtmlImageData(clipboardData: DataTransfer | null) {
 }
 
 function allClipboardImageFiles(clipboardData: DataTransfer | null) {
-  // Windows, macOS e a maior parte das extensões entregam o binário em
-  // files/items. Algumas extensões entregam somente HTML com data:image.
-  // Preferimos o binário quando ambos existem para não duplicar o print.
-  const binaryFiles = clipboardImageFiles(clipboardData);
-  return binaryFiles.length ? binaryFiles : clipboardHtmlImageData(clipboardData);
+  const files = clipboardImageFiles(clipboardData);
+  return files.length ? files : clipboardHtmlImageFiles(clipboardData);
+}
+
+function htmlHasMeaningfulText(html: string) {
+  return html
+    .replace(/<img\b[^>]*>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .trim().length > 0;
+}
+
+function hasClipboardText(clipboardData: DataTransfer | null) {
+  const plainText = clipboardData?.getData("text/plain").trim() || "";
+  const html = clipboardData?.getData("text/html").trim() || "";
+  // Imagem copiada por Lightshot/extensões pode ter um HTML com apenas <img>
+  // e até um texto auxiliar. Nesse caso ela continua sendo um print.
+  const imageOnlyHtml = Boolean(html) && !htmlHasMeaningfulText(html) && allClipboardImageFiles(clipboardData).length > 0;
+  if (!imageOnlyHtml && (plainText || htmlHasMeaningfulText(html))) return true;
+
+  const types = Array.from(clipboardData?.types ?? []).map((type) => type.toLowerCase());
+  return types.some((type) =>
+    type === "text/rtf" || type === "application/rtf" || type === "application/x-rtf" || type === "public.rtf",
+  );
 }
 
 function attachmentIdFromImage(image: HTMLImageElement) {
@@ -147,7 +163,7 @@ interface Props {
   maxHeight?: number;
   /** Shows a footer button that copies the written content to the clipboard. */
   copyable?: boolean;
-  /** Recebe imagens coladas diretamente no texto (⌘V / Ctrl+V). */
+  /** Recebe imagens coladas quando o clipboard contiver somente um print. */
   onImagePaste?: (images: PastedEditorImage[]) => void;
 }
 
@@ -349,57 +365,11 @@ export function RichTextEditor({
   onImagePaste,
 }: Props) {
   const onImagePasteRef = useRef(onImagePaste);
-  const imageHandledFromPasteRef = useRef(false);
-  const clipboardReadInFlightRef = useRef(false);
+  const nativePasteHandledRef = useRef(false);
 
   useEffect(() => {
     onImagePasteRef.current = onImagePaste;
   }, [onImagePaste]);
-
-  const insertPastedImages = (files: File[]) => {
-    if (!files.length || !onImagePasteRef.current) return false;
-    const images = files.map((file) => ({
-      id: crypto.randomUUID(),
-      file,
-      src: URL.createObjectURL(file),
-    }));
-    images.forEach((image) => {
-      editor
-        .chain()
-        .focus()
-        .insertContent({
-          type: "taskImage",
-          attrs: { src: image.src, alt: image.file.name, pendingId: image.id },
-        })
-        .run();
-    });
-    onImagePasteRef.current(images);
-    return true;
-  };
-
-  const readClipboardImage = async () => {
-    if (!navigator.clipboard?.read || clipboardReadInFlightRef.current) return;
-    clipboardReadInFlightRef.current = true;
-    try {
-      const items = await navigator.clipboard.read();
-      const files: File[] = [];
-      for (const item of items) {
-        const imageType = item.types.find((type) => type.startsWith("image/"));
-        if (!imageType) continue;
-        const blob = await item.getType(imageType);
-        files.push(new File([blob], `print-${Date.now()}.${imageType.split("/")[1] || "png"}`, { type: imageType }));
-      }
-      // Se o evento nativo já entregou o PNG, não duplica o print. Caso o
-      // Lightshot só tenha liberado a imagem na API, este é o caminho que a
-      // coloca diretamente no cursor.
-      if (!imageHandledFromPasteRef.current) insertPastedImages(files);
-    } catch {
-      // O navegador pode bloquear a leitura extra do clipboard; os itens do
-      // evento continuam sendo a primeira via para imagens copiadas.
-    } finally {
-      clipboardReadInFlightRef.current = false;
-    }
-  };
 
   const editor = useEditor({
     extensions: [
@@ -423,6 +393,23 @@ export function RichTextEditor({
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     onBlur: () => onBlur?.(),
   });
+
+  const insertPastedImages = (files: File[]) => {
+    if (!editor || !files.length || !onImagePasteRef.current) return false;
+    const images = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      src: URL.createObjectURL(file),
+    }));
+    images.forEach((image) => {
+      editor.chain().focus().insertContent({
+        type: "taskImage",
+        attrs: { src: image.src, alt: image.file.name, pendingId: image.id },
+      }).run();
+    });
+    onImagePasteRef.current(images);
+    return true;
+  };
 
   useEffect(() => {
     if (!editor) return;
@@ -473,19 +460,29 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
 
-    // A captura nativa no próprio ProseMirror é necessária para aplicativos
-    // como Lightshot no macOS. Ela recebe o PNG antes dos handlers do React e
-    // do Tiptap, que poderiam consumir o ⌘V sem inserir a imagem.
     const target = editor.view.dom;
     const handleNativePaste = (event: ClipboardEvent) => {
-      const files = allClipboardImageFiles(event.clipboardData);
-      if (files.length) {
+      const html = event.clipboardData?.getData("text/html").trim() || "";
+      const text = event.clipboardData?.getData("text/plain") || "";
+
+      // Texto da ata: inserimos diretamente o HTML disponibilizado pelo
+      // Google. Isso preserva listas, negrito, links e quebras mesmo quando
+      // outro handler do navegador não entrega a colagem ao ProseMirror.
+      if (hasClipboardText(event.clipboardData)) {
+        nativePasteHandledRef.current = true;
         event.preventDefault();
         event.stopImmediatePropagation();
-        imageHandledFromPasteRef.current = insertPastedImages(files);
+        if (html || text) editor.chain().focus().insertContent(html || text).run();
         return;
       }
-      void readClipboardImage();
+
+      const files = allClipboardImageFiles(event.clipboardData);
+      if (!files.length || !onImagePasteRef.current) return;
+
+      nativePasteHandledRef.current = true;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      insertPastedImages(files);
     };
 
     target.addEventListener("paste", handleNativePaste, true);
@@ -495,19 +492,51 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
 
-    // Alguns apps de captura do macOS atualizam o clipboard no atalho, mas
-    // não propagam o evento paste até o campo rico. Este fallback começa a
-    // leitura ainda dentro do gesto ⌘V/Ctrl+V, quando o navegador autoriza a
-    // Clipboard API.
+    // Alguns navegadores e apps de reunião não encaminham o evento `paste`
+    // para o campo rico, embora liberem o conteúdo durante o próprio atalho.
+    // Ela só insere depois de confirmar que o evento nativo não aconteceu.
     const handlePasteShortcut = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "v" || !editor.isFocused) return;
-      imageHandledFromPasteRef.current = false;
-      void readClipboardImage();
+      if (!navigator.clipboard?.read) return;
+
+      nativePasteHandledRef.current = false;
+      void (async () => {
+        try {
+          const items = await navigator.clipboard.read();
+          let html = "";
+          let text = "";
+          const images: File[] = [];
+          for (const item of items) {
+            if (!html && item.types.includes("text/html")) html = await (await item.getType("text/html")).text();
+            if (!text && item.types.includes("text/plain")) text = await (await item.getType("text/plain")).text();
+            const imageType = item.types.find((type) => type.startsWith("image/"));
+            if (imageType) {
+              const blob = await item.getType(imageType);
+              images.push(new File([blob], `print-${Date.now()}.${imageType.split("/")[1] || "png"}`, { type: imageType }));
+            }
+          }
+          // Espera o evento nativo da mesma tecla; se ele já tratou o
+          // conteúdo, não há segunda inserção.
+          window.setTimeout(() => {
+            if (nativePasteHandledRef.current) return;
+            const htmlIsOnlyImage = Boolean(html.trim()) && !htmlHasMeaningfulText(html);
+            if (images.length && (!html.trim() || htmlIsOnlyImage)) {
+              nativePasteHandledRef.current = insertPastedImages(images);
+            } else if (html.trim() || text) {
+              editor.chain().focus().insertContent(html.trim() || text).run();
+            }
+          }, 0);
+        } catch {
+          // Se a permissão do navegador bloquear a leitura, a colagem nativa
+          // continua sendo usada normalmente.
+        }
+      })();
     };
 
     window.addEventListener("keydown", handlePasteShortcut, true);
     return () => window.removeEventListener("keydown", handlePasteShortcut, true);
   }, [editor]);
+
 
   if (!editor) return null;
 
