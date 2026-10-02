@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Supabase types are regenerated after the migration is applied. */
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   CalendarClock,
-  ArrowDown,
-  ArrowUp,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -23,30 +22,40 @@ import {
   Settings2,
   Trash2,
   Users,
+  Video,
+  ExternalLink,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
-import { useAssignableProfiles, useTaskStatuses, type Profile, type Task } from "@/hooks/use-data";
+import {
+  useAssignableProfiles,
+  useClients,
+  useGoogleCalendarConnection,
+  useTaskStatuses,
+  type Client,
+  type Profile,
+  type Task,
+} from "@/hooks/use-data";
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import {
   useAllRecurringMeetingTaskTemplates,
-  useRecurringMeetingDepartmentMembers,
+  useMeetingCalendarEvents,
   useRecurringMeetingAgendaItems,
   useRecurringMeetingAgendaPreview,
-  useRecurringMeetingDepartments,
   useRecurringMeetingOccurrences,
   useRecurringMeetingParticipants,
   useRecurringMeetings,
   type AgendaItemResult,
-  type DepartmentMember,
   type RecurringMeeting,
   type RecurringMeetingAgendaItem,
-  type RecurringMeetingDepartment,
   type RecurringMeetingOccurrence,
+  type MeetingCalendarEvent,
 } from "@/hooks/use-meetings";
 import { RecurringMeetingDialog } from "@/components/RecurringMeetingDialog";
+import { MeetingMinutesPanel } from "@/components/AgendaEventDialog";
 import { TaskDialog } from "@/components/TaskDialog";
 import {
   AlertDialog,
@@ -94,19 +103,12 @@ const todayKey = () => format(new Date(), "yyyy-MM-dd");
 /** Quantas datas de reunião aparecem antes de "Mostrar mais semanas". */
 const DATES_PER_PAGE = 4;
 
-/** Paleta visual independente para distinguir os departamentos. */
-const DEPARTMENT_PALETTE = ["#5D6E3E", "#EC643F", "#B7821F", "#3E6E6A", "#7B5A7A", "#626161"];
-const DEFAULT_DEPARTMENT_COLOR = "#64748b";
+/** Paleta visual independente para distinguir os clientes na agenda. */
+const CLIENT_PALETTE = ["#5D6E3E", "#EC643F", "#B7821F", "#3E6E6A", "#7B5A7A", "#626161"];
 
-/** Usa a cor do departamento; sem cor definida, distribui a paleta pela ordem. */
-function departmentColor(
-  department: RecurringMeetingDepartment | null,
-  order: Map<string, number>,
-) {
-  if (!department) return "#9a9a93";
-  if (department.color && department.color.toLowerCase() !== DEFAULT_DEPARTMENT_COLOR)
-    return department.color;
-  return DEPARTMENT_PALETTE[(order.get(department.id) ?? 0) % DEPARTMENT_PALETTE.length];
+function clientColor(client: Client | null, order: Map<string, number>) {
+  if (!client) return "#9a9a93";
+  return CLIENT_PALETTE[(order.get(client.id) ?? 0) % CLIENT_PALETTE.length];
 }
 
 function relativeDay(dateKey: string) {
@@ -139,23 +141,30 @@ function RecurringMeetingsPage() {
   } = useRecurringMeetings();
   const { data: occurrences = [], isLoading: loadingOccurrences } =
     useRecurringMeetingOccurrences();
+  const { data: meetingCalendarEvents = [], isLoading: loadingCalendarEvents } =
+    useMeetingCalendarEvents();
+  const { data: googleConnection } = useGoogleCalendarConnection();
+  const calendarEventByOccurrence = useMemo(
+    () =>
+      new Map(meetingCalendarEvents.map((event) => [event.recurring_meeting_occurrence_id, event])),
+    [meetingCalendarEvents],
+  );
   const { data: agendaItems = [] } = useRecurringMeetingAgendaItems();
   const { data: participants = [] } = useRecurringMeetingParticipants();
-  const { data: departmentMembers = [] } = useRecurringMeetingDepartmentMembers();
   const { data: taskTemplates = [] } = useAllRecurringMeetingTaskTemplates();
   const { data: profiles = [] } = useAssignableProfiles();
+  const { data: clients = [] } = useClients();
   const { data: taskStatuses = [] } = useTaskStatuses();
   const { data: tasks = [] } = useWorkspaceTasks();
-  const { data: departments = [] } = useRecurringMeetingDepartments();
   const cycledWorkspace = useRef<string | null>(null);
+  const googleSyncAttemptedFor = useRef<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecurringMeeting, setEditingRecurringMeeting] = useState<RecurringMeeting | null>(
     null,
   );
-  const [departmentsOpen, setDepartmentsOpen] = useState(false);
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
   const [participantFilter, setParticipantFilter] = useState("all");
   const [datesShown, setDatesShown] = useState(DATES_PER_PAGE);
   const [deleteTarget, setDeleteTarget] = useState<RecurringMeeting | null>(null);
@@ -181,6 +190,43 @@ function RecurringMeetingsPage() {
     })();
   }, [activeWorkspace?.id, queryClient]);
 
+  useEffect(() => {
+    if (
+      dialogOpen ||
+      meetingId ||
+      !user?.id ||
+      !activeWorkspace?.id ||
+      !googleConnection ||
+      loadingCalendarEvents ||
+      isOffline() ||
+      !meetingCalendarEvents.some(
+        (event) =>
+          (event.created_by === user.id || event.updated_by === user.id) &&
+          (event.sync_status === "pending" || event.sync_status === "error"),
+      )
+    )
+      return;
+    const key = `${user.id}:${activeWorkspace.id}`;
+    if (googleSyncAttemptedFor.current === key) return;
+    googleSyncAttemptedFor.current = key;
+    void (async () => {
+      const { data, error } = await supabase.functions.invoke("google-calendar-sync", { body: {} });
+      if (error || !data?.ok) {
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["meeting-calendar-events"] });
+    })();
+  }, [
+    user?.id,
+    activeWorkspace?.id,
+    googleConnection,
+    dialogOpen,
+    meetingId,
+    loadingCalendarEvents,
+    meetingCalendarEvents,
+    queryClient,
+  ]);
+
   // Aviso do sininho ou do pop-up: abre a reunião indicada no link.
   useEffect(() => {
     if (!meetingFromLink || loadingOccurrences) return;
@@ -199,9 +245,9 @@ function RecurringMeetingsPage() {
       ),
     [recurring_meetings],
   );
-  const departmentById = useMemo(
-    () => new Map(departments.map((department) => [department.id, department])),
-    [departments],
+  const clientById = useMemo(
+    () => new Map(clients.map((client) => [client.id, client])),
+    [clients],
   );
   const profileById = useMemo(
     () => new Map(profiles.map((profile) => [profile.id, profile])),
@@ -253,9 +299,8 @@ function RecurringMeetingsPage() {
   const visibleRecurringMeetings = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     return recurring_meetings.filter((recurringMeeting) => {
-      const department = departmentById.get(recurringMeeting.department_id ?? "");
-      if (departmentFilter !== "all" && recurringMeeting.department_id !== departmentFilter)
-        return false;
+      const client = clientById.get(recurringMeeting.client_id ?? "");
+      if (clientFilter !== "all" && recurringMeeting.client_id !== clientFilter) return false;
       if (
         participantFilter !== "all" &&
         recurringMeeting.assignee_id !== participantFilter &&
@@ -263,31 +308,30 @@ function RecurringMeetingsPage() {
       )
         return false;
       if (!term) return true;
-      return `${recurringMeeting.title} ${department?.name ?? ""}`
+      return `${recurringMeeting.title} ${client?.name ?? ""}`
         .toLocaleLowerCase("pt-BR")
         .includes(term);
     });
   }, [
-    departmentById,
-    departmentFilter,
+    clientById,
+    clientFilter,
     recurring_meetings,
     participantFilter,
     participantsByRecurringMeeting,
     search,
   ]);
 
-  const departmentOrder = useMemo(() => {
-    const sorted = [...departments].sort(
-      (first, second) =>
-        first.position - second.position || first.name.localeCompare(second.name, "pt-BR"),
+  const clientOrder = useMemo(() => {
+    const sorted = [...clients].sort((first, second) =>
+      first.name.localeCompare(second.name, "pt-BR"),
     );
-    return new Map(sorted.map((department, index) => [department.id, index]));
-  }, [departments]);
+    return new Map(sorted.map((client, index) => [client.id, index]));
+  }, [clients]);
 
-  const routinesPerDepartment = useMemo(() => {
+  const routinesPerClient = useMemo(() => {
     const counts = new Map<string, number>();
     recurring_meetings.forEach((recurringMeeting) => {
-      const key = recurringMeeting.department_id ?? "none";
+      const key = recurringMeeting.client_id ?? "none";
       counts.set(key, (counts.get(key) ?? 0) + 1);
     });
     return counts;
@@ -310,8 +354,8 @@ function RecurringMeetingsPage() {
       .sort(
         (first, second) =>
           first.occurrence.due_date.localeCompare(second.occurrence.due_date) ||
-          (departmentOrder.get(first.recurringMeeting.department_id ?? "") ?? 99) -
-            (departmentOrder.get(second.recurringMeeting.department_id ?? "") ?? 99),
+          (clientOrder.get(first.recurringMeeting.client_id ?? "") ?? 99) -
+            (clientOrder.get(second.recurringMeeting.client_id ?? "") ?? 99),
       );
     const byDate = new Map<string, typeof open>();
     open
@@ -324,7 +368,7 @@ function RecurringMeetingsPage() {
       overdueMeetings: open.filter(({ occurrence }) => occurrence.due_date < today),
       upcomingDates: [...byDate.entries()].map(([date, meetings]) => ({ date, meetings })),
     };
-  }, [departmentOrder, recurringMeetingById, occurrences, today, visibleRecurringMeetings]);
+  }, [clientOrder, recurringMeetingById, occurrences, today, visibleRecurringMeetings]);
 
   const pendingOccurrencesOf = (recurringMeetingId: string) =>
     occurrences.filter(
@@ -406,17 +450,10 @@ function RecurringMeetingsPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Reuniões</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Reuniões recorrentes por departamento: pauta, resultado de cada item e tarefas geradas.
+            Reuniões por cliente: pauta, resultado de cada item e tarefas geradas.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            className="h-9 rounded-full px-4"
-            onClick={() => setDepartmentsOpen(true)}
-          >
-            <Users className="mr-2 h-4 w-4" /> Departamentos
-          </Button>
           <Button
             className="h-9 rounded-full px-4 shadow-sm"
             onClick={() => {
@@ -424,7 +461,7 @@ function RecurringMeetingsPage() {
               setDialogOpen(true);
             }}
           >
-            <Plus className="mr-2 h-4 w-4" /> Nova reunião recorrente
+            <Plus className="mr-2 h-4 w-4" /> Nova reunião
           </Button>
         </div>
       </header>
@@ -441,19 +478,19 @@ function RecurringMeetingsPage() {
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar reunião ou departamento..."
+            placeholder="Buscar reunião ou cliente..."
             className="pl-9"
           />
         </div>
-        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+        <Select value={clientFilter} onValueChange={setClientFilter}>
           <SelectTrigger className="w-52">
-            <SelectValue placeholder="Todos os departamentos" />
+            <SelectValue placeholder="Todos os clientes" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os departamentos</SelectItem>
-            {departments.map((department) => (
-              <SelectItem key={department.id} value={department.id}>
-                {department.name}
+            <SelectItem value="all">Todos os clientes</SelectItem>
+            {clients.map((client) => (
+              <SelectItem key={client.id} value={client.id}>
+                {client.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -476,7 +513,7 @@ function RecurringMeetingsPage() {
       <Tabs defaultValue="meetings">
         <TabsList>
           <TabsTrigger value="meetings">Reuniões</TabsTrigger>
-          <TabsTrigger value="settings">Rotinas</TabsTrigger>
+          <TabsTrigger value="settings">Configurações</TabsTrigger>
         </TabsList>
 
         <TabsContent value="meetings" className="mt-5">
@@ -488,12 +525,12 @@ function RecurringMeetingsPage() {
           ) : recurring_meetings.length === 0 ? (
             <EmptyState
               title="Nenhuma reunião cadastrada"
-              description="Crie a reunião recorrente de um departamento e monte a pauta padrão dela."
+              description="Crie uma reunião para um cliente e monte a pauta dela."
             />
           ) : overdueMeetings.length === 0 && upcomingDates.length === 0 ? (
             <EmptyState
               title="Nenhuma reunião encontrada"
-              description="Ajuste a busca ou os filtros, ou ative uma rotina pausada em Rotinas."
+              description="Ajuste a busca ou os filtros, ou ative uma reunião pausada em Configurações."
             />
           ) : (
             <div className="space-y-8">
@@ -511,14 +548,13 @@ function RecurringMeetingsPage() {
                       occurrence={occurrence}
                       dateLabel={format(new Date(`${occurrence.due_date}T12:00:00`), "dd/MM")}
                       recurringMeeting={recurringMeeting}
-                      department={departmentById.get(recurringMeeting.department_id ?? "") ?? null}
-                      color={departmentColor(
-                        departmentById.get(recurringMeeting.department_id ?? "") ?? null,
-                        departmentOrder,
+                      client={clientById.get(recurringMeeting.client_id ?? "") ?? null}
+                      color={clientColor(
+                        clientById.get(recurringMeeting.client_id ?? "") ?? null,
+                        clientOrder,
                       )}
                       showTitle={
-                        (routinesPerDepartment.get(recurringMeeting.department_id ?? "none") ?? 0) >
-                        1
+                        (routinesPerClient.get(recurringMeeting.client_id ?? "none") ?? 0) > 1
                       }
                       assignee={profileById.get(recurringMeeting.assignee_id ?? "") ?? null}
                       items={itemsByOccurrence.get(occurrence.id) ?? []}
@@ -545,16 +581,13 @@ function RecurringMeetingsPage() {
                         key={occurrence.id}
                         occurrence={occurrence}
                         recurringMeeting={recurringMeeting}
-                        department={
-                          departmentById.get(recurringMeeting.department_id ?? "") ?? null
-                        }
-                        color={departmentColor(
-                          departmentById.get(recurringMeeting.department_id ?? "") ?? null,
-                          departmentOrder,
+                        client={clientById.get(recurringMeeting.client_id ?? "") ?? null}
+                        color={clientColor(
+                          clientById.get(recurringMeeting.client_id ?? "") ?? null,
+                          clientOrder,
                         )}
                         showTitle={
-                          (routinesPerDepartment.get(recurringMeeting.department_id ?? "none") ??
-                            0) > 1
+                          (routinesPerClient.get(recurringMeeting.client_id ?? "none") ?? 0) > 1
                         }
                         assignee={profileById.get(recurringMeeting.assignee_id ?? "") ?? null}
                         items={itemsByOccurrence.get(occurrence.id) ?? []}
@@ -586,13 +619,13 @@ function RecurringMeetingsPage() {
         <TabsContent value="settings" className="mt-4">
           {recurring_meetings.length === 0 ? (
             <EmptyState
-              title="Nenhuma reunião recorrente configurada"
-              description="Cadastre a primeira reunião de um departamento."
+              title="Nenhuma reunião configurada"
+              description="Cadastre a primeira reunião de um cliente."
             />
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {visibleRecurringMeetings.map((recurringMeeting) => {
-                const department = departmentById.get(recurringMeeting.department_id ?? "");
+                const client = clientById.get(recurringMeeting.client_id ?? "");
                 const assignee = profileById.get(recurringMeeting.assignee_id ?? "");
                 const next = pendingOccurrencesOf(recurringMeeting.id).find(
                   (occurrence) => occurrence.due_date >= today,
@@ -608,15 +641,14 @@ function RecurringMeetingsPage() {
                           <span
                             className="h-3 w-3 shrink-0 rounded-sm"
                             style={{
-                              backgroundColor: departmentColor(department ?? null, departmentOrder),
+                              backgroundColor: clientColor(client ?? null, clientOrder),
                             }}
                           />
                           <h3 className="truncate font-semibold">{recurringMeeting.title}</h3>
                           {!recurringMeeting.is_active && <Badge variant="outline">Pausada</Badge>}
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {department?.name ?? "Sem departamento"} ·{" "}
-                          {formatRecurrence(recurringMeeting)}
+                          {client?.name ?? "Sem cliente"} · {formatRecurrence(recurringMeeting)}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-1">
@@ -713,14 +745,6 @@ function RecurringMeetingsPage() {
         onOpenChange={setDialogOpen}
         recurringMeeting={editingRecurringMeeting}
       />
-      <DepartmentsDialog
-        open={departmentsOpen}
-        onOpenChange={setDepartmentsOpen}
-        departments={departments}
-        members={departmentMembers}
-        profiles={profiles}
-        recurring_meetings={recurring_meetings}
-      />
       {meeting && meetingRecurringMeeting ? (
         <MeetingDialog
           open
@@ -729,8 +753,10 @@ function RecurringMeetingsPage() {
           }}
           occurrence={meeting}
           recurringMeeting={meetingRecurringMeeting}
-          department={departmentById.get(meetingRecurringMeeting.department_id ?? "") ?? null}
+          calendarEvent={calendarEventByOccurrence.get(meeting.id) ?? null}
+          client={clientById.get(meetingRecurringMeeting.client_id ?? "") ?? null}
           items={itemsByOccurrence.get(meeting.id) ?? []}
+          tasks={tasks}
           tasksByItem={tasksByItem}
           participantIds={participantsByRecurringMeeting.get(meetingRecurringMeeting.id) ?? []}
           profileById={profileById}
@@ -818,7 +844,7 @@ function MeetingDateGroup({
 function MeetingRow({
   occurrence,
   recurringMeeting,
-  department,
+  client,
   color,
   showTitle,
   assignee,
@@ -830,7 +856,7 @@ function MeetingRow({
 }: {
   occurrence: RecurringMeetingOccurrence;
   recurringMeeting: RecurringMeeting;
-  department: RecurringMeetingDepartment | null;
+  client: Client | null;
   color: string;
   showTitle: boolean;
   assignee: Profile | null;
@@ -860,7 +886,7 @@ function MeetingRow({
         <span className="h-9 w-1 rounded-full" style={{ backgroundColor: color }} aria-hidden />
         <span className="min-w-0">
           <span className="block truncate font-medium">
-            {department?.name ?? recurringMeeting.title}
+            {client?.name ?? recurringMeeting.title}
             {dateLabel ? (
               <span className="ml-2 text-sm font-normal text-[#C24E2C]">{dateLabel}</span>
             ) : null}
@@ -913,8 +939,10 @@ function MeetingDialog({
   onOpenChange,
   occurrence,
   recurringMeeting,
-  department,
+  calendarEvent,
+  client,
   items,
+  tasks,
   tasksByItem,
   participantIds,
   profileById,
@@ -924,8 +952,10 @@ function MeetingDialog({
   onOpenChange: (open: boolean) => void;
   occurrence: RecurringMeetingOccurrence;
   recurringMeeting: RecurringMeeting;
-  department: RecurringMeetingDepartment | null;
+  calendarEvent: MeetingCalendarEvent | null;
+  client: Client | null;
   items: RecurringMeetingAgendaItem[];
+  tasks: Task[];
   tasksByItem: Map<string, Task[]>;
   participantIds: string[];
   profileById: Map<string, Profile>;
@@ -933,15 +963,53 @@ function MeetingDialog({
 }) {
   const queryClient = useQueryClient();
   const prepared = Boolean(occurrence.agenda_prepared_at);
+  const { data: importedNotes = [] } = useQuery({
+    queryKey: ["meeting-ata-notes", recurringMeeting.id, occurrence.id],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("client_notes" as any) as any)
+        .select("id, title, content, created_at, recurring_meeting_occurrence_id")
+        .eq("recurring_meeting_id", recurringMeeting.id)
+        .or(
+          `recurring_meeting_occurrence_id.eq.${occurrence.id},recurring_meeting_occurrence_id.is.null`,
+        )
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        title: string;
+        content: string;
+        created_at: string;
+        recurring_meeting_occurrence_id: string | null;
+      }>;
+    },
+  });
   const { data: preview = [], isLoading: loadingPreview } = useRecurringMeetingAgendaPreview(
     prepared ? null : occurrence.id,
   );
   const [busy, setBusy] = useState(false);
   const [newItem, setNewItem] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [taskFor, setTaskFor] = useState<RecurringMeetingAgendaItem | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
   const [newDate, setNewDate] = useState(occurrence.due_date);
   const closed = isClosed(occurrence);
+  const eligibleTasks = tasks.filter(
+    (task) =>
+      task.client_id === recurringMeeting.client_id &&
+      task.workspace_id === recurringMeeting.workspace_id &&
+      task.deleted_at === null &&
+      task.archived_at === null &&
+      !isTaskDone(task) &&
+      !task.recurring_meeting_agenda_item_id &&
+      !task.recurring_meeting_occurrence_id &&
+      !task.recurring_meeting_agenda_template_id,
+  );
+  const visibleTasks = eligibleTasks.filter((task) =>
+    task.title.toLocaleLowerCase("pt-BR").includes(taskSearch.trim().toLocaleLowerCase("pt-BR")),
+  );
 
   const rows: AgendaRow[] = prepared
     ? items.map((item) => ({ item, templateId: item.template_id, title: item.title }))
@@ -1014,7 +1082,7 @@ function MeetingDialog({
         .update({ result })
         .eq("id", item.id);
       if (error) throw error;
-      await refresh();
+      await Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: ["tasks"] })]);
     });
 
   const generateTask = (row: AgendaRow) =>
@@ -1051,6 +1119,21 @@ function MeetingDialog({
       await refresh();
     });
 
+  const linkTasks = () =>
+    run(async () => {
+      if (selectedTaskIds.length === 0) return;
+      const { error } = await (supabase as any).rpc("link_existing_tasks_to_meeting", {
+        target_occurrence_id: occurrence.id,
+        target_task_ids: selectedTaskIds,
+      });
+      if (error) throw error;
+      setTaskPickerOpen(false);
+      setTaskSearch("");
+      setSelectedTaskIds([]);
+      await Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: ["tasks"] })]);
+      toast.success("Tarefas adicionadas à pauta");
+    });
+
   const reschedule = () =>
     run(async () => {
       if (!newDate || newDate === occurrence.due_date) return setRescheduling(false);
@@ -1066,7 +1149,62 @@ function MeetingDialog({
       }
       setRescheduling(false);
       await refresh();
+      if (recurringMeeting.add_to_calendar) {
+        const { data, error: syncError } = await supabase.functions.invoke("google-calendar-sync", {
+          body: {},
+        });
+        if (syncError || !data?.ok || data?.pushErrors?.length)
+          toast.error(
+            data?.pushErrors?.[0] ||
+              data?.error ||
+              syncError?.message ||
+              "Não foi possível atualizar a Agenda.",
+          );
+        await queryClient.invalidateQueries({ queryKey: ["meeting-calendar-events"] });
+      }
       toast.success(`Reunião remarcada para ${formatDate(newDate)}.`);
+    });
+
+  const syncMeet = () =>
+    run(async () => {
+      const { data, error } = await supabase.functions.invoke("google-calendar-sync", { body: {} });
+      if (error || !data?.ok || data?.pushErrors?.length)
+        throw new Error(
+          data?.pushErrors?.[0] ||
+            data?.error ||
+            error?.message ||
+            "Falha ao sincronizar o Google Meet.",
+        );
+      await queryClient.invalidateQueries({ queryKey: ["meeting-calendar-events"] });
+      toast.success("Google Meet sincronizado");
+    });
+
+  const restoreCalendarEvent = () =>
+    run(async () => {
+      const { error } = await (supabase as any).rpc("restore_meeting_calendar_event", {
+        target_occurrence_id: occurrence.id,
+      });
+      if (error) throw error;
+      await Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({ queryKey: ["meeting-calendar-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["agenda_events"] }),
+      ]);
+      if (!recurringMeeting.google_calendar_id) {
+        toast.success("Compromisso restaurado na Agenda");
+        return;
+      }
+      const { data, error: syncError } = await supabase.functions.invoke("google-calendar-sync", {
+        body: {},
+      });
+      if (syncError || !data?.ok || data?.pushErrors?.length)
+        toast.error(
+          data?.pushErrors?.[0] ||
+            data?.error ||
+            syncError?.message ||
+            "Não foi possível sincronizar a Agenda.",
+        );
+      else toast.success("Compromisso restaurado na Agenda");
     });
 
   const complete = () =>
@@ -1100,7 +1238,7 @@ function MeetingDialog({
             </DialogTitle>
             <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>
-                {department?.name ?? "Sem departamento"} ·{" "}
+                {client?.name ?? "Sem cliente"} ·{" "}
                 {format(new Date(`${occurrence.due_date}T12:00:00`), "EEEE, dd/MM/yyyy", {
                   locale: ptBR,
                 })}
@@ -1153,6 +1291,87 @@ function MeetingDialog({
             {people.length > 0 ? people.join(", ") : "Sem participantes definidos"}
           </p>
 
+          {importedNotes.map((note) => (
+            <details key={note.id} className="rounded-xl border bg-muted/20 p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                Ata importada: {note.title}
+              </summary>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                {note.content}
+              </p>
+            </details>
+          ))}
+
+          {recurringMeeting.add_to_calendar && (
+            <div className="space-y-3 rounded-xl border bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  {recurringMeeting.create_google_meet ? (
+                    <Video className="h-4 w-4" />
+                  ) : (
+                    <CalendarClock className="h-4 w-4" />
+                  )}
+                  {recurringMeeting.create_google_meet
+                    ? "Google Meet desta reunião"
+                    : "Compromisso na Agenda"}
+                </span>
+                {occurrence.calendar_event_disabled ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void restoreCalendarEvent()}
+                  >
+                    Restaurar na Agenda
+                  </Button>
+                ) : calendarEvent?.meeting_url ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <a href={calendarEvent.meeting_url} target="_blank" rel="noreferrer">
+                        <ExternalLink className="mr-1 h-3.5 w-3.5" /> Entrar
+                      </a>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        void navigator.clipboard
+                          .writeText(calendarEvent.meeting_url!)
+                          .then(() => toast.success("Link copiado"))
+                          .catch(() => toast.error("Não foi possível copiar o link."))
+                      }
+                    >
+                      <Copy className="mr-1 h-3.5 w-3.5" /> Copiar link
+                    </Button>
+                  </div>
+                ) : calendarEvent && recurringMeeting.create_google_meet ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void syncMeet()}
+                  >
+                    Sincronizar Google Meet
+                  </Button>
+                ) : null}
+              </div>
+              {!occurrence.calendar_event_disabled && !calendarEvent?.meeting_url && (
+                <p className="text-xs text-muted-foreground">
+                  {calendarEvent?.sync_error ||
+                    (calendarEvent
+                      ? recurringMeeting.create_google_meet
+                        ? "O link ainda está sendo criado pelo Google."
+                        : "Compromisso criado na Agenda."
+                      : "O compromisso será preparado quando esta data entrar nos próximos 30 dias.")}
+                </p>
+              )}
+              {!occurrence.calendar_event_disabled &&
+                calendarEvent?.meeting_url &&
+                recurringMeeting.create_google_meet &&
+                recurringMeeting.auto_smart_notes && <MeetingMinutesPanel event={calendarEvent} />}
+            </div>
+          )}
+
           {!prepared && !closed && (
             <div className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               Pauta prevista a partir da pauta padrão. Ela é confirmada em {reminderDate}, quando os
@@ -1197,28 +1416,106 @@ function MeetingDialog({
               </ul>
             )}
             {!closed && (
-              <div className="flex gap-2 border-t bg-muted/20 px-3 py-2">
-                <Input
-                  value={newItem}
-                  onChange={(event) => setNewItem(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
-                    event.preventDefault();
-                    void addItem();
+              <div className="space-y-2 border-t bg-muted/20 px-3 py-2">
+                <div className="flex gap-2">
+                  <Input
+                    value={newItem}
+                    onChange={(event) => setNewItem(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return;
+                      event.preventDefault();
+                      void addItem();
+                    }}
+                    placeholder="Incluir assunto nesta reunião..."
+                    className="h-8 bg-background text-sm"
+                    aria-label="Novo item da pauta"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 bg-background"
+                    disabled={busy || !newItem.trim()}
+                    onClick={() => void addItem()}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Incluir
+                  </Button>
+                </div>
+                <Popover
+                  open={taskPickerOpen}
+                  onOpenChange={(open) => {
+                    setTaskPickerOpen(open);
+                    if (!open) setSelectedTaskIds([]);
                   }}
-                  placeholder="Incluir assunto nesta reunião..."
-                  className="h-8 bg-background text-sm"
-                  aria-label="Novo item da pauta"
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 bg-background"
-                  disabled={busy || !newItem.trim()}
-                  onClick={() => void addItem()}
                 >
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Incluir
-                </Button>
+                  <PopoverTrigger asChild>
+                    <Button type="button" size="sm" variant="outline" disabled={busy}>
+                      <Plus className="mr-1 h-3.5 w-3.5" /> Vincular tarefa existente
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[min(24rem,calc(100vw-3rem))] p-2">
+                    <Input
+                      value={taskSearch}
+                      onChange={(event) => setTaskSearch(event.target.value)}
+                      placeholder="Buscar tarefa deste cliente..."
+                      aria-label="Buscar tarefa para incluir na pauta"
+                      className="mb-2 h-8"
+                      autoFocus
+                    />
+                    <div className="max-h-60 overflow-y-auto">
+                      {visibleTasks.length === 0 ? (
+                        <p className="px-2 py-3 text-center text-sm text-muted-foreground">
+                          {eligibleTasks.length === 0
+                            ? "Nenhuma tarefa em aberto disponível para este cliente."
+                            : "Nenhuma tarefa encontrada."}
+                        </p>
+                      ) : (
+                        visibleTasks.map((task) => (
+                          <button
+                            key={task.id}
+                            type="button"
+                            aria-pressed={selectedTaskIds.includes(task.id)}
+                            className="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-accent"
+                            disabled={busy}
+                            onClick={() =>
+                              setSelectedTaskIds((current) =>
+                                current.includes(task.id)
+                                  ? current.filter((id) => id !== task.id)
+                                  : [...current, task.id],
+                              )
+                            }
+                          >
+                            <Check
+                              className={`mt-0.5 h-4 w-4 shrink-0 ${selectedTaskIds.includes(task.id) ? "opacity-100" : "opacity-0"}`}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium">
+                                {task.title}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {task.due_date
+                                  ? `Prazo: ${formatDate(task.due_date)}`
+                                  : "Sem prazo"}
+                                {task.assignee_id
+                                  ? ` · ${profileById.get(task.assignee_id)?.full_name || profileById.get(task.assignee_id)?.email || "Responsável"}`
+                                  : ""}
+                              </span>
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-2 w-full"
+                      disabled={busy || selectedTaskIds.length === 0}
+                      onClick={() => void linkTasks()}
+                    >
+                      Vincular{" "}
+                      {selectedTaskIds.length > 0 ? `(${selectedTaskIds.length})` : "tarefas"}
+                    </Button>
+                  </PopoverContent>
+                </Popover>
               </div>
             )}
           </section>
@@ -1311,9 +1608,13 @@ function AgendaItemRow({
             size="sm"
             variant={result === "done" ? "default" : "outline"}
             className="h-7 px-2 text-xs"
-            disabled={disabled || result === "task"}
+            disabled={disabled || (result === "done" && tasks.length > 0)}
             onClick={onDone}
-            title={result === "task" ? "Este item já gerou tarefa" : undefined}
+            title={
+              result === "done" && tasks.length > 0
+                ? "Reabra a tarefa para reabrir esta pauta"
+                : undefined
+            }
           >
             <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Concluído
           </Button>
@@ -1373,443 +1674,6 @@ function AgendaItemRow({
   );
 }
 
-/** Membros de cada departamento: preenchem os participantes das reuniões novas. */
-function DepartmentsDialog({
-  open,
-  onOpenChange,
-  departments,
-  members,
-  profiles,
-  recurring_meetings,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  departments: RecurringMeetingDepartment[];
-  members: DepartmentMember[];
-  profiles: Profile[];
-  recurring_meetings: RecurringMeeting[];
-}) {
-  const queryClient = useQueryClient();
-  const { user, activeWorkspace } = useAuth();
-  const [savingKey, setSavingKey] = useState<string | null>(null);
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [renaming, setRenaming] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<RecurringMeetingDepartment | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const targetMeetings = deleteTarget
-    ? recurring_meetings.filter(
-        (recurringMeeting) => recurringMeeting.department_id === deleteTarget.id,
-      )
-    : [];
-
-  const createDepartment = async () => {
-    const name = newName.trim();
-    if (!name) return;
-    if (isOffline()) return toast.error("Conecte-se à internet para criar o departamento.");
-    if (
-      departments.some(
-        (department) =>
-          department.name.trim().toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR"),
-      )
-    )
-      return toast.error("Já existe um departamento com esse nome.");
-    setCreating(true);
-    const { error } = await (supabase.from("recurring_meeting_departments" as any) as any).insert({
-      name,
-      workspace_id: activeWorkspace?.id,
-      created_by: user?.id,
-      position: Math.max(0, ...departments.map((department) => department.position)) + 1,
-    });
-    setCreating(false);
-    if (error) return toast.error(error.message);
-    setNewName("");
-    await queryClient.invalidateQueries({ queryKey: ["recurringMeeting-departments"] });
-    toast.success("Departamento criado");
-  };
-
-  // Reuniões chamadas "Reunião — <nome antigo>" acompanham o novo nome.
-  const renameDepartment = async (department: RecurringMeetingDepartment) => {
-    const name = editName.trim();
-    if (!name || name === department.name) return setEditingId(null);
-    if (isOffline()) return toast.error("Conecte-se à internet para renomear o departamento.");
-    if (
-      departments.some(
-        (other) =>
-          other.id !== department.id &&
-          other.name.trim().toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR"),
-      )
-    )
-      return toast.error("Já existe um departamento com esse nome.");
-    setRenaming(true);
-    const { error } = await (supabase.from("recurring_meeting_departments" as any) as any)
-      .update({ name })
-      .eq("id", department.id);
-    if (error) {
-      setRenaming(false);
-      return toast.error(error.message);
-    }
-    const oldTitle = `Reunião — ${department.name}`;
-    const meetingsToRename = recurring_meetings.filter(
-      (recurringMeeting) =>
-        recurringMeeting.department_id === department.id && recurringMeeting.title === oldTitle,
-    );
-    if (meetingsToRename.length > 0) {
-      const { error: titleError } = await (supabase.from("recurring_meetings" as any) as any)
-        .update({ title: `Reunião — ${name}` })
-        .in(
-          "id",
-          meetingsToRename.map((recurringMeeting) => recurringMeeting.id),
-        );
-      if (titleError) toast.error(`Departamento renomeado, mas a reunião manteve o nome antigo.`);
-    }
-    setRenaming(false);
-    setEditingId(null);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-departments"] }),
-      queryClient.invalidateQueries({ queryKey: ["recurring_meetings"] }),
-    ]);
-    toast.success("Departamento renomeado");
-  };
-
-  // As reuniões do departamento saem junto; as tarefas já geradas continuam existindo.
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    if (isOffline()) return toast.error("Conecte-se à internet para excluir o departamento.");
-    setDeleting(true);
-    if (targetMeetings.length > 0) {
-      const { error } = await (supabase.from("recurring_meetings" as any) as any).delete().in(
-        "id",
-        targetMeetings.map((recurringMeeting) => recurringMeeting.id),
-      );
-      if (error) {
-        setDeleting(false);
-        return toast.error(error.message);
-      }
-    }
-    const { error } = await (supabase.from("recurring_meeting_departments" as any) as any)
-      .delete()
-      .eq("id", deleteTarget.id);
-    setDeleting(false);
-    if (error) return toast.error(error.message);
-    setDeleteTarget(null);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-departments"] }),
-      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-department-members"] }),
-      queryClient.invalidateQueries({ queryKey: ["recurring_meetings"] }),
-      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-occurrences"] }),
-      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-agenda-items"] }),
-    ]);
-    toast.success("Departamento excluído");
-  };
-
-  const toggleMember = async (departmentId: string, userId: string, isMember: boolean) => {
-    if (isOffline()) return toast.error("Conecte-se à internet para alterar os membros.");
-    setSavingKey(`${departmentId}:${userId}`);
-    const table = supabase.from("recurring_meeting_department_members" as any) as any;
-    const { error } = isMember
-      ? await table.delete().eq("department_id", departmentId).eq("user_id", userId)
-      : await table.insert({ department_id: departmentId, user_id: userId });
-    setSavingKey(null);
-    if (error) return toast.error(error.message);
-    await queryClient.invalidateQueries({ queryKey: ["recurringMeeting-department-members"] });
-  };
-
-  const updateDepartmentColor = async (departmentId: string, color: string) => {
-    if (isOffline()) return toast.error("Conecte-se à internet para alterar a cor.");
-    setSavingKey(`${departmentId}:color`);
-    const { error } = await (supabase.from("recurring_meeting_departments" as any) as any)
-      .update({ color })
-      .eq("id", departmentId);
-    setSavingKey(null);
-    if (error) return toast.error(error.message);
-    await queryClient.invalidateQueries({ queryKey: ["recurringMeeting-departments"] });
-  };
-
-  const moveDepartment = async (index: number, direction: -1 | 1) => {
-    const otherIndex = index + direction;
-    if (otherIndex < 0 || otherIndex >= departments.length) return;
-    if (isOffline()) return toast.error("Conecte-se à internet para reordenar.");
-    const current = departments[index];
-    const other = departments[otherIndex];
-    setSavingKey(`${current.id}:position`);
-    const table = supabase.from("recurring_meeting_departments" as any) as any;
-    const [currentResult, otherResult] = await Promise.all([
-      table.update({ position: other.position }).eq("id", current.id),
-      table.update({ position: current.position }).eq("id", other.id),
-    ]);
-    setSavingKey(null);
-    const error = currentResult.error ?? otherResult.error;
-    if (error) return toast.error(error.message);
-    await queryClient.invalidateQueries({ queryKey: ["recurringMeeting-departments"] });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Departamentos</DialogTitle>
-          <DialogDescription>
-            Os membros de cada departamento entram automaticamente como participantes ao criar uma
-            reunião desse departamento. Você ainda pode ajustar os participantes de cada reunião.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void createDepartment();
-          }}
-        >
-          <Input
-            value={newName}
-            onChange={(event) => setNewName(event.target.value)}
-            placeholder="Nome do novo departamento"
-            aria-label="Nome do novo departamento"
-            disabled={creating}
-          />
-          <Button type="submit" disabled={creating || !newName.trim()} className="shrink-0">
-            {creating ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="mr-2 h-4 w-4" />
-            )}
-            Criar
-          </Button>
-        </form>
-        {departments.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            Nenhum departamento ainda. Crie o primeiro acima.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {departments.map((department, departmentIndex) => {
-              const memberIds = members
-                .filter((member) => member.department_id === department.id)
-                .map((member) => member.user_id);
-              return (
-                <li key={department.id} className="rounded-xl border p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    {editingId === department.id ? (
-                      <form
-                        className="flex min-w-0 flex-1 items-center gap-2"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void renameDepartment(department);
-                        }}
-                      >
-                        <Input
-                          value={editName}
-                          onChange={(event) => setEditName(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                              event.stopPropagation();
-                              setEditingId(null);
-                            }
-                          }}
-                          aria-label="Novo nome do departamento"
-                          className="h-8"
-                          disabled={renaming}
-                          autoFocus
-                        />
-                        <Button
-                          type="submit"
-                          size="sm"
-                          className="h-8 shrink-0"
-                          disabled={renaming || !editName.trim()}
-                        >
-                          {renaming && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-                          Salvar
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 shrink-0"
-                          disabled={renaming}
-                          onClick={() => setEditingId(null)}
-                        >
-                          Cancelar
-                        </Button>
-                      </form>
-                    ) : (
-                      <span className="flex min-w-0 items-center gap-2 font-medium">
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-sm"
-                          style={{ backgroundColor: department.color || "#64748b" }}
-                        />
-                        <span className="truncate">{department.name}</span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 shrink-0 text-muted-foreground"
-                          aria-label={`Renomear o departamento ${department.name}`}
-                          title="Renomear departamento"
-                          onClick={() => {
-                            setEditingId(department.id);
-                            setEditName(department.name);
-                          }}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                      </span>
-                    )}
-                    <div className="flex items-center gap-1">
-                      <label
-                        className="grid h-7 w-7 cursor-pointer place-items-center overflow-hidden rounded-md border"
-                        title="Alterar cor do departamento"
-                      >
-                        <input
-                          type="color"
-                          value={department.color || "#64748b"}
-                          className="h-9 w-9 cursor-pointer border-0 bg-transparent p-0"
-                          disabled={savingKey === `${department.id}:color`}
-                          onChange={(event) =>
-                            void updateDepartmentColor(department.id, event.target.value)
-                          }
-                          aria-label={`Cor do departamento ${department.name}`}
-                        />
-                      </label>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7"
-                        disabled={
-                          departmentIndex === 0 || savingKey === `${department.id}:position`
-                        }
-                        onClick={() => void moveDepartment(departmentIndex, -1)}
-                        title="Mover departamento para cima"
-                      >
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7"
-                        disabled={
-                          departmentIndex === departments.length - 1 ||
-                          savingKey === `${department.id}:position`
-                        }
-                        onClick={() => void moveDepartment(departmentIndex, 1)}
-                        title="Mover departamento para baixo"
-                      >
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      </Button>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button size="sm" variant="outline" className="h-7">
-                            <Users className="mr-1.5 h-3.5 w-3.5" /> Membros ({memberIds.length})
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent align="end" className="w-72 p-1">
-                          <div className="max-h-64 overflow-y-auto">
-                            {profiles.map((profile) => {
-                              const isMember = memberIds.includes(profile.id);
-                              return (
-                                <label
-                                  key={profile.id}
-                                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-                                >
-                                  <Checkbox
-                                    checked={isMember}
-                                    disabled={savingKey === `${department.id}:${profile.id}`}
-                                    onCheckedChange={() =>
-                                      void toggleMember(department.id, profile.id, isMember)
-                                    }
-                                  />
-                                  <span className="truncate">
-                                    {profile.full_name || profile.email}
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        aria-label={`Excluir o departamento ${department.name}`}
-                        title="Excluir departamento"
-                        onClick={() => setDeleteTarget(department)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {memberIds.length > 0
-                      ? memberIds
-                          .map((id) => {
-                            const profile = profiles.find((item) => item.id === id);
-                            return profile?.full_name || profile?.email;
-                          })
-                          .filter(Boolean)
-                          .join(", ")
-                      : "Sem membros."}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </DialogContent>
-      <AlertDialog
-        open={!!deleteTarget}
-        onOpenChange={(open) => {
-          if (!open && !deleting) setDeleteTarget(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir o departamento {deleteTarget?.name}?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2">
-                {targetMeetings.length > 0 ? (
-                  <>
-                    <p>
-                      {targetMeetings.length === 1
-                        ? "A reunião recorrente deste departamento também será excluída, com as reuniões agendadas e as pautas:"
-                        : `As ${targetMeetings.length} reuniões recorrentes deste departamento também serão excluídas, com as reuniões agendadas e as pautas:`}
-                    </p>
-                    <ul className="list-disc pl-5 font-medium text-foreground">
-                      {targetMeetings.map((recurringMeeting) => (
-                        <li key={recurringMeeting.id}>{recurringMeeting.title}</li>
-                      ))}
-                    </ul>
-                    <p>As tarefas já geradas continuam existindo.</p>
-                  </>
-                ) : (
-                  <p>
-                    O departamento não tem reuniões. Os membros cadastrados nele serão removidos.
-                  </p>
-                )}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(event) => {
-                event.preventDefault();
-                void confirmDelete();
-              }}
-            >
-              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {deleting ? "Excluindo..." : "Excluir"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Dialog>
-  );
-}
-
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
     <Card className="grid place-items-center px-6 py-16 text-center">
@@ -1827,6 +1691,8 @@ function formatDate(value: string) {
 }
 
 function formatRecurrence(recurringMeeting: RecurringMeeting) {
+  if (!recurringMeeting.is_recurring)
+    return `Reunião única · ${formatDate(recurringMeeting.start_date)}`;
   if (recurringMeeting.frequency === "daily")
     return recurringMeeting.interval_count === 1
       ? recurringMeeting.business_days_only

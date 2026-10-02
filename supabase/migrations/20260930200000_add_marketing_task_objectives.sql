@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.task_objectives (
 ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS objective_id uuid REFERENCES public.task_objectives(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS tasks_objective_id_idx ON public.tasks(objective_id);
 ALTER TABLE public.task_objectives ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS task_objectives_workspace_access ON public.task_objectives;
 CREATE POLICY task_objectives_workspace_access ON public.task_objectives
   FOR ALL TO authenticated
   USING (public.has_workspace_access(workspace_id))

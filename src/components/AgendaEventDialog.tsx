@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase types are regenerated after migrations. */
 import { useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { format } from "date-fns";
@@ -18,7 +19,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -88,7 +88,11 @@ async function edgeFunctionErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Não foi possível sincronizar a ata.";
 }
 
-function MeetingMinutesPanel({ event }: { event: AgendaEvent }) {
+export function MeetingMinutesPanel({
+  event,
+}: {
+  event: Pick<AgendaEvent, "id" | "ends_at" | "meeting_url">;
+}) {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const isMeet = /meet\.google\.com\/[a-z]{3,}-[a-z]{3,}-[a-z]{3,}/i.test(event.meeting_url ?? "");
@@ -256,7 +260,7 @@ export function AgendaEventDialog({
     setAttendeeInput("");
     setActiveAttendeeSuggestion(-1);
     setMeetingUrl("");
-    setCreateGoogleMeet(Boolean(defaultCalendarId));
+    setCreateGoogleMeet(false);
     setAutoSmartNotes(true);
     setAutoTranscription(false);
     setCalendarId(defaultCalendarId);
@@ -298,6 +302,33 @@ export function AgendaEventDialog({
     const endsAt = toIso(endDate, allDay ? "23:59" : endTime);
     if (new Date(endsAt) <= new Date(startsAt))
       return toast.error("O término deve ser posterior ao início.");
+
+    if (activeEvent?.recurring_meeting_occurrence_id) {
+      setSaving(true);
+      const { error } = await (supabase as any).rpc("update_meeting_calendar_event", {
+        target_event_id: activeEvent.id,
+        new_title: title.trim(),
+        new_description: description.trim() || null,
+        new_starts_at: startsAt,
+        new_ends_at: endsAt,
+        new_location: location.trim() || null,
+        new_attendee_emails: attendeeEmails,
+        new_google_calendar_id: calendarId || null,
+        new_meeting_url: meetingUrl.trim() || null,
+      });
+      setSaving(false);
+      if (error) return toast.error(error.message);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["agenda_events"] }),
+        queryClient.invalidateQueries({ queryKey: ["recurring-meetings"] }),
+        queryClient.invalidateQueries({ queryKey: ["recurring-meeting-occurrences"] }),
+        queryClient.invalidateQueries({ queryKey: ["meeting-calendar-events"] }),
+      ]);
+      toast.success("Compromisso atualizado");
+      onOpenChange(false);
+      await onSaved?.();
+      return;
+    }
 
     const selectedCalendar = calendarSources.find(
       (source) => source.google_calendar_id === calendarId,
@@ -368,18 +399,26 @@ export function AgendaEventDialog({
     if (!activeEvent || !user) return;
     if (!window.confirm(`Excluir “${activeEvent.title}”?`)) return;
     setSaving(true);
-    const { error } = await (supabase.from("calendar_events" as any) as any)
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: user.id,
-        updated_by: user.id,
-        sync_status: "pending",
-      })
-      .eq("id", activeEvent.id);
+    const { error } = activeEvent.recurring_meeting_occurrence_id
+      ? await (supabase as any).rpc("remove_meeting_calendar_event", {
+          target_event_id: activeEvent.id,
+        })
+      : await (supabase.from("calendar_events" as any) as any)
+          .update({
+            deleted_at: new Date().toISOString(),
+            deleted_by: user.id,
+            updated_by: user.id,
+            sync_status: "pending",
+          })
+          .eq("id", activeEvent.id);
     setSaving(false);
     if (error) return toast.error(error.message);
     await queryClient.invalidateQueries({ queryKey: ["agenda_events"] });
-    toast.success("Compromisso excluído");
+    toast.success(
+      activeEvent.recurring_meeting_occurrence_id
+        ? "Compromisso removido da Agenda; a reunião foi mantida"
+        : "Compromisso excluído",
+    );
     onOpenChange(false);
     await onSaved?.();
   };
@@ -467,6 +506,7 @@ export function AgendaEventDialog({
                 <Checkbox
                   id="agenda-all-day"
                   checked={allDay}
+                  disabled={Boolean(activeEvent?.recurring_meeting_occurrence_id)}
                   onCheckedChange={(checked) => setAllDay(checked === true)}
                 />
                 <Label
@@ -616,93 +656,34 @@ export function AgendaEventDialog({
           <div className="flex items-center gap-3">
             <Video className="h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="flex-1 space-y-2">
-              <div
-                className={`rounded-md border px-3 py-2 transition-colors ${
-                  createGoogleMeet ? "border-primary/35 bg-primary/5" : "bg-muted/30"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="agenda-create-google-meet" className="cursor-pointer">
-                    <span className="space-y-0.5">
-                      <span className="block text-sm font-medium">Criar Google Meet</span>
-                      <span className="block text-xs font-normal text-muted-foreground">
-                        {createGoogleMeet
-                          ? meetingUrl
-                            ? "Link do Google Meet criado"
-                            : creatingMeetingLink
-                              ? "Criando link do Google Meet…"
-                              : createdEvent
-                                ? "O link ainda não está disponível"
-                                : "O link será criado ao salvar"
-                          : "Use um link manual ou ative a criação automática"}
-                      </span>
-                    </span>
-                  </Label>
-                  <Switch
-                    id="agenda-create-google-meet"
-                    checked={createGoogleMeet}
-                    disabled={!calendarId || Boolean(createdEvent) || creatingMeetingLink}
-                    onCheckedChange={(enabled) => {
-                      setCreateGoogleMeet(enabled);
-                      if (enabled) setMeetingUrl("");
-                    }}
-                  />
+              <Input
+                type="url"
+                placeholder="Adicionar link do compromisso"
+                value={meetingUrl}
+                onChange={(e) => setMeetingUrl(e.target.value)}
+                disabled={
+                  createGoogleMeet ||
+                  Boolean(
+                    activeEvent?.recurring_meeting_occurrence_id && activeEvent.create_google_meet,
+                  )
+                }
+              />
+              {meetingUrl && (
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild size="sm" className="h-8">
+                    <a href={meetingUrl} target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir link
+                    </a>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => void copyMeetingLink()}
+                  >
+                    <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar link
+                  </Button>
                 </div>
-                {createGoogleMeet && (
-                  <div className="mt-3 space-y-2 border-t border-primary/15 pt-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="agenda-auto-smart-notes" className="cursor-pointer">
-                        <span className="block text-sm font-medium">Gerar ata com Gemini</span>
-                        <span className="block text-xs font-normal text-muted-foreground">
-                          Cria as anotações inteligentes da reunião
-                        </span>
-                      </Label>
-                      <Switch
-                        id="agenda-auto-smart-notes"
-                        checked={autoSmartNotes}
-                        onCheckedChange={setAutoSmartNotes}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="agenda-auto-transcription" className="cursor-pointer">
-                        <span className="block text-sm font-medium">Gerar transcrição</span>
-                        <span className="block text-xs font-normal text-muted-foreground">
-                          Salva o texto falado durante a reunião
-                        </span>
-                      </Label>
-                      <Switch
-                        id="agenda-auto-transcription"
-                        checked={autoTranscription}
-                        onCheckedChange={setAutoTranscription}
-                      />
-                    </div>
-                  </div>
-                )}
-                {meetingUrl && (
-                  <div className="mt-3 flex flex-wrap gap-2 border-t border-primary/15 pt-2.5">
-                    <Button asChild size="sm" className="h-8">
-                      <a href={meetingUrl} target="_blank" rel="noreferrer">
-                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Entrar na reunião
-                      </a>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8"
-                      onClick={() => void copyMeetingLink()}
-                    >
-                      <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar link
-                    </Button>
-                  </div>
-                )}
-              </div>
-              {!createGoogleMeet && (
-                <Input
-                  type="url"
-                  placeholder="Adicionar link da reunião"
-                  value={meetingUrl}
-                  onChange={(e) => setMeetingUrl(e.target.value)}
-                />
               )}
             </div>
           </div>

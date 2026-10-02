@@ -22,7 +22,7 @@ import {
   subWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, ChevronLeft, ChevronRight, ListFilter, Plus } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ListFilter } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import {
   useAgendaCalendarSources,
   useAgendaEvents,
   useGoogleCalendarConnection,
+  hasGoogleMeetPermissions,
   type AgendaEvent,
   type AgendaCalendarSource,
 } from "@/hooks/use-data";
@@ -70,8 +71,6 @@ function AgendaPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AgendaEvent | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [syncingGoogle, setSyncingGoogle] = useState(false);
   const [previewSchedule, setPreviewSchedule] = useState<Record<string, ScheduleChange>>({});
@@ -117,10 +116,8 @@ function AgendaPage() {
   );
   const allDayEvents = visibleEvents.filter((event) => event.is_all_day);
 
-  const openNew = (date: Date = new Date(), time: string | null = null) => {
-    setEditing(null);
-    setSelectedDate(date);
-    setSelectedTime(time);
+  const openEvent = (event: AgendaEvent) => {
+    setEditing(event);
     setDialogOpen(true);
   };
 
@@ -170,16 +167,20 @@ function AgendaPage() {
   useEffect(() => {
     const result = new URLSearchParams(window.location.search).get("google");
     if (!result) return;
-    if (result === "connected") toast.success("Conta Google conectada com sucesso.");
+    if (result === "connected") {
+      toast.success("Conta Google conectada com sucesso.");
+      void queryClient.invalidateQueries({ queryKey: ["google_calendar_connection"] });
+      void queryClient.invalidateQueries({ queryKey: ["agenda_calendar_sources"] });
+    }
     if (result === "cancelled") toast.message("A conexão com o Google foi cancelada.");
     if (result === "error") toast.error("Não foi possível concluir a conexão com o Google.");
     window.history.replaceState({}, "", window.location.pathname);
-  }, []);
+  }, [queryClient]);
 
   const connectGoogle = async () => {
     setConnectingGoogle(true);
     const { data, error: invokeError } = await supabase.functions.invoke("google-calendar-oauth", {
-      body: { action: "start" },
+      body: { action: "start", returnOrigin: window.location.origin },
     });
     setConnectingGoogle(false);
     if (invokeError || !data?.authorizeUrl) {
@@ -342,11 +343,11 @@ function AgendaPage() {
   };
 
   const startGesture = (
-    reactEvent: ReactPointerEvent<HTMLDivElement>,
+    reactEvent: ReactPointerEvent<HTMLElement>,
     event: AgendaEvent,
     mode: Gesture["mode"],
   ) => {
-    if (reactEvent.button !== 0) return;
+    if (reactEvent.button !== 0 || event.recurring_meeting_occurrence_id) return;
     reactEvent.preventDefault();
     reactEvent.stopPropagation();
     gestureRef.current = { event, mode, startY: reactEvent.clientY, moved: false };
@@ -388,9 +389,6 @@ function AgendaPage() {
           <h1 className="text-xl font-semibold">Agenda</h1>
           <Badge variant="outline">Compartilhada</Badge>
         </div>
-        <Button onClick={() => openNew()}>
-          <Plus className="mr-2 h-4 w-4" /> Novo compromisso
-        </Button>
       </header>
 
       <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -401,6 +399,12 @@ function AgendaPage() {
               ? `Conectado como ${googleConnection.google_email}`
               : "Conecte sua conta para autorizar a Agenda compartilhada."}
           </p>
+          {googleConnection && !hasGoogleMeetPermissions(googleConnection) && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              Esta conexão ainda não autoriza criar Google Meet. Use “Reconectar Google” e aprove as
+              novas permissões.
+            </p>
+          )}
         </div>
         {!loadingGoogle && !googleConnection && (
           <Button
@@ -412,18 +416,25 @@ function AgendaPage() {
           </Button>
         )}
         {!loadingGoogle && googleConnection && (
-          <Button
-            variant="outline"
-            onClick={() => void disconnectGoogle()}
-            disabled={connectingGoogle}
-          >
-            {connectingGoogle ? "Desconectando…" : "Desconectar Google Agenda"}
-          </Button>
-        )}
-        {!loadingGoogle && googleConnection && (
-          <Button onClick={() => void syncGoogle({ fullRange: true })} disabled={syncingGoogle}>
-            {syncingGoogle ? "Sincronizando…" : "Sincronizar agora"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => void connectGoogle()}
+              disabled={connectingGoogle}
+            >
+              {connectingGoogle ? "Conectando…" : "Reconectar Google"}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => void disconnectGoogle()}
+              disabled={connectingGoogle}
+            >
+              Desconectar
+            </Button>
+            <Button onClick={() => void syncGoogle({ fullRange: true })} disabled={syncingGoogle}>
+              {syncingGoogle ? "Sincronizando…" : "Sincronizar agora"}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -512,12 +523,11 @@ function AgendaPage() {
                 <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                   {DAYS[index]}
                 </div>
-                <button
-                  onClick={() => openNew(day)}
-                  className={`mx-auto mt-1 grid h-9 w-9 place-items-center rounded-full text-xl hover:bg-muted ${isToday(day) ? "bg-primary font-semibold text-primary-foreground hover:bg-primary" : ""}`}
+                <span
+                  className={`mx-auto mt-1 grid h-9 w-9 place-items-center rounded-full text-xl ${isToday(day) ? "bg-primary font-semibold text-primary-foreground" : ""}`}
                 >
                   {format(day, "d")}
-                </button>
+                </span>
                 <div className="mt-1 space-y-1 text-left">
                   {allDayEventsForDay(day)
                     .slice(0, 2)
@@ -525,8 +535,7 @@ function AgendaPage() {
                       <button
                         key={event.id}
                         onClick={() => {
-                          setEditing(event);
-                          setDialogOpen(true);
+                          openEvent(event);
                         }}
                         className="block w-full truncate rounded px-1 py-0.5 text-[10px] font-medium text-white"
                         style={{ backgroundColor: event.color }}
@@ -557,13 +566,9 @@ function AgendaPage() {
                 style={{ height: totalHeight }}
               >
                 {Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, index) => (
-                  <button
+                  <div
                     key={index}
-                    aria-label={`Criar compromisso às ${DAY_START_HOUR + index}:00`}
-                    onClick={() =>
-                      openNew(day, `${String(DAY_START_HOUR + index).padStart(2, "0")}:00`)
-                    }
-                    className="absolute left-0 right-0 border-b border-border/70 hover:bg-primary/5"
+                    className="absolute left-0 right-0 border-b border-border/70"
                     style={{ top: index * HOUR_HEIGHT, height: HOUR_HEIGHT }}
                   />
                 ))}
@@ -589,14 +594,12 @@ function AgendaPage() {
                           skipClickRef.current = false;
                           return;
                         }
-                        setEditing(event);
-                        setDialogOpen(true);
+                        openEvent(event);
                       }}
                       onKeyDown={(keyboardEvent) => {
                         if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
                           keyboardEvent.preventDefault();
-                          setEditing(event);
-                          setDialogOpen(true);
+                          openEvent(event);
                         }
                       }}
                       className={`absolute overflow-hidden rounded-md border border-white/30 px-1.5 py-1 text-left text-[11px] text-white shadow-sm outline-none transition-shadow hover:brightness-95 focus-visible:ring-2 focus-visible:ring-primary/70 ${isActive ? "cursor-grabbing opacity-85 shadow-lg" : "cursor-grab"} ${savingIds.includes(event.id) ? "animate-pulse" : ""}`}
@@ -633,15 +636,14 @@ function AgendaPage() {
       </div>
       {!isLoading && events.length === 0 && (
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Ainda não há compromissos. Clique em um horário da grade para criar o primeiro.
+          Ainda não há compromissos. Para adicionar um evento, crie uma reunião na página Reuniões e
+          ative “Adicionar à Agenda”.
         </div>
       )}
       <AgendaEventDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         event={editing}
-        defaultDate={selectedDate}
-        defaultStartTime={selectedTime}
         // Saving must report a Google delivery error to the person who
         // created the event; silent failures make the two calendars diverge.
         onSaved={() => syncGoogle()}

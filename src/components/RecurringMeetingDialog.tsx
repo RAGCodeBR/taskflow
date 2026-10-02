@@ -1,13 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Supabase types are regenerated after the migration is applied. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, Loader2, Plus, Trash2, Users } from "lucide-react";
+import { Check, ChevronDown, FileUp, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAssignableProfiles, useColumns, useTaskStatuses } from "@/hooks/use-data";
 import {
-  useRecurringMeetingDepartmentMembers,
-  useRecurringMeetingDepartments,
+  useAgendaCalendarSources,
+  useAssignableProfiles,
+  useClients,
+  useColumns,
+  useGoogleCalendarConnection,
+  hasGoogleMeetPermissions,
+  useTaskStatuses,
+} from "@/hooks/use-data";
+import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
+import {
   useRecurringMeetingParticipants,
   useRecurringMeetingTaskTemplates,
   type AgendaCadence,
@@ -34,10 +41,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { ImportAtaContent, type ImportedAtaDraft } from "@/components/ImportAtaContent";
 
 interface RecurringMeetingDialogProps {
   open: boolean;
@@ -64,6 +73,7 @@ const cadenceOptions: Array<{ value: AgendaCadence; label: string }> = [
 ];
 
 const todayValue = () => new Date().toISOString().slice(0, 10);
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Pauta padrão em edição no formulário; `id` existe apenas para as já salvas. */
 type AgendaDraft = {
@@ -82,21 +92,33 @@ export function RecurringMeetingDialog({
   const queryClient = useQueryClient();
   const { user, activeWorkspace } = useAuth();
   const { data: profiles = [] } = useAssignableProfiles();
+  const { data: clients = [] } = useClients();
   const { data: columns = [] } = useColumns();
   const { data: statuses = [] } = useTaskStatuses();
-  const { data: departments = [] } = useRecurringMeetingDepartments();
+  const { data: tasks = [] } = useWorkspaceTasks();
+  const { data: calendarSources = [] } = useAgendaCalendarSources();
+  const { data: googleConnection } = useGoogleCalendarConnection();
+  const canCreateGoogleMeet = hasGoogleMeetPermissions(googleConnection);
+  const defaultCalendarId =
+    calendarSources.find((source) => source.is_shared)?.google_calendar_id ??
+    calendarSources[0]?.google_calendar_id ??
+    "";
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
-  const [departmentOpen, setDepartmentOpen] = useState(false);
-  const [departmentSearch, setDepartmentSearch] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientOpen, setClientOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
   const [agendaItems, setAgendaItems] = useState<AgendaDraft[]>([]);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
   const [focusAgendaKey, setFocusAgendaKey] = useState<string | null>(null);
   const agendaLoadedFor = useRef<string | null>(null);
   const { data: savedTemplates } = useRecurringMeetingTaskTemplates(
     open ? recurringMeeting?.id : null,
   );
   const [assigneeId, setAssigneeId] = useState("");
+  const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState<RecurringMeetingFrequency>("weekly");
   const [intervalCount, setIntervalCount] = useState(1);
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([1]);
@@ -106,24 +128,38 @@ export function RecurringMeetingDialog({
   const [startDate, setStartDate] = useState(todayValue());
   const [endDate, setEndDate] = useState("");
   const [dueTime, setDueTime] = useState("");
+  const [addToCalendar, setAddToCalendar] = useState(false);
+  const [createGoogleMeet, setCreateGoogleMeet] = useState(false);
+  const [autoSmartNotes, setAutoSmartNotes] = useState(true);
+  const [autoTranscription, setAutoTranscription] = useState(false);
+  const [googleCalendarId, setGoogleCalendarId] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [meetingLocation, setMeetingLocation] = useState("");
+  const [meetingAttendees, setMeetingAttendees] = useState("");
+  const [manualMeetingUrl, setManualMeetingUrl] = useState("");
   const [reminderDays, setReminderDays] = useState(2);
   const { data: allParticipants } = useRecurringMeetingParticipants();
-  const { data: departmentMembers = [] } = useRecurringMeetingDepartmentMembers();
   const [participantIds, setParticipantIds] = useState<string[]>([]);
-  const [participantsTouched, setParticipantsTouched] = useState(false);
   const participantsLoadedFor = useRef<string | null>(null);
   const [priority, setPriority] = useState<RecurringMeeting["priority"]>("medium");
   const [columnId, setColumnId] = useState("");
   const [statusId, setStatusId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [view, setView] = useState<"meeting" | "import">("meeting");
+  const [importedAta, setImportedAta] = useState<ImportedAtaDraft | null>(null);
+  const [pendingImportMeetingId, setPendingImportMeetingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    setView("meeting");
+    setImportedAta(null);
+    setPendingImportMeetingId(null);
     setTitle(recurringMeeting?.title ?? "");
     setDescription(recurringMeeting?.description ?? "");
-    setDepartmentId(recurringMeeting?.department_id ?? "");
+    setClientId(recurringMeeting?.client_id ?? "");
     setAssigneeId(recurringMeeting?.assignee_id ?? "");
+    setIsRecurring(recurringMeeting?.is_recurring ?? false);
     setFrequency(recurringMeeting?.frequency ?? "weekly");
     setIntervalCount(recurringMeeting?.interval_count ?? 1);
     setDaysOfWeek(recurringMeeting?.days_of_week?.length ? recurringMeeting.days_of_week : [1]);
@@ -135,18 +171,35 @@ export function RecurringMeetingDialog({
     setStartDate(recurringMeeting?.start_date ?? todayValue());
     setEndDate(recurringMeeting?.end_date ?? "");
     setDueTime(recurringMeeting?.due_time?.slice(0, 5) ?? "");
+    setAddToCalendar(
+      recurringMeeting?.add_to_calendar ?? recurringMeeting?.create_google_meet ?? false,
+    );
+    setCreateGoogleMeet(recurringMeeting?.create_google_meet ?? false);
+    setAutoSmartNotes(recurringMeeting?.auto_smart_notes ?? true);
+    setAutoTranscription(recurringMeeting?.auto_transcription ?? false);
+    setGoogleCalendarId(recurringMeeting?.google_calendar_id ?? "");
+    setDurationMinutes(recurringMeeting?.duration_minutes ?? 60);
+    setMeetingLocation(recurringMeeting?.meeting_location ?? "");
+    setMeetingAttendees((recurringMeeting?.meeting_attendee_emails ?? []).join(", "));
+    setManualMeetingUrl(recurringMeeting?.manual_meeting_url ?? "");
     setReminderDays(recurringMeeting?.reminder_days_before ?? 2);
     setParticipantIds([]);
-    setParticipantsTouched(false);
     participantsLoadedFor.current = null;
     setPriority(recurringMeeting?.priority ?? "medium");
     setColumnId(recurringMeeting?.column_id ?? "");
     setStatusId(recurringMeeting?.status_id ?? "");
     setIsActive(recurringMeeting?.is_active ?? true);
     setAgendaItems([]);
+    setSelectedTaskIds([]);
+    setTaskSearch("");
+    setTaskPickerOpen(false);
     setFocusAgendaKey(null);
     agendaLoadedFor.current = null;
   }, [open, recurringMeeting]);
+
+  useEffect(() => {
+    if (open && !googleCalendarId && defaultCalendarId) setGoogleCalendarId(defaultCalendarId);
+  }, [open, googleCalendarId, defaultCalendarId]);
 
   // Carrega as pautas salvas uma única vez por abertura, sem sobrescrever edições.
   useEffect(() => {
@@ -178,13 +231,7 @@ export function RecurringMeetingDialog({
     );
   }, [allParticipants, open, recurringMeeting]);
 
-  const membersOf = (id: string) =>
-    departmentMembers
-      .filter((member) => member.department_id === id)
-      .map((member) => member.user_id);
-
   const toggleParticipant = (userId: string) => {
-    setParticipantsTouched(true);
     setParticipantIds((current) =>
       current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId],
     );
@@ -288,8 +335,8 @@ export function RecurringMeetingDialog({
         id: reuseIds && item.id ? item.id : crypto.randomUUID(),
         recurring_meeting_id: recurringMeetingId,
         title: item.title.trim(),
-        cadence: item.cadence,
-        cadence_day: item.cadence === "until_day" ? (item.cadenceDay ?? 25) : null,
+        cadence: isRecurring ? item.cadence : "every",
+        cadence_day: isRecurring && item.cadence === "until_day" ? (item.cadenceDay ?? 25) : null,
         position,
       }));
 
@@ -316,61 +363,184 @@ export function RecurringMeetingDialog({
     return error;
   };
 
-  const departmentSearchTerm = departmentSearch.trim();
-  const normalizedDepartmentSearch = departmentSearchTerm.toLocaleLowerCase("pt-BR");
-  const filteredDepartments = departments.filter((department) =>
-    department.name.toLocaleLowerCase("pt-BR").includes(normalizedDepartmentSearch),
+  const clientSearchTerm = clientSearch.trim();
+  const normalizedClientSearch = clientSearchTerm.toLocaleLowerCase("pt-BR");
+  const activeClients = clients.filter((client) => client.is_active !== false);
+  const filteredClients = activeClients.filter((client) =>
+    client.name.toLocaleLowerCase("pt-BR").includes(normalizedClientSearch),
   );
-  const exactDepartment = departments.find(
-    (department) => department.name.toLocaleLowerCase("pt-BR") === normalizedDepartmentSearch,
+  const exactClient = activeClients.find(
+    (client) => client.name.toLocaleLowerCase("pt-BR") === normalizedClientSearch,
   );
-  const selectedDepartmentName =
-    departments.find((department) => department.id === departmentId)?.name ?? "";
+  const selectedClientName = clients.find((client) => client.id === clientId)?.name ?? "";
+  const completedStatusIds = new Set(
+    statuses.filter((status) => status.is_completed).map((status) => status.id),
+  );
+  const eligibleTasks = tasks.filter(
+    (task) =>
+      task.client_id === clientId &&
+      task.workspace_id === activeWorkspace?.id &&
+      task.deleted_at === null &&
+      task.archived_at === null &&
+      task.status !== "done" &&
+      !task.completed_at &&
+      (!task.status_id || !completedStatusIds.has(task.status_id)) &&
+      !task.recurring_meeting_agenda_item_id &&
+      !task.recurring_meeting_occurrence_id &&
+      !task.recurring_meeting_agenda_template_id,
+  );
+  const filteredTasks = eligibleTasks.filter((task) =>
+    task.title.toLocaleLowerCase("pt-BR").includes(taskSearch.trim().toLocaleLowerCase("pt-BR")),
+  );
+  const selectedTasks = selectedTaskIds
+    .map((id) => tasks.find((task) => task.id === id))
+    .filter((task): task is (typeof tasks)[number] => Boolean(task));
 
-  const chooseDepartment = (id: string) => {
-    setDepartmentId(id);
-    // Numa reunião nova, os participantes vêm dos membros do departamento.
-    if (!recurringMeeting && !participantsTouched) setParticipantIds(membersOf(id));
-    setDepartmentOpen(false);
+  const chooseClient = (id: string) => {
+    if (id !== clientId && importedAta) {
+      if (
+        !window.confirm("Trocar o cliente descartará a ata preparada para esta reunião. Continuar?")
+      )
+        return;
+      setImportedAta(null);
+    }
+    setClientId(id);
+    setSelectedTaskIds([]);
+    setClientOpen(false);
+  };
+
+  const attachImportedAta = (meetingId: string, draft: ImportedAtaDraft) =>
+    (supabase as any).rpc("attach_imported_ata_to_meeting", {
+      target_import_id: draft.id,
+      target_meeting_id: meetingId,
+      ata_title: draft.title,
+      ata_text: draft.text,
+      ata_html: draft.html,
+      imported_tasks: draft.tasks.map((task) => ({
+        title: task.title,
+        description: task.description,
+        due_date: task.due_date,
+        assignee_id: task.assignee_id,
+        status_id: task.status_id,
+        column_id: task.column_id,
+        tag_id: task.tag_id,
+        priority: task.priority,
+      })),
+    });
+
+  const closeDialog = () => {
+    if (
+      pendingImportMeetingId &&
+      !window.confirm(
+        "A reunião já foi salva, mas a ata ainda não foi vinculada. Fechar agora descartará a ata em revisão. Deseja sair?",
+      )
+    )
+      return;
+    onOpenChange(false);
   };
 
   const save = async () => {
+    if (pendingImportMeetingId && importedAta) {
+      setSaving(true);
+      const { error } = await attachImportedAta(pendingImportMeetingId, importedAta);
+      setSaving(false);
+      if (error)
+        return toast.error(`Reunião salva, mas a ata ainda não foi vinculada: ${error.message}`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["client_notes"] }),
+        queryClient.invalidateQueries({ queryKey: ["meeting-ata-notes"] }),
+        queryClient.invalidateQueries({ queryKey: ["recurringMeeting-agenda-items"] }),
+        queryClient.invalidateQueries({ queryKey: ["recurringMeeting-agenda-preview"] }),
+      ]);
+      toast.success("Reunião, ata e tarefas vinculadas");
+      onOpenChange(false);
+      return;
+    }
     if (!title.trim()) return toast.error("Informe o nome da reunião.");
-    if (!selectedDepartmentName) return toast.error("Selecione um departamento.");
+    if (!selectedClientName) return toast.error("Selecione um cliente.");
     if (!startDate) return toast.error("Informe a data de início.");
-    if (frequency === "weekly" && daysOfWeek.length === 0)
+    if (isRecurring && frequency === "weekly" && daysOfWeek.length === 0)
       return toast.error("Selecione ao menos um dia da semana.");
-    if (frequency === "monthly" && monthRule === "specific_days" && parsedMonthDays.length === 0)
+    if (
+      isRecurring &&
+      frequency === "monthly" &&
+      monthRule === "specific_days" &&
+      parsedMonthDays.length === 0
+    )
       return toast.error("Informe ao menos um dia válido do mês.");
-    if (endDate && endDate < startDate)
+    if (isRecurring && endDate && endDate < startDate)
       return toast.error("A data final não pode ser anterior ao início.");
     const participantsChanged =
       participantIds.length !== savedParticipantIds.length ||
       participantIds.some((id) => !savedParticipantIds.includes(id));
     if (isOffline() && participantsChanged)
       return toast.error("Conecte-se à internet para alterar os participantes.");
+    if (selectedTaskIds.length > 0 && !isRecurring && isOffline())
+      return toast.error("Conecte-se à internet para vincular uma tarefa existente.");
+    if (selectedTaskIds.length > 0 && !isRecurring && !isActive)
+      return toast.error("Ative a reunião para vincular uma tarefa existente.");
+    const attendeeEmails = meetingAttendees
+      .split(/[,;\n]+/)
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+    if (addToCalendar && attendeeEmails.some((email) => !emailPattern.test(email)))
+      return toast.error("Confira os e-mails dos convidados da Agenda.");
+    if (addToCalendar && createGoogleMeet && !googleConnection)
+      return toast.error("Conecte sua conta Google para criar um Meet.");
+    if (addToCalendar && createGoogleMeet && !canCreateGoogleMeet)
+      return toast.error("Reconecte sua conta na Agenda para autorizar a criação do Google Meet.");
+    if (addToCalendar && createGoogleMeet && !googleCalendarId)
+      return toast.error("Selecione uma agenda Google para criar um Meet.");
+    if (addToCalendar && !dueTime)
+      return toast.error("Informe o horário da reunião para adicioná-la à Agenda.");
+    if (
+      addToCalendar &&
+      (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 1440)
+    )
+      return toast.error("A duração deve estar entre 15 e 1440 minutos.");
+    if (addToCalendar && isOffline())
+      return toast.error("Conecte-se à internet para adicionar a reunião à Agenda.");
+    if (importedAta && isOffline())
+      return toast.error("Conecte-se à internet para salvar a ata junto à reunião.");
+    if (importedAta && !isActive)
+      return toast.error("Ative a reunião para vincular as tarefas da ata.");
 
     setSaving(true);
     const payload = {
       title: title.trim(),
       description: description.trim() || null,
       assignee_id: assigneeId || null,
-      frequency,
+      is_recurring: isRecurring,
+      frequency: isRecurring ? frequency : "daily",
       interval_count: Math.max(1, intervalCount),
-      days_of_week: frequency === "weekly" ? daysOfWeek : [],
+      days_of_week: isRecurring && frequency === "weekly" ? daysOfWeek : [],
       days_of_month:
-        frequency === "monthly" && monthRule === "specific_days" ? parsedMonthDays : [],
-      month_rule: frequency === "monthly" ? monthRule : "specific_days",
-      business_days_only: frequency === "daily" && businessDaysOnly,
+        isRecurring && frequency === "monthly" && monthRule === "specific_days"
+          ? parsedMonthDays
+          : [],
+      month_rule: isRecurring && frequency === "monthly" ? monthRule : "specific_days",
+      business_days_only: isRecurring && frequency === "daily" && businessDaysOnly,
       start_date: startDate,
-      end_date: endDate || null,
+      end_date: isRecurring ? endDate || null : startDate,
       create_before_days: 0,
       reminder_days_before: Math.max(0, reminderDays),
       due_time: dueTime || null,
+      add_to_calendar: addToCalendar,
+      create_google_meet: addToCalendar && createGoogleMeet,
+      auto_smart_notes: autoSmartNotes,
+      auto_transcription: autoTranscription,
+      google_calendar_id: addToCalendar ? googleCalendarId : null,
+      duration_minutes: durationMinutes,
+      meeting_location: addToCalendar ? meetingLocation.trim() || null : null,
+      meeting_attendee_emails: addToCalendar ? [...new Set(attendeeEmails)] : [],
+      manual_meeting_url:
+        addToCalendar && !createGoogleMeet ? manualMeetingUrl.trim() || null : null,
       priority,
       column_id: columnId || null,
       status_id: statusId || null,
-      department_id: departmentId,
+      client_id: clientId,
+      department_id: null,
       meeting_mode: true,
       is_active: isActive,
     };
@@ -386,7 +556,6 @@ export function RecurringMeetingDialog({
               created_by: user.id,
               created_at: now,
               updated_at: now,
-              client_id: null,
               ...payload,
             },
           ];
@@ -456,12 +625,95 @@ export function RecurringMeetingDialog({
       ? await saveParticipants(savedRecurringMeetings[0].id)
       : null;
     // Refaz as reuniões futuras ainda não preparadas com a nova recorrência e pauta.
-    const refreshResults = await Promise.all(
-      savedRecurringMeetings.map(({ id }) =>
-        (supabase as any).rpc("refresh_recurring_meeting", { target_recurring_meeting_id: id }),
-      ),
-    );
+    const scheduleChanged =
+      !recurringMeeting ||
+      recurringMeeting.is_recurring !== payload.is_recurring ||
+      recurringMeeting.frequency !== payload.frequency ||
+      recurringMeeting.interval_count !== payload.interval_count ||
+      JSON.stringify(recurringMeeting.days_of_week) !== JSON.stringify(payload.days_of_week) ||
+      JSON.stringify(recurringMeeting.days_of_month) !== JSON.stringify(payload.days_of_month) ||
+      recurringMeeting.month_rule !== payload.month_rule ||
+      recurringMeeting.business_days_only !== payload.business_days_only ||
+      recurringMeeting.start_date !== payload.start_date ||
+      recurringMeeting.end_date !== payload.end_date ||
+      recurringMeeting.due_time?.slice(0, 5) !== payload.due_time ||
+      recurringMeeting.is_active !== payload.is_active;
+    const refreshResults = scheduleChanged
+      ? await Promise.all(
+          savedRecurringMeetings.map(({ id }) =>
+            (supabase as any).rpc("refresh_recurring_meeting", {
+              target_recurring_meeting_id: id,
+            }),
+          ),
+        )
+      : [];
     const refreshError = refreshResults.find((result) => result.error)?.error;
+    let googleError: Error | null = null;
+    if (!refreshError && savedRecurringMeetings[0]) {
+      const { error: calendarError } = await (supabase as any).rpc(
+        "prepare_meeting_calendar_events",
+        { target_meeting_id: savedRecurringMeetings[0].id },
+      );
+      if (calendarError) googleError = new Error(calendarError.message);
+      else if (googleConnection && (addToCalendar || recurringMeeting?.add_to_calendar)) {
+        const { data: syncData, error: syncError } = await supabase.functions.invoke(
+          "google-calendar-sync",
+          { body: {} },
+        );
+        if (syncError || !syncData?.ok || syncData?.pushErrors?.length)
+          googleError = new Error(
+            syncData?.pushErrors?.[0] ||
+              syncData?.error ||
+              syncError?.message ||
+              "Falha na sincronização com o Google.",
+          );
+      }
+    }
+    let linkError: Error | null = null;
+    if (
+      selectedTaskIds.length > 0 &&
+      !isRecurring &&
+      !agendaError &&
+      !refreshError &&
+      savedRecurringMeetings[0]
+    ) {
+      const { data: occurrence, error: occurrenceError } = await (
+        supabase.from("recurring_meeting_occurrences" as any) as any
+      )
+        .select("id")
+        .eq("recurring_meeting_id", savedRecurringMeetings[0].id)
+        .eq("due_date", startDate)
+        .maybeSingle();
+      if (occurrenceError || !occurrence) {
+        linkError = new Error(occurrenceError?.message ?? "A data da reunião não foi gerada.");
+      } else {
+        const { error: taskLinkError } = await (supabase as any).rpc(
+          "link_existing_tasks_to_meeting",
+          { target_occurrence_id: occurrence.id, target_task_ids: selectedTaskIds },
+        );
+        if (taskLinkError) linkError = new Error(taskLinkError.message);
+      }
+    }
+    if (
+      importedAta &&
+      savedRecurringMeetings[0] &&
+      !agendaError &&
+      !participantsError &&
+      !refreshError &&
+      !linkError
+    ) {
+      setPendingImportMeetingId(savedRecurringMeetings[0].id);
+      const { error: importError } = await attachImportedAta(
+        savedRecurringMeetings[0].id,
+        importedAta,
+      );
+      if (importError) {
+        setSaving(false);
+        toast.error(`Reunião salva, mas a ata ainda não foi vinculada: ${importError.message}`);
+        return;
+      }
+      setPendingImportMeetingId(null);
+    }
     setSaving(false);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["recurring_meetings"] }),
@@ -470,6 +722,11 @@ export function RecurringMeetingDialog({
       queryClient.invalidateQueries({ queryKey: ["recurringMeeting-occurrences"] }),
       queryClient.invalidateQueries({ queryKey: ["recurringMeeting-agenda-items"] }),
       queryClient.invalidateQueries({ queryKey: ["recurringMeeting-agenda-preview"] }),
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      queryClient.invalidateQueries({ queryKey: ["client_notes"] }),
+      queryClient.invalidateQueries({ queryKey: ["meeting-ata-notes"] }),
+      queryClient.invalidateQueries({ queryKey: ["meeting-calendar-events"] }),
+      queryClient.invalidateQueries({ queryKey: ["agenda_events"] }),
     ]);
     if (agendaError) {
       toast.error(`Reunião salva, mas a pauta padrão não foi salva: ${agendaError.message}`);
@@ -487,568 +744,896 @@ export function RecurringMeetingDialog({
       );
       return;
     }
-    toast.success(recurringMeeting ? "Reunião atualizada" : "Reunião criada");
+    if (linkError) {
+      toast.error(`Reunião criada, mas as tarefas não foram vinculadas: ${linkError.message}`);
+      onOpenChange(false);
+      return;
+    }
+    if (googleError) {
+      toast.error(`Reunião salva, mas a Agenda não foi sincronizada: ${googleError.message}`);
+      onOpenChange(false);
+      return;
+    }
+    toast.success(
+      importedAta
+        ? "Reunião, ata e tarefas vinculadas"
+        : recurringMeeting
+          ? "Reunião atualizada"
+          : "Reunião criada",
+    );
     onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) onOpenChange(true);
+        else closeDialog();
+      }}
+    >
       <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto sm:rounded-2xl">
         <DialogHeader>
-          <DialogTitle>{recurringMeeting ? "Editar reunião" : "Nova reunião"}</DialogTitle>
+          <DialogTitle>
+            {view === "import"
+              ? "Importar Ata"
+              : recurringMeeting
+                ? "Editar reunião"
+                : "Nova reunião"}
+          </DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-5">
-          <section className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="recurringMeeting-title">Nome da reunião *</Label>
-              <Input
-                id="recurringMeeting-title"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="Ex.: Reunião semanal do Financeiro"
-                autoFocus
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+        <div className={view === "import" ? "hidden" : "contents"}>
+          <div className="space-y-5">
+            <section className="space-y-4">
               <div className="space-y-2">
-                <Label>Departamento *</Label>
-                <Popover
-                  open={departmentOpen}
-                  onOpenChange={(open) => {
-                    setDepartmentOpen(open);
-                    if (open) setDepartmentSearch("");
-                  }}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full justify-between font-normal"
-                    >
-                      {selectedDepartmentName ? (
-                        <span className="truncate">{selectedDepartmentName}</span>
-                      ) : (
-                        <span className="truncate text-muted-foreground">
-                          Selecione um departamento
-                        </span>
-                      )}
-                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    className="w-[var(--radix-popover-trigger-width)] p-2"
-                  >
-                    <Input
-                      value={departmentSearch}
-                      onChange={(event) => setDepartmentSearch(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") return;
-                        event.preventDefault();
-                        if (exactDepartment) chooseDepartment(exactDepartment.id);
-                        else if (filteredDepartments.length === 1)
-                          chooseDepartment(filteredDepartments[0].id);
-                      }}
-                      placeholder="Buscar departamento..."
-                      className="mb-2 h-8"
-                      autoFocus
-                    />
-                    <div className="max-h-56 overflow-y-auto">
-                      {filteredDepartments.map((department) => (
-                        <DepartmentOption
-                          key={department.id}
-                          label={department.name}
-                          selected={department.id === departmentId}
-                          onSelect={() => chooseDepartment(department.id)}
-                        />
-                      ))}
-                      {filteredDepartments.length === 0 && (
-                        <p className="px-2 py-3 text-center text-sm text-muted-foreground">
-                          {departments.length === 0
-                            ? "Nenhum departamento. Crie em Reuniões › Departamentos."
-                            : "Nenhum departamento encontrado."}
-                        </p>
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <Label htmlFor="recurringMeeting-title">Nome da reunião *</Label>
+                <Input
+                  id="recurringMeeting-title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Ex.: Reunião semanal do Financeiro"
+                  autoFocus
+                />
               </div>
-              <div className="space-y-2">
-                <Label>Responsável</Label>
-                <Select
-                  value={assigneeId || "none"}
-                  onValueChange={(value) => setAssigneeId(value === "none" ? "" : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sem responsável" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sem responsável</SelectItem>
-                    {profiles.map((profile) => (
-                      <SelectItem key={profile.id} value={profile.id}>
-                        {profile.full_name || profile.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="recurringMeeting-description">Descrição e orientações</Label>
-              <Textarea
-                id="recurringMeeting-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                rows={3}
-                placeholder="Documentos necessários, forma de entrega, conferências..."
-              />
-            </div>
-          </section>
-
-          <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="font-medium">Participantes</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Recebem o aviso antes de cada reunião para revisar a pauta.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {departmentId && membersOf(departmentId).length > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setParticipantsTouched(true);
-                      setParticipantIds((current) => [
-                        ...new Set([...current, ...membersOf(departmentId)]),
-                      ]);
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Cliente *</Label>
+                  <Popover
+                    open={clientOpen}
+                    onOpenChange={(open) => {
+                      setClientOpen(open);
+                      if (open) setClientSearch("");
                     }}
                   >
-                    <Users className="mr-1.5 h-3.5 w-3.5" />
-                    Incluir membros do departamento ({membersOf(departmentId).length})
-                  </Button>
-                )}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" size="sm">
-                      <Plus className="mr-1.5 h-3.5 w-3.5" /> Escolher pessoas
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-72 p-1">
-                    <div className="max-h-64 overflow-y-auto">
-                      {profiles.map((profile) => (
-                        <label
-                          key={profile.id}
-                          className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-                        >
-                          <Checkbox
-                            checked={participantIds.includes(profile.id)}
-                            onCheckedChange={() => toggleParticipant(profile.id)}
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between font-normal"
+                      >
+                        {selectedClientName ? (
+                          <span className="truncate">{selectedClientName}</span>
+                        ) : (
+                          <span className="truncate text-muted-foreground">
+                            Selecione um cliente
+                          </span>
+                        )}
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="w-[var(--radix-popover-trigger-width)] p-2"
+                    >
+                      <Input
+                        value={clientSearch}
+                        onChange={(event) => setClientSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") return;
+                          event.preventDefault();
+                          if (exactClient) chooseClient(exactClient.id);
+                          else if (filteredClients.length === 1)
+                            chooseClient(filteredClients[0].id);
+                        }}
+                        placeholder="Buscar cliente..."
+                        className="mb-2 h-8"
+                        autoFocus
+                      />
+                      <div className="max-h-56 overflow-y-auto">
+                        {filteredClients.map((client) => (
+                          <ClientOption
+                            key={client.id}
+                            label={client.name}
+                            selected={client.id === clientId}
+                            onSelect={() => chooseClient(client.id)}
                           />
-                          <span className="truncate">{profile.full_name || profile.email}</span>
-                        </label>
+                        ))}
+                        {filteredClients.length === 0 && (
+                          <p className="px-2 py-3 text-center text-sm text-muted-foreground">
+                            {activeClients.length === 0
+                              ? "Nenhum cliente ativo neste ambiente."
+                              : "Nenhum cliente encontrado."}
+                          </p>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label>Responsável</Label>
+                  <Select
+                    value={assigneeId || "none"}
+                    onValueChange={(value) => setAssigneeId(value === "none" ? "" : value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sem responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem responsável</SelectItem>
+                      {profiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.full_name || profile.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="recurringMeeting-description">Descrição e orientações</Label>
+                <Textarea
+                  id="recurringMeeting-description"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  rows={3}
+                  placeholder="Documentos necessários, forma de entrega, conferências..."
+                />
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-medium">Adicionar à Agenda</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {isRecurring
+                      ? "Cada data da reunião terá seu próprio compromisso na Agenda."
+                      : "Cria um compromisso para esta reunião na Agenda."}
+                  </p>
+                </div>
+                <Switch
+                  checked={addToCalendar}
+                  onCheckedChange={setAddToCalendar}
+                  aria-label="Adicionar à Agenda"
+                />
+              </div>
+              {addToCalendar && (
+                <div className="space-y-3 border-t pt-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {calendarSources.length > 0 && (
+                      <div className="space-y-1">
+                        <Label>Agenda Google</Label>
+                        <Select value={googleCalendarId} onValueChange={setGoogleCalendarId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a agenda" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {calendarSources.map((source) => (
+                              <SelectItem
+                                key={source.google_calendar_id}
+                                value={source.google_calendar_id}
+                              >
+                                {source.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <Label htmlFor="meeting-duration">Duração (minutos)</Label>
+                      <Input
+                        id="meeting-duration"
+                        type="number"
+                        min={15}
+                        max={1440}
+                        value={durationMinutes}
+                        onChange={(event) => setDurationMinutes(Number(event.target.value))}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="meeting-location">Local</Label>
+                    <Input
+                      id="meeting-location"
+                      value={meetingLocation}
+                      onChange={(event) => setMeetingLocation(event.target.value)}
+                      placeholder="Adicionar local (opcional)"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="meeting-attendees">Convidados por e-mail</Label>
+                    <Textarea
+                      id="meeting-attendees"
+                      value={meetingAttendees}
+                      onChange={(event) => setMeetingAttendees(event.target.value)}
+                      rows={2}
+                      placeholder="nome@empresa.com, outra@empresa.com"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Separe os e-mails por vírgula ou linha.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Criar Google Meet</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isRecurring
+                          ? "Cada data terá um link próprio, preparado com até 30 dias de antecedência."
+                          : "O link será criado ao salvar a reunião."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={createGoogleMeet}
+                      disabled={
+                        (!canCreateGoogleMeet || calendarSources.length === 0) && !createGoogleMeet
+                      }
+                      onCheckedChange={setCreateGoogleMeet}
+                      aria-label="Criar Google Meet"
+                    />
+                  </div>
+                  {!canCreateGoogleMeet && (
+                    <p className="text-xs text-muted-foreground">
+                      {googleConnection
+                        ? "Reconecte sua conta na Agenda e aprove as permissões do Google Meet."
+                        : "Conecte sua conta Google na Agenda para habilitar o Meet."}
+                    </p>
+                  )}
+                  {createGoogleMeet ? (
+                    <div className="space-y-3 border-t pt-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">Gerar ata com Gemini</p>
+                          <p className="text-xs text-muted-foreground">
+                            Cria as anotações inteligentes da reunião.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={autoSmartNotes}
+                          onCheckedChange={setAutoSmartNotes}
+                          aria-label="Gerar ata com Gemini"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">Gerar transcrição</p>
+                          <p className="text-xs text-muted-foreground">
+                            Salva o texto falado durante a reunião.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={autoTranscription}
+                          onCheckedChange={setAutoTranscription}
+                          aria-label="Gerar transcrição"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <Label htmlFor="meeting-url">Link da reunião (opcional)</Label>
+                      <Input
+                        id="meeting-url"
+                        type="url"
+                        value={manualMeetingUrl}
+                        onChange={(event) => setManualMeetingUrl(event.target.value)}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-medium">Participantes</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Recebem um aviso antes da reunião para revisar a pauta.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" size="sm">
+                        <Plus className="mr-1.5 h-3.5 w-3.5" /> Escolher pessoas
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-72 p-1">
+                      <div className="max-h-64 overflow-y-auto">
+                        {profiles.map((profile) => (
+                          <label
+                            key={profile.id}
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                          >
+                            <Checkbox
+                              checked={participantIds.includes(profile.id)}
+                              onCheckedChange={() => toggleParticipant(profile.id)}
+                            />
+                            <span className="truncate">{profile.full_name || profile.email}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              {participantIds.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhum participante. O aviso irá só para o responsável.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {participantIds.map((id) => {
+                    const profile = profiles.find((item) => item.id === id);
+                    return (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-1 text-xs shadow-sm"
+                      >
+                        {profile?.full_name || profile?.email || "Usuário"}
+                        <button
+                          type="button"
+                          onClick={() => toggleParticipant(id)}
+                          className="text-muted-foreground hover:text-destructive"
+                          aria-label={`Remover ${profile?.full_name || "participante"}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-4 rounded-xl border bg-muted/20 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="recurringMeeting-recurrence" className="text-base font-medium">
+                    Recorrência
+                  </Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {isRecurring
+                      ? recurrencePreview
+                      : "Desativada: esta reunião acontecerá uma única vez."}
+                  </p>
+                </div>
+                <Switch
+                  id="recurringMeeting-recurrence"
+                  checked={isRecurring}
+                  onCheckedChange={(checked) => {
+                    setIsRecurring(checked);
+                    if (checked) setSelectedTaskIds([]);
+                  }}
+                  aria-label="Ativar recorrência"
+                />
+              </div>
+
+              {isRecurring && (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+                    <div className="space-y-2">
+                      <Label>Frequência</Label>
+                      <Select
+                        value={frequency}
+                        onValueChange={(value) => setFrequency(value as RecurringMeetingFrequency)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">Diária</SelectItem>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                          <SelectItem value="monthly">Mensal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="recurringMeeting-interval">A cada</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="recurringMeeting-interval"
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={intervalCount}
+                          onChange={(event) =>
+                            setIntervalCount(Math.max(1, Number(event.target.value) || 1))
+                          }
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {frequency === "daily"
+                            ? "dia(s)"
+                            : frequency === "weekly"
+                              ? "semana(s)"
+                              : "mês(es)"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {frequency === "daily" && (
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={businessDaysOnly}
+                        onCheckedChange={(value) => setBusinessDaysOnly(value === true)}
+                      />
+                      Somente dias úteis
+                    </label>
+                  )}
+
+                  {frequency === "weekly" && (
+                    <div className="space-y-2">
+                      <Label>Dias da semana</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {weekDays.map((day) => {
+                          const selected = daysOfWeek.includes(day.value);
+                          return (
+                            <button
+                              key={day.value}
+                              type="button"
+                              onClick={() =>
+                                setDaysOfWeek(
+                                  selected
+                                    ? daysOfWeek.filter((value) => value !== day.value)
+                                    : [...daysOfWeek, day.value].sort(),
+                                )
+                              }
+                              className={cn(
+                                "rounded-full border px-3 py-1.5 text-xs transition",
+                                selected
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "bg-background hover:bg-muted",
+                              )}
+                            >
+                              {day.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {frequency === "monthly" && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Regra mensal</Label>
+                        <Select
+                          value={monthRule}
+                          onValueChange={(value) =>
+                            setMonthRule(value as RecurringMeetingMonthRule)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="specific_days">Dia(s) específico(s)</SelectItem>
+                            <SelectItem value="last_day">Último dia do mês</SelectItem>
+                            <SelectItem value="last_business_day">
+                              Último dia útil do mês
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {monthRule === "specific_days" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="recurringMeeting-month-days">Dias do mês</Label>
+                          <Input
+                            id="recurringMeeting-month-days"
+                            value={daysOfMonth}
+                            onChange={(event) => setDaysOfMonth(event.target.value)}
+                            placeholder="Ex.: 15, 30"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Separe por vírgulas. Se o dia não existir, será usado o último dia do
+                            mês.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-2">
+                  <Label htmlFor="recurringMeeting-start">
+                    {isRecurring ? "Início" : "Data da reunião"}
+                  </Label>
+                  <Input
+                    id="recurringMeeting-start"
+                    type="date"
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                  />
+                </div>
+                {isRecurring && (
+                  <div className="space-y-2">
+                    <Label htmlFor="recurringMeeting-end">Término opcional</Label>
+                    <Input
+                      id="recurringMeeting-end"
+                      type="date"
+                      value={endDate}
+                      min={startDate}
+                      onChange={(event) => setEndDate(event.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="recurringMeeting-reminder">Avisar participantes</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="recurringMeeting-reminder"
+                      type="number"
+                      min={0}
+                      max={30}
+                      value={reminderDays}
+                      onChange={(event) =>
+                        setReminderDays(Math.min(30, Math.max(0, Number(event.target.value) || 0)))
+                      }
+                    />
+                    <span className="text-xs text-muted-foreground">dias antes</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recurringMeeting-time">Horário da reunião</Label>
+                  <Input
+                    id="recurringMeeting-time"
+                    type="time"
+                    value={dueTime}
+                    onChange={(event) => setDueTime(event.target.value)}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-medium">
+                    {isRecurring ? "Pauta padrão" : "Pauta da reunião"}
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {isRecurring
+                      ? "Cada reunião recebe estes itens conforme a periodicidade escolhida. Mudanças valem para as reuniões que ainda não tiveram a pauta confirmada."
+                      : "Adicione os assuntos desta reunião."}
+                  </p>
+                </div>
+                {agendaItems.length > 0 && (
+                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                    {agendaItems.length} {agendaItems.length === 1 ? "item" : "itens"}
+                  </span>
+                )}
+              </div>
+              {agendaItems.length === 0 ? (
+                <p className="rounded-lg border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
+                  Nenhum item na pauta. Adicione os assuntos que esta reunião trata.
+                </p>
+              ) : (
+                <ol className="space-y-2">
+                  {agendaItems.map((item, index) => (
+                    <li key={item.key} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground sm:block">
+                        {index + 1}.
+                      </span>
+                      <Input
+                        value={item.title}
+                        onChange={(event) =>
+                          updateAgendaItem(item.key, { title: event.target.value })
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") return;
+                          event.preventDefault();
+                          if (item.title.trim()) addAgendaItem();
+                        }}
+                        placeholder="Ex.: Conferir folha de pagamento"
+                        aria-label={`Pauta ${index + 1}`}
+                        autoFocus={item.key === focusAgendaKey}
+                        className="flex-1"
+                      />
+                      <div className="flex gap-2">
+                        {isRecurring && (
+                          <Select
+                            value={item.cadence}
+                            onValueChange={(value) =>
+                              updateAgendaItem(item.key, {
+                                cadence: value as AgendaCadence,
+                                cadenceDay:
+                                  value === "until_day" ? (item.cadenceDay ?? 25) : item.cadenceDay,
+                              })
+                            }
+                          >
+                            <SelectTrigger
+                              className="sm:w-48"
+                              aria-label={`Periodicidade da pauta ${index + 1}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {cadenceOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {isRecurring && item.cadence === "until_day" && (
+                          <Input
+                            type="number"
+                            min={1}
+                            max={31}
+                            value={item.cadenceDay ?? 25}
+                            onChange={(event) =>
+                              updateAgendaItem(item.key, {
+                                cadenceDay: Math.min(
+                                  31,
+                                  Math.max(1, Number(event.target.value) || 1),
+                                ),
+                              })
+                            }
+                            className="w-16"
+                            aria-label={`Dia limite da pauta ${index + 1}`}
+                            title="Dia do mês"
+                          />
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeAgendaItem(item.key)}
+                          aria-label={`Remover pauta ${index + 1}`}
+                          title="Remover pauta"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-dashed"
+                onClick={addAgendaItem}
+              >
+                <Plus className="mr-1.5 h-4 w-4" /> Adicionar item
+              </Button>
+              {!isRecurring && !recurringMeeting && (
+                <div className="space-y-2 border-t pt-3">
+                  <Label>Tarefas existentes</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Vincule tarefas deste cliente como pautas desta reunião, sem duplicá-las.
+                  </p>
+                  <Popover open={taskPickerOpen} onOpenChange={setTaskPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" className="w-full justify-between">
+                        <span className="truncate">
+                          {selectedTaskIds.length > 0
+                            ? `${selectedTaskIds.length} ${selectedTaskIds.length === 1 ? "tarefa selecionada" : "tarefas selecionadas"}`
+                            : "Escolher tarefas existentes"}
+                        </span>
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="w-[var(--radix-popover-trigger-width)] p-2"
+                    >
+                      <Input
+                        value={taskSearch}
+                        onChange={(event) => setTaskSearch(event.target.value)}
+                        placeholder="Buscar tarefa..."
+                        aria-label="Buscar tarefa existente"
+                        className="mb-2 h-8"
+                        autoFocus
+                      />
+                      <div className="max-h-56 overflow-y-auto">
+                        {filteredTasks.length === 0 ? (
+                          <p className="px-2 py-3 text-center text-sm text-muted-foreground">
+                            {clientId
+                              ? "Nenhuma tarefa em aberto disponível deste cliente."
+                              : "Selecione um cliente primeiro."}
+                          </p>
+                        ) : (
+                          filteredTasks.map((task) => (
+                            <button
+                              key={task.id}
+                              type="button"
+                              aria-pressed={selectedTaskIds.includes(task.id)}
+                              className="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent"
+                              onClick={() => {
+                                setSelectedTaskIds((current) =>
+                                  current.includes(task.id)
+                                    ? current.filter((id) => id !== task.id)
+                                    : [...current, task.id],
+                                );
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mt-0.5 h-4 w-4 shrink-0",
+                                  selectedTaskIds.includes(task.id) ? "opacity-100" : "opacity-0",
+                                )}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate">{task.title}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {task.due_date
+                                    ? `Prazo: ${new Date(task.due_date).toLocaleDateString("pt-BR")}`
+                                    : "Sem prazo"}
+                                </span>
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {selectedTasks.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedTasks.map((task) => (
+                        <span
+                          key={task.id}
+                          className="inline-flex max-w-full items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-xs"
+                        >
+                          <span className="truncate">{task.title}</span>
+                          <button
+                            type="button"
+                            className="shrink-0 text-muted-foreground hover:text-destructive"
+                            aria-label={`Remover ${task.title} das tarefas selecionadas`}
+                            onClick={() =>
+                              setSelectedTaskIds((current) =>
+                                current.filter((id) => id !== task.id),
+                              )
+                            }
+                          >
+                            ×
+                          </button>
+                        </span>
                       ))}
                     </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-            {participantIds.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Nenhum participante. O aviso irá só para o responsável.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {participantIds.map((id) => {
-                  const profile = profiles.find((item) => item.id === id);
-                  return (
-                    <span
-                      key={id}
-                      className="inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-1 text-xs shadow-sm"
-                    >
-                      {profile?.full_name || profile?.email || "Usuário"}
-                      <button
-                        type="button"
-                        onClick={() => toggleParticipant(id)}
-                        className="text-muted-foreground hover:text-destructive"
-                        aria-label={`Remover ${profile?.full_name || "participante"}`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-4 rounded-xl border bg-muted/20 p-4">
-            <div>
-              <h3 className="font-medium">Recorrência</h3>
-              <p className="mt-1 text-xs text-muted-foreground">{recurrencePreview}</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+                  )}
+                </div>
+              )}
+            </section>
+            <section className="grid gap-4 rounded-xl border p-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label>Frequência</Label>
+                <Label>Prioridade da tarefa</Label>
                 <Select
-                  value={frequency}
-                  onValueChange={(value) => setFrequency(value as RecurringMeetingFrequency)}
+                  value={priority}
+                  onValueChange={(value) => setPriority(value as RecurringMeeting["priority"])}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily">Diária</SelectItem>
-                    <SelectItem value="weekly">Semanal</SelectItem>
-                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="urgent">Urgente</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="recurringMeeting-interval">A cada</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="recurringMeeting-interval"
-                    type="number"
-                    min={1}
-                    max={365}
-                    value={intervalCount}
-                    onChange={(event) =>
-                      setIntervalCount(Math.max(1, Number(event.target.value) || 1))
-                    }
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {frequency === "daily"
-                      ? "dia(s)"
-                      : frequency === "weekly"
-                        ? "semana(s)"
-                        : "mês(es)"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {frequency === "daily" && (
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={businessDaysOnly}
-                  onCheckedChange={(value) => setBusinessDaysOnly(value === true)}
-                />
-                Somente dias úteis
-              </label>
-            )}
-
-            {frequency === "weekly" && (
-              <div className="space-y-2">
-                <Label>Dias da semana</Label>
-                <div className="flex flex-wrap gap-2">
-                  {weekDays.map((day) => {
-                    const selected = daysOfWeek.includes(day.value);
-                    return (
-                      <button
-                        key={day.value}
-                        type="button"
-                        onClick={() =>
-                          setDaysOfWeek(
-                            selected
-                              ? daysOfWeek.filter((value) => value !== day.value)
-                              : [...daysOfWeek, day.value].sort(),
-                          )
-                        }
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs transition",
-                          selected
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "bg-background hover:bg-muted",
-                        )}
-                      >
-                        {day.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {frequency === "monthly" && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Regra mensal</Label>
-                  <Select
-                    value={monthRule}
-                    onValueChange={(value) => setMonthRule(value as RecurringMeetingMonthRule)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="specific_days">Dia(s) específico(s)</SelectItem>
-                      <SelectItem value="last_day">Último dia do mês</SelectItem>
-                      <SelectItem value="last_business_day">Último dia útil do mês</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {monthRule === "specific_days" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="recurringMeeting-month-days">Dias do mês</Label>
-                    <Input
-                      id="recurringMeeting-month-days"
-                      value={daysOfMonth}
-                      onChange={(event) => setDaysOfMonth(event.target.value)}
-                      placeholder="Ex.: 15, 30"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Separe por vírgulas. Se o dia não existir, será usado o último dia do mês.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-2">
-                <Label htmlFor="recurringMeeting-start">Início</Label>
-                <Input
-                  id="recurringMeeting-start"
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="recurringMeeting-end">Término opcional</Label>
-                <Input
-                  id="recurringMeeting-end"
-                  type="date"
-                  value={endDate}
-                  min={startDate}
-                  onChange={(event) => setEndDate(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="recurringMeeting-reminder">Avisar participantes</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="recurringMeeting-reminder"
-                    type="number"
-                    min={0}
-                    max={30}
-                    value={reminderDays}
-                    onChange={(event) =>
-                      setReminderDays(Math.min(30, Math.max(0, Number(event.target.value) || 0)))
-                    }
-                  />
-                  <span className="text-xs text-muted-foreground">dias antes</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="recurringMeeting-time">Horário da reunião</Label>
-                <Input
-                  id="recurringMeeting-time"
-                  type="time"
-                  value={dueTime}
-                  onChange={(event) => setDueTime(event.target.value)}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-medium">Pauta padrão</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Cada reunião recebe estes itens conforme a periodicidade escolhida. Mudanças valem
-                  para as reuniões que ainda não tiveram a pauta confirmada.
-                </p>
-              </div>
-              {agendaItems.length > 0 && (
-                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-                  {agendaItems.length} {agendaItems.length === 1 ? "item" : "itens"}
-                </span>
-              )}
-            </div>
-            {agendaItems.length === 0 ? (
-              <p className="rounded-lg border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-                Nenhum item na pauta padrão. Adicione os assuntos que esta reunião trata.
-              </p>
-            ) : (
-              <ol className="space-y-2">
-                {agendaItems.map((item, index) => (
-                  <li key={item.key} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground sm:block">
-                      {index + 1}.
-                    </span>
-                    <Input
-                      value={item.title}
-                      onChange={(event) =>
-                        updateAgendaItem(item.key, { title: event.target.value })
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") return;
-                        event.preventDefault();
-                        if (item.title.trim()) addAgendaItem();
-                      }}
-                      placeholder="Ex.: Conferir folha de pagamento"
-                      aria-label={`Pauta ${index + 1}`}
-                      autoFocus={item.key === focusAgendaKey}
-                      className="flex-1"
-                    />
-                    <div className="flex gap-2">
-                      <Select
-                        value={item.cadence}
-                        onValueChange={(value) =>
-                          updateAgendaItem(item.key, {
-                            cadence: value as AgendaCadence,
-                            cadenceDay:
-                              value === "until_day" ? (item.cadenceDay ?? 25) : item.cadenceDay,
-                          })
-                        }
-                      >
-                        <SelectTrigger
-                          className="sm:w-48"
-                          aria-label={`Periodicidade da pauta ${index + 1}`}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {cadenceOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {item.cadence === "until_day" && (
-                        <Input
-                          type="number"
-                          min={1}
-                          max={31}
-                          value={item.cadenceDay ?? 25}
-                          onChange={(event) =>
-                            updateAgendaItem(item.key, {
-                              cadenceDay: Math.min(
-                                31,
-                                Math.max(1, Number(event.target.value) || 1),
-                              ),
-                            })
-                          }
-                          className="w-16"
-                          aria-label={`Dia limite da pauta ${index + 1}`}
-                          title="Dia do mês"
-                        />
-                      )}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeAgendaItem(item.key)}
-                        aria-label={`Remover pauta ${index + 1}`}
-                        title="Remover pauta"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full border-dashed"
-              onClick={addAgendaItem}
-            >
-              <Plus className="mr-1.5 h-4 w-4" /> Adicionar item
-            </Button>
-          </section>
-          <section className="grid gap-4 rounded-xl border p-4 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label>Prioridade da tarefa</Label>
-              <Select
-                value={priority}
-                onValueChange={(value) => setPriority(value as RecurringMeeting["priority"])}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Baixa</SelectItem>
-                  <SelectItem value="medium">Média</SelectItem>
-                  <SelectItem value="high">Alta</SelectItem>
-                  <SelectItem value="urgent">Urgente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Coluna inicial</Label>
-              <Select
-                value={columnId || "auto"}
-                onValueChange={(value) => setColumnId(value === "auto" ? "" : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Primeira coluna</SelectItem>
-                  {columns.map((column) => (
-                    <SelectItem key={column.id} value={column.id}>
-                      {column.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Status inicial</Label>
-              <Select
-                value={statusId || "auto"}
-                onValueChange={(value) => setStatusId(value === "auto" ? "" : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Primeiro status aberto</SelectItem>
-                  {statuses
-                    .filter((status) => !status.is_completed)
-                    .map((status) => (
-                      <SelectItem key={status.id} value={status.id}>
-                        {status.name}
+                <Label>Coluna inicial</Label>
+                <Select
+                  value={columnId || "auto"}
+                  onValueChange={(value) => setColumnId(value === "auto" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Primeira coluna</SelectItem>
+                    {columns.map((column) => (
+                      <SelectItem key={column.id} value={column.id}>
+                        {column.name}
                       </SelectItem>
                     ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <label className="flex items-center gap-2 text-sm sm:col-span-3">
-              <Checkbox
-                checked={isActive}
-                onCheckedChange={(value) => setIsActive(value === true)}
-              />
-              Reunião ativa
-            </label>
-          </section>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status inicial</Label>
+                <Select
+                  value={statusId || "auto"}
+                  onValueChange={(value) => setStatusId(value === "auto" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Primeiro status aberto</SelectItem>
+                    {statuses
+                      .filter((status) => !status.is_completed)
+                      .map((status) => (
+                        <SelectItem key={status.id} value={status.id}>
+                          {status.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="flex items-center gap-2 text-sm sm:col-span-3">
+                <Checkbox
+                  checked={isActive}
+                  onCheckedChange={(value) => setIsActive(value === true)}
+                />
+                Reunião ativa
+              </label>
+            </section>
+          </div>
         </div>
-
+        {view === "meeting" && importedAta && (
+          <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            Ata “{importedAta.title}” preparada com {importedAta.tasks.length} tarefa(s). Será
+            vinculada ao salvar a reunião.
+          </p>
+        )}
+        <div className={view === "import" ? "" : "hidden"}>
+          <ImportAtaContent
+            meetingClientId={clientId}
+            meetingDate={startDate}
+            onApply={(draft) => {
+              setImportedAta(draft);
+              setView("meeting");
+              toast.success("Ata pronta para ser salva com a reunião");
+            }}
+          />
+        </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button onClick={() => void save()} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {saving ? "Salvando..." : "Salvar reunião"}
-          </Button>
+          {view === "import" ? (
+            <Button variant="outline" onClick={() => setView("meeting")}>
+              Voltar à reunião
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={closeDialog} disabled={saving}>
+                Cancelar
+              </Button>
+              <Button
+                variant="outline"
+                disabled={saving || Boolean(pendingImportMeetingId)}
+                onClick={() => {
+                  if (!clientId)
+                    return toast.error("Selecione o cliente da reunião antes de importar a ata.");
+                  setView("import");
+                }}
+              >
+                <FileUp className="mr-2 h-4 w-4" /> {importedAta ? "Revisar Ata" : "Importar Ata"}
+              </Button>
+              <Button onClick={() => void save()} disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {saving
+                  ? "Salvando..."
+                  : pendingImportMeetingId
+                    ? "Tentar vincular ata"
+                    : "Salvar reunião"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function DepartmentOption({
+function ClientOption({
   label,
   selected,
   onSelect,

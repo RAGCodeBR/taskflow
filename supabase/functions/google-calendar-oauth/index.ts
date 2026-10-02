@@ -20,12 +20,30 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
-function appUrl(params: Record<string, string>) {
+function appUrl(params: Record<string, string>, returnOrigin?: string | null) {
   const base = Deno.env.get("TASKFLOW_APP_URL");
   if (!base) throw new Error("TASKFLOW_APP_URL não está configurada.");
-  const url = new URL("/agenda", base.endsWith("/") ? base : `${base}/`);
+  const configuredOrigin = new URL(base).origin;
+  const origin = allowedReturnOrigin(returnOrigin, configuredOrigin) ?? configuredOrigin;
+  const url = new URL("/agenda", origin);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   return url.toString();
+}
+
+function allowedReturnOrigin(value: string | null | undefined, configuredOrigin: string) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.href !== `${url.origin}/`) return null;
+    if (url.origin === configuredOrigin) return url.origin;
+    if (
+      url.protocol === "http:" &&
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+    ) return url.origin;
+  } catch {
+    // Never redirect an OAuth callback to an untrusted address.
+  }
+  return null;
 }
 
 function redirect(url: string) {
@@ -56,14 +74,20 @@ async function authenticatedTeamUser(request: Request) {
   return { user: data.user, admin, projectUrl };
 }
 
-async function begin(request: Request) {
+async function begin(request: Request, body: Record<string, unknown>) {
   const { user, admin, projectUrl } = await authenticatedTeamUser(request);
   const clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID");
   if (!clientId) throw new Error("A integração Google ainda não foi configurada.");
+  const configuredOrigin = new URL(Deno.env.get("TASKFLOW_APP_URL")!).origin;
+  const returnOrigin = allowedReturnOrigin(
+    typeof body.returnOrigin === "string" ? body.returnOrigin : null,
+    configuredOrigin,
+  );
   const state = crypto.randomUUID();
   const { error } = await admin.from("calendar_google_oauth_states").insert({
     state,
     user_id: user.id,
+    return_origin: returnOrigin,
     expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
   });
   if (error) throw error;
@@ -95,8 +119,7 @@ async function callback(request: Request) {
   const url = new URL(request.url);
   const state = url.searchParams.get("state");
   const code = url.searchParams.get("code");
-  if (url.searchParams.get("error")) return redirect(appUrl({ google: "cancelled" }));
-  if (!state || !code) return redirect(appUrl({ google: "error" }));
+  if (!state) return redirect(appUrl({ google: "error" }));
   const projectUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(projectUrl, serviceKey, {
@@ -104,11 +127,15 @@ async function callback(request: Request) {
   });
   const { data: stateRow, error: stateError } = await admin
     .from("calendar_google_oauth_states")
-    .select("state, user_id, expires_at, used_at")
+    .select("state, user_id, expires_at, used_at, return_origin")
     .eq("state", state)
     .maybeSingle();
-  if (stateError || !stateRow || stateRow.used_at || new Date(stateRow.expires_at) < new Date())
-    return redirect(appUrl({ google: "error" }));
+  if (stateError || !stateRow) return redirect(appUrl({ google: "error" }));
+  if (stateRow.used_at || new Date(stateRow.expires_at) < new Date())
+    return redirect(appUrl({ google: "error" }, stateRow.return_origin));
+  if (url.searchParams.get("error"))
+    return redirect(appUrl({ google: "cancelled" }, stateRow.return_origin));
+  if (!code) return redirect(appUrl({ google: "error" }, stateRow.return_origin));
   await admin
     .from("calendar_google_oauth_states")
     .update({ used_at: new Date().toISOString() })
@@ -168,7 +195,7 @@ async function callback(request: Request) {
     { onConflict: "user_id" },
   );
   if (connectionError) throw connectionError;
-  return redirect(appUrl({ google: "connected" }));
+  return redirect(appUrl({ google: "connected" }, stateRow.return_origin));
 }
 
 Deno.serve(async (request) => {
@@ -178,7 +205,7 @@ Deno.serve(async (request) => {
     if (request.method === "POST") {
       const body = await request.json().catch(() => ({}));
       if (body?.action === "disconnect") return await disconnect(request);
-      return await begin(request);
+      return await begin(request, body);
     }
     return json({ error: "Método não permitido." }, 405);
   } catch (error) {

@@ -272,6 +272,7 @@ function googleToLocal(
     created_by: createdBy,
     updated_by: createdBy,
     google_calendar_id: calendar.id,
+    google_synced_calendar_id: calendar.id,
     google_event_id: event.id,
     google_etag: event.etag ?? null,
     google_updated_at: event.updated ?? null,
@@ -444,8 +445,12 @@ async function sync(request: Request, body: any = {}) {
   for (const event of localEvents ?? []) {
     try {
       const targetCalendarId = event.google_calendar_id ?? calendarId;
-      if (!canWriteCalendar(targetCalendarId)) {
-        const targetName = nameByCalendarId.get(targetCalendarId) ?? "selecionada";
+      const remoteCalendarId = event.google_synced_calendar_id ?? targetCalendarId;
+      const calendarNeedingWrite = event.deleted_at ? remoteCalendarId : targetCalendarId;
+      if (!canWriteCalendar(calendarNeedingWrite) ||
+          (event.google_event_id && remoteCalendarId !== targetCalendarId &&
+           !canWriteCalendar(remoteCalendarId))) {
+        const targetName = nameByCalendarId.get(calendarNeedingWrite) ?? "selecionada";
         const message = `Sua conta Google precisa ter a permissão 'Fazer alterações em eventos' na agenda ${targetName}.`;
         await admin
           .from("calendar_events")
@@ -464,7 +469,7 @@ async function sync(request: Request, body: any = {}) {
           try {
             await googleRequest(
               writeToken,
-              googleEventUrl(targetCalendarId, event.google_event_id, false, true),
+              googleEventUrl(remoteCalendarId, event.google_event_id, false, true),
               { method: "DELETE" },
             );
           } catch (error) {
@@ -507,14 +512,44 @@ async function sync(request: Request, body: any = {}) {
       const payload = localPayload({ ...event, meeting_url: meetingUrl, create_google_meet: false });
       let googleEvent: any;
       if (event.google_event_id) {
+        let remoteEventId = event.google_event_id;
+        if (remoteCalendarId !== targetCalendarId) {
+          const moveUrl = new URL(`${googleEventUrl(remoteCalendarId, event.google_event_id)}/move`);
+          moveUrl.searchParams.set("destination", targetCalendarId);
+          moveUrl.searchParams.set("sendUpdates", "none");
+          try {
+            googleEvent = await googleRequest(writeToken, moveUrl.toString(), { method: "POST" });
+          } catch (error) {
+            if (!wasRemovedFromGoogle(error)) throw error;
+            // A previous move may have succeeded before its local confirmation.
+            // Never POST a second copy merely because the source ID is gone.
+            googleEvent = await googleRequest(
+              writeToken,
+              googleEventUrl(targetCalendarId, event.google_event_id),
+            );
+          }
+          remoteEventId = googleEvent.id;
+          const { error: moveSaveError } = await admin.from("calendar_events").update({
+            google_calendar_id: targetCalendarId,
+            google_synced_calendar_id: targetCalendarId,
+            google_event_id: remoteEventId,
+            sync_status: "pending",
+          }).eq("id", event.id);
+          if (moveSaveError) throw moveSaveError;
+        }
         try {
           googleEvent = await googleRequest(
             writeToken,
-            googleEventUrl(targetCalendarId, event.google_event_id, false, true),
+            googleEventUrl(targetCalendarId, remoteEventId, false, true),
             { method: "PATCH", body: JSON.stringify(payload) },
           );
         } catch (error) {
           if (!wasRemovedFromGoogle(error)) throw error;
+          if (event.recurring_meeting_occurrence_id) {
+            throw new Error(
+              "O evento da reunião não foi encontrado no Google. A sincronização foi interrompida para evitar uma cópia duplicada.",
+            );
+          }
           // The Google entry was removed outside Taskflow. Recreate it and
           // replace the stale remote ID so future edits remain synchronized.
           googleEvent = await googleRequest(
@@ -536,6 +571,7 @@ async function sync(request: Request, body: any = {}) {
         .update({
           google_event_id: googleEvent.id,
           google_calendar_id: targetCalendarId,
+          google_synced_calendar_id: targetCalendarId,
           google_etag: googleEvent.etag ?? null,
           google_updated_at: googleEvent.updated ?? null,
           meeting_url: meetingUrl,

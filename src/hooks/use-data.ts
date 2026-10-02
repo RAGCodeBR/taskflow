@@ -45,8 +45,10 @@ export interface Task {
   updated_at: string;
   card_width: number | null;
   conversation_closed_at?: string | null;
-  /** Item de pauta do módulo independente de Reuniões que originou a tarefa. */
+  /** Item de pauta que originou ou recebeu esta tarefa. */
   recurring_meeting_agenda_item_id?: string | null;
+  recurring_meeting_occurrence_id?: string | null;
+  recurring_meeting_agenda_template_id?: string | null;
   /** Ambiente dono da tarefa. Diverge do ativo quando ela chega por participação. */
   workspace_id?: string | null;
 }
@@ -150,6 +152,7 @@ export interface Profile {
 
 export interface AgendaEvent {
   id: string;
+  recurring_meeting_occurrence_id?: string | null;
   title: string;
   description: string | null;
   starts_at: string;
@@ -183,8 +186,20 @@ export interface AgendaCalendarSource {
 export interface GoogleCalendarConnection {
   id: string;
   google_email: string;
+  granted_scopes: string;
   connected_at: string;
   updated_at: string;
+}
+
+const googleMeetScopes = [
+  "https://www.googleapis.com/auth/meetings.space.created",
+  "https://www.googleapis.com/auth/meetings.space.settings",
+];
+
+export function hasGoogleMeetPermissions(connection: GoogleCalendarConnection | null | undefined) {
+  if (!connection) return false;
+  const granted = new Set((connection.granted_scopes ?? "").split(/\s+/));
+  return googleMeetScopes.every((scope) => granted.has(scope));
 }
 
 export function useGoogleCalendarConnection() {
@@ -192,7 +207,7 @@ export function useGoogleCalendarConnection() {
     queryKey: ["google_calendar_connection"],
     queryFn: async () => {
       const { data, error } = await (supabase.from("calendar_google_connections" as any) as any)
-        .select("id, google_email, connected_at, updated_at")
+        .select("id, google_email, granted_scopes, connected_at, updated_at")
         .maybeSingle();
       if (error) throw error;
       return (data ?? null) as GoogleCalendarConnection | null;
@@ -626,7 +641,9 @@ export function useTaskObjectives() {
     enabled: activeWorkspace?.slug === "marketing",
     queryFn: async () => {
       const { data, error } = await (supabase.from("task_objectives") as any)
-        .select("*").order("position", { ascending: true }).order("name", { ascending: true });
+        .select("*")
+        .order("position", { ascending: true })
+        .order("name", { ascending: true });
       if (error) throw error;
       return (data ?? []) as TaskObjective[];
     },

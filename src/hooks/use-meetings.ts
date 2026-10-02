@@ -29,6 +29,17 @@ export interface RecurringMeeting {
   status_id: string | null;
   department_id: string | null;
   meeting_mode: boolean;
+  /** False para uma reunião única; true para uma rotina recorrente. */
+  is_recurring: boolean;
+  add_to_calendar: boolean;
+  create_google_meet: boolean;
+  auto_smart_notes: boolean;
+  auto_transcription: boolean;
+  google_calendar_id: string | null;
+  duration_minutes: number;
+  meeting_location: string | null;
+  meeting_attendee_emails: string[];
+  manual_meeting_url: string | null;
   /** Dias de antecedência do aviso aos participantes. */
   reminder_days_before: number;
   is_active: boolean;
@@ -37,17 +48,36 @@ export interface RecurringMeeting {
   updated_at: string;
 }
 
-export interface RecurringMeetingDepartment {
+export interface MeetingCalendarEvent {
   id: string;
-  workspace_id: string;
-  name: string;
-  description: string | null;
-  color: string;
-  position: number;
-  is_active: boolean;
   created_by: string;
-  created_at: string;
-  updated_at: string;
+  updated_by: string | null;
+  recurring_meeting_occurrence_id: string;
+  meeting_url: string | null;
+  starts_at: string;
+  ends_at: string;
+  sync_status: "not_configured" | "pending" | "synced" | "error";
+  sync_error: string | null;
+  auto_smart_notes: boolean;
+  auto_transcription: boolean;
+}
+
+export function useMeetingCalendarEvents() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["meeting-calendar-events", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("calendar_events" as any) as any)
+        .select(
+          "id, created_by, updated_by, recurring_meeting_occurrence_id, meeting_url, starts_at, ends_at, sync_status, sync_error, auto_smart_notes, auto_transcription",
+        )
+        .not("recurring_meeting_occurrence_id", "is", null)
+        .is("deleted_at", null);
+      if (error) throw error;
+      return (data ?? []) as MeetingCalendarEvent[];
+    },
+  });
 }
 
 /** Em quais reuniões um item da pauta padrão entra. */
@@ -86,6 +116,7 @@ export interface RecurringMeetingOccurrence {
   agenda_prepared_at: string | null;
   reminded_at: string | null;
   rescheduled_at: string | null;
+  calendar_event_disabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -119,11 +150,6 @@ export interface RecurringMeetingParticipant {
   user_id: string;
 }
 
-export interface DepartmentMember {
-  department_id: string;
-  user_id: string;
-}
-
 function useRecurringMeetingRealtime() {
   const queryClient = useQueryClient();
   const { activeWorkspace } = useAuth();
@@ -139,11 +165,6 @@ function useRecurringMeetingRealtime() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "recurring_meeting_departments" },
-        () => void queryClient.invalidateQueries({ queryKey: ["recurringMeeting-departments"] }),
-      )
-      .on(
-        "postgres_changes",
         { event: "*", schema: "public", table: "recurring_meeting_occurrences" },
         () => void queryClient.invalidateQueries({ queryKey: ["recurringMeeting-occurrences"] }),
       )
@@ -155,29 +176,17 @@ function useRecurringMeetingRealtime() {
           void queryClient.invalidateQueries({ queryKey: ["recurringMeeting-agenda-preview"] });
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "calendar_events" },
+        () => void queryClient.invalidateQueries({ queryKey: ["meeting-calendar-events"] }),
+      )
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
   }, [activeWorkspace?.id, queryClient]);
-}
-
-export function useRecurringMeetingDepartments() {
-  const { user, activeWorkspace } = useAuth();
-  return useQuery({
-    queryKey: ["recurringMeeting-departments", activeWorkspace?.id],
-    enabled: !!user && !!activeWorkspace?.id,
-    queryFn: async () => {
-      const { data, error } = await (supabase.from("recurring_meeting_departments" as any) as any)
-        .select("*")
-        .eq("is_active", true)
-        .order("position")
-        .order("name");
-      if (error) throw error;
-      return (data ?? []) as RecurringMeetingDepartment[];
-    },
-  });
 }
 
 export function useRecurringMeetingTaskTemplates(recurringMeetingId: string | null | undefined) {
@@ -310,21 +319,6 @@ export function useRecurringMeetingParticipants() {
       ).select("recurring_meeting_id, user_id");
       if (error) throw error;
       return (data ?? []) as RecurringMeetingParticipant[];
-    },
-  });
-}
-
-export function useRecurringMeetingDepartmentMembers() {
-  const { user, activeWorkspace } = useAuth();
-  return useQuery({
-    queryKey: ["recurringMeeting-department-members", activeWorkspace?.id],
-    enabled: !!user && !!activeWorkspace?.id,
-    queryFn: async () => {
-      const { data, error } = await (
-        supabase.from("recurring_meeting_department_members" as any) as any
-      ).select("department_id, user_id");
-      if (error) throw error;
-      return (data ?? []) as DepartmentMember[];
     },
   });
 }
