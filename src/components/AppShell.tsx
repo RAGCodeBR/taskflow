@@ -47,6 +47,7 @@ import {
 } from "@/hooks/use-task-conversations";
 import { canSwitchTaskFlowEnvironment } from "@/lib/environment-access";
 import { WorkspaceLoadingScreen } from "@/components/WorkspaceLoadingScreen";
+import { useHasInvitedMeeting } from "@/hooks/use-meetings";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -100,6 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useTaskConversationRealtime();
   const canAccessDeliveries = hasPermission("portal_entregas") || hasPermission("portal");
   const canAccessFinance = hasPermission("portal_financeiro") || hasPermission("portal");
+  const { data: hasInvitedMeeting = false } = useHasInvitedMeeting();
   const canSwitchEnvironments = canSwitchTaskFlowEnvironment(workspaces.length);
   const nav = useMemo(() => {
     const accessByPath: Record<string, string> = {
@@ -119,9 +121,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
     return allNav.filter((item) => {
       if (item.to === "/portal") return canAccessDeliveries || canAccessFinance;
+      if (item.to === "/meetings" && hasInvitedMeeting) return true;
       return (!item.adminOnly || isAdmin) && hasPermission(accessByPath[item.to]);
     });
-  }, [canAccessDeliveries, canAccessFinance, isAdmin, hasPermission]);
+  }, [canAccessDeliveries, canAccessFinance, hasInvitedMeeting, isAdmin, hasPermission]);
 
   const { theme, toggle } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(() => {

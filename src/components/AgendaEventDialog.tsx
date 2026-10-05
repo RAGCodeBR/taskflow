@@ -96,11 +96,13 @@ export function MeetingMinutesPanel({
   clientId,
   occurrenceId,
   meetingId,
+  readOnly = false,
 }: {
   event: Pick<AgendaEvent, "id" | "starts_at" | "ends_at" | "meeting_url">;
   clientId?: string | null;
   occurrenceId?: string | null;
   meetingId?: string | null;
+  readOnly?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -192,6 +194,7 @@ export function MeetingMinutesPanel({
 
   useEffect(() => {
     if (
+      readOnly ||
       !isMeet ||
       !started ||
       isLoading ||
@@ -208,6 +211,7 @@ export function MeetingMinutesPanel({
     void syncMinutes(true);
   }, [
     event.id,
+    readOnly,
     started,
     googleConnection,
     isMeet,
@@ -221,6 +225,7 @@ export function MeetingMinutesPanel({
 
   useEffect(() => {
     if (
+      readOnly ||
       !isMeet ||
       !started ||
       loadingConnection ||
@@ -242,6 +247,7 @@ export function MeetingMinutesPanel({
     isMeet,
     loadingConnection,
     minutes?.status,
+    readOnly,
     started,
     syncMinutes,
     transcripts.length,
@@ -340,19 +346,21 @@ export function MeetingMinutesPanel({
               </a>
             </Button>
           )}
-          <Button
-            size="sm"
-            variant={minutes?.google_doc_url ? "ghost" : "outline"}
-            onClick={() => void syncMinutes()}
-            disabled={syncing || !started || !isMeet}
-          >
-            {syncing ? (
-              <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            )}
-            {minutes?.google_doc_url ? "Atualizar" : "Buscar ata e transcrição"}
-          </Button>
+          {!readOnly && (
+            <Button
+              size="sm"
+              variant={minutes?.google_doc_url ? "ghost" : "outline"}
+              onClick={() => void syncMinutes()}
+              disabled={syncing || !started || !isMeet}
+            >
+              {syncing ? (
+                <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {minutes?.google_doc_url ? "Atualizar" : "Buscar ata e transcrição"}
+            </Button>
+          )}
         </div>
         {transcripts.map((transcript, index) => (
           <div key={transcript.id} className="mt-3 rounded-md border bg-background p-2">
@@ -372,16 +380,20 @@ export function MeetingMinutesPanel({
                   </a>
                 </Button>
               )}
-              {clientId && occurrenceId && meetingId && Boolean(transcript.content) && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={generating}
-                  onClick={() => void generateReview(transcript)}
-                >
-                  {generating ? "Gerando..." : "Gerar ata para revisão"}
-                </Button>
-              )}
+              {!readOnly &&
+                clientId &&
+                occurrenceId &&
+                meetingId &&
+                Boolean(transcript.content) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={generating}
+                    onClick={() => void generateReview(transcript)}
+                  >
+                    {generating ? "Gerando..." : "Gerar ata para revisão"}
+                  </Button>
+                )}
             </div>
           </div>
         ))}

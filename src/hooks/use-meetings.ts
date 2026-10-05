@@ -322,3 +322,30 @@ export function useRecurringMeetingParticipants() {
     },
   });
 }
+
+/** Also exposes Meetings to people invited in another active workspace. */
+export function useHasInvitedMeeting() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["has-invited-meeting", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data: invitations, error: invitationError } = await (
+        supabase.from("recurring_meeting_participants" as any) as any
+      )
+        .select("recurring_meeting_id")
+        .eq("user_id", user!.id)
+        .limit(1);
+      if (invitationError) throw invitationError;
+      if (invitations?.length) return true;
+      const { data: assigned, error: assignedError } = await (
+        supabase.from("recurring_meetings" as any) as any
+      )
+        .select("id")
+        .eq("assignee_id", user!.id)
+        .limit(1);
+      if (assignedError) throw assignedError;
+      return Boolean(assigned?.length);
+    },
+  });
+}

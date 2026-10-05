@@ -43,6 +43,7 @@ import {
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import {
   useAllRecurringMeetingTaskTemplates,
+  useHasInvitedMeeting,
   useMeetingCalendarEvents,
   useRecurringMeetingAgendaItems,
   useRecurringMeetingAgendaPreview,
@@ -132,7 +133,7 @@ type AgendaRow = {
 };
 
 function RecurringMeetingsPage() {
-  const { hasPermission, loading, activeWorkspace, user } = useAuth();
+  const { hasPermission, loading, activeWorkspace, workspaces, user } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { meeting: meetingFromLink } = Route.useSearch();
@@ -153,6 +154,7 @@ function RecurringMeetingsPage() {
   );
   const { data: agendaItems = [] } = useRecurringMeetingAgendaItems();
   const { data: participants = [] } = useRecurringMeetingParticipants();
+  const { data: hasInvitedMeeting = false, isLoading: loadingInvitations } = useHasInvitedMeeting();
   const { data: taskTemplates = [] } = useAllRecurringMeetingTaskTemplates();
   const { data: profiles = [] } = useAssignableProfiles();
   const { data: clients = [] } = useClients();
@@ -241,12 +243,23 @@ function RecurringMeetingsPage() {
     void navigate({ to: "/meetings", search: {}, replace: true });
   }, [loadingOccurrences, meetingFromLink, navigate, occurrences]);
 
+  const visibleMeetingRecords = useMemo(() => {
+    if (hasPermission("meetings")) return recurring_meetings;
+    const invitedIds = new Set(
+      participants
+        .filter((participant) => participant.user_id === user?.id)
+        .map((participant) => participant.recurring_meeting_id),
+    );
+    return recurring_meetings.filter(
+      (meeting) => meeting.assignee_id === user?.id || invitedIds.has(meeting.id),
+    );
+  }, [hasPermission, participants, recurring_meetings, user?.id]);
   const recurringMeetingById = useMemo(
     () =>
       new Map(
-        recurring_meetings.map((recurringMeeting) => [recurringMeeting.id, recurringMeeting]),
+        visibleMeetingRecords.map((recurringMeeting) => [recurringMeeting.id, recurringMeeting]),
       ),
-    [recurring_meetings],
+    [visibleMeetingRecords],
   );
   const clientById = useMemo(
     () => new Map(clients.map((client) => [client.id, client])),
@@ -301,7 +314,7 @@ function RecurringMeetingsPage() {
   const today = todayKey();
   const visibleRecurringMeetings = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
-    return recurring_meetings.filter((recurringMeeting) => {
+    return visibleMeetingRecords.filter((recurringMeeting) => {
       const client = clientById.get(recurringMeeting.client_id ?? "");
       if (clientFilter !== "all" && recurringMeeting.client_id !== clientFilter) return false;
       if (
@@ -318,7 +331,7 @@ function RecurringMeetingsPage() {
   }, [
     clientById,
     clientFilter,
-    recurring_meetings,
+    visibleMeetingRecords,
     participantFilter,
     participantsByRecurringMeeting,
     search,
@@ -333,12 +346,12 @@ function RecurringMeetingsPage() {
 
   const routinesPerClient = useMemo(() => {
     const counts = new Map<string, number>();
-    recurring_meetings.forEach((recurringMeeting) => {
+    visibleMeetingRecords.forEach((recurringMeeting) => {
       const key = recurringMeeting.client_id ?? "none";
       counts.set(key, (counts.get(key) ?? 0) + 1);
     });
     return counts;
-  }, [recurring_meetings]);
+  }, [visibleMeetingRecords]);
 
   // Reuniões em aberto agrupadas por data: cada data é uma "rodada" de reuniões.
   const { overdueMeetings, upcomingDates } = useMemo(() => {
@@ -436,8 +449,9 @@ function RecurringMeetingsPage() {
     toast.success("Reunião excluída");
   };
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando...</div>;
-  if (!hasPermission("meetings")) return <Navigate to="/dashboard" />;
+  if (loading || (!hasPermission("meetings") && loadingInvitations))
+    return <div className="p-6 text-sm text-muted-foreground">Carregando...</div>;
+  if (!hasPermission("meetings") && !hasInvitedMeeting) return <Navigate to="/dashboard" />;
 
   const meeting = meetingId ? occurrences.find((occurrence) => occurrence.id === meetingId) : null;
   const meetingRecurringMeeting = meeting
@@ -460,15 +474,17 @@ function RecurringMeetingsPage() {
             >
               <FileText className="mr-2 h-4 w-4" /> Transcrições
             </Button>
-            <Button
-              className="h-9 rounded-full px-4 shadow-sm"
-              onClick={() => {
-                setEditingRecurringMeeting(null);
-                setDialogOpen(true);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" /> Nova reunião
-            </Button>
+            {hasPermission("meetings") && (
+              <Button
+                className="h-9 rounded-full px-4 shadow-sm"
+                onClick={() => {
+                  setEditingRecurringMeeting(null);
+                  setDialogOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" /> Nova reunião
+              </Button>
+            )}
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -523,7 +539,7 @@ function RecurringMeetingsPage() {
       <Tabs defaultValue="meetings">
         <TabsList>
           <TabsTrigger value="meetings">Reuniões</TabsTrigger>
-          <TabsTrigger value="settings">Configurações</TabsTrigger>
+          {hasPermission("meetings") && <TabsTrigger value="settings">Configurações</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="meetings" className="mt-5">
@@ -532,7 +548,7 @@ function RecurringMeetingsPage() {
               <Loader2 className="h-4 w-4 animate-spin" />
               Carregando reuniões...
             </div>
-          ) : recurring_meetings.length === 0 ? (
+          ) : visibleMeetingRecords.length === 0 ? (
             <EmptyState
               title="Nenhuma reunião cadastrada"
               description="Crie uma reunião para um cliente e monte a pauta dela."
@@ -567,6 +583,13 @@ function RecurringMeetingsPage() {
                         (routinesPerClient.get(recurringMeeting.client_id ?? "none") ?? 0) > 1
                       }
                       assignee={profileById.get(recurringMeeting.assignee_id ?? "") ?? null}
+                      otherWorkspaceName={
+                        recurringMeeting.workspace_id !== activeWorkspace?.id
+                          ? (workspaces.find(
+                              (workspace) => workspace.id === recurringMeeting.workspace_id,
+                            )?.name ?? "Outro ambiente")
+                          : null
+                      }
                       items={itemsByOccurrence.get(occurrence.id) ?? []}
                       templateCount={templateCountByRecurringMeeting.get(recurringMeeting.id) ?? 0}
                       tasksByItem={tasksByItem}
@@ -600,6 +623,13 @@ function RecurringMeetingsPage() {
                           (routinesPerClient.get(recurringMeeting.client_id ?? "none") ?? 0) > 1
                         }
                         assignee={profileById.get(recurringMeeting.assignee_id ?? "") ?? null}
+                        otherWorkspaceName={
+                          recurringMeeting.workspace_id !== activeWorkspace?.id
+                            ? (workspaces.find(
+                                (workspace) => workspace.id === recurringMeeting.workspace_id,
+                              )?.name ?? "Outro ambiente")
+                            : null
+                        }
                         items={itemsByOccurrence.get(occurrence.id) ?? []}
                         templateCount={
                           templateCountByRecurringMeeting.get(recurringMeeting.id) ?? 0
@@ -627,7 +657,7 @@ function RecurringMeetingsPage() {
         </TabsContent>
 
         <TabsContent value="settings" className="mt-4">
-          {recurring_meetings.length === 0 ? (
+          {visibleMeetingRecords.length === 0 ? (
             <EmptyState
               title="Nenhuma reunião configurada"
               description="Cadastre a primeira reunião de um cliente."
@@ -658,55 +688,61 @@ function RecurringMeetingsPage() {
                           {!recurringMeeting.is_active && <Badge variant="outline">Pausada</Badge>}
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {client?.name ?? "Sem cliente"} · {formatRecurrence(recurringMeeting)}
+                          {client?.name ??
+                            (recurringMeeting.client_id
+                              ? "Cliente de outro ambiente"
+                              : "Sem cliente")}{" "}
+                          · {formatRecurrence(recurringMeeting)}
                         </p>
                       </div>
-                      <div className="flex shrink-0 gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Editar"
-                          aria-label="Editar reunião"
-                          onClick={() => {
-                            setEditingRecurringMeeting(recurringMeeting);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title={recurringMeeting.is_active ? "Pausar" : "Ativar"}
-                          aria-label={
-                            recurringMeeting.is_active ? "Pausar reunião" : "Ativar reunião"
-                          }
-                          onClick={() =>
-                            void setRecurringMeetingActive(
-                              recurringMeeting,
-                              !recurringMeeting.is_active,
-                            )
-                          }
-                        >
-                          {recurringMeeting.is_active ? (
-                            <Pause className="h-4 w-4" />
-                          ) : (
-                            <Play className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          title="Excluir"
-                          aria-label="Excluir reunião"
-                          onClick={() => setDeleteTarget(recurringMeeting)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      {activeWorkspace?.id === recurringMeeting.workspace_id && (
+                        <div className="flex shrink-0 gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Editar"
+                            aria-label="Editar reunião"
+                            onClick={() => {
+                              setEditingRecurringMeeting(recurringMeeting);
+                              setDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title={recurringMeeting.is_active ? "Pausar" : "Ativar"}
+                            aria-label={
+                              recurringMeeting.is_active ? "Pausar reunião" : "Ativar reunião"
+                            }
+                            onClick={() =>
+                              void setRecurringMeetingActive(
+                                recurringMeeting,
+                                !recurringMeeting.is_active,
+                              )
+                            }
+                          >
+                            {recurringMeeting.is_active ? (
+                              <Pause className="h-4 w-4" />
+                            ) : (
+                              <Play className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            title="Excluir"
+                            aria-label="Excluir reunião"
+                            onClick={() => setDeleteTarget(recurringMeeting)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     <dl className="mt-4 grid grid-cols-2 gap-3 border-t pt-3 text-xs">
                       <div>
@@ -759,7 +795,7 @@ function RecurringMeetingsPage() {
         open={transcriptsOpen}
         onOpenChange={setTranscriptsOpen}
         clients={clients}
-        meetings={recurring_meetings}
+        meetings={visibleMeetingRecords}
         occurrences={occurrences}
         onOpenMeeting={setMeetingId}
       />
@@ -779,6 +815,10 @@ function RecurringMeetingsPage() {
           participantIds={participantsByRecurringMeeting.get(meetingRecurringMeeting.id) ?? []}
           profileById={profileById}
           isTaskDone={isTaskDone}
+          readOnly={
+            !hasPermission("meetings") ||
+            activeWorkspace?.id !== meetingRecurringMeeting.workspace_id
+          }
         />
       ) : null}
       <AlertDialog
@@ -866,6 +906,7 @@ function MeetingRow({
   color,
   showTitle,
   assignee,
+  otherWorkspaceName,
   items,
   templateCount,
   tasksByItem,
@@ -878,6 +919,7 @@ function MeetingRow({
   color: string;
   showTitle: boolean;
   assignee: Profile | null;
+  otherWorkspaceName: string | null;
   items: RecurringMeetingAgendaItem[];
   templateCount: number;
   tasksByItem: Map<string, Task[]>;
@@ -905,6 +947,11 @@ function MeetingRow({
         <span className="min-w-0">
           <span className="block truncate font-medium">
             {client?.name ?? recurringMeeting.title}
+            {otherWorkspaceName && (
+              <Badge variant="outline" className="ml-2 text-[10px] font-normal">
+                {otherWorkspaceName}
+              </Badge>
+            )}
             {dateLabel ? (
               <span className="ml-2 text-sm font-normal text-[#C24E2C]">{dateLabel}</span>
             ) : null}
@@ -965,6 +1012,7 @@ function MeetingDialog({
   participantIds,
   profileById,
   isTaskDone,
+  readOnly,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -978,6 +1026,7 @@ function MeetingDialog({
   participantIds: string[];
   profileById: Map<string, Profile>;
   isTaskDone: (task: Task) => boolean;
+  readOnly: boolean;
 }) {
   const queryClient = useQueryClient();
   const prepared = Boolean(occurrence.agenda_prepared_at);
@@ -1071,6 +1120,7 @@ function MeetingDialog({
   };
 
   const run = async (action: () => Promise<void>) => {
+    if (readOnly) return toast.error("Abra o ambiente da reunião para alterá-la.");
     if (isOffline()) return toast.error("Conecte-se à internet para alterar a reunião.");
     setBusy(true);
     try {
@@ -1256,13 +1306,16 @@ function MeetingDialog({
             </DialogTitle>
             <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>
-                {client?.name ?? "Sem cliente"} ·{" "}
+                {client?.name ??
+                  (recurringMeeting.client_id ? "Cliente de outro ambiente" : "Sem cliente")}{" "}
+                ·{" "}
                 {format(new Date(`${occurrence.due_date}T12:00:00`), "EEEE, dd/MM/yyyy", {
                   locale: ptBR,
                 })}
                 {occurrence.due_time ? ` às ${occurrence.due_time.slice(0, 5)}` : ""}
               </span>
               {!closed &&
+                !readOnly &&
                 (rescheduling ? (
                   <span className="flex items-center gap-1">
                     <Input
@@ -1333,7 +1386,7 @@ function MeetingDialog({
                     ? "Google Meet desta reunião"
                     : "Compromisso na Agenda"}
                 </span>
-                {occurrence.calendar_event_disabled ? (
+                {occurrence.calendar_event_disabled && !readOnly ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1362,7 +1415,7 @@ function MeetingDialog({
                       <Copy className="mr-1 h-3.5 w-3.5" /> Copiar link
                     </Button>
                   </div>
-                ) : calendarEvent && recurringMeeting.create_google_meet ? (
+                ) : calendarEvent && recurringMeeting.create_google_meet && !readOnly ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1389,6 +1442,7 @@ function MeetingDialog({
                   clientId={recurringMeeting.client_id}
                   occurrenceId={occurrence.id}
                   meetingId={recurringMeeting.id}
+                  readOnly={readOnly}
                 />
               )}
             </div>
@@ -1430,6 +1484,7 @@ function MeetingDialog({
                     profileById={profileById}
                     isTaskDone={isTaskDone}
                     disabled={busy || closed}
+                    readOnly={readOnly}
                     onDone={() => void setResult(row, row.item?.result === "done" ? null : "done")}
                     onGenerateTask={() => void generateTask(row)}
                     onRemove={() => void removeRow(row)}
@@ -1437,7 +1492,7 @@ function MeetingDialog({
                 ))}
               </ul>
             )}
-            {!closed && (
+            {!closed && !readOnly && (
               <div className="space-y-2 border-t bg-muted/20 px-3 py-2">
                 <div className="flex gap-2">
                   <Input
@@ -1546,7 +1601,7 @@ function MeetingDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Fechar
             </Button>
-            {closed ? (
+            {readOnly ? null : closed ? (
               <Button variant="outline" disabled={busy} onClick={() => void reopen()}>
                 <RotateCcw className="mr-1.5 h-4 w-4" /> Reabrir reunião
               </Button>
@@ -1592,6 +1647,7 @@ function AgendaItemRow({
   profileById,
   isTaskDone,
   disabled,
+  readOnly,
   onDone,
   onGenerateTask,
   onRemove,
@@ -1602,6 +1658,7 @@ function AgendaItemRow({
   profileById: Map<string, Profile>;
   isTaskDone: (task: Task) => boolean;
   disabled: boolean;
+  readOnly: boolean;
   onDone: () => void;
   onGenerateTask: () => void;
   onRemove: () => void;
@@ -1625,45 +1682,47 @@ function AgendaItemRow({
             </span>
           )}
         </span>
-        <span className="flex shrink-0 flex-wrap items-center gap-1">
-          <Button
-            size="sm"
-            variant={result === "done" ? "default" : "outline"}
-            className="h-7 px-2 text-xs"
-            disabled={disabled || (result === "done" && tasks.length > 0)}
-            onClick={onDone}
-            title={
-              result === "done" && tasks.length > 0
-                ? "Reabra a tarefa para reabrir esta pauta"
-                : undefined
-            }
-          >
-            <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Concluído
-          </Button>
-          <Button
-            size="sm"
-            variant={result === "task" ? "default" : "outline"}
-            className="h-7 px-2 text-xs"
-            disabled={disabled}
-            onClick={onGenerateTask}
-          >
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            {result === "task" ? "Outra tarefa" : "Gerar tarefa"}
-          </Button>
-          {tasks.length === 0 && (
+        {!readOnly && (
+          <span className="flex shrink-0 flex-wrap items-center gap-1">
             <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-              disabled={disabled}
-              onClick={onRemove}
-              title="Remover da pauta desta reunião"
-              aria-label={`Remover o item ${number} desta reunião`}
+              size="sm"
+              variant={result === "done" ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              disabled={disabled || (result === "done" && tasks.length > 0)}
+              onClick={onDone}
+              title={
+                result === "done" && tasks.length > 0
+                  ? "Reabra a tarefa para reabrir esta pauta"
+                  : undefined
+              }
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Concluído
             </Button>
-          )}
-        </span>
+            <Button
+              size="sm"
+              variant={result === "task" ? "default" : "outline"}
+              className="h-7 px-2 text-xs"
+              disabled={disabled}
+              onClick={onGenerateTask}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              {result === "task" ? "Outra tarefa" : "Gerar tarefa"}
+            </Button>
+            {tasks.length === 0 && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                disabled={disabled}
+                onClick={onRemove}
+                title="Remover da pauta desta reunião"
+                aria-label={`Remover o item ${number} desta reunião`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </span>
+        )}
       </div>
       {tasks.length > 0 && (
         <ul className="ml-8 mt-2 space-y-1">
