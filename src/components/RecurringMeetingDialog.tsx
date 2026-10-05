@@ -447,6 +447,10 @@ export function RecurringMeetingDialog({
       if (error)
         return toast.error(`Reunião salva, mas a ata ainda não foi vinculada: ${error.message}`);
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["recurring_meetings"] }),
+        queryClient.invalidateQueries({ queryKey: ["recurringMeeting-occurrences"] }),
+        queryClient.invalidateQueries({ queryKey: ["recurringMeeting-task-templates"] }),
+        queryClient.invalidateQueries({ queryKey: ["recurringMeeting-participants"] }),
         queryClient.invalidateQueries({ queryKey: ["tasks"] }),
         queryClient.invalidateQueries({ queryKey: ["client_notes"] }),
         queryClient.invalidateQueries({ queryKey: ["meeting-ata-notes"] }),
@@ -1317,11 +1321,11 @@ export function RecurringMeetingDialog({
                   </span>
                 )}
               </div>
-              {agendaItems.length === 0 ? (
+              {agendaItems.length === 0 && !importedAta?.tasks.length ? (
                 <p className="rounded-lg border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
                   Nenhum item na pauta. Adicione os assuntos que esta reunião trata.
                 </p>
-              ) : (
+              ) : agendaItems.length > 0 ? (
                 <ol className="space-y-2">
                   {agendaItems.map((item, index) => (
                     <li key={item.key} className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1404,6 +1408,19 @@ export function RecurringMeetingDialog({
                     </li>
                   ))}
                 </ol>
+              ) : null}
+              {importedAta && importedAta.tasks.length > 0 && (
+                <div className="space-y-2 rounded-lg border bg-background p-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Tarefas extraídas da ata — entram na pauta{" "}
+                    {isRecurring ? "da próxima reunião em aberto" : "desta reunião"} ao salvar
+                  </p>
+                  <ol className="list-inside list-decimal space-y-1 text-sm">
+                    {importedAta.tasks.map((task) => (
+                      <li key={task._id}>{task.title}</li>
+                    ))}
+                  </ol>
+                </div>
               )}
               <Button
                 type="button"

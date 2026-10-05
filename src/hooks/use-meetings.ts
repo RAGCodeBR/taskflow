@@ -265,7 +265,7 @@ export function useRecurringMeetingOccurrences() {
   });
 }
 
-/** Itens das pautas já copiadas para as reuniões (últimos 90 dias em diante). */
+/** Itens das pautas já copiadas para todas as reuniões exibidas na tela. */
 export function useRecurringMeetingAgendaItems() {
   const { user, activeWorkspace } = useAuth();
   return useQuery({
@@ -273,7 +273,7 @@ export function useRecurringMeetingAgendaItems() {
     enabled: !!user && !!activeWorkspace?.id,
     queryFn: async () => {
       const from = new Date();
-      from.setDate(from.getDate() - 90);
+      from.setFullYear(from.getFullYear() - 1);
       const { data, error } = await (supabase.from("recurring_meeting_agenda_items" as any) as any)
         .select("*, recurring_meeting_occurrences!inner(due_date)")
         .gte("recurring_meeting_occurrences.due_date", from.toISOString().slice(0, 10))
