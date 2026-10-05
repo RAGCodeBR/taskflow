@@ -33,6 +33,7 @@ import {
   useAgendaEvents,
   useGoogleCalendarConnection,
   hasGoogleMeetPermissions,
+  hasGoogleMeetFilePermission,
   type AgendaEvent,
   type AgendaCalendarSource,
 } from "@/hooks/use-data";
@@ -403,6 +404,12 @@ function AgendaPage() {
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
               Esta conexão ainda não autoriza criar Google Meet. Use “Reconectar Google” e aprove as
               novas permissões.
+            </p>
+          )}
+          {googleConnection && !hasGoogleMeetFilePermission(googleConnection) && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              Para guardar as atas do Gemini em PDF no TaskFlow, use “Reconectar Google” e autorize
+              os arquivos gerados pelo Meet.
             </p>
           )}
         </div>

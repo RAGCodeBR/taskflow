@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 const meetScope = "https://www.googleapis.com/auth/meetings.space.readonly";
+const meetFilesScope = "https://www.googleapis.com/auth/drive.meet.readonly";
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -144,7 +145,9 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
   // selected record stable after the first successful lookup.
   const { data: savedMinutes } = await admin
     .from("meeting_minutes")
-    .select("conference_record_name, smart_note_name, google_doc_url, generated_at")
+    .select(
+      "conference_record_name, smart_note_name, google_doc_url, generated_at, file_path, file_name, file_size",
+    )
     .eq("calendar_event_id", eventId)
     .maybeSingle();
   const record = savedMinutes?.conference_record_name
@@ -163,6 +166,9 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
       smartNoteName: savedMinutes.smart_note_name,
       googleDocUrl: savedMinutes.google_doc_url,
       generatedAt: savedMinutes.generated_at,
+      filePath: savedMinutes.file_path,
+      fileName: savedMinutes.file_name,
+      fileSize: savedMinutes.file_size,
       importedTranscripts: 0,
     };
   if (!record)
@@ -278,12 +284,67 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
       transcriptStatus: readyTranscripts.length ? "ready" : "pending",
       reason: "A ata ainda não tem um documento disponível.",
     };
+
+  let filePath = savedMinutes?.file_path ?? null;
+  let fileName = savedMinutes?.file_name ?? null;
+  let fileSize = savedMinutes?.file_size ?? null;
+  let fileError: string | null = null;
+  if (!filePath || savedMinutes?.smart_note_name !== note.name) {
+    filePath = null;
+    fileName = null;
+    fileSize = null;
+    const documentId = note.docsDestination?.document;
+    if (!documentId) {
+      fileError = "O Google ainda não forneceu o identificador do documento.";
+    } else if (
+      !String(connection.granted_scopes ?? "")
+        .split(/\s+/)
+        .includes(meetFilesScope)
+    ) {
+      fileError = "Reconecte o Google na Agenda para autorizar a importação do PDF.";
+    } else {
+      try {
+        const exportUrl = new URL(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(documentId)}/export`,
+        );
+        exportUrl.searchParams.set("mimeType", "application/pdf");
+        const exported = await fetch(exportUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!exported.ok) {
+          const failure = await exported.json().catch(() => null);
+          throw new Error(
+            failure?.error?.message ?? "O Google não permitiu exportar a ata em PDF.",
+          );
+        }
+        const pdf = new Uint8Array(await exported.arrayBuffer());
+        if (pdf.byteLength === 0 || pdf.byteLength > 10 * 1024 * 1024)
+          throw new Error("O PDF está vazio ou excede o limite de 10 MB.");
+        if (new TextDecoder().decode(pdf.slice(0, 5)) !== "%PDF-")
+          throw new Error("O Google retornou um arquivo que não é PDF.");
+        const path = `${eventId}/ata-gemini.pdf`;
+        const { error: uploadError } = await admin.storage
+          .from("meeting-artifacts")
+          .upload(path, pdf, { contentType: "application/pdf", upsert: true });
+        if (uploadError) throw uploadError;
+        filePath = path;
+        fileName = `Ata do Gemini - ${new Date(event.starts_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }).replaceAll("/", "-")}.pdf`;
+        fileSize = pdf.byteLength;
+      } catch (error) {
+        fileError = error instanceof Error ? error.message : "Não foi possível importar o PDF.";
+      }
+    }
+  }
   return {
     status: "ready",
     conferenceRecordName: record.name,
     smartNoteName: note.name,
     googleDocUrl,
     generatedAt: note.endTime ?? new Date().toISOString(),
+    filePath,
+    fileName,
+    fileSize,
+    fileError,
     importedTranscripts,
     transcriptStatus: readyTranscripts.length ? "ready" : "pending",
   };
@@ -305,6 +366,10 @@ Deno.serve(async (request) => {
       smart_note_name: result.smartNoteName ?? null,
       google_doc_url: result.googleDocUrl ?? null,
       generated_at: result.generatedAt ?? null,
+      file_path: result.filePath ?? null,
+      file_name: result.fileName ?? null,
+      file_size: result.fileSize ?? null,
+      file_error: result.fileError ?? null,
       last_checked_at: new Date().toISOString(),
       error_message: result.status === "error" ? (result.reason ?? null) : null,
     };

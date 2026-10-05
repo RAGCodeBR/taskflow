@@ -202,6 +202,16 @@ export function hasGoogleMeetPermissions(connection: GoogleCalendarConnection | 
   return googleMeetScopes.every((scope) => granted.has(scope));
 }
 
+export function hasGoogleMeetFilePermission(
+  connection: GoogleCalendarConnection | null | undefined,
+) {
+  return Boolean(
+    connection?.granted_scopes
+      ?.split(/\s+/)
+      .includes("https://www.googleapis.com/auth/drive.meet.readonly"),
+  );
+}
+
 export function useGoogleCalendarConnection() {
   return useQuery({
     queryKey: ["google_calendar_connection"],

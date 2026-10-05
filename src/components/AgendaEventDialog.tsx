@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { flushSync } from "react-dom";
 import { format } from "date-fns";
-import { Copy, ExternalLink, FileText, RefreshCw } from "lucide-react";
+import { Copy, Download, ExternalLink, FileText, RefreshCw } from "lucide-react";
 import {
   AlignLeft,
   CalendarDays,
@@ -33,6 +33,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { formatAtaWithGemini } from "@/lib/format-ata.functions";
+import { downloadMeetingArtifact, downloadTranscriptText } from "@/lib/meeting-artifacts";
 import {
   useAgendaCalendarSources,
   useAssignableProfiles,
@@ -122,7 +123,9 @@ export function MeetingMinutesPanel({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("meeting_minutes")
-        .select("status, google_doc_url, generated_at, error_message")
+        .select(
+          "status, google_doc_url, generated_at, error_message, file_path, file_name, file_error",
+        )
         .eq("calendar_event_id", event.id)
         .maybeSingle();
       if (error) throw error;
@@ -170,9 +173,13 @@ export function MeetingMinutesPanel({
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["meeting_minutes", event.id] }),
           queryClient.invalidateQueries({ queryKey: ["meeting_transcripts", event.id] }),
+          queryClient.invalidateQueries({ queryKey: ["meeting_transcripts", "library"] }),
+          queryClient.invalidateQueries({ queryKey: ["meeting_minutes", "library"] }),
         ]);
         if (!silent) {
-          if (data.importedTranscripts > 0) toast.success("Transcrição do Meet importada.");
+          if (data.filePath) toast.success("Ata do Gemini importada como PDF.");
+          else if (data.fileError) toast.error(data.fileError);
+          else if (data.importedTranscripts > 0) toast.success("Transcrição do Meet importada.");
           else if (data.status === "ready") toast.success("Ata da reunião encontrada.");
           else toast.message(data.reason || "A ata ainda não está disponível.");
         }
@@ -203,7 +210,7 @@ export function MeetingMinutesPanel({
       !googleConnection?.granted_scopes
         ?.split(/\s+/)
         .includes("https://www.googleapis.com/auth/meetings.space.readonly") ||
-      (minutes?.status === "ready" && transcripts.length > 0)
+      (minutes?.status === "ready" && transcripts.length > 0 && minutes.file_path)
     )
       return;
     if (automaticAttempt.current === event.id) return;
@@ -219,6 +226,7 @@ export function MeetingMinutesPanel({
     loadingConnection,
     loadingTranscripts,
     minutes?.status,
+    minutes?.file_path,
     syncMinutes,
     transcripts.length,
   ]);
@@ -232,7 +240,7 @@ export function MeetingMinutesPanel({
       !googleConnection?.granted_scopes
         ?.split(/\s+/)
         .includes("https://www.googleapis.com/auth/meetings.space.readonly") ||
-      (minutes?.status === "ready" && transcripts.length > 0) ||
+      (minutes?.status === "ready" && transcripts.length > 0 && minutes.file_path) ||
       Date.now() > new Date(event.ends_at).getTime() + 6 * 60 * 60 * 1000
     )
       return;
@@ -247,6 +255,7 @@ export function MeetingMinutesPanel({
     isMeet,
     loadingConnection,
     minutes?.status,
+    minutes?.file_path,
     readOnly,
     started,
     syncMinutes,
@@ -339,17 +348,24 @@ export function MeetingMinutesPanel({
           </p>
         )}
         <div className="flex flex-wrap gap-2 pt-1">
-          {minutes?.google_doc_url && (
-            <Button asChild size="sm" variant="outline">
-              <a href={minutes.google_doc_url} target="_blank" rel="noreferrer">
-                <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir ata
-              </a>
+          {minutes?.file_path && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                void downloadMeetingArtifact(
+                  minutes.file_path!,
+                  minutes.file_name || "Ata do Gemini.pdf",
+                ).catch((error) => toast.error(error.message))
+              }
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" /> Baixar ata em PDF
             </Button>
           )}
           {!readOnly && (
             <Button
               size="sm"
-              variant={minutes?.google_doc_url ? "ghost" : "outline"}
+              variant={minutes?.file_path ? "ghost" : "outline"}
               onClick={() => void syncMinutes()}
               disabled={syncing || !started || !isMeet}
             >
@@ -358,10 +374,20 @@ export function MeetingMinutesPanel({
               ) : (
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
               )}
-              {minutes?.google_doc_url ? "Atualizar" : "Buscar ata e transcrição"}
+              {minutes?.file_path ? "Atualizar" : "Importar ata e transcrição"}
             </Button>
           )}
         </div>
+        {minutes?.status === "ready" && !minutes.file_path && minutes.file_error && (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            {minutes.file_error}{" "}
+            {minutes.file_error.includes("Reconecte") && (
+              <a href="/agenda" className="underline">
+                Abrir Agenda
+              </a>
+            )}
+          </p>
+        )}
         {transcripts.map((transcript, index) => (
           <div key={transcript.id} className="mt-3 rounded-md border bg-background p-2">
             <details>
@@ -373,11 +399,15 @@ export function MeetingMinutesPanel({
               </div>
             </details>
             <div className="mt-2 flex flex-wrap gap-2">
-              {transcript.google_doc_url && (
-                <Button asChild size="sm" variant="ghost">
-                  <a href={transcript.google_doc_url} target="_blank" rel="noreferrer">
-                    <ExternalLink className="mr-1 h-3.5 w-3.5" /> Abrir no Google
-                  </a>
+              {transcript.content && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    downloadTranscriptText(transcript.content, `Transcrição ${index + 1}.txt`)
+                  }
+                >
+                  <Download className="mr-1 h-3.5 w-3.5" /> Baixar transcrição
                 </Button>
               )}
               {!readOnly &&

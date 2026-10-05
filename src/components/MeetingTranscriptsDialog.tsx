@@ -2,8 +2,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ExternalLink, FileText, Loader2, Search } from "lucide-react";
+import { Download, FileText, Loader2, Search } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadMeetingArtifact, downloadTranscriptText } from "@/lib/meeting-artifacts";
 import { useAuth } from "@/hooks/use-auth";
 import type { Client } from "@/hooks/use-data";
 import type { RecurringMeeting, RecurringMeetingOccurrence } from "@/hooks/use-meetings";
@@ -26,7 +28,21 @@ type TranscriptRow = {
   } | null;
 };
 
-type DisplayTranscript = TranscriptRow & {
+type GeminiFileRow = {
+  id: string;
+  file_path: string;
+  file_name: string | null;
+  generated_at: string | null;
+  calendar_event: TranscriptRow["calendar_event"];
+};
+
+type DisplayTranscript = {
+  id: string;
+  kind: "transcript" | "gemini";
+  content: string;
+  entryCount: number;
+  filePath: string | null;
+  fileName: string | null;
   clientId: string | null;
   clientName: string;
   meetingTitle: string;
@@ -60,6 +76,24 @@ async function fetchAllTranscripts(): Promise<TranscriptRow[]> {
   return rows;
 }
 
+async function fetchAllGeminiFiles(): Promise<GeminiFileRow[]> {
+  const rows: GeminiFileRow[] = [];
+  const pageSize = 200;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await (supabase.from("meeting_minutes" as any) as any)
+      .select(
+        "id, file_path, file_name, generated_at, calendar_event:calendar_events(id, title, starts_at, recurring_meeting_occurrence_id, deleted_at)",
+      )
+      .not("file_path", "is", null)
+      .order("generated_at", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...((data ?? []) as GeminiFileRow[]));
+    if ((data ?? []).length < pageSize) break;
+  }
+  return rows;
+}
+
 export function MeetingTranscriptsDialog({
   open,
   onOpenChange,
@@ -72,13 +106,24 @@ export function MeetingTranscriptsDialog({
   const [search, setSearch] = useState("");
   const {
     data: transcripts = [],
-    isLoading,
-    error,
+    isLoading: loadingTranscripts,
+    error: transcriptError,
   } = useQuery({
     queryKey: ["meeting_transcripts", "library", user?.id, activeWorkspace?.id],
     queryFn: fetchAllTranscripts,
     enabled: open && !!user,
   });
+  const {
+    data: geminiFiles = [],
+    isLoading: loadingGeminiFiles,
+    error: geminiError,
+  } = useQuery({
+    queryKey: ["meeting_minutes", "library", user?.id, activeWorkspace?.id],
+    queryFn: fetchAllGeminiFiles,
+    enabled: open && !!user,
+  });
+  const isLoading = loadingTranscripts || loadingGeminiFiles;
+  const error = transcriptError || geminiError;
 
   const grouped = useMemo(() => {
     const clientById = new Map(clients.map((client) => [client.id, client]));
@@ -87,8 +132,27 @@ export function MeetingTranscriptsDialog({
     const term = search.trim().toLocaleLowerCase("pt-BR");
     const visible: DisplayTranscript[] = [];
 
-    for (const transcript of transcripts) {
-      const event = transcript.calendar_event;
+    for (const artifact of [
+      ...transcripts.map((transcript) => ({
+        id: transcript.id,
+        kind: "transcript" as const,
+        content: transcript.content,
+        entryCount: transcript.entry_count,
+        filePath: null,
+        fileName: null,
+        calendar_event: transcript.calendar_event,
+      })),
+      ...geminiFiles.map((file) => ({
+        id: file.id,
+        kind: "gemini" as const,
+        content: "",
+        entryCount: 0,
+        filePath: file.file_path,
+        fileName: file.file_name,
+        calendar_event: file.calendar_event,
+      })),
+    ]) {
+      const event = artifact.calendar_event;
       if (!event || event.deleted_at) continue;
       const occurrenceId = event.recurring_meeting_occurrence_id;
       const occurrence = occurrenceId ? occurrenceById.get(occurrenceId) : null;
@@ -98,7 +162,12 @@ export function MeetingTranscriptsDialog({
       if (occurrence && !meeting) continue;
       const client = meeting?.client_id ? clientById.get(meeting.client_id) : null;
       const row: DisplayTranscript = {
-        ...transcript,
+        id: artifact.id,
+        kind: artifact.kind,
+        content: artifact.content,
+        entryCount: artifact.entryCount,
+        filePath: artifact.filePath,
+        fileName: artifact.fileName,
         clientId: client?.id ?? null,
         clientName: client?.name ?? "Sem cliente",
         meetingTitle: meeting?.title ?? event.title,
@@ -107,7 +176,7 @@ export function MeetingTranscriptsDialog({
       };
       if (
         term &&
-        !`${row.clientName} ${row.meetingTitle} ${row.content}`
+        !`${row.clientName} ${row.meetingTitle} ${row.content} ${row.fileName ?? ""}`
           .toLocaleLowerCase("pt-BR")
           .includes(term)
       )
@@ -131,7 +200,7 @@ export function MeetingTranscriptsDialog({
     return [...groups.values()].sort((a, b) =>
       a.clientName.localeCompare(b.clientName, "pt-BR", { sensitivity: "base" }),
     );
-  }, [clients, meetings, occurrences, search, transcripts]);
+  }, [clients, geminiFiles, meetings, occurrences, search, transcripts]);
 
   const visibleCount = grouped.reduce((total, group) => total + group.rows.length, 0);
 
@@ -143,7 +212,7 @@ export function MeetingTranscriptsDialog({
             <FileText className="h-5 w-5" /> Transcrições
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Transcrições importadas do Google Meet, organizadas por cliente.
+            Transcrições e atas do Gemini guardadas como arquivos no TaskFlow, por cliente.
           </p>
         </DialogHeader>
         <div className="relative">
@@ -168,8 +237,8 @@ export function MeetingTranscriptsDialog({
           ) : visibleCount === 0 ? (
             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
               {search
-                ? "Nenhuma transcrição encontrada para esta busca."
-                : "Nenhuma transcrição importada ainda."}
+                ? "Nenhum arquivo encontrado para esta busca."
+                : "Nenhuma transcrição ou ata importada ainda."}
             </p>
           ) : (
             grouped.map((group) => (
@@ -177,24 +246,61 @@ export function MeetingTranscriptsDialog({
                 <div className="flex items-center justify-between border-b pb-2">
                   <h3 className="font-semibold">{group.clientName}</h3>
                   <span className="text-xs text-muted-foreground">
-                    {group.rows.length} {group.rows.length === 1 ? "transcrição" : "transcrições"}
+                    {group.rows.length} {group.rows.length === 1 ? "arquivo" : "arquivos"}
                   </span>
                 </div>
                 {group.rows.map((transcript) => (
-                  <div key={transcript.id} className="rounded-lg border p-3">
-                    <details>
-                      <summary className="cursor-pointer text-sm font-medium">
-                        {transcript.meetingTitle} ·{" "}
+                  <div
+                    key={`${transcript.kind}-${transcript.id}`}
+                    className="rounded-lg border p-3"
+                  >
+                    {transcript.kind === "gemini" ? (
+                      <p className="text-sm font-medium">
+                        Ata do Gemini (PDF) · {transcript.meetingTitle} ·{" "}
                         {format(new Date(transcript.meetingStartedAt), "dd/MM/yyyy 'às' HH:mm")}
-                      </summary>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {transcript.entry_count} falas
                       </p>
-                      <div className="mt-3 max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-sm">
-                        {transcript.content || "A transcrição não contém falas disponíveis."}
-                      </div>
-                    </details>
+                    ) : (
+                      <details>
+                        <summary className="cursor-pointer text-sm font-medium">
+                          Transcrição · {transcript.meetingTitle} ·{" "}
+                          {format(new Date(transcript.meetingStartedAt), "dd/MM/yyyy 'às' HH:mm")}
+                        </summary>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {transcript.entryCount} falas
+                        </p>
+                        <div className="mt-3 max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-sm">
+                          {transcript.content || "A transcrição não contém falas disponíveis."}
+                        </div>
+                      </details>
+                    )}
                     <div className="mt-2 flex flex-wrap gap-2">
+                      {transcript.filePath && (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            void downloadMeetingArtifact(
+                              transcript.filePath!,
+                              transcript.fileName || "Ata do Gemini.pdf",
+                            ).catch((error) => toast.error(error.message))
+                          }
+                        >
+                          <Download className="mr-1 h-4 w-4" /> Baixar PDF
+                        </Button>
+                      )}
+                      {transcript.kind === "transcript" && transcript.content && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            downloadTranscriptText(
+                              transcript.content,
+                              `Transcrição - ${transcript.meetingTitle}.txt`,
+                            )
+                          }
+                        >
+                          <Download className="mr-1 h-4 w-4" /> Baixar TXT
+                        </Button>
+                      )}
                       {transcript.occurrenceId && (
                         <Button
                           size="sm"
@@ -205,13 +311,6 @@ export function MeetingTranscriptsDialog({
                           }}
                         >
                           Abrir reunião
-                        </Button>
-                      )}
-                      {transcript.google_doc_url && (
-                        <Button asChild size="sm" variant="ghost">
-                          <a href={transcript.google_doc_url} target="_blank" rel="noreferrer">
-                            <ExternalLink className="mr-1 h-4 w-4" /> Abrir no Google
-                          </a>
                         </Button>
                       )}
                     </div>
