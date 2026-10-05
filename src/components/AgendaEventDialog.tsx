@@ -97,7 +97,7 @@ export function MeetingMinutesPanel({
   occurrenceId,
   meetingId,
 }: {
-  event: Pick<AgendaEvent, "id" | "ends_at" | "meeting_url">;
+  event: Pick<AgendaEvent, "id" | "starts_at" | "ends_at" | "meeting_url">;
   clientId?: string | null;
   occurrenceId?: string | null;
   meetingId?: string | null;
@@ -107,11 +107,13 @@ export function MeetingMinutesPanel({
   const { data: googleConnection, isLoading: loadingConnection } = useGoogleCalendarConnection();
   const runFormat = useServerFn(formatAtaWithGemini);
   const [syncing, setSyncing] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const [generating, setGenerating] = useState(false);
   const [savingReview, setSavingReview] = useState(false);
   const [reviewText, setReviewText] = useState("");
   const [reviewTranscriptId, setReviewTranscriptId] = useState<string | null>(null);
   const automaticAttempt = useRef<string | null>(null);
+  const syncingRef = useRef(false);
   const isMeet = /meet\.google\.com\/[a-z]{3,}-[a-z]{3,}-[a-z]{3,}/i.test(event.meeting_url ?? "");
   const { data: minutes, isLoading } = useQuery({
     queryKey: ["meeting_minutes", event.id],
@@ -145,48 +147,102 @@ export function MeetingMinutesPanel({
     },
     enabled: isMeet,
   });
-  const ended = new Date(event.ends_at) <= new Date();
-  const syncMinutes = useCallback(async () => {
-    setSyncing(true);
-    const { data, error } = await supabase.functions.invoke("google-meet-minutes-sync", {
-      body: { eventId: event.id },
-    });
-    setSyncing(false);
-    if (error) return toast.error(await edgeFunctionErrorMessage(error));
-    if (data?.error) return toast.error(data.error);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["meeting_minutes", event.id] }),
-      queryClient.invalidateQueries({ queryKey: ["meeting_transcripts", event.id] }),
-    ]);
-    if (data.importedTranscripts > 0) toast.success("Transcrição do Meet importada.");
-    else if (data.status === "ready") toast.success("Ata da reunião encontrada.");
-    else toast.message(data.reason || "A ata ainda não está disponível.");
-  }, [event.id, queryClient]);
+  const started = new Date(event.starts_at).getTime() <= now;
+  const syncMinutes = useCallback(
+    async (silent = false) => {
+      if (syncingRef.current) return;
+      syncingRef.current = true;
+      setSyncing(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("google-meet-minutes-sync", {
+          body: { eventId: event.id },
+        });
+        if (error) {
+          if (!silent) toast.error(await edgeFunctionErrorMessage(error));
+          return;
+        }
+        if (data?.error) {
+          if (!silent) toast.error(data.error);
+          return;
+        }
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["meeting_minutes", event.id] }),
+          queryClient.invalidateQueries({ queryKey: ["meeting_transcripts", event.id] }),
+        ]);
+        if (!silent) {
+          if (data.importedTranscripts > 0) toast.success("Transcrição do Meet importada.");
+          else if (data.status === "ready") toast.success("Ata da reunião encontrada.");
+          else toast.message(data.reason || "A ata ainda não está disponível.");
+        }
+      } catch (error) {
+        if (!silent)
+          toast.error(error instanceof Error ? error.message : "Não foi possível buscar a ata.");
+      } finally {
+        syncingRef.current = false;
+        setSyncing(false);
+      }
+    },
+    [event.id, queryClient],
+  );
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (
       !isMeet ||
-      !ended ||
+      !started ||
       isLoading ||
       loadingTranscripts ||
       loadingConnection ||
       !googleConnection?.granted_scopes
         ?.split(/\s+/)
         .includes("https://www.googleapis.com/auth/meetings.space.readonly") ||
-      transcripts.length > 0
+      (minutes?.status === "ready" && transcripts.length > 0)
     )
       return;
     if (automaticAttempt.current === event.id) return;
     automaticAttempt.current = event.id;
-    void syncMinutes();
+    void syncMinutes(true);
   }, [
     event.id,
-    ended,
+    started,
     googleConnection,
     isMeet,
     isLoading,
     loadingConnection,
     loadingTranscripts,
+    minutes?.status,
+    syncMinutes,
+    transcripts.length,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isMeet ||
+      !started ||
+      loadingConnection ||
+      !googleConnection?.granted_scopes
+        ?.split(/\s+/)
+        .includes("https://www.googleapis.com/auth/meetings.space.readonly") ||
+      (minutes?.status === "ready" && transcripts.length > 0) ||
+      Date.now() > new Date(event.ends_at).getTime() + 6 * 60 * 60 * 1000
+    )
+      return;
+    const timer = window.setInterval(() => {
+      if (Date.now() <= new Date(event.ends_at).getTime() + 6 * 60 * 60 * 1000)
+        void syncMinutes(true);
+    }, 120_000);
+    return () => window.clearInterval(timer);
+  }, [
+    event.ends_at,
+    googleConnection,
+    isMeet,
+    loadingConnection,
+    minutes?.status,
+    started,
     syncMinutes,
     transcripts.length,
   ]);
@@ -251,10 +307,10 @@ export function MeetingMinutesPanel({
 
   const statusText = !isMeet
     ? "Adicione um link do Google Meet para buscar a ata desta reunião."
-    : !ended
-      ? "A ata será procurada após o término da reunião."
-      : minutes?.status === "ready"
-        ? "Ata do Gemini disponível."
+    : minutes?.status === "ready"
+      ? "Ata do Gemini disponível."
+      : !started
+        ? "A ata poderá ser buscada após o início da reunião."
         : transcripts.length > 0
           ? "Transcrição importada. A ata do Gemini ainda não está disponível."
           : minutes?.status === "unavailable"
@@ -288,7 +344,7 @@ export function MeetingMinutesPanel({
             size="sm"
             variant={minutes?.google_doc_url ? "ghost" : "outline"}
             onClick={() => void syncMinutes()}
-            disabled={syncing || !ended || !isMeet}
+            disabled={syncing || !started || !isMeet}
           >
             {syncing ? (
               <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" />

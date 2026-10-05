@@ -111,8 +111,10 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
   const code = meetingCode(event.meeting_url);
   if (!code)
     return { status: "unavailable", reason: "Esta reunião não possui um link do Google Meet." };
-  if (new Date(event.ends_at) > new Date())
-    return { status: "pending", reason: "A ata será consultada após o término da reunião." };
+  // The call may end before its scheduled calendar end. Ask Meet for an
+  // actually ended conference as soon as the scheduled start has passed.
+  if (new Date(event.starts_at) > new Date())
+    return { status: "pending", reason: "A reunião ainda não começou." };
 
   const { data: connection, error: connectionError } = await admin
     .from("calendar_google_connections")
