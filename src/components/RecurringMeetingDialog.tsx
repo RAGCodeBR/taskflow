@@ -893,6 +893,158 @@ export function RecurringMeetingDialog({
                   placeholder="Documentos necessários, forma de entrega, conferências..."
                 />
               </div>
+              <div className="max-w-xs space-y-2">
+                <Label htmlFor="recurringMeeting-time">Horário da reunião</Label>
+                <Input
+                  id="recurringMeeting-time"
+                  type="time"
+                  value={dueTime}
+                  onChange={(event) => setDueTime(event.target.value)}
+                />
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-medium">Adicionar à Agenda</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {isRecurring
+                      ? "Cada data da reunião terá seu próprio compromisso na Agenda."
+                      : "Cria um compromisso para esta reunião na Agenda."}
+                  </p>
+                </div>
+                <Switch
+                  checked={addToCalendar}
+                  onCheckedChange={setAddToCalendar}
+                  aria-label="Adicionar à Agenda"
+                />
+              </div>
+              {addToCalendar && (
+                <div className="space-y-3 border-t pt-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {calendarSources.length > 0 && (
+                      <div className="space-y-1">
+                        <Label>Agenda Google</Label>
+                        <Select value={googleCalendarId} onValueChange={setGoogleCalendarId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a agenda" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {calendarSources.map((source) => (
+                              <SelectItem
+                                key={source.google_calendar_id}
+                                value={source.google_calendar_id}
+                              >
+                                {source.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <Label htmlFor="meeting-duration">Duração (minutos)</Label>
+                      <Input
+                        id="meeting-duration"
+                        type="number"
+                        min={15}
+                        max={1440}
+                        value={durationMinutes}
+                        onChange={(event) => setDurationMinutes(Number(event.target.value))}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="meeting-location">Local</Label>
+                    <Input
+                      id="meeting-location"
+                      value={meetingLocation}
+                      onChange={(event) => setMeetingLocation(event.target.value)}
+                      placeholder="Adicionar local (opcional)"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="meeting-attendees">Convidados por e-mail</Label>
+                    <Textarea
+                      id="meeting-attendees"
+                      value={meetingAttendees}
+                      onChange={(event) => setMeetingAttendees(event.target.value)}
+                      rows={2}
+                      placeholder="nome@empresa.com, outra@empresa.com"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Separe os e-mails por vírgula ou linha.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Criar Google Meet</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isRecurring
+                          ? "Cada data terá um link próprio, preparado com até 30 dias de antecedência."
+                          : "O link será criado ao salvar a reunião."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={createGoogleMeet}
+                      disabled={
+                        (!canCreateGoogleMeet || calendarSources.length === 0) && !createGoogleMeet
+                      }
+                      onCheckedChange={setCreateGoogleMeet}
+                      aria-label="Criar Google Meet"
+                    />
+                  </div>
+                  {!canCreateGoogleMeet && (
+                    <p className="text-xs text-muted-foreground">
+                      {googleConnection
+                        ? "Reconecte sua conta na Agenda e aprove as permissões do Google Meet."
+                        : "Conecte sua conta Google na Agenda para habilitar o Meet."}
+                    </p>
+                  )}
+                  {createGoogleMeet ? (
+                    <div className="space-y-3 border-t pt-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">Gerar ata com Gemini</p>
+                          <p className="text-xs text-muted-foreground">
+                            Cria as anotações inteligentes da reunião.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={autoSmartNotes}
+                          onCheckedChange={setAutoSmartNotes}
+                          aria-label="Gerar ata com Gemini"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">Gerar transcrição</p>
+                          <p className="text-xs text-muted-foreground">
+                            Salva o texto falado durante a reunião.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={autoTranscription}
+                          onCheckedChange={setAutoTranscription}
+                          aria-label="Gerar transcrição"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <Label htmlFor="meeting-url">Link da reunião (opcional)</Label>
+                      <Input
+                        id="meeting-url"
+                        type="url"
+                        value={manualMeetingUrl}
+                        onChange={(event) => setManualMeetingUrl(event.target.value)}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
 
             <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
@@ -1148,159 +1300,7 @@ export function RecurringMeetingDialog({
                     <span className="text-xs text-muted-foreground">dias antes</span>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="recurringMeeting-time">Horário da reunião</Label>
-                  <Input
-                    id="recurringMeeting-time"
-                    type="time"
-                    value={dueTime}
-                    onChange={(event) => setDueTime(event.target.value)}
-                  />
-                </div>
               </div>
-            </section>
-
-            <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-medium">Adicionar à Agenda</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {isRecurring
-                      ? "Cada data da reunião terá seu próprio compromisso na Agenda."
-                      : "Cria um compromisso para esta reunião na Agenda."}
-                  </p>
-                </div>
-                <Switch
-                  checked={addToCalendar}
-                  onCheckedChange={setAddToCalendar}
-                  aria-label="Adicionar à Agenda"
-                />
-              </div>
-              {addToCalendar && (
-                <div className="space-y-3 border-t pt-3">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {calendarSources.length > 0 && (
-                      <div className="space-y-1">
-                        <Label>Agenda Google</Label>
-                        <Select value={googleCalendarId} onValueChange={setGoogleCalendarId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione a agenda" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {calendarSources.map((source) => (
-                              <SelectItem
-                                key={source.google_calendar_id}
-                                value={source.google_calendar_id}
-                              >
-                                {source.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                    <div className="space-y-1">
-                      <Label htmlFor="meeting-duration">Duração (minutos)</Label>
-                      <Input
-                        id="meeting-duration"
-                        type="number"
-                        min={15}
-                        max={1440}
-                        value={durationMinutes}
-                        onChange={(event) => setDurationMinutes(Number(event.target.value))}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="meeting-location">Local</Label>
-                    <Input
-                      id="meeting-location"
-                      value={meetingLocation}
-                      onChange={(event) => setMeetingLocation(event.target.value)}
-                      placeholder="Adicionar local (opcional)"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="meeting-attendees">Convidados por e-mail</Label>
-                    <Textarea
-                      id="meeting-attendees"
-                      value={meetingAttendees}
-                      onChange={(event) => setMeetingAttendees(event.target.value)}
-                      rows={2}
-                      placeholder="nome@empresa.com, outra@empresa.com"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Separe os e-mails por vírgula ou linha.
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium">Criar Google Meet</p>
-                      <p className="text-xs text-muted-foreground">
-                        {isRecurring
-                          ? "Cada data terá um link próprio, preparado com até 30 dias de antecedência."
-                          : "O link será criado ao salvar a reunião."}
-                      </p>
-                    </div>
-                    <Switch
-                      checked={createGoogleMeet}
-                      disabled={
-                        (!canCreateGoogleMeet || calendarSources.length === 0) && !createGoogleMeet
-                      }
-                      onCheckedChange={setCreateGoogleMeet}
-                      aria-label="Criar Google Meet"
-                    />
-                  </div>
-                  {!canCreateGoogleMeet && (
-                    <p className="text-xs text-muted-foreground">
-                      {googleConnection
-                        ? "Reconecte sua conta na Agenda e aprove as permissões do Google Meet."
-                        : "Conecte sua conta Google na Agenda para habilitar o Meet."}
-                    </p>
-                  )}
-                  {createGoogleMeet ? (
-                    <div className="space-y-3 border-t pt-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium">Gerar ata com Gemini</p>
-                          <p className="text-xs text-muted-foreground">
-                            Cria as anotações inteligentes da reunião.
-                          </p>
-                        </div>
-                        <Switch
-                          checked={autoSmartNotes}
-                          onCheckedChange={setAutoSmartNotes}
-                          aria-label="Gerar ata com Gemini"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium">Gerar transcrição</p>
-                          <p className="text-xs text-muted-foreground">
-                            Salva o texto falado durante a reunião.
-                          </p>
-                        </div>
-                        <Switch
-                          checked={autoTranscription}
-                          onCheckedChange={setAutoTranscription}
-                          aria-label="Gerar transcrição"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <Label htmlFor="meeting-url">Link da reunião (opcional)</Label>
-                      <Input
-                        id="meeting-url"
-                        type="url"
-                        value={manualMeetingUrl}
-                        onChange={(event) => setManualMeetingUrl(event.target.value)}
-                        placeholder="https://..."
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
             </section>
 
             <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
