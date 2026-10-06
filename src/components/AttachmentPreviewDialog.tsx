@@ -20,6 +20,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   attachment: PreviewableAttachment | null;
+  bucket?: "task-attachments" | "meeting-artifacts";
 }
 
 interface SpreadsheetSheet {
@@ -79,7 +80,12 @@ function parseCsv(source: string) {
   return rows;
 }
 
-export function AttachmentPreviewDialog({ open, onOpenChange, attachment }: Props) {
+export function AttachmentPreviewDialog({
+  open,
+  onOpenChange,
+  attachment,
+  bucket = "task-attachments",
+}: Props) {
   const [fileBlob, setFileBlob] = useState<Blob | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -118,7 +124,7 @@ export function AttachmentPreviewDialog({ open, onOpenChange, attachment }: Prop
 
     void (async () => {
       const { data, error: downloadError } = await supabase.storage
-        .from("task-attachments")
+        .from(bucket)
         .download(attachment.storage_path);
       if (!active) return;
       if (downloadError) {
@@ -137,7 +143,7 @@ export function AttachmentPreviewDialog({ open, onOpenChange, attachment }: Prop
       active = false;
       if (nextBlobUrl) URL.revokeObjectURL(nextBlobUrl);
     };
-  }, [open, attachment]);
+  }, [open, attachment, bucket]);
 
   useEffect(() => {
     if (!fileBlob || !isDocx) return;
@@ -256,8 +262,7 @@ export function AttachmentPreviewDialog({ open, onOpenChange, attachment }: Prop
     if (!attachment) return;
     try {
       const data =
-        fileBlob ??
-        (await supabase.storage.from("task-attachments").download(attachment.storage_path)).data;
+        fileBlob ?? (await supabase.storage.from(bucket).download(attachment.storage_path)).data;
       if (!data) throw new Error("Não foi possível baixar o arquivo.");
       const url = URL.createObjectURL(data);
       const anchor = document.createElement("a");

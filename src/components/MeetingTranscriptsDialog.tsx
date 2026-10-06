@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Download, FileText, Loader2, Search } from "lucide-react";
+import { Download, Eye, FileText, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadMeetingArtifact, downloadTranscriptText } from "@/lib/meeting-artifacts";
@@ -12,6 +12,10 @@ import type { RecurringMeeting, RecurringMeetingOccurrence } from "@/hooks/use-m
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  AttachmentPreviewDialog,
+  type PreviewableAttachment,
+} from "@/components/AttachmentPreviewDialog";
 
 type TranscriptRow = {
   id: string;
@@ -106,6 +110,7 @@ export function MeetingTranscriptsDialog({
 }: Props) {
   const { user, activeWorkspace } = useAuth();
   const [search, setSearch] = useState("");
+  const [previewFile, setPreviewFile] = useState<PreviewableAttachment | null>(null);
   const {
     data: transcripts = [],
     isLoading: loadingTranscripts,
@@ -283,21 +288,42 @@ export function MeetingTranscriptsDialog({
                     )}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {transcript.filePath && (
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            void downloadMeetingArtifact(
-                              transcript.filePath!,
-                              transcript.fileName ||
-                                (transcript.kind === "gemini"
-                                  ? "Ata do Gemini.pdf"
-                                  : `Transcrição do Meet.${transcript.filePath?.endsWith(".txt") ? "txt" : "pdf"}`),
-                            ).catch((error) => toast.error(error.message))
-                          }
-                        >
-                          <Download className="mr-1 h-4 w-4" /> Baixar{" "}
-                          {transcript.filePath.endsWith(".txt") ? "TXT" : "PDF"}
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              setPreviewFile({
+                                storage_path: transcript.filePath!,
+                                file_name:
+                                  transcript.fileName ||
+                                  (transcript.kind === "gemini"
+                                    ? "Ata do Gemini.pdf"
+                                    : `Transcrição do Meet.${transcript.filePath?.endsWith(".txt") ? "txt" : "pdf"}`),
+                                mime_type: transcript.filePath.endsWith(".txt")
+                                  ? "text/plain"
+                                  : "application/pdf",
+                              })
+                            }
+                          >
+                            <Eye className="mr-1 h-4 w-4" /> Visualizar
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              void downloadMeetingArtifact(
+                                transcript.filePath!,
+                                transcript.fileName ||
+                                  (transcript.kind === "gemini"
+                                    ? "Ata do Gemini.pdf"
+                                    : `Transcrição do Meet.${transcript.filePath?.endsWith(".txt") ? "txt" : "pdf"}`),
+                              ).catch((error) => toast.error(error.message))
+                            }
+                          >
+                            <Download className="mr-1 h-4 w-4" /> Baixar{" "}
+                            {transcript.filePath.endsWith(".txt") ? "TXT" : "PDF"}
+                          </Button>
+                        </>
                       )}
                       {transcript.kind === "transcript" &&
                         transcript.content &&
@@ -334,6 +360,14 @@ export function MeetingTranscriptsDialog({
             ))
           )}
         </div>
+        <AttachmentPreviewDialog
+          open={Boolean(previewFile)}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setPreviewFile(null);
+          }}
+          attachment={previewFile}
+          bucket="meeting-artifacts"
+        />
       </DialogContent>
     </Dialog>
   );

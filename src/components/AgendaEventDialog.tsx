@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { flushSync } from "react-dom";
 import { format } from "date-fns";
-import { Copy, Download, ExternalLink, FileText, RefreshCw } from "lucide-react";
+import { Copy, Download, ExternalLink, Eye, FileText, RefreshCw } from "lucide-react";
 import {
   AlignLeft,
   CalendarDays,
@@ -31,6 +31,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  AttachmentPreviewDialog,
+  type PreviewableAttachment,
+} from "@/components/AttachmentPreviewDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { formatAtaWithGemini } from "@/lib/format-ata.functions";
 import { downloadMeetingArtifact, downloadTranscriptText } from "@/lib/meeting-artifacts";
@@ -121,6 +125,7 @@ export function MeetingMinutesPanel({
   const [savingReview, setSavingReview] = useState(false);
   const [reviewText, setReviewText] = useState("");
   const [reviewTranscriptId, setReviewTranscriptId] = useState<string | null>(null);
+  const [previewArtifact, setPreviewArtifact] = useState<PreviewableAttachment | null>(null);
   const automaticAttempt = useRef<string | null>(null);
   const syncingRef = useRef(false);
   const isMeet = /meet\.google\.com\/[a-z]{3,}-[a-z]{3,}-[a-z]{3,}/i.test(event.meeting_url ?? "");
@@ -368,18 +373,33 @@ export function MeetingMinutesPanel({
         )}
         <div className="flex flex-wrap gap-2 pt-1">
           {minutes?.file_path && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                void downloadMeetingArtifact(
-                  minutes.file_path!,
-                  minutes.file_name || "Ata do Gemini.pdf",
-                ).catch((error) => toast.error(error.message))
-              }
-            >
-              <Download className="mr-1.5 h-3.5 w-3.5" /> Baixar ata em PDF
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setPreviewArtifact({
+                    file_name: minutes.file_name || "Ata do Gemini.pdf",
+                    storage_path: minutes.file_path!,
+                    mime_type: "application/pdf",
+                  })
+                }
+              >
+                <Eye className="mr-1.5 h-3.5 w-3.5" /> Visualizar
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  void downloadMeetingArtifact(
+                    minutes.file_path!,
+                    minutes.file_name || "Ata do Gemini.pdf",
+                  ).catch((error) => toast.error(error.message))
+                }
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" /> Baixar ata em PDF
+              </Button>
+            </>
           )}
           {!readOnly && (
             <Button
@@ -419,20 +439,39 @@ export function MeetingMinutesPanel({
             </details>
             <div className="mt-2 flex flex-wrap gap-2">
               {transcript.file_path && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    void downloadMeetingArtifact(
-                      transcript.file_path!,
-                      transcript.file_name ||
-                        `Transcrição ${index + 1}.${transcript.file_path?.endsWith(".txt") ? "txt" : "pdf"}`,
-                    ).catch((error) => toast.error(error.message))
-                  }
-                >
-                  <Download className="mr-1 h-3.5 w-3.5" /> Baixar{" "}
-                  {transcript.file_path.endsWith(".txt") ? "TXT" : "PDF"}
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setPreviewArtifact({
+                        file_name:
+                          transcript.file_name ||
+                          `Transcrição ${index + 1}.${transcript.file_path?.endsWith(".txt") ? "txt" : "pdf"}`,
+                        storage_path: transcript.file_path!,
+                        mime_type: transcript.file_path.endsWith(".txt")
+                          ? "text/plain"
+                          : "application/pdf",
+                      })
+                    }
+                  >
+                    <Eye className="mr-1 h-3.5 w-3.5" /> Visualizar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      void downloadMeetingArtifact(
+                        transcript.file_path!,
+                        transcript.file_name ||
+                          `Transcrição ${index + 1}.${transcript.file_path?.endsWith(".txt") ? "txt" : "pdf"}`,
+                      ).catch((error) => toast.error(error.message))
+                    }
+                  >
+                    <Download className="mr-1 h-3.5 w-3.5" /> Baixar{" "}
+                    {transcript.file_path.endsWith(".txt") ? "TXT" : "PDF"}
+                  </Button>
+                </>
               )}
               {transcript.content && !transcript.file_path && (
                 <Button
@@ -486,6 +525,14 @@ export function MeetingMinutesPanel({
           </div>
         )}
       </div>
+      <AttachmentPreviewDialog
+        open={Boolean(previewArtifact)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewArtifact(null);
+        }}
+        attachment={previewArtifact}
+        bucket="meeting-artifacts"
+      />
     </div>
   );
 }
