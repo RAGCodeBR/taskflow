@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 import { ImportAtaContent, type ImportedAtaDraft } from "@/components/ImportAtaContent";
+import { meetingDurationMinutes, meetingEndTime } from "@/lib/meeting-time";
 
 interface RecurringMeetingDialogProps {
   open: boolean;
@@ -128,12 +129,12 @@ export function RecurringMeetingDialog({
   const [startDate, setStartDate] = useState(todayValue());
   const [endDate, setEndDate] = useState("");
   const [dueTime, setDueTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [addToCalendar, setAddToCalendar] = useState(false);
   const [createGoogleMeet, setCreateGoogleMeet] = useState(false);
   const [autoSmartNotes, setAutoSmartNotes] = useState(true);
   const [autoTranscription, setAutoTranscription] = useState(false);
   const [googleCalendarId, setGoogleCalendarId] = useState("");
-  const [durationMinutes, setDurationMinutes] = useState(60);
   const [meetingLocation, setMeetingLocation] = useState("");
   const [meetingAttendees, setMeetingAttendees] = useState("");
   const [manualMeetingUrl, setManualMeetingUrl] = useState("");
@@ -170,7 +171,13 @@ export function RecurringMeetingDialog({
     setBusinessDaysOnly(recurringMeeting?.business_days_only ?? false);
     setStartDate(recurringMeeting?.start_date ?? todayValue());
     setEndDate(recurringMeeting?.end_date ?? "");
-    setDueTime(recurringMeeting?.due_time?.slice(0, 5) ?? "");
+    const savedStartTime = recurringMeeting?.due_time?.slice(0, 5) ?? "";
+    setDueTime(savedStartTime);
+    setEndTime(
+      savedStartTime
+        ? meetingEndTime(savedStartTime, recurringMeeting?.duration_minutes ?? 60)
+        : "",
+    );
     setAddToCalendar(
       recurringMeeting?.add_to_calendar ?? recurringMeeting?.create_google_meet ?? false,
     );
@@ -178,7 +185,6 @@ export function RecurringMeetingDialog({
     setAutoSmartNotes(recurringMeeting?.auto_smart_notes ?? true);
     setAutoTranscription(recurringMeeting?.auto_transcription ?? false);
     setGoogleCalendarId(recurringMeeting?.google_calendar_id ?? "");
-    setDurationMinutes(recurringMeeting?.duration_minutes ?? 60);
     setMeetingLocation(recurringMeeting?.meeting_location ?? "");
     setMeetingAttendees((recurringMeeting?.meeting_attendee_emails ?? []).join(", "));
     setManualMeetingUrl(recurringMeeting?.manual_meeting_url ?? "");
@@ -475,6 +481,11 @@ export function RecurringMeetingDialog({
       return toast.error("Informe ao menos um dia válido do mês.");
     if (isRecurring && endDate && endDate < startDate)
       return toast.error("A data final não pode ser anterior ao início.");
+    if (dueTime && !endTime) return toast.error("Informe o horário final da reunião.");
+    if (endTime && !dueTime) return toast.error("Informe o horário inicial da reunião.");
+    const durationMinutes = meetingDurationMinutes(dueTime, endTime);
+    if (dueTime && (!durationMinutes || durationMinutes < 15))
+      return toast.error("O horário final deve deixar ao menos 15 minutos para a reunião.");
     const participantsChanged =
       participantIds.length !== savedParticipantIds.length ||
       participantIds.some((id) => !savedParticipantIds.includes(id));
@@ -497,12 +508,7 @@ export function RecurringMeetingDialog({
     if (addToCalendar && createGoogleMeet && !googleCalendarId)
       return toast.error("Selecione uma agenda Google para criar um Meet.");
     if (addToCalendar && !dueTime)
-      return toast.error("Informe o horário da reunião para adicioná-la à Agenda.");
-    if (
-      addToCalendar &&
-      (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 1440)
-    )
-      return toast.error("A duração deve estar entre 15 e 1440 minutos.");
+      return toast.error("Informe os horários inicial e final para adicionar à Agenda.");
     if (addToCalendar && isOffline())
       return toast.error("Conecte-se à internet para adicionar a reunião à Agenda.");
     if (importedAta && isOffline())
@@ -535,7 +541,7 @@ export function RecurringMeetingDialog({
       auto_smart_notes: autoSmartNotes,
       auto_transcription: autoTranscription,
       google_calendar_id: addToCalendar ? googleCalendarId : null,
-      duration_minutes: durationMinutes,
+      duration_minutes: durationMinutes ?? recurringMeeting?.duration_minutes ?? 60,
       meeting_location: addToCalendar ? meetingLocation.trim() || null : null,
       meeting_attendee_emails: addToCalendar ? [...new Set(attendeeEmails)] : [],
       manual_meeting_url:
@@ -893,15 +899,34 @@ export function RecurringMeetingDialog({
                   placeholder="Documentos necessários, forma de entrega, conferências..."
                 />
               </div>
-              <div className="max-w-xs space-y-2">
-                <Label htmlFor="recurringMeeting-time">Horário da reunião</Label>
-                <Input
-                  id="recurringMeeting-time"
-                  type="time"
-                  value={dueTime}
-                  onChange={(event) => setDueTime(event.target.value)}
-                />
+              <div className="grid max-w-lg gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="recurringMeeting-time">Horário inicial</Label>
+                  <Input
+                    id="recurringMeeting-time"
+                    type="time"
+                    value={dueTime}
+                    onChange={(event) => {
+                      const nextStart = event.target.value;
+                      setDueTime(nextStart);
+                      if (!endTime && nextStart) setEndTime(meetingEndTime(nextStart, 60));
+                      if (!nextStart) setEndTime("");
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recurringMeeting-end-time">Horário final</Label>
+                  <Input
+                    id="recurringMeeting-end-time"
+                    type="time"
+                    value={endTime}
+                    onChange={(event) => setEndTime(event.target.value)}
+                  />
+                </div>
               </div>
+              {dueTime && endTime && endTime <= dueTime && (
+                <p className="text-xs text-muted-foreground">O horário final é no dia seguinte.</p>
+              )}
             </section>
 
             <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
@@ -922,39 +947,26 @@ export function RecurringMeetingDialog({
               </div>
               {addToCalendar && (
                 <div className="space-y-3 border-t pt-3">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {calendarSources.length > 0 && (
-                      <div className="space-y-1">
-                        <Label>Agenda Google</Label>
-                        <Select value={googleCalendarId} onValueChange={setGoogleCalendarId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione a agenda" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {calendarSources.map((source) => (
-                              <SelectItem
-                                key={source.google_calendar_id}
-                                value={source.google_calendar_id}
-                              >
-                                {source.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                  {calendarSources.length > 0 && (
                     <div className="space-y-1">
-                      <Label htmlFor="meeting-duration">Duração (minutos)</Label>
-                      <Input
-                        id="meeting-duration"
-                        type="number"
-                        min={15}
-                        max={1440}
-                        value={durationMinutes}
-                        onChange={(event) => setDurationMinutes(Number(event.target.value))}
-                      />
+                      <Label>Agenda Google</Label>
+                      <Select value={googleCalendarId} onValueChange={setGoogleCalendarId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a agenda" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {calendarSources.map((source) => (
+                            <SelectItem
+                              key={source.google_calendar_id}
+                              value={source.google_calendar_id}
+                            >
+                              {source.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  </div>
+                  )}
                   <div className="space-y-1">
                     <Label htmlFor="meeting-location">Local</Label>
                     <Input
