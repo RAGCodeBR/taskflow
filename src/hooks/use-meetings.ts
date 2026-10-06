@@ -243,24 +243,29 @@ export function useRecurringMeetings() {
   });
 }
 
-/** Reuniões de um ano para trás até seis meses à frente. */
+/** Todas as reuniões passadas e as próximas datas materializadas. */
 export function useRecurringMeetingOccurrences() {
   const { user, activeWorkspace } = useAuth();
   return useQuery({
     queryKey: ["recurringMeeting-occurrences", activeWorkspace?.id],
     enabled: !!user && !!activeWorkspace?.id,
     queryFn: async () => {
-      const from = new Date();
-      from.setFullYear(from.getFullYear() - 1);
       const until = new Date();
       until.setMonth(until.getMonth() + 7);
-      const { data, error } = await (supabase.from("recurring_meeting_occurrences" as any) as any)
-        .select("*")
-        .gte("due_date", from.toISOString().slice(0, 10))
-        .lte("due_date", until.toISOString().slice(0, 10))
-        .order("due_date", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as RecurringMeetingOccurrence[];
+      const pageSize = 1000;
+      const all: RecurringMeetingOccurrence[] = [];
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await (supabase.from("recurring_meeting_occurrences" as any) as any)
+          .select("*")
+          .lte("due_date", until.toISOString().slice(0, 10))
+          .order("due_date", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        all.push(...((data ?? []) as RecurringMeetingOccurrence[]));
+        if (!data || data.length < pageSize) break;
+      }
+      return all;
     },
   });
 }

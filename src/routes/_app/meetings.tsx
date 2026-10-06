@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Supabase types are regenerated after the migration is applied. */
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, differenceInCalendarDays, format } from "date-fns";
@@ -20,7 +20,6 @@ import {
   RotateCcw,
   Search,
   Settings2,
-  Trash2,
   Users,
   Video,
   ExternalLink,
@@ -60,16 +59,6 @@ import { RecurringMeetingDialog } from "@/components/RecurringMeetingDialog";
 import { MeetingMinutesPanel } from "@/components/AgendaEventDialog";
 import { MeetingTranscriptsDialog } from "@/components/MeetingTranscriptsDialog";
 import { TaskDialog } from "@/components/TaskDialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -142,8 +131,11 @@ function RecurringMeetingsPage() {
     isLoading,
     error: recurring_meetingsError,
   } = useRecurringMeetings();
-  const { data: occurrences = [], isLoading: loadingOccurrences } =
-    useRecurringMeetingOccurrences();
+  const {
+    data: occurrences = [],
+    isLoading: loadingOccurrences,
+    error: occurrencesError,
+  } = useRecurringMeetingOccurrences();
   const { data: meetingCalendarEvents = [], isLoading: loadingCalendarEvents } =
     useMeetingCalendarEvents();
   const { data: googleConnection } = useGoogleCalendarConnection();
@@ -172,8 +164,6 @@ function RecurringMeetingsPage() {
   const [clientFilter, setClientFilter] = useState("all");
   const [participantFilter, setParticipantFilter] = useState("all");
   const [datesShown, setDatesShown] = useState(DATES_PER_PAGE);
-  const [deleteTarget, setDeleteTarget] = useState<RecurringMeeting | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   // Gera reuniões, copia pautas e dispara avisos pendentes (também roda todo dia às 7h).
   useEffect(() => {
@@ -354,7 +344,7 @@ function RecurringMeetingsPage() {
   }, [visibleMeetingRecords]);
 
   // Reuniões em aberto agrupadas por data: cada data é uma "rodada" de reuniões.
-  const { overdueMeetings, upcomingDates } = useMemo(() => {
+  const { overdueMeetings, upcomingDates, closedMeetings } = useMemo(() => {
     const visibleIds = new Set(
       visibleRecurringMeetings.map((recurringMeeting) => recurringMeeting.id),
     );
@@ -383,6 +373,17 @@ function RecurringMeetingsPage() {
     return {
       overdueMeetings: open.filter(({ occurrence }) => occurrence.due_date < today),
       upcomingDates: [...byDate.entries()].map(([date, meetings]) => ({ date, meetings })),
+      closedMeetings: occurrences
+        .filter(
+          (occurrence) => visibleIds.has(occurrence.recurring_meeting_id) && isClosed(occurrence),
+        )
+        .map((occurrence) => ({
+          occurrence,
+          recurringMeeting: recurringMeetingById.get(occurrence.recurring_meeting_id)!,
+        }))
+        .sort((first, second) =>
+          second.occurrence.due_date.localeCompare(first.occurrence.due_date),
+        ),
     };
   }, [clientOrder, recurringMeetingById, occurrences, today, visibleRecurringMeetings]);
 
@@ -429,24 +430,6 @@ function RecurringMeetingsPage() {
       queryClient.invalidateQueries({ queryKey: ["recurringMeeting-occurrences"] }),
     ]);
     toast.success(isActive ? "Reunião ativada" : "Reunião pausada");
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    if (isOffline()) return toast.error("Conecte-se à internet para excluir a reunião.");
-    setDeleting(true);
-    const { error } = await (supabase.from("recurring_meetings" as any) as any)
-      .delete()
-      .eq("id", deleteTarget.id);
-    setDeleting(false);
-    if (error) return toast.error(error.message);
-    setDeleteTarget(null);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["recurring_meetings"] }),
-      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-occurrences"] }),
-      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-agenda-items"] }),
-    ]);
-    toast.success("Reunião excluída");
   };
 
   if (loading || (!hasPermission("meetings") && loadingInvitations))
@@ -497,6 +480,11 @@ function RecurringMeetingsPage() {
           Não foi possível carregar as reuniões: {(recurring_meetingsError as Error).message}
         </div>
       ) : null}
+      {occurrencesError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          Não foi possível carregar as datas das reuniões: {(occurrencesError as Error).message}
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-3">
         <div className="relative min-w-[220px] flex-1">
@@ -539,6 +527,7 @@ function RecurringMeetingsPage() {
       <Tabs defaultValue="meetings">
         <TabsList>
           <TabsTrigger value="meetings">Reuniões</TabsTrigger>
+          <TabsTrigger value="history">Histórico</TabsTrigger>
           {hasPermission("meetings") && <TabsTrigger value="settings">Configurações</TabsTrigger>}
         </TabsList>
 
@@ -548,15 +537,25 @@ function RecurringMeetingsPage() {
               <Loader2 className="h-4 w-4 animate-spin" />
               Carregando reuniões...
             </div>
-          ) : visibleMeetingRecords.length === 0 ? (
-            <EmptyState
-              title="Nenhuma reunião cadastrada"
-              description="Crie uma reunião para um cliente e monte a pauta dela."
-            />
+          ) : recurring_meetingsError || occurrencesError ? null : visibleMeetingRecords.length ===
+            0 ? (
+            <div>
+              <EmptyState
+                title={`Nenhuma reunião no ambiente ${activeWorkspace?.name ?? "atual"}`}
+                description="As reuniões de outros ambientes aparecem ao trocar de ambiente."
+              />
+              {workspaces.length > 1 && (
+                <div className="flex justify-center">
+                  <Button asChild variant="outline">
+                    <Link to="/ambientes">Trocar ambiente</Link>
+                  </Button>
+                </div>
+              )}
+            </div>
           ) : overdueMeetings.length === 0 && upcomingDates.length === 0 ? (
             <EmptyState
               title="Nenhuma reunião encontrada"
-              description="Ajuste a busca ou os filtros, ou ative uma reunião pausada em Configurações."
+              description="Ajuste os filtros, consulte o Histórico ou ative uma reunião pausada em Configurações."
             />
           ) : (
             <div className="space-y-8">
@@ -656,6 +655,46 @@ function RecurringMeetingsPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="history" className="mt-5">
+          {isLoading || loadingOccurrences ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Carregando histórico...
+            </div>
+          ) : recurring_meetingsError || occurrencesError ? null : closedMeetings.length === 0 ? (
+            <EmptyState
+              title="Nenhuma reunião encerrada"
+              description="As reuniões concluídas aparecerão aqui."
+            />
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {closedMeetings.map(({ occurrence, recurringMeeting }) => (
+                <Card key={occurrence.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold">{recurringMeeting.title}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {clientById.get(recurringMeeting.client_id ?? "")?.name ?? "Sem cliente"} ·{" "}
+                        {formatDate(occurrence.due_date)}
+                      </p>
+                    </div>
+                    <Badge variant="outline">
+                      {occurrence.status === "completed" ? "Concluída" : "Ignorada"}
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => setMeetingId(occurrence.id)}
+                  >
+                    Abrir reunião
+                  </Button>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="settings" className="mt-4">
           {visibleMeetingRecords.length === 0 ? (
             <EmptyState
@@ -730,16 +769,6 @@ function RecurringMeetingsPage() {
                             ) : (
                               <Play className="h-4 w-4" />
                             )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            title="Excluir"
-                            aria-label="Excluir reunião"
-                            onClick={() => setDeleteTarget(recurringMeeting)}
-                          >
-                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       )}
@@ -821,37 +850,6 @@ function RecurringMeetingsPage() {
           }
         />
       ) : null}
-      <AlertDialog
-        open={!!deleteTarget}
-        onOpenChange={(open) => {
-          if (!open && !deleting) setDeleteTarget(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir esta reunião recorrente?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget
-                ? `“${deleteTarget.title}”, as reuniões agendadas e as pautas delas serão excluídas. As tarefas já geradas continuam existindo.`
-                : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(event) => {
-                event.preventDefault();
-                void confirmDelete();
-              }}
-            >
-              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {deleting ? "Excluindo..." : "Excluir"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
