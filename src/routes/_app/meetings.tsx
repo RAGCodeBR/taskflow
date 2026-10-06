@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Search,
   Settings2,
+  Trash2,
   Users,
   Video,
   ExternalLink,
