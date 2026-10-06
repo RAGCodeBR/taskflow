@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { plainTextForClipboard } from "@/lib/rich-text-clipboard";
 
 const UnderlineMark = Mark.create({
   name: "underline",
@@ -151,6 +152,35 @@ function stripStoredPrintImages(html: string) {
   return html.replace(/<img\b[^>]*(?:data-task-attachment-id|src="taskflow-attachment:\/\/)[^>]*>/gi, "");
 }
 
+function paragraphClipboardContent(html: string) {
+  // Empty paragraphs already represent blank lines. Flatten paragraph tags
+  // for rich destinations so their own paragraph spacing does not double them.
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  const blocks = Array.from(container.childNodes).filter(
+    (node) => node.nodeType !== 3 || Boolean(node.textContent?.trim()),
+  );
+  if (!blocks.length || !blocks.every((node) => node instanceof HTMLParagraphElement)) return null;
+
+  const inlineText = (node: ChildNode): string => {
+    if (node.nodeType === 3) return node.textContent ?? "";
+    if (node.nodeName === "BR") return "\n";
+    return Array.from(node.childNodes).map(inlineText).join("");
+  };
+  const paragraphs = blocks as HTMLParagraphElement[];
+  const content = paragraphs.map((paragraph) => {
+    const onlyPlaceholderBreak = !paragraph.textContent && paragraph.childNodes.length === 1 && paragraph.firstChild?.nodeName === "BR";
+    return {
+      text: onlyPlaceholderBreak ? "" : inlineText(paragraph),
+      html: onlyPlaceholderBreak ? "" : paragraph.innerHTML,
+    };
+  });
+  return {
+    text: content.map((paragraph) => paragraph.text).join("\n"),
+    html: content.map((paragraph) => paragraph.html).join("<br>"),
+  };
+}
+
 interface Props {
   value: string;
   onChange: (html: string) => void;
@@ -206,29 +236,31 @@ function CopyButton({ editor }: { editor: Editor }) {
     return () => clearTimeout(timer);
   }, [copied]);
 
-  const text = editor.getText();
+  const text = plainTextForClipboard(editor.state.doc.content);
   const empty = !text.trim();
 
   const copy = async () => {
     if (empty) return;
-    const html = editor.getHTML();
+    const copiedContent = paragraphClipboardContent(editor.getHTML());
+    const plainText = copiedContent?.text ?? text;
+    const html = copiedContent?.html ?? editor.getHTML();
     try {
       if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
         // Keeps the formatting when pasted into a rich editor, plain text elsewhere.
         await navigator.clipboard.write([
           new ClipboardItem({
             "text/html": new Blob([html], { type: "text/html" }),
-            "text/plain": new Blob([text], { type: "text/plain" }),
+            "text/plain": new Blob([plainText], { type: "text/plain" }),
           }),
         ]);
       } else {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(plainText);
       }
       setCopied(true);
     } catch {
       // Fallback for contexts without the async clipboard API (http, older browsers).
       const area = document.createElement("textarea");
-      area.value = text;
+      area.value = plainText;
       area.style.position = "fixed";
       area.style.opacity = "0";
       document.body.appendChild(area);
@@ -382,6 +414,7 @@ export function RichTextEditor({
     content: value || "",
     autofocus: autoFocus ? "end" : false,
     editorProps: {
+      clipboardTextSerializer: (slice) => plainTextForClipboard(slice.content),
       attributes: {
         class: cn(
           "tiptap prose prose-sm dark:prose-invert max-w-none px-2 py-2 text-xs leading-snug [overflow-wrap:anywhere] focus:outline-none",
@@ -547,6 +580,13 @@ export function RichTextEditor({
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onCopy={(event) => {
+        const content = paragraphClipboardContent(event.clipboardData.getData("text/html"));
+        if (!content) return;
+        event.clipboardData.setData("text/plain", content.text);
+        event.clipboardData.setData("text/html", content.html);
+        event.preventDefault();
+      }}
     >
       <Toolbar editor={editor} />
       {placeholder && editor.isEmpty ? (
@@ -593,6 +633,20 @@ export function RichTextView({
   renderedHtml = stripStoredPrintImages(renderedHtml);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  const handleCopy = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || selection.isCollapsed) return;
+    const range = selection.getRangeAt(0);
+    if (!event.currentTarget.contains(range.commonAncestorContainer)) return;
+    const container = document.createElement("div");
+    container.appendChild(range.cloneContents());
+    const content = paragraphClipboardContent(container.innerHTML);
+    if (!content) return;
+    event.clipboardData.setData("text/plain", content.text);
+    event.clipboardData.setData("text/html", content.html);
+    event.preventDefault();
+  };
+
   useEffect(() => {
     const container = contentRef.current;
     if (!container) return;
@@ -638,6 +692,7 @@ export function RichTextView({
       <div
         ref={contentRef}
         onClick={onClick}
+        onCopy={handleCopy}
         className={cn(
           "text-xs leading-snug [overflow-wrap:anywhere] [&_strong]:font-bold [&_em]:italic [&_u]:underline",
           className,
@@ -650,6 +705,7 @@ export function RichTextView({
     <div
       ref={contentRef}
       onClick={onClick}
+      onCopy={handleCopy}
       className={cn(
         "tiptap prose prose-sm dark:prose-invert max-w-none text-xs leading-snug [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_h2]:text-sm [&_h3]:text-xs [&_a]:underline [&_a]:text-primary [&_u]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_img]:my-3 [&_img]:block [&_img]:max-h-56 [&_img]:max-w-[80%] [&_img]:rounded-lg [&_img]:border [&_img]:bg-muted [&_img]:p-1 [&_img]:shadow-sm",
         className,
