@@ -185,9 +185,9 @@ export function MeetingMinutesPanel({
         ]);
         if (!silent) {
           if (data.filePath && data.importedTranscriptFiles > 0)
-            toast.success("Ata e transcrição importadas como PDF.");
+            toast.success("Ata e transcrição importadas como arquivos.");
           else if (data.importedTranscriptFiles > 0)
-            toast.success("Transcrição do Meet importada como PDF.");
+            toast.success("Transcrição do Meet guardada no TaskFlow.");
           else if (data.filePath) toast.success("Ata do Gemini importada como PDF.");
           else if (data.transcriptFileError) toast.error(data.transcriptFileError);
           else if (data.fileError) toast.error(data.fileError);
@@ -418,14 +418,16 @@ export function MeetingMinutesPanel({
                   onClick={() =>
                     void downloadMeetingArtifact(
                       transcript.file_path!,
-                      transcript.file_name || `Transcrição ${index + 1}.pdf`,
+                      transcript.file_name ||
+                        `Transcrição ${index + 1}.${transcript.file_path?.endsWith(".txt") ? "txt" : "pdf"}`,
                     ).catch((error) => toast.error(error.message))
                   }
                 >
-                  <Download className="mr-1 h-3.5 w-3.5" /> Baixar PDF
+                  <Download className="mr-1 h-3.5 w-3.5" /> Baixar{" "}
+                  {transcript.file_path.endsWith(".txt") ? "TXT" : "PDF"}
                 </Button>
               )}
-              {transcript.content && (
+              {transcript.content && !transcript.file_path && (
                 <Button
                   size="sm"
                   variant="ghost"

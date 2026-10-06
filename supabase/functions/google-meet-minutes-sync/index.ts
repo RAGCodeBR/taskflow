@@ -265,6 +265,10 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
       let fileName = existing?.file_name ?? null;
       let fileSize = existing?.file_size ?? null;
       let fileError: string | null = null;
+      const transcriptId = String(transcript.name)
+        .split("/")
+        .pop()!
+        .replace(/[^a-zA-Z0-9_-]/g, "_");
       if (!filePath) {
         const documentId = transcript.docsDestination?.document;
         if (!documentId) {
@@ -273,10 +277,6 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
           fileError = "Reconecte o Google na Agenda para importar a transcrição em PDF.";
         } else {
           try {
-            const transcriptId = String(transcript.name)
-              .split("/")
-              .pop()!
-              .replace(/[^a-zA-Z0-9_-]/g, "_");
             const path = `${eventId}/transcricao-${transcriptId}.pdf`;
             fileSize = await importGoogleDocPdf(admin, token, documentId, path);
             filePath = path;
@@ -284,6 +284,29 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
             importedTranscriptFiles += 1;
           } catch (error) {
             fileError = error instanceof Error ? error.message : "Não foi possível importar o PDF.";
+          }
+        }
+        // The Meet API provides structured speech entries even when this user
+        // cannot read the organizer's Google Docs file in Drive.
+        const fileText = content || existing?.content || "";
+        if (!filePath && fileText) {
+          try {
+            const textFile = new TextEncoder().encode(fileText);
+            if (textFile.byteLength > 10 * 1024 * 1024)
+              throw new Error("A transcrição excede o limite de 10 MB.");
+            const path = `${eventId}/transcricao-${transcriptId}.txt`;
+            const { error: uploadError } = await admin.storage
+              .from("meeting-artifacts")
+              .upload(path, textFile, { contentType: "text/plain", upsert: true });
+            if (uploadError) throw uploadError;
+            filePath = path;
+            fileName = `Transcrição do Meet - ${new Date(event.starts_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }).replaceAll("/", "-")}.txt`;
+            fileSize = textFile.byteLength;
+            fileError = null;
+            importedTranscriptFiles += 1;
+          } catch (error) {
+            fileError =
+              error instanceof Error ? error.message : "Não foi possível guardar a transcrição.";
           }
         }
       }

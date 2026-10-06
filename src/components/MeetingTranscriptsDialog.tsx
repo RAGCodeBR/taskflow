@@ -264,8 +264,13 @@ export function MeetingTranscriptsDialog({
                     ) : (
                       <details>
                         <summary className="cursor-pointer text-sm font-medium">
-                          Transcrição{transcript.filePath ? " (PDF)" : ""} ·{" "}
-                          {transcript.meetingTitle} ·{" "}
+                          Transcrição
+                          {transcript.filePath
+                            ? transcript.filePath.endsWith(".txt")
+                              ? " (TXT)"
+                              : " (PDF)"
+                            : ""}{" "}
+                          · {transcript.meetingTitle} ·{" "}
                           {format(new Date(transcript.meetingStartedAt), "dd/MM/yyyy 'às' HH:mm")}
                         </summary>
                         <p className="mt-1 text-xs text-muted-foreground">
@@ -286,27 +291,30 @@ export function MeetingTranscriptsDialog({
                               transcript.fileName ||
                                 (transcript.kind === "gemini"
                                   ? "Ata do Gemini.pdf"
-                                  : "Transcrição do Meet.pdf"),
+                                  : `Transcrição do Meet.${transcript.filePath?.endsWith(".txt") ? "txt" : "pdf"}`),
                             ).catch((error) => toast.error(error.message))
                           }
                         >
-                          <Download className="mr-1 h-4 w-4" /> Baixar PDF
+                          <Download className="mr-1 h-4 w-4" /> Baixar{" "}
+                          {transcript.filePath.endsWith(".txt") ? "TXT" : "PDF"}
                         </Button>
                       )}
-                      {transcript.kind === "transcript" && transcript.content && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            downloadTranscriptText(
-                              transcript.content,
-                              `Transcrição - ${transcript.meetingTitle}.txt`,
-                            )
-                          }
-                        >
-                          <Download className="mr-1 h-4 w-4" /> Baixar TXT
-                        </Button>
-                      )}
+                      {transcript.kind === "transcript" &&
+                        transcript.content &&
+                        !transcript.filePath && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              downloadTranscriptText(
+                                transcript.content,
+                                `Transcrição - ${transcript.meetingTitle}.txt`,
+                              )
+                            }
+                          >
+                            <Download className="mr-1 h-4 w-4" /> Baixar TXT
+                          </Button>
+                        )}
                       {transcript.occurrenceId && (
                         <Button
                           size="sm"
