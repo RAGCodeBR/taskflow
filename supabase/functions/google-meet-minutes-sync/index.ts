@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const meetScope = "https://www.googleapis.com/auth/meetings.space.readonly";
 const meetFilesScope = "https://www.googleapis.com/auth/drive.meet.readonly";
+const driveReadScope = "https://www.googleapis.com/auth/drive.readonly";
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -90,6 +91,10 @@ async function importGoogleDocPdf(admin: any, token: string, documentId: string,
   });
   if (!exported.ok) {
     const failure = await exported.json().catch(() => null);
+    if (failure?.error?.errors?.some((item: any) => item.reason === "appNotAuthorizedToFile"))
+      throw new Error(
+        "O Google não autorizou o TaskFlow a exportar este documento. Reconecte a conta na Agenda e aprove a permissão de leitura dos arquivos do Drive.",
+      );
     throw new Error(failure?.error?.message ?? "O Google não permitiu exportar o PDF.");
   }
   const pdf = new Uint8Array(await exported.arrayBuffer());
@@ -210,9 +215,8 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
   let importedTranscripts = 0;
   let importedTranscriptFiles = 0;
   let transcriptFileError: string | null = null;
-  const canReadMeetFiles = String(connection.granted_scopes ?? "")
-    .split(/\s+/)
-    .includes(meetFilesScope);
+  const grantedScopes = new Set(String(connection.granted_scopes ?? "").split(/\s+/));
+  const canReadMeetFiles = grantedScopes.has(meetFilesScope) || grantedScopes.has(driveReadScope);
   const readyTranscripts = transcripts.filter((item: any) => item.state === "FILE_GENERATED");
   if (readyTranscripts.length) {
     const participants = await listMeetResources(

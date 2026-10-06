@@ -92,6 +92,12 @@ async function edgeFunctionErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Não foi possível sincronizar a ata.";
 }
 
+function meetingArtifactErrorMessage(message: string) {
+  if (message.includes("has not granted the app") && message.includes("read access to the file"))
+    return "O Google não autorizou o TaskFlow a exportar este documento. Reconecte a conta na Agenda e aprove a permissão de leitura dos arquivos do Drive.";
+  return message;
+}
+
 export function MeetingMinutesPanel({
   event,
   clientId,
@@ -189,8 +195,9 @@ export function MeetingMinutesPanel({
           else if (data.importedTranscriptFiles > 0)
             toast.success("Transcrição do Meet guardada no TaskFlow.");
           else if (data.filePath) toast.success("Ata do Gemini importada como PDF.");
-          else if (data.transcriptFileError) toast.error(data.transcriptFileError);
-          else if (data.fileError) toast.error(data.fileError);
+          else if (data.transcriptFileError)
+            toast.error(meetingArtifactErrorMessage(data.transcriptFileError));
+          else if (data.fileError) toast.error(meetingArtifactErrorMessage(data.fileError));
           else if (data.importedTranscripts > 0) toast.success("Transcrição do Meet importada.");
           else if (data.status === "ready") toast.success("Ata da reunião encontrada.");
           else toast.message(data.reason || "A ata ainda não está disponível.");
@@ -392,8 +399,8 @@ export function MeetingMinutesPanel({
         </div>
         {minutes?.status === "ready" && !minutes.file_path && minutes.file_error && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            {minutes.file_error}{" "}
-            {minutes.file_error.includes("Reconecte") && (
+            {meetingArtifactErrorMessage(minutes.file_error)}{" "}
+            {meetingArtifactErrorMessage(minutes.file_error).includes("Reconecte") && (
               <a href="/agenda" className="underline">
                 Abrir Agenda
               </a>
@@ -455,7 +462,7 @@ export function MeetingMinutesPanel({
             </div>
             {!transcript.file_path && transcript.file_error && (
               <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                {transcript.file_error}
+                {meetingArtifactErrorMessage(transcript.file_error)}
               </p>
             )}
           </div>

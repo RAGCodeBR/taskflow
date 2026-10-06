@@ -409,7 +409,7 @@ function AgendaPage() {
           {googleConnection && !hasGoogleMeetFilePermission(googleConnection) && (
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
               Para guardar as atas do Gemini em PDF no TaskFlow, use “Reconectar Google” e autorize
-              os arquivos gerados pelo Meet.
+              a leitura dos arquivos do Drive.
             </p>
           )}
         </div>

@@ -208,7 +208,7 @@ export function hasGoogleMeetFilePermission(
   return Boolean(
     connection?.granted_scopes
       ?.split(/\s+/)
-      .includes("https://www.googleapis.com/auth/drive.meet.readonly"),
+      .includes("https://www.googleapis.com/auth/drive.readonly"),
   );
 }
 

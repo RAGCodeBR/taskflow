@@ -12,6 +12,7 @@ const meetScope = "https://www.googleapis.com/auth/meetings.space.readonly";
 const meetSettingsScope = "https://www.googleapis.com/auth/meetings.space.settings";
 const meetCreatedScope = "https://www.googleapis.com/auth/meetings.space.created";
 const meetFilesScope = "https://www.googleapis.com/auth/drive.meet.readonly";
+const driveReadScope = "https://www.googleapis.com/auth/drive.readonly";
 const identityScopes = "openid email";
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -95,7 +96,7 @@ async function begin(request: Request, body: Record<string, unknown>) {
     client_id: clientId,
     redirect_uri: `${projectUrl}/functions/v1/google-calendar-oauth`,
     response_type: "code",
-    scope: `${identityScopes} ${calendarScope} ${meetScope} ${meetSettingsScope} ${meetCreatedScope} ${meetFilesScope}`,
+    scope: `${identityScopes} ${calendarScope} ${meetScope} ${meetSettingsScope} ${meetCreatedScope} ${meetFilesScope} ${driveReadScope}`,
     access_type: "offline",
     // Force the consent page so old identity-only connections also receive
     // the Calendar permission required by the Agenda.
@@ -168,10 +169,11 @@ async function callback(request: Request) {
     !scopes.includes(meetScope) ||
     !scopes.includes(meetSettingsScope) ||
     !scopes.includes(meetCreatedScope) ||
-    !scopes.includes(meetFilesScope)
+    !scopes.includes(meetFilesScope) ||
+    !scopes.includes(driveReadScope)
   )
     throw new Error(
-      "As permissões do Google Agenda, Google Meet e arquivos do Meet não foram concedidas. Reconecte e aprove o acesso solicitado.",
+      "As permissões do Google Agenda, Google Meet e leitura do Drive não foram concedidas. Reconecte e aprove o acesso solicitado.",
     );
   const { data: previousConnection, error: previousConnectionError } = await admin
     .from("calendar_google_connections")
