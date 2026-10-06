@@ -145,6 +145,9 @@ export function RecurringMeetingDialog({
   const [priority, setPriority] = useState<RecurringMeeting["priority"]>("medium");
   const [columnId, setColumnId] = useState("");
   const [statusId, setStatusId] = useState("");
+  const openStatuses = statuses.filter((status) => !status.is_completed);
+  const selectedColumnId = columnId || columns[0]?.id || "";
+  const selectedStatusId = statusId || openStatuses[0]?.id || "";
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [view, setView] = useState<"meeting" | "import">("meeting");
@@ -547,8 +550,8 @@ export function RecurringMeetingDialog({
       manual_meeting_url:
         addToCalendar && !createGoogleMeet ? manualMeetingUrl.trim() || null : null,
       priority,
-      column_id: columnId || null,
-      status_id: statusId || null,
+      column_id: selectedColumnId || null,
+      status_id: selectedStatusId || null,
       client_id: clientId,
       department_id: null,
       meeting_mode: true,
@@ -1560,15 +1563,11 @@ export function RecurringMeetingDialog({
               </div>
               <div className="space-y-2">
                 <Label>Coluna inicial</Label>
-                <Select
-                  value={columnId || "auto"}
-                  onValueChange={(value) => setColumnId(value === "auto" ? "" : value)}
-                >
+                <Select value={selectedColumnId} onValueChange={setColumnId}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Nenhuma coluna cadastrada" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="auto">Primeira coluna</SelectItem>
                     {columns.map((column) => (
                       <SelectItem key={column.id} value={column.id}>
                         {column.name}
@@ -1579,22 +1578,16 @@ export function RecurringMeetingDialog({
               </div>
               <div className="space-y-2">
                 <Label>Status inicial</Label>
-                <Select
-                  value={statusId || "auto"}
-                  onValueChange={(value) => setStatusId(value === "auto" ? "" : value)}
-                >
+                <Select value={selectedStatusId} onValueChange={setStatusId}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Nenhum status aberto cadastrado" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="auto">Primeiro status aberto</SelectItem>
-                    {statuses
-                      .filter((status) => !status.is_completed)
-                      .map((status) => (
-                        <SelectItem key={status.id} value={status.id}>
-                          {status.name}
-                        </SelectItem>
-                      ))}
+                    {openStatuses.map((status) => (
+                      <SelectItem key={status.id} value={status.id}>
+                        {status.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
