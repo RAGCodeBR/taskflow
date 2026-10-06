@@ -80,6 +80,30 @@ async function meetRequest(token: string, url: string) {
   return data;
 }
 
+async function importGoogleDocPdf(admin: any, token: string, documentId: string, path: string) {
+  const exportUrl = new URL(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(documentId)}/export`,
+  );
+  exportUrl.searchParams.set("mimeType", "application/pdf");
+  const exported = await fetch(exportUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!exported.ok) {
+    const failure = await exported.json().catch(() => null);
+    throw new Error(failure?.error?.message ?? "O Google não permitiu exportar o PDF.");
+  }
+  const pdf = new Uint8Array(await exported.arrayBuffer());
+  if (pdf.byteLength === 0 || pdf.byteLength > 10 * 1024 * 1024)
+    throw new Error("O PDF está vazio ou excede o limite de 10 MB.");
+  if (new TextDecoder().decode(pdf.slice(0, 5)) !== "%PDF-")
+    throw new Error("O Google retornou um arquivo que não é PDF.");
+  const { error } = await admin.storage
+    .from("meeting-artifacts")
+    .upload(path, pdf, { contentType: "application/pdf", upsert: true });
+  if (error) throw error;
+  return pdf.byteLength;
+}
+
 async function listMeetResources(token: string, url: string, field: string): Promise<any[]> {
   const items: any[] = [];
   let pageToken: string | undefined;
@@ -184,6 +208,11 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
     "transcripts",
   );
   let importedTranscripts = 0;
+  let importedTranscriptFiles = 0;
+  let transcriptFileError: string | null = null;
+  const canReadMeetFiles = String(connection.granted_scopes ?? "")
+    .split(/\s+/)
+    .includes(meetFilesScope);
   const readyTranscripts = transcripts.filter((item: any) => item.state === "FILE_GENERATED");
   if (readyTranscripts.length) {
     const participants = await listMeetResources(
@@ -203,7 +232,7 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
     for (const transcript of readyTranscripts) {
       const { data: existing } = await admin
         .from("meeting_transcripts")
-        .select("calendar_event_id")
+        .select("calendar_event_id, file_path, file_name, file_size, content, entry_count, entries")
         .eq("transcript_name", transcript.name)
         .maybeSingle();
       if (existing && existing.calendar_event_id !== eventId)
@@ -232,15 +261,48 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
           return `[${at}] ${entry.participant_name}: ${entry.text}`;
         })
         .join("\n\n");
+      let filePath = existing?.file_path ?? null;
+      let fileName = existing?.file_name ?? null;
+      let fileSize = existing?.file_size ?? null;
+      let fileError: string | null = null;
+      if (!filePath) {
+        const documentId = transcript.docsDestination?.document;
+        if (!documentId) {
+          fileError = "O Google ainda não forneceu o documento da transcrição.";
+        } else if (!canReadMeetFiles) {
+          fileError = "Reconecte o Google na Agenda para importar a transcrição em PDF.";
+        } else {
+          try {
+            const transcriptId = String(transcript.name)
+              .split("/")
+              .pop()!
+              .replace(/[^a-zA-Z0-9_-]/g, "_");
+            const path = `${eventId}/transcricao-${transcriptId}.pdf`;
+            fileSize = await importGoogleDocPdf(admin, token, documentId, path);
+            filePath = path;
+            fileName = `Transcrição do Meet - ${new Date(event.starts_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }).replaceAll("/", "-")}.pdf`;
+            importedTranscriptFiles += 1;
+          } catch (error) {
+            fileError = error instanceof Error ? error.message : "Não foi possível importar o PDF.";
+          }
+        }
+      }
+      if (fileError && !transcriptFileError) transcriptFileError = fileError;
       const { error: transcriptError } = await admin.from("meeting_transcripts").upsert(
         {
           calendar_event_id: eventId,
           conference_record_name: record.name,
           transcript_name: transcript.name,
           google_doc_url: transcript.docsDestination?.exportUri ?? null,
-          entries: normalizedEntries,
-          content,
-          entry_count: normalizedEntries.length,
+          entries: normalizedEntries.length ? normalizedEntries : (existing?.entries ?? []),
+          content: normalizedEntries.length ? content : (existing?.content ?? content),
+          entry_count: normalizedEntries.length
+            ? normalizedEntries.length
+            : (existing?.entry_count ?? 0),
+          file_path: filePath,
+          file_name: fileName,
+          file_size: fileSize,
+          file_error: fileError,
           imported_at: new Date().toISOString(),
         },
         { onConflict: "transcript_name" },
@@ -268,6 +330,8 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
       status: "pending",
       conferenceRecordName: record.name,
       importedTranscripts,
+      importedTranscriptFiles,
+      transcriptFileError,
       transcriptStatus: readyTranscripts.length ? "ready" : "pending",
       reason: "A ata do Gemini ainda está sendo gerada.",
     };
@@ -281,6 +345,8 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
       status: "pending",
       conferenceRecordName: record.name,
       importedTranscripts,
+      importedTranscriptFiles,
+      transcriptFileError,
       transcriptStatus: readyTranscripts.length ? "ready" : "pending",
       reason: "A ata ainda não tem um documento disponível.",
     };
@@ -296,40 +362,14 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
     const documentId = note.docsDestination?.document;
     if (!documentId) {
       fileError = "O Google ainda não forneceu o identificador do documento.";
-    } else if (
-      !String(connection.granted_scopes ?? "")
-        .split(/\s+/)
-        .includes(meetFilesScope)
-    ) {
+    } else if (!canReadMeetFiles) {
       fileError = "Reconecte o Google na Agenda para autorizar a importação do PDF.";
     } else {
       try {
-        const exportUrl = new URL(
-          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(documentId)}/export`,
-        );
-        exportUrl.searchParams.set("mimeType", "application/pdf");
-        const exported = await fetch(exportUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!exported.ok) {
-          const failure = await exported.json().catch(() => null);
-          throw new Error(
-            failure?.error?.message ?? "O Google não permitiu exportar a ata em PDF.",
-          );
-        }
-        const pdf = new Uint8Array(await exported.arrayBuffer());
-        if (pdf.byteLength === 0 || pdf.byteLength > 10 * 1024 * 1024)
-          throw new Error("O PDF está vazio ou excede o limite de 10 MB.");
-        if (new TextDecoder().decode(pdf.slice(0, 5)) !== "%PDF-")
-          throw new Error("O Google retornou um arquivo que não é PDF.");
         const path = `${eventId}/ata-gemini.pdf`;
-        const { error: uploadError } = await admin.storage
-          .from("meeting-artifacts")
-          .upload(path, pdf, { contentType: "application/pdf", upsert: true });
-        if (uploadError) throw uploadError;
+        fileSize = await importGoogleDocPdf(admin, token, documentId, path);
         filePath = path;
         fileName = `Ata do Gemini - ${new Date(event.starts_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }).replaceAll("/", "-")}.pdf`;
-        fileSize = pdf.byteLength;
       } catch (error) {
         fileError = error instanceof Error ? error.message : "Não foi possível importar o PDF.";
       }
@@ -346,6 +386,8 @@ async function syncEvent(auth: any, admin: any, userId: string, eventId: string)
     fileSize,
     fileError,
     importedTranscripts,
+    importedTranscriptFiles,
+    transcriptFileError,
     transcriptStatus: readyTranscripts.length ? "ready" : "pending",
   };
 }

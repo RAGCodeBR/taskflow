@@ -18,6 +18,8 @@ type TranscriptRow = {
   content: string;
   entry_count: number;
   google_doc_url: string | null;
+  file_path: string | null;
+  file_name: string | null;
   imported_at: string;
   calendar_event: {
     id: string;
@@ -65,7 +67,7 @@ async function fetchAllTranscripts(): Promise<TranscriptRow[]> {
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await (supabase.from("meeting_transcripts" as any) as any)
       .select(
-        "id, content, entry_count, google_doc_url, imported_at, calendar_event:calendar_events(id, title, starts_at, recurring_meeting_occurrence_id, deleted_at)",
+        "id, content, entry_count, google_doc_url, file_path, file_name, imported_at, calendar_event:calendar_events(id, title, starts_at, recurring_meeting_occurrence_id, deleted_at)",
       )
       .order("imported_at", { ascending: false })
       .range(offset, offset + pageSize - 1);
@@ -138,8 +140,8 @@ export function MeetingTranscriptsDialog({
         kind: "transcript" as const,
         content: transcript.content,
         entryCount: transcript.entry_count,
-        filePath: null,
-        fileName: null,
+        filePath: transcript.file_path,
+        fileName: transcript.file_name,
         calendar_event: transcript.calendar_event,
       })),
       ...geminiFiles.map((file) => ({
@@ -262,7 +264,8 @@ export function MeetingTranscriptsDialog({
                     ) : (
                       <details>
                         <summary className="cursor-pointer text-sm font-medium">
-                          Transcrição · {transcript.meetingTitle} ·{" "}
+                          Transcrição{transcript.filePath ? " (PDF)" : ""} ·{" "}
+                          {transcript.meetingTitle} ·{" "}
                           {format(new Date(transcript.meetingStartedAt), "dd/MM/yyyy 'às' HH:mm")}
                         </summary>
                         <p className="mt-1 text-xs text-muted-foreground">
@@ -280,7 +283,10 @@ export function MeetingTranscriptsDialog({
                           onClick={() =>
                             void downloadMeetingArtifact(
                               transcript.filePath!,
-                              transcript.fileName || "Ata do Gemini.pdf",
+                              transcript.fileName ||
+                                (transcript.kind === "gemini"
+                                  ? "Ata do Gemini.pdf"
+                                  : "Transcrição do Meet.pdf"),
                             ).catch((error) => toast.error(error.message))
                           }
                         >

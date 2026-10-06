@@ -137,7 +137,9 @@ export function MeetingMinutesPanel({
     queryKey: ["meeting_transcripts", event.id],
     queryFn: async () => {
       const { data, error } = await (supabase.from("meeting_transcripts" as any) as any)
-        .select("id, transcript_name, content, entry_count, google_doc_url, imported_at")
+        .select(
+          "id, transcript_name, content, entry_count, google_doc_url, imported_at, file_path, file_name, file_error",
+        )
         .eq("calendar_event_id", event.id)
         .order("imported_at");
       if (error) throw error;
@@ -148,10 +150,15 @@ export function MeetingMinutesPanel({
         entry_count: number;
         google_doc_url: string | null;
         imported_at: string;
+        file_path: string | null;
+        file_name: string | null;
+        file_error: string | null;
       }>;
     },
     enabled: isMeet,
   });
+  const allTranscriptFilesReady =
+    transcripts.length > 0 && transcripts.every((transcript) => transcript.file_path);
   const started = new Date(event.starts_at).getTime() <= now;
   const syncMinutes = useCallback(
     async (silent = false) => {
@@ -177,7 +184,12 @@ export function MeetingMinutesPanel({
           queryClient.invalidateQueries({ queryKey: ["meeting_minutes", "library"] }),
         ]);
         if (!silent) {
-          if (data.filePath) toast.success("Ata do Gemini importada como PDF.");
+          if (data.filePath && data.importedTranscriptFiles > 0)
+            toast.success("Ata e transcrição importadas como PDF.");
+          else if (data.importedTranscriptFiles > 0)
+            toast.success("Transcrição do Meet importada como PDF.");
+          else if (data.filePath) toast.success("Ata do Gemini importada como PDF.");
+          else if (data.transcriptFileError) toast.error(data.transcriptFileError);
           else if (data.fileError) toast.error(data.fileError);
           else if (data.importedTranscripts > 0) toast.success("Transcrição do Meet importada.");
           else if (data.status === "ready") toast.success("Ata da reunião encontrada.");
@@ -210,7 +222,7 @@ export function MeetingMinutesPanel({
       !googleConnection?.granted_scopes
         ?.split(/\s+/)
         .includes("https://www.googleapis.com/auth/meetings.space.readonly") ||
-      (minutes?.status === "ready" && transcripts.length > 0 && minutes.file_path)
+      (minutes?.status === "ready" && allTranscriptFilesReady && minutes.file_path)
     )
       return;
     if (automaticAttempt.current === event.id) return;
@@ -228,7 +240,7 @@ export function MeetingMinutesPanel({
     minutes?.status,
     minutes?.file_path,
     syncMinutes,
-    transcripts.length,
+    allTranscriptFilesReady,
   ]);
 
   useEffect(() => {
@@ -240,7 +252,7 @@ export function MeetingMinutesPanel({
       !googleConnection?.granted_scopes
         ?.split(/\s+/)
         .includes("https://www.googleapis.com/auth/meetings.space.readonly") ||
-      (minutes?.status === "ready" && transcripts.length > 0 && minutes.file_path) ||
+      (minutes?.status === "ready" && allTranscriptFilesReady && minutes.file_path) ||
       Date.now() > new Date(event.ends_at).getTime() + 6 * 60 * 60 * 1000
     )
       return;
@@ -259,7 +271,7 @@ export function MeetingMinutesPanel({
     readOnly,
     started,
     syncMinutes,
-    transcripts.length,
+    allTranscriptFilesReady,
   ]);
 
   const generateReview = async (transcript: (typeof transcripts)[number]) => {
@@ -399,6 +411,20 @@ export function MeetingMinutesPanel({
               </div>
             </details>
             <div className="mt-2 flex flex-wrap gap-2">
+              {transcript.file_path && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    void downloadMeetingArtifact(
+                      transcript.file_path!,
+                      transcript.file_name || `Transcrição ${index + 1}.pdf`,
+                    ).catch((error) => toast.error(error.message))
+                  }
+                >
+                  <Download className="mr-1 h-3.5 w-3.5" /> Baixar PDF
+                </Button>
+              )}
               {transcript.content && (
                 <Button
                   size="sm"
@@ -425,6 +451,11 @@ export function MeetingMinutesPanel({
                   </Button>
                 )}
             </div>
+            {!transcript.file_path && transcript.file_error && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                {transcript.file_error}
+              </p>
+            )}
           </div>
         ))}
         {reviewTranscriptId && (
