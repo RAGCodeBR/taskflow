@@ -403,7 +403,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <RecurringMeetingReminderPopup />
       <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:pt-0 pt-12">
-        <div className="hidden md:flex sticky top-0 z-30 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
+        <div className="hidden md:flex sticky top-0 z-40 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
           <UpdateCenter />
           {canSwitchEnvironments && workspaces.length > 1 && (
             <Button

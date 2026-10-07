@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldLinks } from "@/components/LinkedText";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
@@ -275,6 +276,7 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
                 placeholder="Ex.: Entregar relatório mensal"
                 autoFocus
               />
+              <FieldLinks value={title} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -416,6 +418,7 @@ export function ObligationDialog({ open, onOpenChange, obligation }: ObligationD
                 rows={3}
                 placeholder="Documentos necessários, forma de entrega, conferências..."
               />
+              <FieldLinks value={description} />
             </div>
           </section>
 

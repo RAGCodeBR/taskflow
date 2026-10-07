@@ -318,3 +318,40 @@
 .tiptap-wrapper button {
   cursor: pointer;
 }
+
+/* A mesma indicação de clique nos controles dos dois ambientes. */
+:is(
+    a[href],
+    button,
+    summary,
+    select,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"],
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="file"],
+    input[type="color"],
+    [role="button"],
+    [role="link"],
+    [role="tab"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"],
+    [role="option"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"]
+  ):not(:disabled):not([aria-disabled="true"]):not([data-disabled]):not(.cursor-grab):not(
+    .cursor-grabbing
+  ) {
+  cursor: pointer;
+}
+
+.tiptap:not([contenteditable="true"]) {
+  cursor: inherit;
+}
+
+.tiptap-wrapper :is(button, a[href]):not(:disabled):not([aria-disabled="true"]) * {
+  cursor: pointer;
+}

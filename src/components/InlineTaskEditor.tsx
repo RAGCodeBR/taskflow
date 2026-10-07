@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldLinks } from "@/components/LinkedText";
 import { useAuth } from "@/hooks/use-auth";
 import { useAssignableProfiles, type Client, type KanbanColumn, type Profile, type Task, type TaskTag } from "@/hooks/use-data";
 import { supabase } from "@/integrations/supabase/client";
@@ -403,6 +404,7 @@ export function InlineTaskEditor({
               className="mt-1 min-h-[54px] resize-none overflow-hidden text-sm font-medium leading-snug [overflow-wrap:anywhere]"
               autoFocus={!compact}
             />
+            <FieldLinks value={form.title} />
           </div>
 
           <div>
@@ -414,6 +416,7 @@ export function InlineTaskEditor({
               placeholder="Observações da tarefa"
               className="mt-1 min-h-[88px] resize-y text-xs leading-relaxed [overflow-wrap:anywhere]"
             />
+            <FieldLinks value={form.description} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">

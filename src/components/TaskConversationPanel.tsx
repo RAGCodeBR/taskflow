@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { enqueueOfflineOperation, isNetworkFailure, isOffline } from "@/lib/offline-sync";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import { CommentAttachments } from "@/components/CommentAttachments";
+import { FieldLinks, LinkedText } from "@/components/LinkedText";
 
 type Comment = {
   id: string;
@@ -873,7 +874,7 @@ export function TaskConversationPanel({
           {part}
         </span>
       ) : (
-        part
+        <LinkedText key={index} text={part} className={ownBubble ? "text-inherit" : "text-primary"} />
       ),
     );
   };
@@ -1013,6 +1014,7 @@ export function TaskConversationPanel({
                       }}
                       className="bg-background text-foreground"
                     />
+                    <FieldLinks value={editDraft} />
                     <div className="flex justify-end gap-1.5">
                       <Button
                         size="sm"
@@ -1214,6 +1216,7 @@ export function TaskConversationPanel({
               }
             }}
           />
+          <FieldLinks value={message} />
           {mentionCandidates.length > 0 && (
             <div className="scrollbar-thin absolute bottom-[calc(100%+4px)] left-3 z-10 max-h-52 w-64 overflow-y-auto overscroll-contain rounded-md border bg-popover p-1 shadow-md">
               {mentionCandidates.map((profile) => (

@@ -3,6 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldLinks } from "@/components/LinkedText";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, Paperclip, FileText, Link2, ChevronDown, ChevronRight, Check, Loader2, ExternalLink } from "lucide-react";
@@ -371,6 +372,7 @@ function NoteCard({
 
       {expanded && (
         <div className="space-y-3 border-t px-3 pb-3 pt-2">
+          <FieldLinks value={title} />
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
@@ -378,6 +380,7 @@ function NoteCard({
             placeholder="Escreva aqui informações, contexto, lembretes…"
             className="min-h-[120px] resize-y text-sm"
           />
+          <FieldLinks value={content} />
 
           <FileDropZone
             onFiles={(files) => void onFiles(files)}

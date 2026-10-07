@@ -26,6 +26,8 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { plainTextForClipboard } from "@/lib/rich-text-clipboard";
+import { linkifyTextNodes } from "@/lib/text-links";
+import { FieldLinks } from "@/components/LinkedText";
 
 const UnderlineMark = Mark.create({
   name: "underline",
@@ -405,10 +407,15 @@ export function RichTextEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [2, 3] } }),
+      StarterKit.configure({ heading: { levels: [2, 3] }, link: false, underline: false }),
       UnderlineMark,
       TaskImage,
-      Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { class: "underline text-primary" } }),
+      Link.configure({
+        openOnClick: true,
+        autolink: true,
+        defaultProtocol: "https",
+        HTMLAttributes: { class: "cursor-pointer underline text-primary", target: "_blank", rel: "noopener noreferrer" },
+      }),
       Highlight.configure({ multicolor: true }),
     ],
     content: value || "",
@@ -598,6 +605,9 @@ export function RichTextEditor({
       >
         <EditorContent editor={editor} />
       </div>
+      <div className="px-2 empty:hidden">
+        <FieldLinks value={editor.getText()} />
+      </div>
       {copyable ? <CopyButton editor={editor} /> : null}
     </div>
   );
@@ -632,6 +642,21 @@ export function RichTextView({
   }
   renderedHtml = stripStoredPrintImages(renderedHtml);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (contentRef.current) linkifyTextNodes(contentRef.current);
+    // React can reapply dangerouslySetInnerHTML when the card refreshes even
+    // when the stored text is unchanged. Reapply the idempotent transformation
+    // after each render so generated links remain clickable.
+  });
+
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target instanceof Element && event.target.closest("a[href]")) {
+      event.stopPropagation();
+      return;
+    }
+    onClick?.(event);
+  };
 
   const handleCopy = (event: React.ClipboardEvent<HTMLDivElement>) => {
     const selection = window.getSelection();
@@ -691,10 +716,10 @@ export function RichTextView({
     return (
       <div
         ref={contentRef}
-        onClick={onClick}
+        onClick={handleClick}
         onCopy={handleCopy}
         className={cn(
-          "text-xs leading-snug [overflow-wrap:anywhere] [&_strong]:font-bold [&_em]:italic [&_u]:underline",
+          "text-xs leading-snug [overflow-wrap:anywhere] [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_a]:cursor-pointer [&_a]:underline [&_a]:text-primary",
           className,
         )}
         dangerouslySetInnerHTML={{ __html: formattedHtml }}
@@ -704,7 +729,7 @@ export function RichTextView({
   return (
     <div
       ref={contentRef}
-      onClick={onClick}
+      onClick={handleClick}
       onCopy={handleCopy}
       className={cn(
         "tiptap prose prose-sm dark:prose-invert max-w-none text-xs leading-snug [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_h2]:text-sm [&_h3]:text-xs [&_a]:underline [&_a]:text-primary [&_u]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_img]:my-3 [&_img]:block [&_img]:max-h-56 [&_img]:max-w-[80%] [&_img]:rounded-lg [&_img]:border [&_img]:bg-muted [&_img]:p-1 [&_img]:shadow-sm",

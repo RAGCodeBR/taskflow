@@ -27,6 +27,7 @@ import {
   type Profile,
 } from "@/hooks/use-data";
 import { TaskConversationPanel } from "@/components/TaskConversationPanel";
+import { FieldLinks } from "@/components/LinkedText";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useMarkConversationRead,
@@ -580,6 +581,7 @@ function ConversationsPage() {
                   >
                     {selected.title}
                   </button>
+                  <FieldLinks value={selected.title} />
                   {selectedClientName && (
                     <span className="block truncate text-xs font-medium text-primary/80">
                       Cliente: {selectedClientName}

@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useClients, useProfiles } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldLinks } from "@/components/LinkedText";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -989,6 +990,7 @@ function NoteEditor({
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
+            <FieldLinks value={title} />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -1020,6 +1022,7 @@ function NoteEditor({
             className="prose prose-sm dark:prose-invert min-h-[360px] max-w-none rounded-md border border-dashed bg-background p-5 text-base leading-relaxed outline-none transition focus:border-primary focus:bg-card focus:shadow-lg focus:ring-2 focus:ring-primary/30"
             data-placeholder="Escreva sua anotação aqui… (use o botão Salvar para registrar as alterações)"
           />
+          <FieldLinks value={note.content} />
 
           {/* Anexos */}
           <FileDropZone
@@ -1136,6 +1139,8 @@ function NoteEditor({
             className="prose dark:prose-invert min-h-0 flex-1 max-w-none overflow-y-auto rounded-md border bg-background p-8 text-lg leading-relaxed outline-none focus:ring-2 focus:ring-primary/30"
             data-placeholder="Modo foco — escreva à vontade…"
           />
+          <FieldLinks value={title} />
+          <FieldLinks value={note.content} />
         </DialogContent>
       </Dialog>
     </>

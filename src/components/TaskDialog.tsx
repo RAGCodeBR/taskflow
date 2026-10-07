@@ -60,6 +60,7 @@ import {
   syncTaskAttachmentToClient,
 } from "@/lib/sync-task-attachment-to-client";
 import { RichTextEditor, type PastedEditorImage } from "@/components/RichTextEditor";
+import { FieldLinks, LinkedText } from "@/components/LinkedText";
 import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
 import {
   createSubtaskWithOfflineSupport,
@@ -1459,6 +1460,7 @@ export function TaskDialog({
               placeholder="O que precisa ser feito?"
               className="h-11 text-base"
             />
+            <FieldLinks value={title} />
           </div>
 
           {!task && isAdmin && workspaces.length > 1 ? (
@@ -1599,6 +1601,7 @@ export function TaskDialog({
                     placeholder="Explique o motivo da alteração"
                     className="min-h-16 text-xs"
                   />
+                  <FieldLinks value={dueDateChangeReason} />
                 </div>
               )}
             </div>
@@ -1872,14 +1875,21 @@ export function TaskDialog({
                             className="h-7 flex-1 text-sm"
                           />
                         ) : (
-                          <button
-                            type="button"
+                          <div
+                            role="button"
+                            tabIndex={0}
                             onClick={() => startEditingSubtaskTitle(s)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                startEditingSubtaskTitle(s);
+                              }
+                            }}
                             className={`min-w-0 flex-1 truncate text-left text-sm hover:text-primary ${s.done ? "line-through text-muted-foreground" : ""}`}
                             title={`${s.title} — clique para editar`}
                           >
-                            {s.title}
-                          </button>
+                            <LinkedText text={s.title} />
+                          </div>
                         )}
                         {editingSubtaskId !== s.id && (
                           <Button
@@ -1976,7 +1986,7 @@ export function TaskDialog({
                                     ? format(new Date(h.new_due_date), "dd/MM/yyyy")
                                     : "sem prazo"}
                                 </span>
-                                {h.reason ? <> — {h.reason}</> : null}
+                                {h.reason ? <> — <LinkedText text={h.reason} /></> : null}
                                 <span className="ml-2 opacity-60">
                                   {format(new Date(h.created_at), "dd/MM/yyyy")}
                                 </span>
@@ -2031,6 +2041,7 @@ export function TaskDialog({
                               placeholder="Notas desta subtarefa"
                               className="text-xs"
                             />
+                            <FieldLinks value={s.notes} />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px] text-muted-foreground">Arquivos</Label>
@@ -2315,6 +2326,7 @@ export function TaskDialog({
                   rows={3}
                   autoFocus
                 />
+                <FieldLinks value={subDueReason.reason} />
               </div>
             </div>
             <DialogFooter>

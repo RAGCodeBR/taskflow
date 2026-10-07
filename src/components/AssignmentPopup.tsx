@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { priorityLabels, priorityColors } from "@/lib/task-utils";
 import { RichTextView } from "@/components/RichTextEditor";
+import { LinkedText } from "@/components/LinkedText";
 
 interface AssignmentNotification {
   id: string;
@@ -170,11 +171,11 @@ export function AssignmentPopup() {
           </DialogTitle>
         </DialogHeader>
         {current.body && (
-          <p className="text-sm text-muted-foreground">{current.body}</p>
+          <p className="text-sm text-muted-foreground"><LinkedText text={current.body} /></p>
         )}
         {preview && (
           <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
-            <p className="font-medium">{preview.title}</p>
+            <p className="font-medium"><LinkedText text={preview.title} /></p>
             {preview.description && (
               <RichTextView html={preview.description} className="line-clamp-3 text-xs text-muted-foreground" />
             )}

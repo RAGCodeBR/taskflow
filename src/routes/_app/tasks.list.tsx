@@ -30,6 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
 import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
+import { LinkedText } from "@/components/LinkedText";
 
 export const Route = createFileRoute("/_app/tasks/list")({
   component: ListPage,
@@ -348,7 +349,7 @@ function ListPage() {
                     setOpen(true);
                   }}
                 >
-                  <td className="border-r px-2 py-2 font-medium"><span className="block truncate">{t.title}</span></td>
+                  <td className="border-r px-2 py-2 font-medium"><span className="block truncate"><LinkedText text={t.title} /></span></td>
                   <td className="border-r px-2 py-2">
                     {client ? (
                       <Badge variant="outline" style={{ borderColor: client.color ?? undefined }}>

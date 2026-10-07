@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldLinks } from "@/components/LinkedText";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAssignableProfiles } from "@/hooks/use-data";
@@ -202,6 +203,7 @@ export function SubtaskDialog({
               placeholder="Descreva a subtarefa"
               autoFocus
             />
+            <FieldLinks value={title} />
           </div>
 
           <div className="grid gap-4 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2">
@@ -242,6 +244,7 @@ export function SubtaskDialog({
                   placeholder="Explique o motivo da alteração"
                   rows={3}
                 />
+                <FieldLinks value={dueDateReason} />
               </div>
             )}
             {subtask && (
@@ -266,6 +269,7 @@ export function SubtaskDialog({
               placeholder="Descreva a subtarefa..."
               rows={6}
             />
+            <FieldLinks value={notes} />
           </div>
         </div>
 

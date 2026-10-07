@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldLinks, LinkedText } from "@/components/LinkedText";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -574,15 +575,23 @@ function RequestsPage() {
                   <span>Última atualização</span>
                 </div>
                 {filtered.map((request) => (
-                  <button
+                  <div
                     key={request.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedId(request.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedId(request.id);
+                      }
+                    }}
                     className="grid w-full gap-3 px-4 py-3 text-left transition odd:bg-emerald-500/[0.035] hover:bg-muted/55 md:grid-cols-[minmax(0,1fr)_270px_210px_120px] md:items-center"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">
                         <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
-                        {request.title}
+                        <LinkedText text={request.title} />
                       </p>
                       <p className="mt-1 truncate text-xs text-primary/80">
                         {clients.find((client) => client.id === request.client_id)?.name ||
@@ -590,7 +599,7 @@ function RequestsPage() {
                       </p>
                       {request.description && (
                         <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                          {request.description}
+                          <LinkedText text={request.description} />
                         </p>
                       )}
                     </div>
@@ -615,7 +624,7 @@ function RequestsPage() {
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(request.updated_at), "dd/MM/yyyy")}
                     </span>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -637,7 +646,7 @@ function RequestsPage() {
                       Voltar para a lista
                     </Button>
                     <h2 className="max-w-3xl text-lg font-semibold leading-tight">
-                      {selected.title}
+                      <LinkedText text={selected.title} />
                     </h2>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <StatusBadge status={selected.status} />
@@ -647,7 +656,7 @@ function RequestsPage() {
                       </span>
                     </div>
                     <p className="mt-3 max-w-3xl text-sm text-muted-foreground">
-                      {selected.description || "Sem descrição."}
+                      <LinkedText text={selected.description || "Sem descrição."} />
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -738,10 +747,10 @@ function RequestsPage() {
                                         {part}
                                       </span>
                                     ) : (
-                                      part
+                                      <LinkedText key={index} text={part} />
                                     ),
                                   )
-                              : entry.item.body}
+                              : <LinkedText text={entry.item.body} />}
                           </p>
                         </div>
                       </div>
@@ -764,6 +773,7 @@ function RequestsPage() {
                       placeholder="Adicione uma mensagem… Use @ para mencionar usuários."
                       rows={2}
                     />
+                    <FieldLinks value={message} />
                     {mentionCandidates.length > 0 && (
                       <div className="absolute bottom-[calc(100%+6px)] left-0 z-20 w-full max-w-sm overflow-hidden rounded-lg border bg-popover p-1 shadow-lg">
                         <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
@@ -1000,6 +1010,7 @@ function RequestsPage() {
                 onChange={(event) => setForm({ ...form, title: event.target.value })}
                 placeholder="Ex.: Documentos para cadastro"
               />
+              <FieldLinks value={form.title} />
             </div>
             <div>
               <Label>Descrição</Label>
@@ -1008,6 +1019,7 @@ function RequestsPage() {
                 onChange={(event) => setForm({ ...form, description: event.target.value })}
                 placeholder="Explique o que precisa ser resolvido."
               />
+              <FieldLinks value={form.description} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

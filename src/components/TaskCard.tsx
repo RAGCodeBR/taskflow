@@ -61,6 +61,7 @@ import {
 } from "@/lib/sync-task-attachment-to-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
+import { FieldLinks, LinkedText } from "@/components/LinkedText";
 import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
 import { CommentAttachments } from "@/components/CommentAttachments";
 import { supabase } from "@/integrations/supabase/client";
@@ -1163,17 +1164,25 @@ export function TaskCard({
           <Users className="h-3 w-3 shrink-0" />
           <span className="truncate">{client?.name || "Sem cliente"}</span>
         </div>
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           onPointerDown={stop}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              event.stopPropagation();
+              onEdit?.();
+            }
+          }}
           onClick={(event) => {
             stop(event);
             onEdit?.();
           }}
           className="min-h-0 flex-1 px-2 py-1.5 text-left text-sm font-medium leading-snug [overflow-wrap:anywhere] hover:text-primary"
         >
-          {task.title || <span className="text-muted-foreground">Sem título</span>}
-        </button>
+          {task.title ? <LinkedText text={task.title} /> : <span className="text-muted-foreground">Sem título</span>}
+        </div>
         <div className="flex items-center gap-1 border-t px-1.5 py-1">
           <Button
             size="icon"
@@ -1404,17 +1413,25 @@ export function TaskCard({
                   className="min-h-[28px] resize-none border-none bg-transparent p-0 text-sm font-medium leading-snug shadow-none focus-visible:ring-0 md:text-sm"
                 />
               ) : (
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onPointerDown={stop}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setTitleEditing(true);
+                    }
+                  }}
                   onClick={(e) => {
                     stop(e);
                     setTitleEditing(true);
                   }}
                   className="min-w-0 flex-1 text-left text-sm font-medium leading-snug [overflow-wrap:anywhere] hover:text-primary"
                 >
-                  {task.title || <span className="text-muted-foreground">Sem título</span>}
-                </button>
+                  {task.title ? <LinkedText text={task.title} /> : <span className="text-muted-foreground">Sem título</span>}
+                </div>
               )}
               <Button
                 size="icon"
@@ -1547,7 +1564,7 @@ export function TaskCard({
                         stop(e);
                         setDescEditing(true);
                       }}
-                      className="cursor-text whitespace-pre-wrap rounded text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere] hover:bg-muted/40"
+                      className="cursor-pointer whitespace-pre-wrap rounded text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere] hover:bg-muted/40"
                       style={{
                         maxHeight: descriptionExpanded
                           ? "min(18rem, max(8rem, calc(100vh - 22rem)))"
@@ -1700,7 +1717,7 @@ export function TaskCard({
                                             startEditSubtask(s);
                                           }}
                                           className={cn(
-                                            "min-w-0 flex-1 cursor-text break-words text-left hover:text-primary",
+                                            "min-w-0 flex-1 cursor-pointer break-words text-left hover:text-primary",
                                             s.done && "text-muted-foreground line-through",
                                           )}
                                         >
@@ -2354,6 +2371,7 @@ export function TaskCard({
               placeholder="Justificativa obrigatória"
               className="min-h-[80px] text-sm"
             />
+            <FieldLinks value={dueChange.reason} />
           </div>
           <DialogFooter className="gap-2">
             <Button
@@ -2414,6 +2432,7 @@ export function TaskCard({
               placeholder="Justificativa obrigatória — aparece no relatório do cliente"
               className="min-h-[80px] text-sm"
             />
+            <FieldLinks value={subDueReason.reason} />
           </div>
           <DialogFooter className="gap-2">
             <Button
@@ -2488,7 +2507,7 @@ export function TaskCard({
                   <p className="mt-1">
                     <span className="text-muted-foreground">Motivo: </span>
                     {h.reason ? (
-                      <span>{h.reason}</span>
+                      <span><LinkedText text={h.reason} /></span>
                     ) : (
                       <em className="text-muted-foreground">não justificado</em>
                     )}

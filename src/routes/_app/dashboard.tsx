@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RichTextView } from "@/components/RichTextEditor";
+import { LinkedText } from "@/components/LinkedText";
 import {
   Dialog,
   DialogContent,
@@ -130,7 +131,7 @@ function TaskPreviewDialog({
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader className="border-b pb-4 pr-7">
           <div className="flex flex-wrap items-start gap-2">
-            <DialogTitle className="mr-auto text-xl leading-snug">{task.title}</DialogTitle>
+            <DialogTitle className="mr-auto text-xl leading-snug"><LinkedText text={task.title} /></DialogTitle>
             {task.priority && (
               <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
                 {priorityLabels[task.priority]}
@@ -220,7 +221,7 @@ function TaskPreviewDialog({
                         subtask.done ? "text-muted-foreground line-through" : ""
                       }`}
                     >
-                      {subtask.title}
+                      <LinkedText text={subtask.title} />
                     </span>
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${SUBTASK_BADGE[situacao]}`}

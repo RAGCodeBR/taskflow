@@ -15,7 +15,7 @@ import {
   subWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Plus } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   useTasks,
@@ -27,7 +27,6 @@ import {
   useTaskStatuses,
   type Task,
   type Profile,
-  type Subtask,
 } from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
@@ -172,21 +171,6 @@ function CalendarPage() {
     ],
   );
 
-  const visibleTaskById = useMemo(
-    () => new Map(visible.map((task) => [task.id, task])),
-    [visible],
-  );
-
-  // A tarefa só aparece no prazo dela. Subtarefas são itens próprios do
-  // calendário, exibidos apenas na data em que foram previstas.
-  const calendarSubtasks = useMemo(
-    () =>
-      subtasks.filter(
-        (subtask) => Boolean(subtask.due_date) && visibleTaskById.has(subtask.task_id),
-      ),
-    [subtasks, visibleTaskById],
-  );
-
   const stageNameByTaskId = useMemo(() => {
     const columnsById = new Map(columns.map((column) => [column.id, column]));
     const statusesById = new Map(statuses.map((status) => [status.id, status]));
@@ -213,18 +197,10 @@ function CalendarPage() {
     [clients],
   );
 
-  const dayEntries = (day: Date): CalendarEntry[] => [
-    ...visible
-      .filter((task) => task.due_date && isSameDay(new Date(task.due_date), day))
-      .map((task) => ({ kind: "task" as const, task })),
-    ...calendarSubtasks
-      .filter((subtask) => subtask.due_date && isSameDay(new Date(subtask.due_date), day))
-      .map((subtask) => ({
-        kind: "subtask" as const,
-        task: visibleTaskById.get(subtask.task_id)!,
-        subtask,
-      })),
-  ];
+  // Somente tarefas principais entram no calendário, no próprio prazo.
+  // Subtarefas continuam participando dos filtros e dos detalhes da tarefa.
+  const dayEntries = (day: Date) =>
+    visible.filter((task) => task.due_date && isSameDay(new Date(task.due_date), day));
 
   const selectedDayEntries = selectedDay ? dayEntries(selectedDay) : [];
 
@@ -307,30 +283,23 @@ function CalendarPage() {
                   {format(day, "d")}
                 </div>
                 <div className="space-y-1">
-                  {entries.slice(0, 3).map((entry) => {
-                    const status = statusById.get(entry.task.status_id ?? "");
-                    const assignee = profileById.get(entry.task.assignee_id ?? "") ?? null;
-                    const clientColor = clientById.get(entry.task.client_id ?? "")?.color || "#475569";
+                  {entries.slice(0, 3).map((task) => {
+                    const status = statusById.get(task.status_id ?? "");
+                    const assignee = profileById.get(task.assignee_id ?? "") ?? null;
+                    const clientColor = clientById.get(task.client_id ?? "")?.color || "#475569";
                     const onClick = () => {
-                      setEdit(entry.task);
+                      setEdit(task);
                       setOpen(true);
                     };
-                    return entry.kind === "task" ? (
+                    return (
                       <CalendarTaskItem
-                        key={`task-${entry.task.id}`}
-                        task={entry.task}
+                        key={task.id}
+                        task={task}
                         assignee={assignee}
-                        statusName={status?.name ?? stageNameByTaskId.get(entry.task.id) ?? "A fazer"}
-                        completed={entry.task.status === "done" || Boolean(status?.is_completed)}
+                        statusName={status?.name ?? stageNameByTaskId.get(task.id) ?? "A fazer"}
+                        completed={task.status === "done" || Boolean(status?.is_completed)}
                         statusColor={status?.color || "#64748b"}
                         backgroundColor={clientColor}
-                        onClick={onClick}
-                      />
-                    ) : (
-                      <CalendarSubtaskItem
-                        key={`subtask-${entry.subtask.id}`}
-                        task={entry.task}
-                        subtask={entry.subtask}
                         onClick={onClick}
                       />
                     );
@@ -360,37 +329,29 @@ function CalendarPage() {
               Tarefas de {selectedDay ? format(selectedDay, "d 'de' MMMM", { locale: ptBR }) : ""}
             </DialogTitle>
             <DialogDescription>
-              {selectedDayEntries.length} item{selectedDayEntries.length === 1 ? "" : "ns"} neste dia.
+              {selectedDayEntries.length} tarefa{selectedDayEntries.length === 1 ? "" : "s"} neste dia.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
-            {selectedDayEntries.map((entry) => {
-              const status = statusById.get(entry.task.status_id ?? "");
-              const assignee = profileById.get(entry.task.assignee_id ?? "") ?? null;
+            {selectedDayEntries.map((task) => {
+              const status = statusById.get(task.status_id ?? "");
+              const assignee = profileById.get(task.assignee_id ?? "") ?? null;
               const clientColor =
-                clientById.get(entry.task.client_id ?? "")?.color || "#475569";
+                clientById.get(task.client_id ?? "")?.color || "#475569";
               const onClick = () => {
                 setDayListOpen(false);
-                setEdit(entry.task);
+                setEdit(task);
                 setOpen(true);
               };
-              return entry.kind === "task" ? (
+              return (
                 <CalendarTaskItem
-                  key={`task-${entry.task.id}`}
-                  task={entry.task}
+                  key={task.id}
+                  task={task}
                   assignee={assignee}
-                  statusName={status?.name ?? stageNameByTaskId.get(entry.task.id) ?? "A fazer"}
-                  completed={entry.task.status === "done" || Boolean(status?.is_completed)}
+                  statusName={status?.name ?? stageNameByTaskId.get(task.id) ?? "A fazer"}
+                  completed={task.status === "done" || Boolean(status?.is_completed)}
                   statusColor={status?.color || "#64748b"}
                   backgroundColor={clientColor}
-                  expanded
-                  onClick={onClick}
-                />
-              ) : (
-                <CalendarSubtaskItem
-                  key={`subtask-${entry.subtask.id}`}
-                  task={entry.task}
-                  subtask={entry.subtask}
                   expanded
                   onClick={onClick}
                 />
@@ -412,47 +373,6 @@ function readableTextColor(color: string) {
   const blue = Number.parseInt(hex.slice(4, 6), 16);
   const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
   return luminance > 155 ? "#172033" : "#ffffff";
-}
-
-type CalendarEntry =
-  | { kind: "task"; task: Task }
-  | { kind: "subtask"; task: Task; subtask: Subtask };
-
-function CalendarSubtaskItem({
-  task,
-  subtask,
-  expanded = false,
-  onClick,
-}: {
-  task: Task;
-  subtask: Subtask;
-  expanded?: boolean;
-  onClick: () => void;
-}) {
-  const completed = subtask.done;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full min-w-0 items-center gap-1.5 rounded-md border border-dashed text-left transition hover:bg-muted/80 ${
-        expanded ? "px-2 py-2" : "px-1 py-1"
-      } ${completed ? "border-emerald-300 bg-emerald-50/80 text-emerald-800" : "border-slate-300 bg-slate-50 text-slate-700"}`}
-      title={`Subtarefa ${completed ? "concluída" : "pendente"}: ${subtask.title} · ${task.title}`}
-    >
-      {completed ? (
-        <CheckCircle2 className={`${expanded ? "h-4 w-4" : "h-3.5 w-3.5"} shrink-0 text-emerald-600`} aria-label="Subtarefa concluída" />
-      ) : (
-        <Circle className={`${expanded ? "h-4 w-4" : "h-3.5 w-3.5"} shrink-0 text-slate-400`} aria-label="Subtarefa pendente" />
-      )}
-      <span className={`min-w-0 flex-1 truncate font-medium ${expanded ? "text-sm" : "text-[11px]"} ${completed ? "line-through opacity-75" : ""}`}>
-        {subtask.title}
-      </span>
-      {expanded ? (
-        <span className="min-w-0 shrink truncate text-xs text-muted-foreground">{task.title}</span>
-      ) : null}
-    </button>
-  );
 }
 
 function CalendarTaskItem({

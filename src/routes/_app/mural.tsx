@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { LinkedText } from "@/components/LinkedText";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -1247,7 +1248,7 @@ function MuralPage() {
                     <p
                       className={`whitespace-pre-wrap leading-relaxed opacity-85 ${post.is_pinned ? "mt-2" : "mt-3"} ${post.card_size === "large" ? "text-base" : "text-sm"}`}
                     >
-                      {post.content}
+                      <LinkedText text={post.content} />
                     </p>
                   )}
                   {post.checklist.length > 0 && (
