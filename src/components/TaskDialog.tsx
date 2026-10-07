@@ -23,7 +23,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useAssignableProfiles,
@@ -53,6 +52,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
+import { TaskConversationPanel } from "@/components/TaskConversationPanel";
 import { FileDropZone } from "@/components/FileDropZone";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import {
@@ -171,7 +171,6 @@ export function TaskDialog({
   recurringMeetingAgendaItemId,
   defaults,
 }: Props) {
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, profile, isAdmin, activeWorkspace, workspaces } = useAuth();
   const { data: cols } = useColumns();
@@ -231,6 +230,9 @@ export function TaskDialog({
   const [dueDateChangeReason, setDueDateChangeReason] = useState("");
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
+  const [isDraft, setIsDraft] = useState(false);
+  const [activeTab, setActiveTab] = useState("subtasks");
+  const conversationSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtask, setNewSubtask] = useState("");
@@ -329,11 +331,13 @@ export function TaskDialog({
 
   useEffect(() => {
     if (!open) return;
+    setActiveTab("subtasks");
     setClientPickerOpen(false);
     setClientSearch("");
     setEditingSubtaskId(null);
     setSubtaskTitleDraft("");
     if (task) {
+      setIsDraft(Boolean(task.is_draft));
       setTitle(task.title);
       setDescription(stripDescriptionPrintImages(task.description ?? ""));
       setStatus(task.status === "done" || task.completed_at ? "done" : (task.status ?? "todo"));
@@ -357,6 +361,7 @@ export function TaskDialog({
       setPendingDescriptionImages([]);
       loadRelated(task.id);
     } else {
+      setIsDraft(false);
       setTitle(defaults?.title ?? "");
       setDescription(defaults?.description ?? "");
       setStatus("todo");
@@ -395,6 +400,14 @@ export function TaskDialog({
     defaults?.dueDate,
     defaults?.dueTime,
   ]);
+
+  useEffect(() => {
+    if (!open || activeTab !== "comments" || !currentTaskId) return;
+    const frame = requestAnimationFrame(() =>
+      conversationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [open, activeTab, currentTaskId]);
 
   const loadRelated = async (taskId: string) => {
     const [s, c, a] = await Promise.all([
@@ -505,9 +518,9 @@ export function TaskDialog({
     );
   };
 
-  const syncCollaborators = async (taskId: string) => {
+  const syncCollaborators = async (taskId: string, client: typeof supabase = supabase) => {
     if (!canManageCollaborators) return;
-    const { data, error: loadError } = await (supabase.from("task_collaborators") as any)
+    const { data, error: loadError } = await (client.from("task_collaborators") as any)
       .select("collaborator_id")
       .eq("task_id", taskId);
     if (loadError) throw loadError;
@@ -520,21 +533,25 @@ export function TaskDialog({
     const addedIds = [...wantedIds].filter((collaboratorId) => !existingIds.has(collaboratorId));
 
     if (removedIds.length > 0) {
-      const { error: deleteError } = await (supabase.from("task_collaborators") as any)
+      const { error: deleteError } = await (client.from("task_collaborators") as any)
         .delete()
         .eq("task_id", taskId)
         .in("collaborator_id", removedIds);
       if (deleteError) throw deleteError;
     }
-    if (addedIds.length === 0) return;
-    const { error: insertError } = await (supabase.from("task_collaborators") as any).insert(
-      addedIds.map((collaboratorId) => ({
-        task_id: taskId,
-        collaborator_id: collaboratorId,
-        added_by: user?.id ?? null,
-      })),
-    );
-    if (insertError) throw insertError;
+    if (addedIds.length > 0) {
+      const { error: insertError } = await (client.from("task_collaborators") as any).insert(
+        addedIds.map((collaboratorId) => ({
+          task_id: taskId,
+          collaborator_id: collaboratorId,
+          added_by: user?.id ?? null,
+        })),
+      );
+      if (insertError) throw insertError;
+    }
+    if (removedIds.length > 0 || addedIds.length > 0) {
+      await qc.invalidateQueries({ queryKey: ["task_collaborators"] });
+    }
   };
 
   const toggleCollaborator = (collaboratorId: string) => {
@@ -642,6 +659,10 @@ export function TaskDialog({
     const { error } = await authenticated.client.from("tasks").insert({
       id: taskId,
       ...buildPayload(),
+      status: "todo",
+      status_id: statuses.find((item) => !item.is_completed)?.id ?? null,
+      completed_at: null,
+      is_draft: true,
       recurring_meeting_agenda_item_id: recurringMeetingAgendaItemId ?? null,
       workspace_id: targetWorkspaceId || null,
       created_by: authenticated.user.id,
@@ -652,12 +673,57 @@ export function TaskDialog({
     }
     currentTaskIdRef.current = taskId;
     setCurrentTaskId(taskId);
-    await syncCollaborators(taskId);
+    setIsDraft(true);
+    await syncCollaborators(taskId, authenticated.client);
     await supabase
       .from("task_history")
       .insert({ task_id: taskId, user_id: authenticated.user.id, action: "created" });
     qc.invalidateQueries({ queryKey: ["tasks"] });
     return taskId;
+  };
+
+  const saveDraft = async (showConversation = false): Promise<boolean> => {
+    if (!title.trim() || !dueDate) {
+      toast.error("Informe o título e o prazo para salvar a tarefa em elaboração.");
+      return false;
+    }
+    if (isOffline()) {
+      toast.error("Conecte-se à internet para salvar a tarefa em elaboração.");
+      return false;
+    }
+    setSaving(true);
+    try {
+      const existingId = currentTaskIdRef.current ?? currentTaskId;
+      const taskId = existingId ?? (await ensureTask());
+      if (!taskId) return false;
+      if (existingId && isDraft) {
+        const authenticated = await getAuthenticatedUser();
+        if (!authenticated) return false;
+        const { error } = await authenticated.client.from("tasks").update({
+          ...buildPayload(),
+          status: "todo",
+          status_id: statuses.find((item) => !item.is_completed)?.id ?? null,
+          completed_at: null,
+          is_draft: true,
+        }).eq("id", taskId);
+        if (error) throw error;
+        await syncCollaborators(taskId, authenticated.client);
+      }
+      if (!(await commitPendingSubtask(taskId))) return false;
+      const printResult = await uploadDescriptionImages(taskId);
+      if (!printResult.allUploaded) {
+        toast.error("O rascunho foi salvo, mas um print não foi enviado. Tente novamente.");
+        return false;
+      }
+      await qc.invalidateQueries({ queryKey: ["tasks"] });
+      if (showConversation) setActiveTab("comments");
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar o rascunho.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
   };
 
   const commitPendingSubtask = async (taskId: string): Promise<boolean> => {
@@ -708,7 +774,7 @@ export function TaskDialog({
       await updateTaskWithOfflineSupport({
         userId: user.id,
         task: localTask,
-        patch: payload,
+        patch: { ...payload, is_draft: false },
         queryClient: qc,
         forceQueue: true,
       });
@@ -717,6 +783,7 @@ export function TaskDialog({
       const localTask: Task = {
         id: taskId,
         ...payload,
+        is_draft: false,
         due_time: payload.due_time ?? null,
         assigned_by: null,
         assigned_at: null,
@@ -846,7 +913,7 @@ export function TaskDialog({
         }
         const { error } = await authenticated.client
           .from("tasks")
-          .update(payload)
+          .update({ ...payload, is_draft: false })
           .eq("id", existingTaskId);
         if (error) throw error;
         if (dueDateChanged && previousDueDate) {
@@ -859,7 +926,7 @@ export function TaskDialog({
           });
           if (historyError) throw historyError;
         }
-        await syncCollaborators(existingTaskId);
+        await syncCollaborators(existingTaskId, authenticated.client);
         await supabase
           .from("task_history")
           .insert({ task_id: existingTaskId, user_id: authenticated.user.id, action: "updated" });
@@ -870,6 +937,7 @@ export function TaskDialog({
         const { error } = await authenticated.client.from("tasks").insert({
           id: taskId,
           ...payload,
+          is_draft: false,
           recurring_meeting_agenda_item_id: recurringMeetingAgendaItemId ?? null,
           workspace_id: targetWorkspaceId || activeWorkspace?.id || null,
           created_by: authenticated.user.id,
@@ -881,7 +949,7 @@ export function TaskDialog({
         currentTaskIdRef.current = taskId;
         setCurrentTaskId(taskId);
         savedTaskId = taskId;
-        await syncCollaborators(taskId);
+        await syncCollaborators(taskId, authenticated.client);
         if (!(await commitPendingSubtask(taskId))) return;
       }
       if (savedTaskId) {
@@ -1448,7 +1516,9 @@ export function TaskDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl">
         <DialogHeader className="border-b bg-muted/20 px-6 py-5">
-          <DialogTitle className="text-xl">{task ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
+          <DialogTitle className="text-xl">
+            {isDraft ? "Tarefa em elaboração" : task ? "Editar tarefa" : "Nova tarefa"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">
@@ -1827,6 +1897,23 @@ export function TaskDialog({
             </div>
           </div>
 
+          {(!task || isDraft) && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/15 px-3 py-2">
+              <p className="text-xs text-muted-foreground">
+                Informe título e prazo, escolha os participantes e converse antes de finalizar.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void saveDraft(true)}
+                disabled={saving || descriptionImagesUploading}
+              >
+                <MessageSquare className="mr-1.5 h-4 w-4" /> Abrir conversa
+              </Button>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Descrição</Label>
             <RichTextEditor
@@ -1840,7 +1927,7 @@ export function TaskDialog({
           </div>
 
           {
-            <Tabs defaultValue="subtasks">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList>
                 <TabsTrigger value="subtasks">Subtarefas ({subtasks.length})</TabsTrigger>
                 <TabsTrigger value="comments">Conversa ({comments.length})</TabsTrigger>
@@ -2154,30 +2241,19 @@ export function TaskDialog({
               </TabsContent>
 
               <TabsContent value="comments" className="space-y-3">
-                <div className="rounded-md border bg-muted/10 p-6 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    {comments.length === 0
-                      ? "Nenhuma mensagem ainda."
-                      : `${comments.length} ${comments.length === 1 ? "mensagem" : "mensagens"} nesta tarefa.`}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() =>
-                      navigate({
-                        to: "/conversations",
-                        search: { task: task?.id ?? currentTaskId ?? undefined },
-                      })
-                    }
-                    disabled={!task?.id && !currentTaskId}
-                  >
-                    <MessageSquare className="mr-1.5 h-4 w-4" /> Abrir conversa
-                  </Button>
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    A conversa da tarefa acontece na tela Conversas.
-                  </p>
+                <div ref={conversationSectionRef}>
+                  {currentTaskId ? (
+                    <TaskConversationPanel
+                      taskId={currentTaskId}
+                      readOnly={Boolean(task?.completed_at || task?.status === "done" || task?.conversation_closed_at)}
+                      className="h-[360px] overflow-hidden rounded-md border"
+                      onActivity={() => void loadRelated(currentTaskId)}
+                    />
+                  ) : (
+                    <p className="rounded-md border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+                      Informe título e prazo e clique em Abrir conversa.
+                    </p>
+                  )}
                 </div>
               </TabsContent>
               <TabsContent value="files" className="space-y-2">
@@ -2259,8 +2335,23 @@ export function TaskDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
+              {(!task || isDraft) && (
+                <Button
+                  variant="outline"
+                  disabled={saving || descriptionImagesUploading}
+                  onClick={() => void saveDraft().then((saved) => {
+                    if (saved) onOpenChange(false);
+                  })}
+                >
+                  Salvar rascunho
+                </Button>
+              )}
               <Button onClick={save} disabled={saving || descriptionImagesUploading}>
-                {saving || descriptionImagesUploading ? "Salvando…" : "Salvar"}
+                {saving || descriptionImagesUploading
+                  ? "Salvando…"
+                  : isDraft
+                    ? "Finalizar tarefa"
+                    : "Salvar"}
               </Button>
             </div>
           </div>

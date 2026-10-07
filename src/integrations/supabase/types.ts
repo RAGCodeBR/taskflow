@@ -1083,6 +1083,7 @@ export type Database = {
       }
       tasks: {
         Row: {
+          is_draft: boolean
           assignee_id: string | null
           assigned_at: string | null
           assigned_by: string | null
@@ -1102,6 +1103,7 @@ export type Database = {
           due_time: string | null
           id: string
           interruptions: number
+          objective_id: string | null
           position: number
           priority: Database["public"]["Enums"]["task_priority"] | null
           recurring_meeting_agenda_item_id: string | null
@@ -1113,6 +1115,7 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          is_draft?: boolean
           assignee_id?: string | null
           assigned_at?: string | null
           assigned_by?: string | null
@@ -1132,6 +1135,7 @@ export type Database = {
           due_time?: string | null
           id?: string
           interruptions?: number
+          objective_id?: string | null
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"] | null
           recurring_meeting_agenda_item_id?: string | null
@@ -1143,6 +1147,7 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          is_draft?: boolean
           assignee_id?: string | null
           assigned_at?: string | null
           assigned_by?: string | null
@@ -1162,6 +1167,7 @@ export type Database = {
           due_time?: string | null
           id?: string
           interruptions?: number
+          objective_id?: string | null
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"] | null
           recurring_meeting_agenda_item_id?: string | null

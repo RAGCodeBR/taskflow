@@ -47,7 +47,7 @@ export const Route = createFileRoute("/_app/tasks/calendar")({
 });
 
 function CalendarPage() {
-  const { user, isCollaborator } = useAuth();
+  const { user, isCollaborator, workspaces } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>({});
   // O calendário acompanha o ambiente escolhido no filtro sem trocar o
   // ambiente ativo da sessão administrativa.
@@ -253,11 +253,19 @@ function CalendarPage() {
           </Button>
         </div>
       </header>
-      <WorkspaceTaskFilter
-        value={filters.workspace}
-        onChange={(workspace) => setFilters({ ...filters, workspace })}
+      <TaskFilters
+        filters={filters}
+        onChange={setFilters}
+        hideAssignee={isCollaborator}
+        sections={{
+          category: workspaces.length > 1 ? (
+            <WorkspaceTaskFilter
+              value={filters.workspace}
+              onChange={(workspace) => setFilters({ ...filters, workspace })}
+            />
+          ) : undefined,
+        }}
       />
-      <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator} />
 
       <div className="overflow-hidden rounded-lg border bg-card">
         <div className="grid grid-cols-7 border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -421,7 +429,7 @@ function CalendarTaskItem({
               color: textColor,
             }
       }
-      title={`${completed ? "Concluída" : statusName} · ${assigneeName} · ${task.title}`}
+      title={`${task.is_draft ? "Em elaboração" : completed ? "Concluída" : statusName} · ${assigneeName} · ${task.title}`}
     >
       <Avatar
         className={`${expanded ? "h-7 w-7" : "h-5 w-5"} shrink-0 border border-white/70 shadow-sm`}
@@ -441,7 +449,7 @@ function CalendarTaskItem({
         />
       ) : null}
       <span className={`min-w-0 flex-1 truncate font-semibold ${expanded ? "text-sm" : "text-[11px]"} ${completed ? "line-through decoration-2 decoration-emerald-700/80" : ""}`}>
-        {task.title}
+        {task.is_draft ? "Em elaboração · " : ""}{task.title}
       </span>
       <span
         className={`${expanded ? "h-3 w-3" : "h-2.5 w-2.5"} shrink-0 rounded-[2px] border border-black/25 shadow-sm`}

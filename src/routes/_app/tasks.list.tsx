@@ -54,7 +54,7 @@ function ListPage() {
   const { data: statuses = [] } = useTaskStatuses(viewedWorkspaceId);
   const { data: collaborators = [] } = useTaskCollaborators();
   const queryClient = useQueryClient();
-  const { user, isCollaborator } = useAuth();
+  const { user, isCollaborator, workspaces } = useAuth();
   const navigate = useNavigate();
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
@@ -253,11 +253,19 @@ function ListPage() {
           Nova tarefa
         </Button>
       </header>
-      <WorkspaceTaskFilter
-        value={filters.workspace}
-        onChange={(workspace) => setFilters({ ...filters, workspace })}
+      <TaskFilters
+        filters={filters}
+        onChange={setFilters}
+        hideAssignee={isCollaborator}
+        sections={{
+          category: workspaces.length > 1 ? (
+            <WorkspaceTaskFilter
+              value={filters.workspace}
+              onChange={(workspace) => setFilters({ ...filters, workspace })}
+            />
+          ) : undefined,
+        }}
       />
-      <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator} />
 
       <div className="overflow-hidden rounded-lg border bg-card">
         <table className="w-full table-fixed border-collapse text-xs">
@@ -349,7 +357,7 @@ function ListPage() {
                     setOpen(true);
                   }}
                 >
-                  <td className="border-r px-2 py-2 font-medium"><span className="block truncate"><LinkedText text={t.title} /></span></td>
+                  <td className="border-r px-2 py-2 font-medium"><span className="block truncate"><LinkedText text={t.title} /></span>{t.is_draft && <span className="text-[10px] font-semibold text-amber-700">Em elaboração</span>}</td>
                   <td className="border-r px-2 py-2">
                     {client ? (
                       <Badge variant="outline" style={{ borderColor: client.color ?? undefined }}>

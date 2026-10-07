@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/use-auth";
  */
 export interface Task {
   id: string;
+  is_draft?: boolean;
   title: string;
   description: string | null;
   status: "todo" | "in_progress" | "review" | "done" | null;

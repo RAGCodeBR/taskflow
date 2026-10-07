@@ -1006,9 +1006,13 @@ export function TaskConversationPanel({
                       autoFocus
                       onChange={(event) => setEditDraft(event.target.value)}
                       onKeyDown={(event) => {
-                        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                        if (
+                          event.key === "Enter" &&
+                          !event.shiftKey &&
+                          !event.nativeEvent.isComposing
+                        ) {
                           event.preventDefault();
-                          void saveEdit(comment.id);
+                          if (!event.repeat) void saveEdit(comment.id);
                         }
                         if (event.key === "Escape") setEditingId(null);
                       }}
@@ -1210,9 +1214,13 @@ export function TaskConversationPanel({
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
                 event.preventDefault();
-                void sendMessage();
+                if (!event.repeat) void sendMessage();
               }
             }}
           />
@@ -1289,7 +1297,7 @@ export function TaskConversationPanel({
               ))}
             </div>
             <span className="hidden text-[11px] text-muted-foreground sm:block">
-              Use @ para marcar · Ctrl/⌘ + Enter para enviar
+              Use @ para marcar · Enter envia · Shift+Enter pula linha
             </span>
             <Button
               onClick={() => void sendMessage()}

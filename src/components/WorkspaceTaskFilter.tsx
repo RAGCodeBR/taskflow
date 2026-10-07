@@ -4,10 +4,7 @@ import { cn } from "@/lib/utils";
 /**
  * Alternador de ambiente das tarefas.
  *
- * Fica fora do painel de filtros de propósito: separar Consultoria de Marketing
- * é uma troca frequente e de leitura rápida, não um refinamento escondido atrás
- * de um botão. Quem pertence a um único ambiente não vê nada — nem saberia o
- * que a escolha significa.
+ * Quem pertence a um único ambiente não vê o controle.
  */
 export function WorkspaceTaskFilter({
   value,

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useAssignableProfiles, useClients, useColumns } from "@/hooks/use-data";
+import { useAuth } from "@/hooks/use-auth";
 
 import { dateFilterLabels, matchDateFilter, type DateFilter } from "@/lib/task-utils";
 
@@ -56,22 +57,30 @@ const DATE_OPTIONS: DateFilter[] = [
 export function TaskFilters({
   filters,
   onChange,
-  children,
+  sections,
   hideAssignee = false,
+  extraActiveChips = [],
 }: {
   filters: Filters;
   onChange: (f: Filters) => void;
-  children?: ReactNode;
+  sections?: {
+    category?: ReactNode;
+    visualization?: ReactNode;
+    organization?: ReactNode;
+    completedPeriod?: ReactNode;
+  };
   hideAssignee?: boolean;
+  extraActiveChips?: Array<{ key: string; label: string; clear: () => void }>;
 }) {
-  const { data: clients } = useClients();
+  const { workspaces } = useAuth();
+  const { data: clients } = useClients(filters.workspace);
   // The assignee filter must only expose users who can receive tasks.
   // This query is role-based in the database (admin and collaborator only),
   // so future client accounts are excluded automatically as well.
-  const { data: assignableProfiles } = useAssignableProfiles();
-  const { data: columns = [] } = useColumns();
+  const { data: assignableProfiles } = useAssignableProfiles(filters.workspace);
+  const { data: columns = [] } = useColumns(filters.workspace);
   const [clientsOpen, setClientsOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const scope: TaskScope = filters.scope ?? "all";
@@ -115,231 +124,364 @@ export function TaskFilters({
         ? (clients?.find((c) => c.id === selectedClients[0])?.name ?? "1 cliente")
         : `${selectedClients.length} clientes`;
 
-  const activeCount = [
-    scope !== "all",
-    dateVal !== "all",
-    selectedClients.length > 0,
-    !hideAssignee && !!filters.assignee,
-    !!filters.priority,
-    !!filters.status,
-  ].filter(Boolean).length;
+  const activeCount =
+    [
+      scope !== "all",
+      dateVal !== "all",
+      selectedClients.length > 0,
+      !hideAssignee && !!filters.assignee,
+      !!filters.priority,
+      !!filters.status,
+      !!filters.workspace,
+    ].filter(Boolean).length + extraActiveChips.length;
 
-  const clearAll = () => onChange({});
+  const clearAll = () => {
+    onChange({});
+    extraActiveChips.forEach((chip) => chip.clear());
+  };
+
+  const activeChips = [
+    scope !== "all"
+      ? {
+          key: "scope",
+          label: scope === "mine" ? "Atribuídas a mim" : "Criadas por mim",
+          clear: () => onChange({ ...filters, scope: undefined }),
+        }
+      : null,
+    selectedClients.length > 0
+      ? { key: "clients", label: `Cliente: ${clientsLabel}`, clear: () => setSelectedClients([]) }
+      : null,
+    !hideAssignee && filters.assignee
+      ? {
+          key: "assignee",
+          label: `Responsável: ${
+            filters.assignee === UNASSIGNED_FILTER
+              ? "Sem responsável"
+              : (assignableProfiles?.find((profile) => profile.id === filters.assignee)
+                  ?.full_name ?? "Selecionado")
+          }`,
+          clear: () => onChange({ ...filters, assignee: undefined }),
+        }
+      : null,
+    dateVal !== "all"
+      ? {
+          key: "date",
+          label: `Período: ${dateFilterLabels[dateVal]}`,
+          clear: () => onChange({ ...filters, date: undefined }),
+        }
+      : null,
+    filters.priority
+      ? {
+          key: "priority",
+          label: `Prioridade: ${
+            { low: "Baixa", medium: "Média", high: "Alta", urgent: "Urgente" }[
+              filters.priority as "low" | "medium" | "high" | "urgent"
+            ] ?? filters.priority
+          }`,
+          clear: () => onChange({ ...filters, priority: undefined }),
+        }
+      : null,
+    filters.status
+      ? {
+          key: "status",
+          label: `Status: ${
+            filters.status === COMPLETED_STATUS_FILTER
+              ? "Concluídos"
+              : filters.status.startsWith(COLUMN_STATUS_PREFIX)
+                ? (columns.find(
+                    (column) => column.id === filters.status?.slice(COLUMN_STATUS_PREFIX.length),
+                  )?.name ?? "Selecionado")
+                : "Selecionado"
+          }`,
+          clear: () => onChange({ ...filters, status: undefined }),
+        }
+      : null,
+    filters.workspace
+      ? {
+          key: "workspace",
+          label: `Categoria: ${workspaces.find((workspace) => workspace.id === filters.workspace)?.name ?? "Selecionada"}`,
+          clear: () => onChange({ ...filters, workspace: undefined }),
+        }
+      : null,
+    ...extraActiveChips,
+  ].filter((chip): chip is { key: string; label: string; clear: () => void } => chip !== null);
 
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border bg-card/80 p-1.5 shadow-sm">
-        {/* Scope segmented */}
-        <div>
-          <div className="inline-flex rounded-full border bg-muted/40 p-0.5">
-            <ScopeBtn
-              active={scope === "all"}
-              onClick={() => onChange({ ...filters, scope: undefined, assignee: undefined })}
-              icon={<Users className="h-3.5 w-3.5" />}
-            >
-              Todas
-            </ScopeBtn>
-            <ScopeBtn
-              active={scope === "mine"}
-              onClick={() => onChange({ ...filters, scope: "mine", assignee: undefined })}
-              icon={<UserCheck className="h-3.5 w-3.5" />}
-            >
-              Atribuídas a mim
-            </ScopeBtn>
-            <ScopeBtn
-              active={scope === "created"}
-              onClick={() => onChange({ ...filters, scope: "created", assignee: undefined })}
-              icon={<PenSquare className="h-3.5 w-3.5" />}
-            >
-              Criadas por mim
-            </ScopeBtn>
-          </div>
-        </div>
-
-        {/* Clients multi */}
-        <Popover open={clientsOpen} onOpenChange={setClientsOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 justify-between gap-1.5 rounded-full font-normal">
-              <span className="truncate max-w-40">{clientsLabel}</span>
-              {selectedClients.length > 0 && (
-                <Badge variant="secondary" className="h-5 px-1.5">
-                  {selectedClients.length}
-                </Badge>
-              )}
-              <ChevronDown className="h-4 w-4 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 p-2">
-            <div className="flex items-center gap-2 mb-2">
-              <Input
-                placeholder="Buscar cliente..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-8"
-              />
-              {selectedClients.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0"
-                  onClick={() => setSelectedClients([])}
-                  title="Limpar seleção"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center justify-between px-2 py-1.5 border-b mb-1">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={allSelected}
-                  onCheckedChange={(v) => {
-                    if (v) setSelectedClients(activeClients.map((client) => client.id));
-                    else setSelectedClients([]);
-                  }}
-                />
-                <span>Selecionar todos</span>
-              </label>
-              <span className="text-xs text-muted-foreground">
-                {selectedClients.length}/{activeClients.length}
-              </span>
-            </div>
-            <div className="max-h-64 overflow-y-auto">
-              {filteredClients.length === 0 ? (
-                <div className="px-2 py-4 text-sm text-muted-foreground text-center">
-                  Nenhum cliente
-                </div>
-              ) : (
-                filteredClients.map((c) => (
-                  <label
-                    key={c.id}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm"
-                  >
-                    <Checkbox
-                      checked={selectedClients.includes(c.id)}
-                      onCheckedChange={() => toggleClient(c.id)}
-                    />
-                    <span className="truncate">{c.name}</span>
-                  </label>
-                ))
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        {!hideAssignee && (
-          <Select
-            value={filters.assignee ?? "all"}
-            onValueChange={(v) => onChange({ ...filters, assignee: v === "all" ? undefined : v })}
-          >
-            <SelectTrigger className="h-7 w-48 rounded-full">
-              <SelectValue placeholder="Responsável" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos responsáveis</SelectItem>
-              <SelectItem value={UNASSIGNED_FILTER}>Sem responsável</SelectItem>
-              {assignableProfiles?.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.full_name || p.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 gap-1.5 rounded-full font-normal">
-              <FilterIcon className="h-3.5 w-3.5" />
-              Filtros
-              {activeCount > 0 && (
-                <Badge variant="secondary" className="h-5 min-w-5 px-1.5">
-                  {activeCount}
-                </Badge>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 space-y-3 p-3">
-            <div className="space-y-1.5">
-              <span className="text-xs font-medium">Período</span>
-              <Select
-                value={dateVal}
-                onValueChange={(v) => onChange({ ...filters, date: v as DateFilter })}
-              >
-                <SelectTrigger className="h-8 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DATE_OPTIONS.map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {dateFilterLabels[d]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <span className="text-xs font-medium">Prioridade</span>
-              <Select
-                value={filters.priority ?? "all"}
-                onValueChange={(v) =>
-                  onChange({ ...filters, priority: v === "all" ? undefined : v })
-                }
-              >
-                <SelectTrigger className="h-8 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas prioridades</SelectItem>
-                  <SelectItem value="low">Baixa</SelectItem>
-                  <SelectItem value="medium">Média</SelectItem>
-                  <SelectItem value="high">Alta</SelectItem>
-                  <SelectItem value="urgent">Urgente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <span className="text-xs font-medium">Status</span>
-              <Select
-                value={filters.status ?? "all"}
-                onValueChange={(v) => onChange({ ...filters, status: v === "all" ? undefined : v })}
-              >
-                <SelectTrigger className="h-8 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos status</SelectItem>
-                  {columns.map((column) => (
-                    <SelectItem key={column.id} value={`${COLUMN_STATUS_PREFIX}${column.id}`}>
-                      {column.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={COMPLETED_STATUS_FILTER}>Concluídos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </PopoverContent>
-        </Popover>
-        {activeCount > 0 && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto h-7 rounded-full text-muted-foreground"
-            onClick={clearAll}
-          >
-            <RotateCcw className="mr-1 h-3.5 w-3.5" />
-            Limpar ({activeCount})
-          </Button>
-        )}
-        {activeCount === 0 && (
-          <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-            <FilterIcon className="h-3.5 w-3.5" />
-            Nenhum filtro
-          </div>
-        )}
-        {children}
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="inline-flex max-w-full flex-wrap rounded-full border bg-muted/40 p-0.5">
+        <ScopeBtn
+          active={scope === "all"}
+          onClick={() => onChange({ ...filters, scope: undefined, assignee: undefined })}
+          icon={<Users className="h-4 w-4" />}
+        >
+          Todas
+        </ScopeBtn>
+        <ScopeBtn
+          active={scope === "mine"}
+          onClick={() => onChange({ ...filters, scope: "mine", assignee: undefined })}
+          icon={<UserCheck className="h-4 w-4" />}
+        >
+          Atribuídas a mim
+        </ScopeBtn>
+        <ScopeBtn
+          active={scope === "created"}
+          onClick={() => onChange({ ...filters, scope: "created", assignee: undefined })}
+          icon={<PenSquare className="h-4 w-4" />}
+        >
+          Criadas por mim
+        </ScopeBtn>
       </div>
-    </>
+      <Popover open={panelOpen} onOpenChange={setPanelOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-9 gap-2 rounded-full px-4 shadow-sm">
+            <FilterIcon className="h-4 w-4" />
+            Filtros
+            {activeCount > 0 && (
+              <Badge variant="secondary" className="ml-1 min-w-5 justify-center px-1.5">
+                {activeCount}
+              </Badge>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={8}
+          className="max-h-[80vh] w-[calc(100vw-2rem)] max-w-5xl overflow-y-auto rounded-2xl p-3 shadow-xl sm:p-4"
+        >
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold">Filtros das tarefas</h3>
+              <p className="text-xs text-muted-foreground">Ajuste a lista e a visualização.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={clearAll} disabled={activeCount === 0}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Limpar
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {(sections?.category || sections?.visualization) && (
+              <div className="grid items-start gap-3 lg:grid-cols-2">
+                {sections.category && (
+                  <div className="min-w-0 space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Categoria</span>
+                    <div className="flex min-h-8 flex-wrap items-center gap-1.5">
+                      {sections.category}
+                    </div>
+                  </div>
+                )}
+                {sections.visualization && (
+                  <div
+                    className={`min-w-0 space-y-1.5 ${sections.category ? "" : "lg:col-start-2"}`}
+                  >
+                    <span className="text-xs font-medium text-muted-foreground">Visualização</span>
+                    <div className="flex min-h-8 flex-wrap items-center gap-1.5">
+                      {sections.visualization}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid items-end gap-3 lg:grid-cols-2">
+              <div className={`min-w-0 space-y-1.5 ${hideAssignee ? "lg:col-span-2" : ""}`}>
+                <span className="text-xs font-medium text-muted-foreground">Cliente</span>
+                <Popover open={clientsOpen} onOpenChange={setClientsOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-8 w-full justify-between gap-2 font-normal"
+                    >
+                      <span className="truncate">{clientsLabel}</span>
+                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-64 p-2">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Input
+                        placeholder="Buscar cliente..."
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        className="h-8"
+                      />
+                      {selectedClients.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => setSelectedClients([])}
+                          aria-label="Limpar clientes"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <label className="mb-1 flex cursor-pointer items-center gap-2 border-b px-2 py-1.5 text-sm">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={(checked) =>
+                          setSelectedClients(
+                            checked ? activeClients.map((client) => client.id) : [],
+                          )
+                        }
+                      />
+                      Selecionar todos
+                    </label>
+                    <div className="max-h-64 overflow-y-auto">
+                      {filteredClients.length === 0 ? (
+                        <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+                          Nenhum cliente
+                        </p>
+                      ) : (
+                        filteredClients.map((client) => (
+                          <label
+                            key={client.id}
+                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                          >
+                            <Checkbox
+                              checked={selectedClients.includes(client.id)}
+                              onCheckedChange={() => toggleClient(client.id)}
+                            />
+                            <span className="truncate">{client.name}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              {!hideAssignee && (
+                <div className="min-w-0 space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Responsável</span>
+                  <Select
+                    value={filters.assignee ?? "all"}
+                    onValueChange={(value) =>
+                      onChange({ ...filters, assignee: value === "all" ? undefined : value })
+                    }
+                  >
+                    <SelectTrigger className="h-8 w-full">
+                      <SelectValue placeholder="Responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos responsáveis</SelectItem>
+                      <SelectItem value={UNASSIGNED_FILTER}>Sem responsável</SelectItem>
+                      {assignableProfiles?.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.full_name || profile.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {(sections?.organization || sections?.completedPeriod) && (
+              <div className="grid items-start gap-3 lg:grid-cols-2">
+                {sections.organization && (
+                  <div className="min-w-0 space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Organização</span>
+                    <div className="flex min-h-8 flex-wrap items-center gap-1.5">
+                      {sections.organization}
+                    </div>
+                  </div>
+                )}
+                {sections.completedPeriod && (
+                  <div className="min-w-0 space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Concluídas no período
+                    </span>
+                    <div className="flex min-h-8 flex-wrap items-center gap-1.5">
+                      {sections.completedPeriod}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Período</span>
+                <Select
+                  value={dateVal}
+                  onValueChange={(value) => onChange({ ...filters, date: value as DateFilter })}
+                >
+                  <SelectTrigger className="h-8 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DATE_OPTIONS.map((date) => (
+                      <SelectItem key={date} value={date}>
+                        {dateFilterLabels[date]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Prioridade</span>
+                <Select
+                  value={filters.priority ?? "all"}
+                  onValueChange={(value) =>
+                    onChange({ ...filters, priority: value === "all" ? undefined : value })
+                  }
+                >
+                  <SelectTrigger className="h-8 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="urgent">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Status</span>
+                <Select
+                  value={filters.status ?? "all"}
+                  onValueChange={(value) =>
+                    onChange({ ...filters, status: value === "all" ? undefined : value })
+                  }
+                >
+                  <SelectTrigger className="h-8 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {columns.map((column) => (
+                      <SelectItem key={column.id} value={`${COLUMN_STATUS_PREFIX}${column.id}`}>
+                        {column.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={COMPLETED_STATUS_FILTER}>Concluídos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {activeChips.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-muted/50 p-2.5">
+              <span className="mr-1 text-xs font-medium">Filtros ativos:</span>
+              {activeChips.map((chip) => (
+                <Button
+                  key={chip.key}
+                  variant="secondary"
+                  size="sm"
+                  className="h-7 gap-1 rounded-full text-xs"
+                  onClick={chip.clear}
+                >
+                  {chip.label}
+                  <X className="h-3 w-3" />
+                </Button>
+              ))}
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 

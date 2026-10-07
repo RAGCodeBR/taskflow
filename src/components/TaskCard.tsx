@@ -202,7 +202,7 @@ export function TaskCard({
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [collaboratorsOpen, setCollaboratorsOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
-  const { data: assignableProfiles = [] } = useAssignableProfiles();
+  const { data: assignableProfiles = [] } = useAssignableProfiles(task.workspace_id ?? activeWorkspace?.id);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [comments, setComments] = useState<CardComment[]>([]);
@@ -434,16 +434,19 @@ export function TaskCard({
     () => profiles.find((p) => p.id === task.assignee_id),
     [profiles, task.assignee_id],
   );
+  const taskCollaboratorLinks = useMemo(
+    () => collaborators.filter((collaborator) => collaborator.task_id === task.id),
+    [collaborators, task.id],
+  );
   const taskCollaborators = useMemo(
     () =>
-      collaborators
-        .filter((collaborator) => collaborator.task_id === task.id)
+      taskCollaboratorLinks
         .map((collaborator) =>
-          profiles.find((profile) => profile.id === collaborator.collaborator_id),
+          profiles.find((profile) => profile.id === collaborator.collaborator_id) ??
+          assignableProfiles.find((profile) => profile.id === collaborator.collaborator_id),
         )
-        .filter((profile): profile is Profile => Boolean(profile))
-        .filter((profile) => assignableProfiles.some((assignable) => assignable.id === profile.id)),
-    [assignableProfiles, collaborators, profiles, task.id],
+        .filter((profile): profile is Profile => Boolean(profile)),
+    [assignableProfiles, profiles, taskCollaboratorLinks],
   );
   const taskPeople = useMemo(
     () =>
@@ -459,7 +462,7 @@ export function TaskCard({
       (collaborator) =>
         collaborator.task_id === task.id && collaborator.collaborator_id === collaboratorId,
     );
-    const queryKey = ["task_collaborators"];
+    const queryKey = ["task_collaborators", user?.id ?? null, activeWorkspace?.id ?? null];
     if (existing) {
       const { error } = await (supabase.from("task_collaborators") as any)
         .delete()
@@ -1085,6 +1088,10 @@ export function TaskCard({
   const completedStatus = useMemo(() => statuses.find((s) => s.is_completed) ?? null, [statuses]);
 
   const startCompletion = () => {
+    if (task.is_draft) {
+      toast.error("Finalize a tarefa em elaboração antes de concluí-la.");
+      return;
+    }
     if (subtasks.some((subtask) => !subtask.done)) {
       toast.error("Conclua as subtarefas pendentes antes de concluir esta tarefa.");
       return;
@@ -1101,6 +1108,7 @@ export function TaskCard({
   };
 
   const completeTask = async (completionDate: string) => {
+    if (task.is_draft) return;
     const saved = await update({
       status: "done",
       status_id: completedStatus?.id ?? task.status_id,
@@ -1182,6 +1190,7 @@ export function TaskCard({
           className="min-h-0 flex-1 px-2 py-1.5 text-left text-sm font-medium leading-snug [overflow-wrap:anywhere] hover:text-primary"
         >
           {task.title ? <LinkedText text={task.title} /> : <span className="text-muted-foreground">Sem título</span>}
+          {task.is_draft && <span className="mt-1 block text-[10px] font-semibold text-amber-700">Em elaboração</span>}
         </div>
         <div className="flex items-center gap-1 border-t px-1.5 py-1">
           <Button
@@ -1431,6 +1440,7 @@ export function TaskCard({
                   className="min-w-0 flex-1 text-left text-sm font-medium leading-snug [overflow-wrap:anywhere] hover:text-primary"
                 >
                   {task.title ? <LinkedText text={task.title} /> : <span className="text-muted-foreground">Sem título</span>}
+                  {task.is_draft && <span className="mt-1 block text-[10px] font-semibold text-amber-700">Em elaboração</span>}
                 </div>
               )}
               <Button
@@ -2091,7 +2101,7 @@ export function TaskCard({
                     <Users className="h-3.5 w-3.5" />
                     <span className="font-medium text-foreground">Colaboradores</span>
                     <span className="ml-auto text-[10px]">
-                      {taskCollaborators.length === 0 ? "Nenhum" : taskCollaborators.length}
+                      {taskCollaboratorLinks.length === 0 ? "Nenhum" : taskCollaboratorLinks.length}
                     </span>
                   </button>
                 </CollapsibleTrigger>
