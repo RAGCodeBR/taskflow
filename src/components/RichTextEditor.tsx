@@ -27,7 +27,6 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { plainTextForClipboard } from "@/lib/rich-text-clipboard";
 import { linkifyTextNodes } from "@/lib/text-links";
-import { FieldLinks } from "@/components/LinkedText";
 
 const UnderlineMark = Mark.create({
   name: "underline",
@@ -604,9 +603,6 @@ export function RichTextEditor({
         style={{ maxHeight: Math.max(minHeight, maxHeight) }}
       >
         <EditorContent editor={editor} />
-      </div>
-      <div className="px-2 empty:hidden">
-        <FieldLinks value={editor.getText()} />
       </div>
       {copyable ? <CopyButton editor={editor} /> : null}
     </div>
