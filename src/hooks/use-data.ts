@@ -255,6 +255,7 @@ export function useAgendaEvents(rangeStart?: string, rangeEnd?: string) {
       let query = (supabase.from("calendar_events" as any) as any)
         .select("*")
         .is("deleted_at", null)
+        .is("hidden_at", null)
         .order("starts_at");
       if (rangeStart) query = query.gte("starts_at", rangeStart);
       if (rangeEnd) query = query.lte("starts_at", rangeEnd);
