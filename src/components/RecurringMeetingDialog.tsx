@@ -569,6 +569,7 @@ export function RecurringMeetingDialog({
               created_by: user.id,
               created_at: now,
               updated_at: now,
+              archived_at: null,
               ...payload,
             },
           ];

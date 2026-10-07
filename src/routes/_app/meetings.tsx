@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
+  Archive,
   CalendarClock,
   Check,
   CheckCircle2,
@@ -165,6 +166,8 @@ function RecurringMeetingsPage() {
   const [clientFilter, setClientFilter] = useState("all");
   const [participantFilter, setParticipantFilter] = useState("all");
   const [datesShown, setDatesShown] = useState(DATES_PER_PAGE);
+  const [archiveTarget, setArchiveTarget] = useState<RecurringMeeting | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   // Gera reuniões, copia pautas e dispara avisos pendentes (também roda todo dia às 7h).
   useEffect(() => {
@@ -234,7 +237,7 @@ function RecurringMeetingsPage() {
     void navigate({ to: "/meetings", search: {}, replace: true });
   }, [loadingOccurrences, meetingFromLink, navigate, occurrences]);
 
-  const visibleMeetingRecords = useMemo(() => {
+  const accessibleMeetingRecords = useMemo(() => {
     if (hasPermission("meetings")) return recurring_meetings;
     const invitedIds = new Set(
       participants
@@ -245,12 +248,20 @@ function RecurringMeetingsPage() {
       (meeting) => meeting.assignee_id === user?.id || invitedIds.has(meeting.id),
     );
   }, [hasPermission, participants, recurring_meetings, user?.id]);
+  const visibleMeetingRecords = useMemo(
+    () => accessibleMeetingRecords.filter((meeting) => !meeting.archived_at),
+    [accessibleMeetingRecords],
+  );
+  const archivedMeetingRecords = useMemo(
+    () => accessibleMeetingRecords.filter((meeting) => !!meeting.archived_at),
+    [accessibleMeetingRecords],
+  );
   const recurringMeetingById = useMemo(
     () =>
       new Map(
-        visibleMeetingRecords.map((recurringMeeting) => [recurringMeeting.id, recurringMeeting]),
+        accessibleMeetingRecords.map((recurringMeeting) => [recurringMeeting.id, recurringMeeting]),
       ),
-    [visibleMeetingRecords],
+    [accessibleMeetingRecords],
   );
   const clientById = useMemo(
     () => new Map(clients.map((client) => [client.id, client])),
@@ -433,6 +444,34 @@ function RecurringMeetingsPage() {
     toast.success(isActive ? "Reunião ativada" : "Reunião pausada");
   };
 
+  const archiveMeeting = async () => {
+    if (!archiveTarget || archiving) return;
+    if (isOffline()) return toast.error("Conecte-se à internet para arquivar a reunião.");
+    setArchiving(true);
+    const { error } = await (supabase.from("recurring_meetings" as any) as any)
+      .update({ archived_at: new Date().toISOString(), is_active: false })
+      .eq("id", archiveTarget.id)
+      .eq("workspace_id", activeWorkspace?.id)
+      .is("archived_at", null);
+    setArchiving(false);
+    if (error) return toast.error(`Não foi possível arquivar: ${error.message}`);
+    setArchiveTarget(null);
+    await queryClient.invalidateQueries({ queryKey: ["recurring_meetings"] });
+    toast.success("Reunião arquivada. Os registros foram preservados.");
+  };
+
+  const restoreMeeting = async (meeting: RecurringMeeting) => {
+    if (isOffline()) return toast.error("Conecte-se à internet para restaurar a reunião.");
+    const { error } = await (supabase.from("recurring_meetings" as any) as any)
+      .update({ archived_at: null })
+      .eq("id", meeting.id)
+      .eq("workspace_id", activeWorkspace?.id)
+      .not("archived_at", "is", null);
+    if (error) return toast.error(`Não foi possível restaurar: ${error.message}`);
+    await queryClient.invalidateQueries({ queryKey: ["recurring_meetings"] });
+    toast.success("Reunião restaurada e pausada. Ative-a para gerar novas datas.");
+  };
+
   if (loading || (!hasPermission("meetings") && loadingInvitations))
     return <div className="p-6 text-sm text-muted-foreground">Carregando...</div>;
   if (!hasPermission("meetings") && !hasInvitedMeeting) return <Navigate to="/dashboard" />;
@@ -530,6 +569,9 @@ function RecurringMeetingsPage() {
           <TabsTrigger value="meetings">Reuniões</TabsTrigger>
           <TabsTrigger value="history">Histórico</TabsTrigger>
           {hasPermission("meetings") && <TabsTrigger value="settings">Configurações</TabsTrigger>}
+          {hasPermission("meetings") && (
+            <TabsTrigger value="archived">Arquivadas ({archivedMeetingRecords.length})</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="meetings" className="mt-5">
@@ -771,6 +813,16 @@ function RecurringMeetingsPage() {
                               <Play className="h-4 w-4" />
                             )}
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Arquivar reunião"
+                            aria-label="Arquivar reunião"
+                            onClick={() => setArchiveTarget(recurringMeeting)}
+                          >
+                            <Archive className="h-4 w-4" />
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -814,6 +866,36 @@ function RecurringMeetingsPage() {
             </div>
           )}
         </TabsContent>
+        <TabsContent value="archived" className="mt-4">
+          {archivedMeetingRecords.length === 0 ? (
+            <EmptyState
+              title="Nenhuma reunião arquivada"
+              description="As reuniões arquivadas aparecerão aqui."
+            />
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {archivedMeetingRecords.map((meeting) => (
+                <Card key={meeting.id} className="flex items-center justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <h3 className="truncate font-semibold">{meeting.title}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {clientById.get(meeting.client_id ?? "")?.name ?? "Sem cliente"} · Arquivada
+                    </p>
+                  </div>
+                  {activeWorkspace?.id === meeting.workspace_id && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void restoreMeeting(meeting)}
+                    >
+                      <RotateCcw className="mr-2 h-4 w-4" /> Restaurar
+                    </Button>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       <RecurringMeetingDialog
@@ -851,6 +933,31 @@ function RecurringMeetingsPage() {
           }
         />
       ) : null}
+      <Dialog
+        open={!!archiveTarget}
+        onOpenChange={(open) => {
+          if (!open && !archiving) setArchiveTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Arquivar esta reunião?</DialogTitle>
+            <DialogDescription>
+              {archiveTarget?.title} sairá das listas e não gerará novas datas ou avisos. As
+              reuniões e pautas já registradas serão preservadas. Você poderá restaurá-la em
+              Arquivadas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" disabled={archiving} onClick={() => setArchiveTarget(null)}>
+              Cancelar
+            </Button>
+            <Button disabled={archiving} onClick={() => void archiveMeeting()}>
+              {archiving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Arquivar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
