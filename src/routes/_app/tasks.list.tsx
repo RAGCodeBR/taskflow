@@ -20,6 +20,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
+import { TaskPinButton } from "@/components/TaskCardActivity";
+import { usePersonalTaskPins } from "@/hooks/use-task-card-activity";
 import { CompletionDateDialog } from "@/components/CompletionDateDialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -58,6 +60,8 @@ function ListPage() {
   const navigate = useNavigate();
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
+  const { pins } = usePersonalTaskPins();
+  const pinnedIds = useMemo(() => new Set(pins.filter(pin => pin.is_pinned).map(pin => pin.task_id)), [pins]);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
   const [dueDateSortDirection, setDueDateSortDirection] = useState<"asc" | "desc">("asc");
@@ -181,6 +185,8 @@ function ListPage() {
       if (aIsCompleted && bIsCompleted) return 0;
       if (aIsCompleted) return 1;
       if (bIsCompleted) return -1;
+      const pinOrder = Number(pinnedIds.has(b.id)) - Number(pinnedIds.has(a.id));
+      if (pinOrder) return pinOrder;
 
       const aDueTimestamp = getDueTimestamp(a);
       const bDueTimestamp = getDueTimestamp(b);
@@ -190,7 +196,7 @@ function ListPage() {
       const dueDateDifference = aDueTimestamp - bDueTimestamp;
       return dueDateSortDirection === "asc" ? dueDateDifference : -dueDateDifference;
     });
-  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, dueDateSortDirection]);
+  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, dueDateSortDirection, pinnedIds]);
 
   const completeTask = async (taskId: string, completionDate: string) => {
     const completedStatus = statuses.find((status) => status.is_completed);
@@ -357,7 +363,7 @@ function ListPage() {
                     setOpen(true);
                   }}
                 >
-                  <td className="border-r px-2 py-2 font-medium"><span className="block truncate"><LinkedText text={t.title} /></span>{t.is_draft && <span className="text-[10px] font-semibold text-amber-700">Em elaboração</span>}</td>
+                  <td className="border-r px-2 py-2 font-medium"><div className="flex items-center gap-1"><TaskPinButton task={t} compact /><span className="block truncate"><LinkedText text={t.title} /></span></div>{t.is_draft && <span className="text-[10px] font-semibold text-amber-700">Em elaboração</span>}</td>
                   <td className="border-r px-2 py-2">
                     {client ? (
                       <Badge variant="outline" style={{ borderColor: client.color ?? undefined }}>

@@ -6,8 +6,12 @@ import {
   LayoutDashboard,
   Link2,
   MousePointer2,
+  Pin,
+  Eye,
+  Plus,
 } from "lucide-react";
 import type { UpdatePreviewKind } from "@/lib/app-updates";
+import { CalendarTaskPin } from "@/components/CalendarTaskPin";
 
 function TaskDescriptionPreview() {
   return (
@@ -237,7 +241,16 @@ function TaskEditPreview() {
   );
 }
 
+function TaskCardActivityPreview() {
+  return <div aria-label="Prévia das aberturas, prioridades pessoais e criação pelo calendário" className="grid gap-3 sm:grid-cols-3">
+    <div className="rounded-xl border bg-background p-3 shadow-sm"><p className="flex items-center gap-1.5 text-[11px] font-semibold"><Eye className="h-3.5 w-3.5" />Aberturas do card</p><div className="mt-3 rounded-lg border p-2 text-[10px]"><p className="font-medium">Pessoa da equipe</p><p className="mt-1 text-muted-foreground">Primeira: 08/10 às 09:12</p><p className="text-muted-foreground">Última: 08/10 às 14:35</p></div><p className="mt-2 text-[10px] text-muted-foreground">Outro participante · Ainda não abriu</p></div>
+    <div className="rounded-xl border bg-background p-3 shadow-sm"><p className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2 py-1 text-[11px] font-semibold"><Pin className="h-3.5 w-3.5" />Fixadas</p><div className="mt-3 rounded-lg border p-2"><p className="text-[10px] text-muted-foreground">12 de outubro</p><div className="relative mt-2 rounded-md bg-primary p-2 text-[10px] text-primary-foreground"><CalendarTaskPin />Retomar briefing</div></div><p className="mt-3 text-[10px] text-muted-foreground">Botão direito → Fixar tarefa</p></div>
+    <div className="rounded-xl border bg-background p-3 shadow-sm"><p className="flex items-center gap-1.5 text-[11px] font-semibold"><CalendarDays className="h-3.5 w-3.5" />Criar no dia</p><div className="mt-3 rounded-lg border p-2 text-[10px]"><p>12 de outubro</p><div className="mt-2 flex items-center gap-1 rounded-md border bg-muted/50 p-2"><Plus className="h-3 w-3" />Nova tarefa</div></div><p className="mt-3 text-[10px] text-muted-foreground">Botão direito → Prazo preenchido</p></div>
+  </div>;
+}
+
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "task-card-activity": TaskCardActivityPreview,
   "task-edit": TaskEditPreview,
   "calendar-reschedule": CalendarReschedulePreview,
   "links-calendar": TaskLinksCalendarPreview,

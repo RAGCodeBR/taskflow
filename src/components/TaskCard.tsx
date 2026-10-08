@@ -83,6 +83,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { TaskPinButton } from "@/components/TaskCardActivity";
 
 interface Attachment {
   id: string;
@@ -1401,6 +1402,7 @@ export function TaskCard({
 
             {/* Title row */}
             <div className="mb-1 flex items-start justify-between gap-1" style={{ order: -1 }}>
+              <TaskPinButton task={task} compact />
               {titleEditing ? (
                 <Textarea
                   value={titleDraft}

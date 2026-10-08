@@ -70,6 +70,8 @@ import {
 } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isNetworkFailure, isOffline } from "@/lib/offline-sync";
 import { persistTaskEdit, taskEditError, taskEditPatch } from "@/lib/task-edit";
+import { useRecordTaskCardOpen } from "@/hooks/use-task-card-activity";
+import { TaskCardOpenings, TaskPinButton } from "@/components/TaskCardActivity";
 
 interface Props {
   open: boolean;
@@ -234,6 +236,7 @@ export function TaskDialog({
   const editBaseRef = useRef<Task | null>(null);
   const initializedFormRef = useRef<string | null>(null);
   const [isDraft, setIsDraft] = useState(false);
+  useRecordTaskCardOpen(open, task?.id);
   const [activeTab, setActiveTab] = useState("subtasks");
   const conversationSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -1529,6 +1532,7 @@ export function TaskDialog({
           <DialogTitle className="text-xl">
             {isDraft ? "Tarefa em elaboração" : task ? "Editar tarefa" : "Nova tarefa"}
           </DialogTitle>
+          {task && <div className="flex flex-wrap gap-1"><TaskPinButton task={task} /><TaskCardOpenings task={task} /></div>}
         </DialogHeader>
 
         <div className="space-y-5 px-6 py-5">

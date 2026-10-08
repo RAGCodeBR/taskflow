@@ -93,6 +93,7 @@ import {
 import { TaskCard } from "@/components/TaskCard";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
 import { TaskDialog } from "@/components/TaskDialog";
+import { usePersonalTaskPins } from "@/hooks/use-task-card-activity";
 import { TagManagerDialog } from "@/components/TagManagerDialog";
 import { MarketingFormatSettings } from "@/components/MarketingFormatSettings";
 import { MarketingObjectiveSettings } from "@/components/MarketingObjectiveSettings";
@@ -398,6 +399,8 @@ function KanbanPage() {
     [collaborators, user?.id],
   );
   const { data: boardPrefs } = useBoardPreferences();
+  const { pins } = usePersonalTaskPins();
+  const pinnedIds = useMemo(() => new Set(pins.filter(pin => pin.is_pinned).map(pin => pin.task_id)), [pins]);
   const { data: allSubtasks = [] } = useSubtasks();
   const updatePrefs = useUpdateBoardPreferences();
   const orientation = boardPrefs?.kanban_orientation ?? "vertical";
@@ -677,6 +680,8 @@ function KanbanPage() {
   const sortedTasks = useMemo(() => {
     const r = [...filtered];
     r.sort((a, b) => {
+      const pinOrder = Number(pinnedIds.has(b.id)) - Number(pinnedIds.has(a.id));
+      if (pinOrder) return pinOrder;
       // Na ordenação padrão, tarefas recebidas de outro usuário vêm primeiro,
       // sempre da maior prioridade para a menor.
       if (sort.field === "position" && sort.direction === "asc" && user?.id) {
@@ -747,7 +752,7 @@ function KanbanPage() {
       return sort.direction === "asc" ? cmp : -cmp;
     });
     return r;
-  }, [filtered, sort, tagNameForTask, userTaskPos, statuses, user?.id]);
+  }, [filtered, sort, tagNameForTask, userTaskPos, statuses, user?.id, pinnedIds]);
 
   // Tarefas que você lançou para o outro ambiente entram no quadro junto das
   // demais. Elas caem na primeira coluna, porque a coluna real delas pertence

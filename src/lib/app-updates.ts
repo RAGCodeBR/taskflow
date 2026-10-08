@@ -1,6 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
-  "task-edit" | "calendar-reschedule" | "links-calendar" | "task-prints" | "dashboard";
+  "task-card-activity" | "task-edit" | "calendar-reschedule" | "links-calendar" | "task-prints" | "dashboard";
 export type AppUpdate = {
   id: string;
   title: string;
@@ -14,6 +14,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "aberturas-pins-atalhos-tarefas-2026-10-08",
+    title: "Aberturas, prioridades pessoais e tarefas no calendário",
+    date: "2026-10-08",
+    preview: "task-card-activity",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Em Aberturas do card, consulte a primeira e a última vez que cada pessoa abriu a tarefa, com data e horário de Brasília. O registro começa nesta atualização; aberturas offline aparecem ao sincronizar.",
+      "No calendário, clique com o botão direito na tarefa e escolha Fixar tarefa ou Desfixar tarefa. Um pin pequeno em azul-marinho, com fundo claro, aparece sobreposto no canto do card. O botão Fixadas mostra apenas suas tarefas pendentes fixadas no período exibido; clicar novamente retorna à visualização normal. Cada pessoa tem seus próprios pins.",
+      "Clique com o botão direito no dia ou em uma tarefa do calendário e selecione Nova tarefa. O formulário abre com o prazo daquele dia preenchido, nas visões de semana e mês.",
+    ],
+  },
   {
     id: "edicao-tarefas-prazos-descricoes-2026-10-08",
     title: "Salvamento de descrições e prazos",

@@ -1,6 +1,8 @@
 import { createStore, del, get, set } from "idb-keyval";
 
 export type OfflineEntity =
+  | "task_open"
+  | "task_pin"
   | "task"
   | "task_order"
   | "record"

@@ -34,7 +34,12 @@ import {
   subWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle2, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Plus, Pin } from "lucide-react";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { usePersonalTaskPins } from "@/hooks/use-task-card-activity";
+import { pendingPersonalPriorities } from "@/lib/task-card-activity";
+import { CalendarTaskPin } from "@/components/CalendarTaskPin";
+import { taskEditError } from "@/lib/task-edit";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -88,6 +93,10 @@ function CalendarPage() {
   const [calendarView, setCalendarView] = useState<"week" | "month">("month");
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
+  const [newTaskDay, setNewTaskDay] = useState<string | undefined>();
+  const { pins, setPinned, canPin } = usePersonalTaskPins();
+  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
+  const pinnedIds = useMemo(() => new Set(pins.filter(pin => pin.is_pinned).map(pin => pin.task_id)), [pins]);
   const [edit, setEdit] = useState<Task | null>(null);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [dayListOpen, setDayListOpen] = useState(false);
@@ -307,14 +316,21 @@ function CalendarPage() {
 
   // Somente tarefas principais entram no calendário, no próprio prazo.
   // Subtarefas continuam participando dos filtros e dos detalhes da tarefa.
+  const pendingPinnedIds = new Set(pendingPersonalPriorities(taskView, pins).map(task => task.id));
   const dayEntries = (day: Date) =>
-    visible.filter((task) => task.due_date && isSameDay(new Date(task.due_date), day));
+    visible.filter((task) => (!showPinnedOnly || pendingPinnedIds.has(task.id)) && task.due_date && isSameDay(new Date(task.due_date), day))
+      .sort((a, b) => Number(pinnedIds.has(b.id)) - Number(pinnedIds.has(a.id)));
+  const createOnDay = (day: Date) => {
+    setNewTaskDay(format(day, "yyyy-MM-dd"));
+    setEdit(null);
+    setOpen(true);
+  };
 
   const selectedDayEntries = selectedDay ? dayEntries(selectedDay) : [];
 
   return (
     <div className="space-y-4 p-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium capitalize">{calendarLabel}</span>
           <div className="flex gap-1">
@@ -329,7 +345,10 @@ function CalendarPage() {
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canPin && <Button size="sm" variant={showPinnedOnly ? "secondary" : "outline"} aria-pressed={showPinnedOnly}
+            title="Mostrar somente tarefas fixadas no período do calendário"
+            onClick={() => setShowPinnedOnly(current => !current)}><Pin className="mr-1 h-3.5 w-3.5" />Fixadas</Button>}
           <div
             className="flex rounded-md border bg-muted/30 p-0.5"
             role="group"
@@ -354,6 +373,7 @@ function CalendarPage() {
           </div>
           <Button
             onClick={() => {
+              setNewTaskDay(undefined);
               setEdit(null);
               setOpen(true);
             }}
@@ -403,6 +423,7 @@ function CalendarPage() {
                 <CalendarDay
                   key={day.toISOString()}
                   day={day}
+                  onCreate={canReschedule ? () => createOnDay(day) : undefined}
                   disabled={!canReschedule || Boolean(reschedule) || savingDate}
                   className={`${calendarView === "week" ? "min-h-[26rem]" : "min-h-28"} border-b border-r p-2 ${inMonth ? "" : "bg-muted/20 text-muted-foreground"}`}
                 >
@@ -425,6 +446,9 @@ function CalendarPage() {
                           key={task.id}
                           disabled={!canReschedule || Boolean(reschedule) || savingDate}
                           task={task}
+                          pinned={pinnedIds.has(task.id)}
+                          onCreate={canReschedule ? () => createOnDay(day) : undefined}
+                          onTogglePin={canPin ? () => setPinned(task.id, !pinnedIds.has(task.id)) : undefined}
                           assignee={assignee}
                           statusName={status?.name ?? stageNameByTaskId.get(task.id) ?? "A fazer"}
                           completed={task.status === "done" || Boolean(status?.is_completed)}
@@ -458,6 +482,7 @@ function CalendarPage() {
               {draggedTask ? (
                 <CalendarTaskItem
                   task={draggedTask}
+                  pinned={pinnedIds.has(draggedTask.id)}
                   assignee={profileById.get(draggedTask.assignee_id ?? "") ?? null}
                   statusName={statusById.get(draggedTask.status_id ?? "")?.name ?? "A fazer"}
                   completed={
@@ -566,6 +591,9 @@ function CalendarPage() {
                 <CalendarTaskItem
                   key={task.id}
                   task={task}
+                  pinned={pinnedIds.has(task.id)}
+                  onCreate={canReschedule && selectedDay ? () => { setDayListOpen(false); createOnDay(selectedDay); } : undefined}
+                  onTogglePin={canPin ? () => setPinned(task.id, !pinnedIds.has(task.id)) : undefined}
                   assignee={assignee}
                   statusName={status?.name ?? stageNameByTaskId.get(task.id) ?? "A fazer"}
                   completed={task.status === "done" || Boolean(status?.is_completed)}
@@ -579,7 +607,7 @@ function CalendarPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <TaskDialog open={open} onOpenChange={setOpen} task={edit} />
+      <TaskDialog open={open} onOpenChange={setOpen} task={edit} defaults={{ dueDate: newTaskDay }} />
     </div>
   );
 }
@@ -630,11 +658,13 @@ const calendarKeyboardCoordinates: KeyboardCoordinateGetter = (
 
 function CalendarDay({
   day,
+  onCreate,
   disabled,
   className,
   children,
 }: {
   day: Date;
+  onCreate?: () => void;
   disabled: boolean;
   className: string;
   children: ReactNode;
@@ -645,7 +675,7 @@ function CalendarDay({
     data: { date },
     disabled,
   });
-  return (
+  const content = (
     <div
       ref={setNodeRef}
       data-calendar-date={date}
@@ -654,6 +684,8 @@ function CalendarDay({
       {children}
     </div>
   );
+  if (!onCreate) return content;
+  return <ContextMenu><ContextMenuTrigger asChild>{content}</ContextMenuTrigger><ContextMenuContent><ContextMenuItem className="cursor-pointer" onSelect={onCreate}><Plus className="mr-2 h-4 w-4" />Nova tarefa</ContextMenuItem></ContextMenuContent></ContextMenu>;
 }
 
 function DraggableCalendarTaskItem({
@@ -673,6 +705,7 @@ function DraggableCalendarTaskItem({
 
 function CalendarTaskItem({
   task,
+  pinned = false,
   assignee,
   statusName,
   completed,
@@ -680,9 +713,12 @@ function CalendarTaskItem({
   backgroundColor,
   expanded = false,
   onClick,
+  onCreate,
+  onTogglePin,
   drag,
 }: {
   task: Task;
+  pinned?: boolean;
   assignee: Profile | null;
   statusName: string;
   completed: boolean;
@@ -690,6 +726,8 @@ function CalendarTaskItem({
   backgroundColor: string;
   expanded?: boolean;
   onClick: () => void;
+  onCreate?: () => void;
+  onTogglePin?: () => Promise<void>;
   drag?: ReturnType<typeof useDraggable>;
 }) {
   const assigneeName = assignee?.full_name || assignee?.email || "Sem responsável";
@@ -703,14 +741,15 @@ function CalendarTaskItem({
     : "?";
   const textColor = readableTextColor(backgroundColor);
 
-  return (
+  const [pinSaving, setPinSaving] = useState(false);
+  const button = (
     <button
       type="button"
       ref={drag?.setNodeRef}
       {...drag?.attributes}
       {...drag?.listeners}
       onClick={onClick}
-      className={`flex w-full min-w-0 items-center gap-1.5 rounded-md border text-left shadow-sm transition hover:-translate-y-px hover:shadow ${
+      className={`relative flex w-full min-w-0 items-center gap-1.5 rounded-md border text-left shadow-sm transition hover:-translate-y-px hover:shadow ${
         expanded ? "px-2 py-2" : "px-1 py-1"
       } ${drag ? "cursor-grab active:cursor-grabbing touch-manipulation" : ""} ${drag?.isDragging ? "opacity-35" : ""} ${completed ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-1 ring-emerald-300/80" : "hover:brightness-105"}`}
       style={
@@ -724,6 +763,7 @@ function CalendarTaskItem({
       }
       title={`${task.is_draft ? "Em elaboração" : completed ? "Concluída" : statusName} · ${assigneeName} · ${task.title}`}
     >
+      {pinned && !completed && <CalendarTaskPin />}
       <Avatar
         className={`${expanded ? "h-7 w-7" : "h-5 w-5"} shrink-0 border border-white/70 shadow-sm`}
       >
@@ -757,5 +797,18 @@ function CalendarTaskItem({
         <span className="shrink-0 text-[9px] opacity-80">{task.due_time.slice(0, 5)}</span>
       ) : null}
     </button>
+  );
+  if (!onCreate && !onTogglePin) return button;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild onContextMenu={event => event.stopPropagation()}>{button}</ContextMenuTrigger>
+      <ContextMenuContent>
+        {onCreate && <ContextMenuItem className="cursor-pointer" onSelect={onCreate}><Plus className="mr-2 h-4 w-4" />Nova tarefa</ContextMenuItem>}
+        {onTogglePin && <ContextMenuItem className="cursor-pointer" disabled={pinSaving || (!pinned && completed)} onSelect={() => {
+          setPinSaving(true);
+          void onTogglePin().catch(error => toast.error(taskEditError(error, "Não foi possível fixar a tarefa."))).finally(() => setPinSaving(false));
+        }}><Pin className="mr-2 h-4 w-4" />{pinned ? "Desfixar tarefa" : "Fixar tarefa"}</ContextMenuItem>}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

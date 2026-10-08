@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { taskCreatePayloadForSync } from "@/lib/offline-task-payload";
 import { syncCalendarTaskReschedule } from "@/lib/calendar-task-reschedule";
+import { syncTaskCardActivity } from "@/lib/task-card-activity";
 import {
   addOfflineConflict,
   isOffline,
@@ -95,6 +96,9 @@ async function syncTaskDelete(client: SyncClient, operation: OfflineOperation) {
 }
 
 async function syncOperation(client: SyncClient, operation: OfflineOperation) {
+  if (operation.entity === "task_open" || operation.entity === "task_pin") {
+    return syncTaskCardActivity(client as unknown as Parameters<typeof syncTaskCardActivity>[0], operation);
+  }
   if (operation.entity === "task") {
     if (operation.action === "create") {
       const taskPayload = taskCreatePayloadForSync(
@@ -296,6 +300,7 @@ export function OfflineSyncManager() {
     if (!user || isOffline() || syncing.current) return;
     syncing.current = true;
     let synced = 0;
+    let visibleSynced = 0;
     let conflicts = 0;
     let failed = 0;
     try {
@@ -320,6 +325,7 @@ export function OfflineSyncManager() {
           const hasConflict = await syncOperation(client, operation);
           await removeOfflineOperation(user.id, operation.id);
           synced += 1;
+          if (operation.entity !== "task_open" && operation.entity !== "task_pin") visibleSynced += 1;
           if (hasConflict) conflicts += 1;
         } catch (error) {
           // Uma operação inválida ou temporariamente recusada não pode prender
@@ -342,9 +348,13 @@ export function OfflineSyncManager() {
       }
       if (synced > 0) {
         await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["tasks"] }),
-          queryClient.invalidateQueries({ queryKey: ["subtasks"] }),
-          queryClient.invalidateQueries({ queryKey: ["user_task_order"] }),
+          ...(operations.some(operation => operation.entity === "task_pin") ? [queryClient.invalidateQueries({ queryKey: ["task_personal_pins"] })] : []),
+          ...(operations.some(operation => operation.entity === "task_open") ? [queryClient.invalidateQueries({ queryKey: ["task_card_opens"] })] : []),
+          ...(visibleSynced > 0 ? [
+            queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+            queryClient.invalidateQueries({ queryKey: ["subtasks"] }),
+            queryClient.invalidateQueries({ queryKey: ["user_task_order"] }),
+          ] : []),
           ...(operations.some((operation) => operation.payload.calendarDueDateChange)
             ? [
                 queryClient.invalidateQueries({ queryKey: ["task_due_date_changes"] }),
@@ -352,7 +362,7 @@ export function OfflineSyncManager() {
               ]
             : []),
         ]);
-        toast.success(
+        if (visibleSynced > 0) toast.success(
           conflicts > 0
             ? "Dados sincronizados. Há alterações que precisam de revisão."
             : "Dados offline sincronizados.",
