@@ -277,7 +277,9 @@ export function TaskCard({
   };
 
   useEffect(() => setTitleDraft(task.title), [task.title]);
-  useEffect(() => setDescDraft(withoutStoredPrints(task.description ?? "")), [task.description]);
+  useEffect(() => {
+    if (!descEditing) setDescDraft(withoutStoredPrints(task.description ?? ""));
+  }, [task.description, descEditing]);
   // A expansão é local ao card: ao trocar/sair da tarefa ou recarregar, volta fechada.
   useEffect(() => setDescriptionExpanded(false), [task.id]);
 
@@ -526,11 +528,9 @@ export function TaskCard({
   };
 
   const saveDesc = async () => {
-    setDescEditing(false);
     const next = descDraft.trim();
     const current = task.description ?? "";
-    if (next === current) return;
-    await update({ description: next || null });
+    if (next === current || await update({ description: next || null })) setDescEditing(false);
   };
 
   const foldSelectedDescription = async () => {

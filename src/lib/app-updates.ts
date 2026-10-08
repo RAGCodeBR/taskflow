@@ -1,6 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
-  "calendar-reschedule" | "links-calendar" | "task-prints" | "dashboard";
+  "task-edit" | "calendar-reschedule" | "links-calendar" | "task-prints" | "dashboard";
 export type AppUpdate = {
   id: string;
   title: string;
@@ -14,6 +14,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "edicao-tarefas-prazos-descricoes-2026-10-08",
+    title: "Salvamento de descrições e prazos",
+    date: "2026-10-08",
+    preview: "task-edit",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ao editar uma tarefa, apenas os campos alterados são enviados. Salvar a descrição preserva um prazo atualizado enquanto a janela estava aberta.",
+      "O salvamento confirma a tarefa retornada pelo servidor e atualiza sua exibição. Se a descrição no card não puder ser salva, o texto permanece no editor para tentar novamente. As permissões de acesso continuam as mesmas.",
+    ],
+  },
   {
     id: "arraste-calendario-justificativa-2026-10-07",
     title: "Arraste tarefas para alterar o prazo",

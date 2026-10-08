@@ -217,7 +217,28 @@ function CalendarReschedulePreview() {
   );
 }
 
+function TaskEditPreview() {
+  return (
+    <div aria-label="Prévia do salvamento de descrições e prazos" className="rounded-xl border bg-background p-3 shadow-sm">
+      <p className="text-xs font-semibold">Revisar campanha</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border p-3">
+          <p className="text-[10px] text-muted-foreground">Descrição editada</p>
+          <p className="mt-2 text-xs">Briefing revisado pela equipe.</p>
+          <p className="mt-3 text-[10px] text-emerald-700 dark:text-emerald-400">Texto salvo e exibido na tarefa</p>
+        </div>
+        <div className="rounded-lg border p-3">
+          <p className="text-[10px] text-muted-foreground">Prazo atualizado no calendário</p>
+          <p className="mt-2 flex items-center gap-2 text-xs"><CalendarDays className="h-4 w-4" />13 de outubro</p>
+          <p className="mt-3 text-[10px] text-muted-foreground">Preservado ao salvar somente a descrição</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "task-edit": TaskEditPreview,
   "calendar-reschedule": CalendarReschedulePreview,
   "links-calendar": TaskLinksCalendarPreview,
   "task-prints": TaskDescriptionPreview,

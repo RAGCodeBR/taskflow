@@ -2,12 +2,15 @@ import type { QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/hooks/use-data";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
+import { persistTaskEdit } from "@/lib/task-edit";
 
 type TaskPatch = Partial<Task>;
 
 function updateLocalTask(queryClient: QueryClient, taskId: string, patch: TaskPatch) {
-  queryClient.setQueryData<Task[]>(["tasks"], (current = []) =>
-    current.map((item) => (item.id === taskId ? ({ ...item, ...patch } as Task) : item)),
+  queryClient.setQueriesData<Task[]>({ queryKey: ["tasks"] }, (current) =>
+    Array.isArray(current) ? current.map((item) => (item.id === taskId ? ({ ...item, ...patch } as Task) : item)) : current,
   );
 }
 
@@ -30,12 +33,20 @@ export async function updateTaskWithOfflineSupport({
   forceQueue?: boolean;
 }) {
   if (!forceQueue && !isOffline()) {
-    const { error } = await supabase.from("tasks").update(patch).eq("id", task.id);
+    const { data: { session }, error } = await supabase.auth.getSession();
     if (error) throw error;
+    if (!session?.access_token || session.user.id !== userId) {
+      throw new Error("Sua sessão expirou. Entre novamente para salvar a tarefa.");
+    }
+    const client = createClient<Database>(
+      import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: `Bearer ${session.access_token}` } } },
+    );
+    await persistTaskEdit(client, task.id, patch, queryClient);
     return { queued: false };
   }
 
-  updateLocalTask(queryClient, task.id, patch);
   const baseValues = Object.fromEntries(Object.keys(patch).map((key) => [key, task[key as keyof Task]]));
   await enqueueOfflineOperation({
     userId,
@@ -46,6 +57,7 @@ export async function updateTaskWithOfflineSupport({
     baseUpdatedAt: task.updated_at ?? null,
     baseValues,
   });
+  updateLocalTask(queryClient, task.id, patch);
   return { queued: true };
 }
 

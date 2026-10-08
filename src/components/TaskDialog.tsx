@@ -69,6 +69,7 @@ import {
   updateTaskWithOfflineSupport,
 } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isNetworkFailure, isOffline } from "@/lib/offline-sync";
+import { persistTaskEdit, taskEditError, taskEditPatch } from "@/lib/task-edit";
 
 interface Props {
   open: boolean;
@@ -230,6 +231,8 @@ export function TaskDialog({
   const [dueDateChangeReason, setDueDateChangeReason] = useState("");
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
+  const editBaseRef = useRef<Task | null>(null);
+  const initializedFormRef = useRef<string | null>(null);
   const [isDraft, setIsDraft] = useState(false);
   const [activeTab, setActiveTab] = useState("subtasks");
   const conversationSectionRef = useRef<HTMLDivElement | null>(null);
@@ -330,7 +333,14 @@ export function TaskDialog({
     "Usuário não identificado";
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initializedFormRef.current = null;
+      return;
+    }
+    const formKey = task?.id ?? "new";
+    if (initializedFormRef.current === formKey) return;
+    initializedFormRef.current = formKey;
+    editBaseRef.current = task ?? null;
     setActiveTab("subtasks");
     setClientPickerOpen(false);
     setClientSearch("");
@@ -510,7 +520,7 @@ export function TaskDialog({
       .select("collaborator_id")
       .eq("task_id", taskId);
     if (error) {
-      toast.error(error.message);
+      toast.error(taskEditError(error, "Não foi possível carregar os participantes da tarefa."));
       return;
     }
     setCollaboratorIds(
@@ -769,12 +779,12 @@ export function TaskDialog({
 
     if (taskId) {
       const localTask =
-        task ?? qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === taskId);
+        editBaseRef.current ?? task ?? qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === taskId);
       if (!localTask) throw new Error("Não foi possível localizar a tarefa neste aparelho.");
       await updateTaskWithOfflineSupport({
         userId: user.id,
         task: localTask,
-        patch: { ...payload, is_draft: false },
+        patch: { ...taskEditPatch(localTask, payload), is_draft: false },
         queryClient: qc,
         forceQueue: true,
       });
@@ -901,7 +911,8 @@ export function TaskDialog({
       const payload = buildPayload();
       let savedTaskId = existingTaskId;
       if (existingTaskId) {
-        const previousDueDate = task?.due_date ?? null;
+        const original = editBaseRef.current;
+        const previousDueDate = original?.due_date ?? null;
         const dueDateChanged = hasDueDateChanged(previousDueDate, dueDate);
         // Definir o primeiro prazo não é uma alteração. A justificativa só é
         // obrigatória a partir da segunda definição/alteração do prazo.
@@ -911,13 +922,12 @@ export function TaskDialog({
           toast.error("Informe a justificativa para alterar o prazo da tarefa.");
           return;
         }
-        const { error } = await authenticated.client
-          .from("tasks")
-          .update({ ...payload, is_draft: false })
-          .eq("id", existingTaskId);
-        if (error) throw error;
+        const patch = original ? taskEditPatch(original, payload) : payload;
+        await persistTaskEdit(
+          authenticated.client, existingTaskId, { ...patch, is_draft: false }, qc,
+        );
         if (dueDateChanged && previousDueDate) {
-          const { error: historyError } = await supabase.from("task_due_date_changes").insert({
+          const { error: historyError } = await authenticated.client.from("task_due_date_changes").insert({
             task_id: existingTaskId,
             user_id: authenticated.user.id,
             old_due_date: previousDueDate,
@@ -927,7 +937,7 @@ export function TaskDialog({
           if (historyError) throw historyError;
         }
         await syncCollaborators(existingTaskId, authenticated.client);
-        await supabase
+        await authenticated.client
           .from("task_history")
           .insert({ task_id: existingTaskId, user_id: authenticated.user.id, action: "updated" });
         if (!(await commitPendingSubtask(existingTaskId))) return;
@@ -978,7 +988,7 @@ export function TaskDialog({
           );
         }
       } else {
-        toast.error(error instanceof Error ? error.message : "Não foi possível salvar a tarefa.");
+        toast.error(taskEditError(error));
       }
     } finally {
       setSaving(false);
