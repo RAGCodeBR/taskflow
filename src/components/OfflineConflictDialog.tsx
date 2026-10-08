@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { queueCalendarTaskReschedule } from "@/lib/calendar-task-reschedule";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { listOfflineConflicts, removeOfflineConflict, type OfflineConflict } from "@/lib/offline-sync";
@@ -51,10 +53,21 @@ export function OfflineConflictDialog() {
     setSaving(true);
     try {
       if (choice === "local" && conflict.field !== "__deleted") {
-        const { error } = await (supabase.from("tasks") as any)
-          .update({ [conflict.field]: conflict.localValue })
-          .eq("id", conflict.entityId);
-        if (error) throw error;
+        if (conflict.field === "due_date" && conflict.dueDateChange) {
+          await queueCalendarTaskReschedule({
+            userId: user.id,
+            task: { id: conflict.entityId, due_date: conflict.serverValue as string, updated_at: conflict.serverUpdatedAt ?? "" },
+            date: format(new Date(conflict.localValue as string), "yyyy-MM-dd"),
+            reason: conflict.dueDateChange.reason,
+            history: conflict.dueDateChange,
+            queryClient,
+          });
+        } else {
+          const { error } = await (supabase.from("tasks") as any)
+            .update({ [conflict.field]: conflict.localValue })
+            .eq("id", conflict.entityId);
+          if (error) throw error;
+        }
       }
       if (choice === "delete") {
         const { error } = await supabase.from("tasks").delete().eq("id", conflict.entityId);

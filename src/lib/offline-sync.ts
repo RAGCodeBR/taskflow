@@ -41,6 +41,8 @@ export type OfflineConflict = {
   serverValue: unknown;
   localValue: unknown;
   serverUpdatedAt?: string | null;
+  /** Calendar deadline conflicts retain the required reason until a choice is made. */
+  dueDateChange?: { id: string; reason: string; created_at: string };
   createdAt: string;
 };
 

@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { taskCreatePayloadForSync } from "@/lib/offline-task-payload";
+import { syncCalendarTaskReschedule } from "@/lib/calendar-task-reschedule";
 import {
   addOfflineConflict,
   isOffline,
@@ -106,7 +107,10 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
       if (error) throw error;
       return false;
     }
-    if (operation.action === "update") return syncTaskUpdate(client, operation);
+    if (operation.action === "update") {
+      if (operation.payload.calendarDueDateChange) return syncCalendarTaskReschedule(client, operation);
+      return syncTaskUpdate(client, operation);
+    }
     return syncTaskDelete(client, operation);
   }
 
@@ -321,7 +325,10 @@ export function OfflineSyncManager() {
           // Uma operação inválida ou temporariamente recusada não pode prender
           // toda a fila. Ela permanece guardada para nova tentativa, enquanto
           // criações posteriores e independentes (como uma tarefa) seguem.
-          await replaceOfflineOperation({ ...operation, attempts: operation.attempts + 1 });
+          const pending = operation.payload.calendarDueDateChange
+            ? (await listOfflineOperations(user.id)).find((item) => item.id === operation.id) ?? operation
+            : operation;
+          await replaceOfflineOperation({ ...pending, attempts: operation.attempts + 1 });
           failed += 1;
           console.warn("[offline sync] operação pendente após falha:", operation.entity, operation.action, error);
         }
@@ -338,6 +345,12 @@ export function OfflineSyncManager() {
           queryClient.invalidateQueries({ queryKey: ["tasks"] }),
           queryClient.invalidateQueries({ queryKey: ["subtasks"] }),
           queryClient.invalidateQueries({ queryKey: ["user_task_order"] }),
+          ...(operations.some((operation) => operation.payload.calendarDueDateChange)
+            ? [
+                queryClient.invalidateQueries({ queryKey: ["task_due_date_changes"] }),
+                queryClient.invalidateQueries({ queryKey: ["task_due_date_changes_report"] }),
+              ]
+            : []),
         ]);
         toast.success(
           conflicts > 0

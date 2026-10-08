@@ -1,5 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import {
+  DndContext,
+  DragOverlay,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
+  type DragEndEvent,
+  type KeyboardCoordinateGetter,
+} from "@dnd-kit/core";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   addMonths,
   addWeeks,
@@ -17,6 +36,10 @@ import {
 import { ptBR } from "date-fns/locale";
 import { CheckCircle2, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { queueCalendarTaskReschedule } from "@/lib/calendar-task-reschedule";
+import { isOffline } from "@/lib/offline-sync";
 import {
   useTasks,
   useClients,
@@ -36,6 +59,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -47,7 +71,8 @@ export const Route = createFileRoute("/_app/tasks/calendar")({
 });
 
 function CalendarPage() {
-  const { user, isCollaborator } = useAuth();
+  const { user, isCollaborator, isClient, activeWorkspace } = useAuth();
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TaskFilterValue>({});
   // O calendário acompanha o ambiente escolhido no filtro sem trocar o
   // ambiente ativo da sessão administrativa.
@@ -66,6 +91,89 @@ function CalendarPage() {
   const [edit, setEdit] = useState<Task | null>(null);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [dayListOpen, setDayListOpen] = useState(false);
+  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [reschedule, setReschedule] = useState<{ task: Task; date: string } | null>(null);
+  const [reason, setReason] = useState("");
+  const [savingDate, setSavingDate] = useState(false);
+  const submittingDate = useRef(false);
+  // Cross-workspace administrative previews are read-only. Switching the active
+  // workspace still allows rescheduling in either environment as usual.
+  const canReschedule = Boolean(
+    user && !isClient && (!viewedWorkspaceId || viewedWorkspaceId === activeWorkspace?.id),
+  );
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: calendarKeyboardCoordinates }),
+  );
+
+  useEffect(() => {
+    setDraggedTask(null);
+    setReschedule(null);
+    setReason("");
+  }, [activeWorkspace?.id, viewedWorkspaceId]);
+
+  const finishDrag = ({ active, over }: DragEndEvent) => {
+    setDraggedTask(null);
+    if (!canReschedule || reschedule || savingDate) return;
+    const task = tasks.find((item) => item.id === active.data.current?.taskId);
+    const date = over?.data.current?.date as string | undefined;
+    if (!task?.due_date || !date || format(new Date(task.due_date), "yyyy-MM-dd") === date) return;
+    setReason("");
+    setReschedule({ task, date });
+  };
+
+  const cancelReschedule = () => {
+    if (submittingDate.current) return;
+    setReschedule(null);
+    setReason("");
+  };
+
+  const confirmReschedule = async () => {
+    if (!reschedule || !user || submittingDate.current) return;
+    if (!reason.trim()) {
+      toast.error("Informe a justificativa para alterar o prazo da tarefa.");
+      return;
+    }
+    const task = tasks.find((item) => item.id === reschedule.task.id);
+    if (
+      !canReschedule ||
+      !task ||
+      task.deleted_at ||
+      task.archived_at ||
+      task.due_date !== reschedule.task.due_date
+    ) {
+      toast.error("A tarefa foi atualizada. Arraste novamente para alterar o prazo.");
+      cancelReschedule();
+      return;
+    }
+    submittingDate.current = true;
+    setSavingDate(true);
+    try {
+      await queueCalendarTaskReschedule({
+        userId: user.id,
+        task,
+        date: reschedule.date,
+        reason,
+        queryClient,
+      });
+      setReschedule(null);
+      setReason("");
+      toast.success(
+        isOffline()
+          ? "Prazo salvo neste aparelho. Será sincronizado ao reconectar."
+          : "Alteração de prazo salva. Sincronizando com o servidor.",
+      );
+      void queryClient.invalidateQueries({ queryKey: ["task_due_date_changes", task.id] });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Não foi possível salvar a alteração de prazo.",
+      );
+    } finally {
+      submittingDate.current = false;
+      setSavingDate(false);
+    }
+  };
 
   useEffect(() => {
     if (!user?.id) return;
@@ -208,9 +316,7 @@ function CalendarPage() {
     <div className="space-y-4 p-6">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium capitalize">
-            {calendarLabel}
-          </span>
+          <span className="text-sm font-medium capitalize">{calendarLabel}</span>
           <div className="flex gap-1">
             <Button size="icon" variant="outline" onClick={() => moveCursor(-1)}>
               <ChevronLeft className="h-4 w-4" />
@@ -224,7 +330,11 @@ function CalendarPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-md border bg-muted/30 p-0.5" role="group" aria-label="Visão do calendário">
+          <div
+            className="flex rounded-md border bg-muted/30 p-0.5"
+            role="group"
+            aria-label="Visão do calendário"
+          >
             <Button
               size="sm"
               variant={calendarView === "week" ? "secondary" : "ghost"}
@@ -259,69 +369,170 @@ function CalendarPage() {
       />
       <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator} />
 
-      <div className="overflow-hidden rounded-lg border bg-card">
-        <div className="grid grid-cols-7 border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
-            <div key={d} className="p-2 text-center">
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {days.map((day) => {
-            const inMonth = calendarView === "week" || isSameMonth(day, cursor);
-            const today = isSameDay(day, new Date());
-            const entries = dayEntries(day);
-            return (
-              <div
-                key={day.toISOString()}
-                className={`${calendarView === "week" ? "min-h-[26rem]" : "min-h-28"} border-b border-r p-2 ${inMonth ? "" : "bg-muted/20 text-muted-foreground"}`}
-              >
-                <div
-                  className={`mb-1 inline-grid h-6 min-w-6 place-items-center rounded-full text-xs ${today ? "bg-primary text-primary-foreground font-semibold" : ""}`}
-                >
-                  {format(day, "d")}
-                </div>
-                <div className="space-y-1">
-                  {entries.slice(0, 3).map((task) => {
-                    const status = statusById.get(task.status_id ?? "");
-                    const assignee = profileById.get(task.assignee_id ?? "") ?? null;
-                    const clientColor = clientById.get(task.client_id ?? "")?.color || "#475569";
-                    const onClick = () => {
-                      setEdit(task);
-                      setOpen(true);
-                    };
-                    return (
-                      <CalendarTaskItem
-                        key={task.id}
-                        task={task}
-                        assignee={assignee}
-                        statusName={status?.name ?? stageNameByTaskId.get(task.id) ?? "A fazer"}
-                        completed={task.status === "done" || Boolean(status?.is_completed)}
-                        statusColor={status?.color || "#64748b"}
-                        backgroundColor={clientColor}
-                        onClick={onClick}
-                      />
-                    );
-                  })}
-                  {entries.length > 3 && (
-                    <button
-                      type="button"
-                      className="text-[10px] font-medium text-primary hover:underline"
-                      onClick={() => {
-                        setSelectedDay(day);
-                        setDayListOpen(true);
-                      }}
-                    >
-                      +{entries.length - 3} mais
-                    </button>
-                  )}
-                </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={calendarCollisionDetection}
+        onDragStart={({ active }) =>
+          setDraggedTask(tasks.find((task) => task.id === active.data.current?.taskId) ?? null)
+        }
+        onDragCancel={() => setDraggedTask(null)}
+        onDragEnd={finishDrag}
+      >
+        <div className="overflow-hidden rounded-lg border bg-card">
+          <div className="grid grid-cols-7 border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
+              <div key={d} className="p-2 text-center">
+                {d}
               </div>
-            );
-          })}
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {days.map((day) => {
+              const inMonth = calendarView === "week" || isSameMonth(day, cursor);
+              const today = isSameDay(day, new Date());
+              const entries = dayEntries(day);
+              return (
+                <CalendarDay
+                  key={day.toISOString()}
+                  day={day}
+                  disabled={!canReschedule || Boolean(reschedule) || savingDate}
+                  className={`${calendarView === "week" ? "min-h-[26rem]" : "min-h-28"} border-b border-r p-2 ${inMonth ? "" : "bg-muted/20 text-muted-foreground"}`}
+                >
+                  <div
+                    className={`mb-1 inline-grid h-6 min-w-6 place-items-center rounded-full text-xs ${today ? "bg-primary text-primary-foreground font-semibold" : ""}`}
+                  >
+                    {format(day, "d")}
+                  </div>
+                  <div className="space-y-1">
+                    {entries.slice(0, 3).map((task) => {
+                      const status = statusById.get(task.status_id ?? "");
+                      const assignee = profileById.get(task.assignee_id ?? "") ?? null;
+                      const clientColor = clientById.get(task.client_id ?? "")?.color || "#475569";
+                      const onClick = () => {
+                        setEdit(task);
+                        setOpen(true);
+                      };
+                      return (
+                        <DraggableCalendarTaskItem
+                          key={task.id}
+                          disabled={!canReschedule || Boolean(reschedule) || savingDate}
+                          task={task}
+                          assignee={assignee}
+                          statusName={status?.name ?? stageNameByTaskId.get(task.id) ?? "A fazer"}
+                          completed={task.status === "done" || Boolean(status?.is_completed)}
+                          statusColor={status?.color || "#64748b"}
+                          backgroundColor={clientColor}
+                          onClick={onClick}
+                        />
+                      );
+                    })}
+                    {entries.length > 3 && (
+                      <button
+                        type="button"
+                        className="text-[10px] font-medium text-primary hover:underline"
+                        onClick={() => {
+                          setSelectedDay(day);
+                          setDayListOpen(true);
+                        }}
+                      >
+                        +{entries.length - 3} mais
+                      </button>
+                    )}
+                  </div>
+                </CalendarDay>
+              );
+            })}
+          </div>
         </div>
-      </div>
+        {typeof document !== "undefined" &&
+          createPortal(
+            <DragOverlay dropAnimation={null} className="pointer-events-none">
+              {draggedTask ? (
+                <CalendarTaskItem
+                  task={draggedTask}
+                  assignee={profileById.get(draggedTask.assignee_id ?? "") ?? null}
+                  statusName={statusById.get(draggedTask.status_id ?? "")?.name ?? "A fazer"}
+                  completed={
+                    draggedTask.status === "done" ||
+                    Boolean(statusById.get(draggedTask.status_id ?? "")?.is_completed)
+                  }
+                  statusColor={statusById.get(draggedTask.status_id ?? "")?.color || "#64748b"}
+                  backgroundColor={clientById.get(draggedTask.client_id ?? "")?.color || "#475569"}
+                  onClick={() => undefined}
+                />
+              ) : null}
+            </DragOverlay>,
+            document.body,
+          )}
+      </DndContext>
+      <Dialog
+        open={Boolean(reschedule)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) cancelReschedule();
+        }}
+      >
+        <DialogContent
+          className="max-w-[calc(100%-2rem)] gap-3 rounded-xl p-4 sm:max-w-sm"
+          onEscapeKeyDown={(event) => {
+            if (savingDate) event.preventDefault();
+          }}
+          onPointerDownOutside={(event) => {
+            if (savingDate) event.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="pr-6 text-base">Alterar prazo</DialogTitle>
+            <DialogDescription className="space-y-1 text-xs">
+              <span className="block truncate">{reschedule?.task.title}</span>
+              <span className="block">
+                {reschedule?.task.due_date
+                  ? format(new Date(reschedule.task.due_date), "dd/MM/yyyy")
+                  : ""}
+                {" → "}
+                {reschedule ? format(new Date(`${reschedule.date}T12:00:00`), "dd/MM/yyyy") : ""}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void confirmReschedule();
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="calendar-due-date-reason" className="text-xs">
+                Justificativa da alteração de prazo <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="calendar-due-date-reason"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Explique o motivo da alteração"
+                className="min-h-16 text-xs"
+                rows={2}
+                required
+                autoFocus
+                disabled={savingDate}
+              />
+            </div>
+            <DialogFooter className="flex-row justify-end gap-2 sm:space-x-0">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={cancelReschedule}
+                disabled={savingDate}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" size="sm" disabled={savingDate || !reason.trim()}>
+                {savingDate ? "Salvando…" : "Confirmar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <Dialog open={dayListOpen} onOpenChange={setDayListOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -329,15 +540,15 @@ function CalendarPage() {
               Tarefas de {selectedDay ? format(selectedDay, "d 'de' MMMM", { locale: ptBR }) : ""}
             </DialogTitle>
             <DialogDescription>
-              {selectedDayEntries.length} tarefa{selectedDayEntries.length === 1 ? "" : "s"} neste dia.
+              {selectedDayEntries.length} tarefa{selectedDayEntries.length === 1 ? "" : "s"} neste
+              dia.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
             {selectedDayEntries.map((task) => {
               const status = statusById.get(task.status_id ?? "");
               const assignee = profileById.get(task.assignee_id ?? "") ?? null;
-              const clientColor =
-                clientById.get(task.client_id ?? "")?.color || "#475569";
+              const clientColor = clientById.get(task.client_id ?? "")?.color || "#475569";
               const onClick = () => {
                 setDayListOpen(false);
                 setEdit(task);
@@ -375,6 +586,83 @@ function readableTextColor(color: string) {
   return luminance > 155 ? "#172033" : "#ffffff";
 }
 
+const calendarCollisionDetection: CollisionDetection = (args) =>
+  args.pointerCoordinates ? pointerWithin(args) : rectIntersection(args);
+
+const calendarKeyboardCoordinates: KeyboardCoordinateGetter = (
+  event,
+  { context, currentCoordinates },
+) => {
+  const offset = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 7, ArrowUp: -7 }[event.code];
+  if (!offset || !context.collisionRect) return undefined;
+  event.preventDefault();
+  const days = context.droppableContainers.getEnabled();
+  const current = context.over?.id ?? `calendar-day:${context.active?.data.current?.date}`;
+  const index = days.findIndex((day) => day.id === current);
+  if (index < 0) return undefined;
+  const target = days[index + offset];
+  if (!target) return undefined;
+  const rect = context.droppableRects.get(target.id);
+  if (!rect) return undefined;
+  return {
+    x:
+      currentCoordinates.x +
+      rect.left +
+      rect.width / 2 -
+      context.collisionRect.left -
+      context.collisionRect.width / 2,
+    y:
+      currentCoordinates.y +
+      rect.top +
+      rect.height / 2 -
+      context.collisionRect.top -
+      context.collisionRect.height / 2,
+  };
+};
+
+function CalendarDay({
+  day,
+  disabled,
+  className,
+  children,
+}: {
+  day: Date;
+  disabled: boolean;
+  className: string;
+  children: ReactNode;
+}) {
+  const date = format(day, "yyyy-MM-dd");
+  const { setNodeRef, isOver } = useDroppable({
+    id: `calendar-day:${date}`,
+    data: { date },
+    disabled,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      data-calendar-date={date}
+      className={`${className} ${isOver ? "bg-primary/10 ring-2 ring-inset ring-primary/60" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DraggableCalendarTaskItem({
+  disabled,
+  ...props
+}: Parameters<typeof CalendarTaskItem>[0] & { disabled: boolean }) {
+  const drag = useDraggable({
+    id: `calendar-task:${props.task.id}`,
+    data: {
+      taskId: props.task.id,
+      date: props.task.due_date ? format(new Date(props.task.due_date), "yyyy-MM-dd") : null,
+    },
+    disabled,
+  });
+  return <CalendarTaskItem {...props} drag={disabled ? undefined : drag} />;
+}
+
 function CalendarTaskItem({
   task,
   assignee,
@@ -384,6 +672,7 @@ function CalendarTaskItem({
   backgroundColor,
   expanded = false,
   onClick,
+  drag,
 }: {
   task: Task;
   assignee: Profile | null;
@@ -393,6 +682,7 @@ function CalendarTaskItem({
   backgroundColor: string;
   expanded?: boolean;
   onClick: () => void;
+  drag?: ReturnType<typeof useDraggable>;
 }) {
   const assigneeName = assignee?.full_name || assignee?.email || "Sem responsável";
   const initials = assignee
@@ -408,10 +698,13 @@ function CalendarTaskItem({
   return (
     <button
       type="button"
+      ref={drag?.setNodeRef}
+      {...drag?.attributes}
+      {...drag?.listeners}
       onClick={onClick}
       className={`flex w-full min-w-0 items-center gap-1.5 rounded-md border text-left shadow-sm transition hover:-translate-y-px hover:shadow ${
         expanded ? "px-2 py-2" : "px-1 py-1"
-      } ${completed ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-1 ring-emerald-300/80" : "hover:brightness-105"}`}
+      } ${drag ? "cursor-grab active:cursor-grabbing touch-manipulation" : ""} ${drag?.isDragging ? "opacity-35" : ""} ${completed ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-1 ring-emerald-300/80" : "hover:brightness-105"}`}
       style={
         completed
           ? undefined
@@ -440,7 +733,9 @@ function CalendarTaskItem({
           aria-label="Tarefa concluída"
         />
       ) : null}
-      <span className={`min-w-0 flex-1 truncate font-semibold ${expanded ? "text-sm" : "text-[11px]"} ${completed ? "line-through decoration-2 decoration-emerald-700/80" : ""}`}>
+      <span
+        className={`min-w-0 flex-1 truncate font-semibold ${expanded ? "text-sm" : "text-[11px]"} ${completed ? "line-through decoration-2 decoration-emerald-700/80" : ""}`}
+      >
         {task.title}
       </span>
       <span
