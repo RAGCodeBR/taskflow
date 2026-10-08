@@ -71,7 +71,7 @@ export const Route = createFileRoute("/_app/tasks/calendar")({
 });
 
 function CalendarPage() {
-  const { user, isCollaborator, isClient, activeWorkspace } = useAuth();
+  const { user, isCollaborator, isClient, activeWorkspace, workspaces } = useAuth();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TaskFilterValue>({});
   // O calendário acompanha o ambiente escolhido no filtro sem trocar o
@@ -363,11 +363,19 @@ function CalendarPage() {
           </Button>
         </div>
       </header>
-      <WorkspaceTaskFilter
-        value={filters.workspace}
-        onChange={(workspace) => setFilters({ ...filters, workspace })}
+      <TaskFilters
+        filters={filters}
+        onChange={setFilters}
+        hideAssignee={isCollaborator}
+        sections={{
+          category: workspaces.length > 1 ? (
+            <WorkspaceTaskFilter
+              value={filters.workspace}
+              onChange={(workspace) => setFilters({ ...filters, workspace })}
+            />
+          ) : undefined,
+        }}
       />
-      <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator} />
 
       <DndContext
         sensors={sensors}
@@ -714,7 +722,7 @@ function CalendarTaskItem({
               color: textColor,
             }
       }
-      title={`${completed ? "Concluída" : statusName} · ${assigneeName} · ${task.title}`}
+      title={`${task.is_draft ? "Em elaboração" : completed ? "Concluída" : statusName} · ${assigneeName} · ${task.title}`}
     >
       <Avatar
         className={`${expanded ? "h-7 w-7" : "h-5 w-5"} shrink-0 border border-white/70 shadow-sm`}
@@ -736,6 +744,7 @@ function CalendarTaskItem({
       <span
         className={`min-w-0 flex-1 truncate font-semibold ${expanded ? "text-sm" : "text-[11px]"} ${completed ? "line-through decoration-2 decoration-emerald-700/80" : ""}`}
       >
+        {task.is_draft ? "Em elaboração · " : ""}
         {task.title}
       </span>
       <span

@@ -373,7 +373,7 @@ function SortableColumn({
 
 function KanbanPage() {
   const qc = useQueryClient();
-  const { user, isAdmin, isCollaborator, activeWorkspace } = useAuth();
+  const { user, isAdmin, isCollaborator, activeWorkspace, workspaces } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>({});
   // O filtro permite ao administrador inspecionar outro ambiente sem trocar o
   // ambiente ativo exibido no topo. Os dados auxiliares acompanham a escolha,
@@ -1246,8 +1246,8 @@ function KanbanPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="shrink-0 border-b bg-background px-3 py-2">
-        <div className="flex items-center justify-end gap-2">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="order-2 ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline" className="rounded-full" onClick={() => setFilesOpen(true)}>
               <FolderOpen className="mr-2 h-4 w-4" />
               Arquivos Cliente
@@ -1285,108 +1285,97 @@ function KanbanPage() {
               Tarefa
             </Button>
           </div>
-        </div>
-        <div className="mt-2 space-y-1">
-          <TaskFilters filters={filters} onChange={setFilters} hideAssignee={isCollaborator}>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <WorkspaceTaskFilter
-                value={filters.workspace}
-                onChange={(workspace) => setFilters({ ...filters, workspace })}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1 rounded-full"
-                onClick={switchOrientation}
-                disabled={updatePrefs.isPending}
-                title={
-                  orientation === "horizontal" ? "Mudar para vertical" : "Mudar para horizontal"
-                }
-              >
-                {orientation === "horizontal" ? (
-                  <Rows className="h-3.5 w-3.5" />
-                ) : (
-                  <Columns className="h-3.5 w-3.5" />
-                )}
-                {orientation === "horizontal" ? "Vertical" : "Horizontal"}
-              </Button>
-              <Button
-                size="sm"
-                variant={minimalCards ? "default" : "outline"}
-                className="h-7 gap-1 rounded-full"
-                onClick={toggleMinimalCards}
-                title={minimalCards ? "Exibir cards completos" : "Exibir cards minimalistas"}
-              >
-                {minimalCards ? (
-                  <PanelsTopLeft className="h-3.5 w-3.5" />
-                ) : (
-                  <PanelTop className="h-3.5 w-3.5" />
-                )}
-                {minimalCards ? "Completo" : "Minimalista"}
-              </Button>{" "}
-              <CardFieldsPopover />
-            </div>
-            <div className="mr-3 inline-flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Concluídas no período</span>
-              <Input
-                type="date"
-                value={completedRange.start}
-                onChange={(e) =>
-                  setCompletedRange((range) => ({ ...range, start: e.target.value }))
-                }
-                className="h-7 w-36 rounded-full"
-              />
-              <span>até</span>
-              <Input
-                type="date"
-                value={completedRange.end}
-                onChange={(e) => setCompletedRange((range) => ({ ...range, end: e.target.value }))}
-                className="h-7 w-36 rounded-full"
-              />
-              {completedRange.start || completedRange.end ? (
+          <div className="order-1">
+          <TaskFilters
+            filters={filters}
+            onChange={setFilters}
+            hideAssignee={isCollaborator}
+            extraActiveChips={completedRange.start || completedRange.end ? [{
+              key: "completed-range",
+              label: `Concluídas: ${completedRange.start || "início"} até ${completedRange.end || "hoje"}`,
+              clear: () => setCompletedRange({ start: "", end: "" }),
+            }] : []}
+            sections={{
+              category: workspaces.length > 1 ? (
+                <WorkspaceTaskFilter
+                  value={filters.workspace}
+                  onChange={(workspace) => setFilters({ ...filters, workspace })}
+                />
+              ) : undefined,
+              visualization: <>
                 <Button
-                  variant="ghost"
                   size="sm"
-                  className="h-7"
-                  onClick={() => setCompletedRange({ start: "", end: "" })}
+                  variant="outline"
+                  className="h-8 gap-1 rounded-full"
+                  onClick={switchOrientation}
+                  disabled={updatePrefs.isPending}
+                  title={orientation === "horizontal" ? "Mudar para vertical" : "Mudar para horizontal"}
                 >
-                  Limpar período
+                  {orientation === "horizontal" ? <Rows className="h-3.5 w-3.5" /> : <Columns className="h-3.5 w-3.5" />}
+                  {orientation === "horizontal" ? "Vertical" : "Horizontal"}
                 </Button>
-              ) : null}
-            </div>
-            <div className="inline-flex items-center gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Ordenar por</span>
-              <Select
-                value={sort.field}
-                onValueChange={(v) => setSort((s) => ({ ...s, field: v as SortField }))}
-              >
-                <SelectTrigger className="h-7 w-40 rounded-full">
-                  <SelectValue placeholder="Escolher critério" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="due_date">Prazo</SelectItem>
-                  <SelectItem value="priority">Prioridade</SelectItem>
-                  <SelectItem value="created_at">Data de criação</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 rounded-full"
-                onClick={() =>
-                  setSort((s) => ({ ...s, direction: s.direction === "asc" ? "desc" : "asc" }))
-                }
-                title={sort.direction === "asc" ? "Ordem crescente" : "Ordem decrescente"}
-                aria-label={sort.direction === "asc" ? "Ordem crescente" : "Ordem decrescente"}
-              >
-                {sort.direction === "asc" ? (
-                  <ArrowUp className="h-3.5 w-3.5" />
-                ) : (
-                  <ArrowDown className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </div>
-          </TaskFilters>
+                <Button
+                  size="sm"
+                  variant={minimalCards ? "default" : "outline"}
+                  className="h-8 gap-1 rounded-full"
+                  onClick={toggleMinimalCards}
+                  title={minimalCards ? "Exibir cards completos" : "Exibir cards minimalistas"}
+                >
+                  {minimalCards ? <PanelsTopLeft className="h-3.5 w-3.5" /> : <PanelTop className="h-3.5 w-3.5" />}
+                  {minimalCards ? "Completo" : "Minimalista"}
+                </Button>
+                <div className="[&>button]:h-8"><CardFieldsPopover /></div>
+              </>,
+              organization: <>
+                <Select
+                  value={sort.field}
+                  onValueChange={(v) => setSort((s) => ({ ...s, field: v as SortField }))}
+                >
+                  <SelectTrigger className="h-8 min-w-44 flex-1 rounded-full">
+                    <SelectValue placeholder="Escolher critério" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="due_date">Prazo</SelectItem>
+                    <SelectItem value="priority">Prioridade</SelectItem>
+                    <SelectItem value="created_at">Data de criação</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-full"
+                  onClick={() =>
+                    setSort((s) => ({ ...s, direction: s.direction === "asc" ? "desc" : "asc" }))
+                  }
+                  title={sort.direction === "asc" ? "Ordem crescente" : "Ordem decrescente"}
+                  aria-label={sort.direction === "asc" ? "Ordem crescente" : "Ordem decrescente"}
+                >
+                  {sort.direction === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
+                </Button>
+              </>,
+              completedPeriod: <>
+                <Input
+                  type="date"
+                  value={completedRange.start}
+                  onChange={(e) => setCompletedRange((range) => ({ ...range, start: e.target.value }))}
+                  className="h-8 min-w-36 flex-1 rounded-full"
+                />
+                <span className="text-xs text-muted-foreground">até</span>
+                <Input
+                  type="date"
+                  value={completedRange.end}
+                  onChange={(e) => setCompletedRange((range) => ({ ...range, end: e.target.value }))}
+                  className="h-8 min-w-36 flex-1 rounded-full"
+                />
+                {completedRange.start || completedRange.end ? (
+                  <Button variant="ghost" size="sm" className="h-8" onClick={() => setCompletedRange({ start: "", end: "" })}>
+                    Limpar período
+                  </Button>
+                ) : null}
+              </>,
+            }}
+          />
+          </div>
         </div>
       </header>
 
@@ -1443,7 +1432,7 @@ function KanbanPage() {
                         key={t.id}
                         task={t}
                         orientation={orientation}
-                        disabled={sharedTaskIds.has(t.id)}
+                        disabled={sharedTaskIds.has(t.id) || Boolean(t.is_draft)}
                         clients={clients}
                         profiles={profiles}
                         columns={columns}

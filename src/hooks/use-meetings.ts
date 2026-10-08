@@ -43,6 +43,7 @@ export interface RecurringMeeting {
   /** Dias de antecedência do aviso aos participantes. */
   reminder_days_before: number;
   is_active: boolean;
+  archived_at: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

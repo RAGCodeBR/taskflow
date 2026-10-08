@@ -109,8 +109,13 @@ async function googleRequest(token: string, url: string, init?: RequestInit) {
   });
   if (response.status === 204) return null;
   const data = await response.json();
-  if (!response.ok)
-    throw new Error(data?.error?.message ?? "Não foi possível sincronizar com o Google Agenda.");
+  if (!response.ok) {
+    const error = new Error(
+      data?.error?.message ?? "Não foi possível sincronizar com o Google Agenda.",
+    ) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -197,14 +202,22 @@ function googleDate(event: any) {
 
 function taskflowDescription(description: unknown, meetingUrl?: string | null) {
   const cleanDescription = String(description ?? "")
-    .replace(new RegExp(`\\n*${meetingLinkMarker.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}https://meet\\.google\\.com/[^\\s]+`, "gi"), "")
+    .replace(
+      new RegExp(
+        `\\n*${meetingLinkMarker.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}https://meet\\.google\\.com/[^\\s]+`,
+        "gi",
+      ),
+      "",
+    )
     .trim();
   if (!meetingUrl) return cleanDescription || undefined;
   return [cleanDescription, `${meetingLinkMarker}${meetingUrl}`].filter(Boolean).join("\n\n");
 }
 
 function meetingUrlFromDescription(description: unknown) {
-  const match = String(description ?? "").match(/Google Meet:\s*(https:\/\/meet\.google\.com\/[^\s]+)/i);
+  const match = String(description ?? "").match(
+    /Google Meet:\s*(https:\/\/meet\.google\.com\/[^\s]+)/i,
+  );
   return match?.[1] ?? null;
 }
 
@@ -447,9 +460,12 @@ async function sync(request: Request, body: any = {}) {
       const targetCalendarId = event.google_calendar_id ?? calendarId;
       const remoteCalendarId = event.google_synced_calendar_id ?? targetCalendarId;
       const calendarNeedingWrite = event.deleted_at ? remoteCalendarId : targetCalendarId;
-      if (!canWriteCalendar(calendarNeedingWrite) ||
-          (event.google_event_id && remoteCalendarId !== targetCalendarId &&
-           !canWriteCalendar(remoteCalendarId))) {
+      if (
+        !canWriteCalendar(calendarNeedingWrite) ||
+        (event.google_event_id &&
+          remoteCalendarId !== targetCalendarId &&
+          !canWriteCalendar(remoteCalendarId))
+      ) {
         const targetName = nameByCalendarId.get(calendarNeedingWrite) ?? "selecionada";
         const message = `Sua conta Google precisa ter a permissão 'Fazer alterações em eventos' na agenda ${targetName}.`;
         await admin
@@ -509,12 +525,18 @@ async function sync(request: Request, body: any = {}) {
         await configureMeetArtifacts(writeToken, meetingUrl, event);
       }
 
-      const payload = localPayload({ ...event, meeting_url: meetingUrl, create_google_meet: false });
+      const payload = localPayload({
+        ...event,
+        meeting_url: meetingUrl,
+        create_google_meet: false,
+      });
       let googleEvent: any;
       if (event.google_event_id) {
         let remoteEventId = event.google_event_id;
         if (remoteCalendarId !== targetCalendarId) {
-          const moveUrl = new URL(`${googleEventUrl(remoteCalendarId, event.google_event_id)}/move`);
+          const moveUrl = new URL(
+            `${googleEventUrl(remoteCalendarId, event.google_event_id)}/move`,
+          );
           moveUrl.searchParams.set("destination", targetCalendarId);
           moveUrl.searchParams.set("sendUpdates", "none");
           try {
@@ -529,12 +551,15 @@ async function sync(request: Request, body: any = {}) {
             );
           }
           remoteEventId = googleEvent.id;
-          const { error: moveSaveError } = await admin.from("calendar_events").update({
-            google_calendar_id: targetCalendarId,
-            google_synced_calendar_id: targetCalendarId,
-            google_event_id: remoteEventId,
-            sync_status: "pending",
-          }).eq("id", event.id);
+          const { error: moveSaveError } = await admin
+            .from("calendar_events")
+            .update({
+              google_calendar_id: targetCalendarId,
+              google_synced_calendar_id: targetCalendarId,
+              google_event_id: remoteEventId,
+              sync_status: "pending",
+            })
+            .eq("id", event.id);
           if (moveSaveError) throw moveSaveError;
         }
         try {
@@ -559,13 +584,30 @@ async function sync(request: Request, body: any = {}) {
           );
         }
       } else {
-        googleEvent = await googleRequest(
-          writeToken,
-          googleEventUrl(targetCalendarId, undefined, false, true),
-          { method: "POST", body: JSON.stringify(payload) },
-        );
+        // O ID estável torna dois sincronizadores simultâneos idempotentes.
+        // UUID usa apenas caracteres permitidos pelo base32hex do Google.
+        const stableEventId = `tf${event.id.replaceAll("-", "")}`;
+        try {
+          googleEvent = await googleRequest(
+            writeToken,
+            googleEventUrl(targetCalendarId, undefined, false, true),
+            { method: "POST", body: JSON.stringify({ ...payload, id: stableEventId }) },
+          );
+        } catch (error) {
+          if ((error as Error & { status?: number }).status !== 409) throw error;
+          googleEvent = await googleRequest(
+            writeToken,
+            googleEventUrl(targetCalendarId, stableEventId),
+          );
+          if (googleEvent?.extendedProperties?.private?.taskflowEventId !== event.id)
+            throw new Error("O ID do evento já existe no Google para outro compromisso.");
+        }
       }
-      meetingUrl = googleEvent.hangoutLink ?? meetingUrl ?? null;
+      meetingUrl =
+        googleEvent.hangoutLink ??
+        meetingUrlFromDescription(googleEvent.description) ??
+        meetingUrl ??
+        null;
       await admin
         .from("calendar_events")
         .update({
@@ -635,9 +677,59 @@ async function sync(request: Request, body: any = {}) {
     }
     activeGoogleEvents.push(event);
   }
-  const remotePayloads = activeGoogleEvents.map((event) =>
-    googleToLocal(event, user.id, event.taskflowCalendar),
+  // Um POST antigo podia ser repetido por duas sincronizações simultâneas.
+  // Se o evento remoto aponta para um registro TaskFlow já vinculado a outro
+  // ID do Google, ele é a cópia excedente e não deve voltar à Agenda.
+  const taskflowIds = [
+    ...new Set(
+      activeGoogleEvents
+        .map((event) => event.extendedProperties?.private?.taskflowEventId)
+        .filter(
+          (id): id is string =>
+            typeof id === "string" &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id),
+        ),
+    ),
+  ];
+  const linkedById = new Map<
+    string,
+    { google_event_id: string | null; google_calendar_id: string | null }
+  >();
+  for (let index = 0; index < taskflowIds.length; index += 100) {
+    const { data: linked, error: linkedError } = await admin
+      .from("calendar_events")
+      .select("id,google_event_id,google_calendar_id")
+      .in("id", taskflowIds.slice(index, index + 100));
+    if (linkedError) throw linkedError;
+    for (const row of linked ?? []) linkedById.set(row.id, row);
+  }
+  const duplicateEvents = activeGoogleEvents.filter((event) => {
+    const taskflowId = event.extendedProperties?.private?.taskflowEventId;
+    const linked = typeof taskflowId === "string" ? linkedById.get(taskflowId) : null;
+    return (
+      !!linked?.google_event_id &&
+      linked.google_calendar_id === event.taskflowCalendar.id &&
+      linked.google_event_id !== event.id
+    );
+  });
+  for (const event of duplicateEvents) {
+    const { error: hideError } = await admin
+      .from("calendar_events")
+      .update({ hidden_at: new Date().toISOString() })
+      .eq("google_calendar_id", event.taskflowCalendar.id)
+      .eq("google_event_id", event.id)
+      .is("recurring_meeting_occurrence_id", null)
+      .is("hidden_at", null);
+    if (hideError) throw hideError;
+  }
+  const duplicateGoogleIds = new Set(
+    duplicateEvents.map((event) => `${event.taskflowCalendar.id}:${event.id}`),
   );
+  const remotePayloads = activeGoogleEvents
+    .filter((event) => {
+      return !duplicateGoogleIds.has(`${event.taskflowCalendar.id}:${event.id}`);
+    })
+    .map((event) => googleToLocal(event, user.id, event.taskflowCalendar));
   const { error: importError } = remotePayloads.length
     ? await admin
         .from("calendar_events")
@@ -681,6 +773,7 @@ async function sync(request: Request, body: any = {}) {
     .from("calendar_events")
     .select("*")
     .is("deleted_at", null)
+    .is("hidden_at", null)
     .lt("starts_at", range.end.toISOString())
     .gt("ends_at", range.start.toISOString())
     .order("starts_at", { ascending: true });
