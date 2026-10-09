@@ -16,6 +16,7 @@ import { Route as AppAgendaRouteImport } from './routes/_app/agenda'
 import { Route as AppAmbientesRouteImport } from './routes/_app/ambientes'
 import { Route as AppClientsRouteImport } from './routes/_app/clients'
 import { Route as AppConversationsRouteImport } from './routes/_app/conversations'
+import { Route as AppCrmRouteImport } from './routes/_app/crm'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppImportAtaRouteImport } from './routes/_app/import-ata'
 import { Route as AppMeetingsRouteImport } from './routes/_app/meetings'
@@ -72,6 +73,11 @@ const AppClientsRoute = AppClientsRouteImport.update({
 const AppConversationsRoute = AppConversationsRouteImport.update({
   id: '/conversations',
   path: '/conversations',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCrmRoute = AppCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/ambientes': typeof AppAmbientesRoute
   '/clients': typeof AppClientsRouteWithChildren
   '/conversations': typeof AppConversationsRoute
+  '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
   '/import-ata': typeof AppImportAtaRoute
   '/meetings': typeof AppMeetingsRoute
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AppAgendaRoute
   '/ambientes': typeof AppAmbientesRoute
   '/conversations': typeof AppConversationsRoute
+  '/crm': typeof AppCrmRoute
   '/dashboard': typeof AppDashboardRoute
   '/import-ata': typeof AppImportAtaRoute
   '/meetings': typeof AppMeetingsRoute
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/_app/ambientes': typeof AppAmbientesRoute
   '/_app/clients': typeof AppClientsRouteWithChildren
   '/_app/conversations': typeof AppConversationsRoute
+  '/_app/crm': typeof AppCrmRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/import-ata': typeof AppImportAtaRoute
   '/_app/meetings': typeof AppMeetingsRoute
@@ -293,6 +302,7 @@ export interface FileRouteTypes {
     | '/ambientes'
     | '/clients'
     | '/conversations'
+    | '/crm'
     | '/dashboard'
     | '/import-ata'
     | '/meetings'
@@ -323,6 +333,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/ambientes'
     | '/conversations'
+    | '/crm'
     | '/dashboard'
     | '/import-ata'
     | '/meetings'
@@ -354,6 +365,7 @@ export interface FileRouteTypes {
     | '/_app/ambientes'
     | '/_app/clients'
     | '/_app/conversations'
+    | '/_app/crm'
     | '/_app/dashboard'
     | '/_app/import-ata'
     | '/_app/meetings'
@@ -434,6 +446,13 @@ declare module '@tanstack/react-router' {
       path: '/conversations'
       fullPath: '/conversations'
       preLoaderRoute: typeof AppConversationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/crm': {
+      id: '/_app/crm'
+      path: '/crm'
+      fullPath: '/crm'
+      preLoaderRoute: typeof AppCrmRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -641,6 +660,7 @@ interface AppRouteChildren {
   AppAmbientesRoute: typeof AppAmbientesRoute
   AppClientsRoute: typeof AppClientsRouteWithChildren
   AppConversationsRoute: typeof AppConversationsRoute
+  AppCrmRoute: typeof AppCrmRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppImportAtaRoute: typeof AppImportAtaRoute
   AppMeetingsRoute: typeof AppMeetingsRoute
@@ -663,6 +683,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAmbientesRoute: AppAmbientesRoute,
   AppClientsRoute: AppClientsRouteWithChildren,
   AppConversationsRoute: AppConversationsRoute,
+  AppCrmRoute: AppCrmRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppImportAtaRoute: AppImportAtaRoute,
   AppMeetingsRoute: AppMeetingsRoute,

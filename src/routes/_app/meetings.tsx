@@ -708,7 +708,7 @@ function RecurringMeetingsPage() {
                   numeral={String(overdueMeetings.length)}
                   caption={overdueMeetings.length === 1 ? "atrasada" : "atrasadas"}
                   heading="Sem encerramento"
-                  hint="Reuniões que já passaram e ainda têm itens sem resultado."
+                  hint="Reuniões que já passaram e ainda não foram encerradas."
                 >
                   {overdueMeetings.map(({ occurrence, recurringMeeting }) => (
                     <MeetingRow
@@ -1222,20 +1222,26 @@ function MeetingRow({
           {prepared ? (
             <span className="block">
               <span className={`text-sm ${ready ? "font-medium text-primary" : ""}`}>
-                {ready
-                  ? "Pronta para encerrar"
-                  : `${resolved} de ${items.length} itens com resultado`}
+                {items.length === 0
+                  ? "Sem pauta"
+                  : ready
+                    ? "Pronta para encerrar"
+                    : `${resolved} de ${items.length} itens com resultado`}
               </span>
-              <span className="mt-1 block h-1 w-full max-w-40 overflow-hidden rounded-full bg-muted">
-                <span
-                  className="block h-full rounded-full bg-primary transition-[width]"
-                  style={{ width: `${progress}%` }}
-                />
-              </span>
+              {items.length > 0 && (
+                <span className="mt-1 block h-1 w-full max-w-40 overflow-hidden rounded-full bg-muted">
+                  <span
+                    className="block h-full rounded-full bg-primary transition-[width]"
+                    style={{ width: `${progress}%` }}
+                  />
+                </span>
+              )}
             </span>
           ) : (
             <span className="text-sm text-muted-foreground">
-              {templateCount} {templateCount === 1 ? "item previsto" : "itens previstos"}
+              {templateCount === 0
+                ? "Sem pauta"
+                : `${templateCount} ${templateCount === 1 ? "item previsto" : "itens previstos"}`}
             </span>
           )}
           {taskCount > 0 && (
@@ -1320,9 +1326,11 @@ function MeetingDialog({
         : [];
     },
   });
-  const { data: preview = [], isLoading: loadingPreview } = useRecurringMeetingAgendaPreview(
-    prepared ? null : occurrence.id,
-  );
+  const {
+    data: preview = [],
+    isLoading: loadingPreview,
+    isError: previewFailed,
+  } = useRecurringMeetingAgendaPreview(prepared ? null : occurrence.id);
   const [busy, setBusy] = useState(false);
   const [newItem, setNewItem] = useState("");
   const [taskSearch, setTaskSearch] = useState("");
@@ -1351,6 +1359,7 @@ function MeetingDialog({
     ? items.map((item) => ({ item, templateId: item.template_id, title: item.title }))
     : preview.map((entry) => ({ item: null, templateId: entry.template_id, title: entry.title }));
   const resolvedCount = rows.filter((row) => row.item?.result).length;
+  const noAgendaItems = rows.length === 0 && !loadingPreview && !previewFailed;
   const allResolved = rows.length > 0 && resolvedCount === rows.length;
   const people = participantIds
     .map((id) => profileById.get(id)?.full_name || profileById.get(id)?.email)
@@ -1555,6 +1564,11 @@ function MeetingDialog({
       onOpenChange(false);
     });
 
+  const completeWithoutAgenda = () => {
+    if (!window.confirm("Encerrar esta reunião sem pauta? Você poderá reabri-la depois.")) return;
+    void complete();
+  };
+
   const reopen = () =>
     run(async () => {
       const { error } = await (supabase.from("recurring_meeting_occurrences" as any) as any)
@@ -1758,6 +1772,10 @@ function MeetingDialog({
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Carregando pauta...
               </div>
+            ) : previewFailed ? (
+              <p className="px-3 py-8 text-center text-sm text-destructive">
+                Não foi possível carregar a pauta. Tente novamente antes de encerrar a reunião.
+              </p>
             ) : rows.length === 0 ? (
               <p className="flex items-center justify-center gap-2 px-3 py-8 text-sm text-muted-foreground">
                 <ClipboardList className="h-4 w-4" /> Nenhum item na pauta desta reunião.
@@ -1896,14 +1914,18 @@ function MeetingDialog({
               </Button>
             ) : (
               <Button
-                disabled={busy || !allResolved}
-                title={allResolved ? undefined : "Defina o resultado de todos os itens"}
-                onClick={() => void complete()}
+                disabled={busy || (!allResolved && !noAgendaItems)}
+                title={
+                  allResolved || noAgendaItems ? undefined : "Defina o resultado de todos os itens"
+                }
+                onClick={noAgendaItems ? completeWithoutAgenda : () => void complete()}
               >
                 <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                {allResolved
-                  ? "Encerrar reunião"
-                  : `${rows.length - resolvedCount} item(ns) sem resultado`}
+                {noAgendaItems
+                  ? "Encerrar sem pauta"
+                  : allResolved
+                    ? "Encerrar reunião"
+                    : `${rows.length - resolvedCount} item(ns) sem resultado`}
               </Button>
             )}
           </DialogFooter>

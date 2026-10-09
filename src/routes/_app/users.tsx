@@ -36,15 +36,15 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 export const Route = createFileRoute("/_app/users")({ component: UsersPage });
 
 const ACCESS_OPTIONS = [
+  ["mural", "Mural LA"],
   ["dashboard", "Dashboard"],
-  ["tasks", "Minhas tarefas"],
+  ["tasks", "Minhas Tarefas"],
   ["conversations", "Conversas"],
   ["obligations", "Obrigações"],
   ["meetings", "Reuniões"],
-  ["import_ata", "Importar ata"],
   ["clients", "Clientes"],
+  ["crm", "CRM"],
   ["reports", "Relatórios"],
-  ["mural", "Mural"],
   ["agenda", "Agenda"],
   ["portal_entregas", "Calendário de entregas"],
   ["portal_financeiro", "Financeiro"],
@@ -211,17 +211,19 @@ function AccessForm({
         <p className="text-xs text-muted-foreground">
           Administradores possuem acesso completo automaticamente.
         </p>
-        <div className="grid grid-cols-2 gap-2 rounded-md border p-3">
-          {ACCESS_OPTIONS.map(([key, label]) => (
-            <label key={key} className="flex cursor-pointer items-center gap-2 text-sm">
-              <Checkbox
-                checked={value.role === "admin" || value.permissions.includes(key)}
-                disabled={value.role === "admin"}
-                onCheckedChange={() => toggle(key)}
-              />
-              {label}
-            </label>
-          ))}
+        <div className="grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-2">
+          {ACCESS_OPTIONS.filter(([key]) => key !== "crm" || value.role !== "client").map(
+            ([key, label]) => (
+              <label key={key} className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox
+                  checked={value.role === "admin" || value.permissions.includes(key)}
+                  disabled={value.role === "admin"}
+                  onCheckedChange={() => toggle(key)}
+                />
+                {label}
+              </label>
+            ),
+          )}
         </div>
       </div>
     </div>
@@ -379,7 +381,7 @@ function UsersPage() {
   });
   const updateMutation = useMutation({
     mutationFn: async () => {
-      await invokeAccessManager("update", {
+      const result = await invokeAccessManager("update", {
         userId: editing!,
         fullName: form.fullName,
         password: form.password || undefined,
@@ -399,8 +401,18 @@ function UsersPage() {
           if (error) throw error;
         }
       }
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (editing && Array.isArray(result?.permissions)) {
+        qc.setQueryData<{ user_id: string; permissions: string[] }[]>(
+          ["user_permissions"],
+          (current = []) => [
+            ...current.filter((row) => row.user_id !== editing),
+            { user_id: editing, permissions: result.permissions },
+          ],
+        );
+      }
       refresh();
       setEditing(null);
       toast.success("Acessos atualizados.");

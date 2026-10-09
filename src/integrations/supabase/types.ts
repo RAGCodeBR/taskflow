@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      crm_pipeline_stages: {
+        Row: {
+          workspace_id: string
+          stage_id: string
+          label: string
+          color: string
+          updated_at: string
+        }
+        Insert: {
+          workspace_id: string
+          stage_id: string
+          label: string
+          color: string
+          updated_at?: string
+        }
+        Update: {
+          workspace_id?: string
+          stage_id?: string
+          label?: string
+          color?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "crm_pipeline_stages_workspace_id_fkey"; columns: ["workspace_id"]; isOneToOne: false; referencedRelation: "workspaces"; referencedColumns: ["id"] },
+        ]
+      }
+      crm_opportunities: {
+        Row: {
+          id: string
+          workspace_id: string
+          title: string
+          company_name: string | null
+          client_id: string | null
+          contact_name: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          stage: string
+          source: string | null
+          amount: number | null
+          expected_close_date: string | null
+          notes: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          title: string
+          company_name?: string | null
+          client_id?: string | null
+          contact_name?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          stage?: string
+          source?: string | null
+          amount?: number | null
+          expected_close_date?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          title?: string
+          company_name?: string | null
+          client_id?: string | null
+          contact_name?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          stage?: string
+          source?: string | null
+          amount?: number | null
+          expected_close_date?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "crm_opportunities_workspace_id_fkey"; columns: ["workspace_id"]; isOneToOne: false; referencedRelation: "workspaces"; referencedColumns: ["id"] },
+          { foreignKeyName: "crm_opportunities_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "crm_opportunities_client_id_fkey"; columns: ["client_id"]; isOneToOne: false; referencedRelation: "clients"; referencedColumns: ["id"] },
+        ]
+      }
       attachments: {
         Row: {
           created_at: string

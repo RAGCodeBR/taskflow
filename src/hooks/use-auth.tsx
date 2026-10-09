@@ -204,6 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "meetings",
       "import_ata",
       "clients",
+      "crm",
       "reports",
       "mural",
       "agenda",

@@ -10,8 +10,11 @@ const allAdminPermissions = [
   "dashboard",
   "tasks",
   "conversations",
+  "obligations",
+  "meetings",
   "import_ata",
   "clients",
+  "crm",
   "reports",
   "mural",
   "agenda",
@@ -27,8 +30,10 @@ const validPermissions = new Set([
   "tasks",
   "conversations",
   "obligations",
+  "meetings",
   "import_ata",
   "clients",
+  "crm",
   "reports",
   "mural",
   "agenda",
@@ -92,7 +97,10 @@ Deno.serve(async (request) => {
     if (action !== "delete" && role === "client" && !validUuid(data.clientId))
       return response({ error: "Selecione o cliente que será vinculado a este acesso." }, 400);
     if (action === "create" && data.marketingAccess === true && role === "client")
-      return response({ error: "O acesso de cliente deve permanecer vinculado à Consultoria." }, 400);
+      return response(
+        { error: "O acesso de cliente deve permanecer vinculado à Consultoria." },
+        400,
+      );
 
     const { data: callerProfile, error: callerProfileError } = await admin
       .from("profiles")
@@ -120,7 +128,10 @@ Deno.serve(async (request) => {
 
     if (managesMarketing && action === "create") {
       if (role !== "collaborator" || data.marketingAccess !== true)
-        return response({ error: "No Marketing, crie somente colaboradores próprios do ambiente." }, 403);
+        return response(
+          { error: "No Marketing, crie somente colaboradores próprios do ambiente." },
+          403,
+        );
     }
 
     if (action !== "create") {
@@ -325,7 +336,7 @@ Deno.serve(async (request) => {
           ? await linkQuery.upsert({ user_id: data.userId, client_id: data.clientId })
           : await linkQuery.delete().eq("user_id", data.userId);
       if (linkError) throw linkError;
-      return response({ ok: true });
+      return response({ ok: true, permissions });
     }
 
     if (!validUuid(data.userId)) return response({ error: "Usuário inválido." }, 400);

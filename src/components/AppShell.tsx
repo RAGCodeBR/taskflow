@@ -24,6 +24,7 @@ import {
   MessagesSquare,
   Layers3,
   Handshake,
+  ContactRound,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { UpdateCenter } from "@/components/UpdateCenter";
@@ -72,6 +73,7 @@ const allNav: readonly NavItem[] = [
   { to: "/obligations", label: "Obrigações", icon: CalendarCog },
   { to: "/meetings", label: "Reuniões", icon: Handshake },
   { to: "/clients", label: "Clientes", icon: Building2 },
+  { to: "/crm", label: "CRM", icon: ContactRound },
   { to: "/reports", label: "Relatórios", icon: BarChart3 },
   { to: "/agenda", label: "Agenda", icon: CalendarDays },
   { to: "/portal", label: "Portal do Cliente", icon: PanelsTopLeft },
@@ -112,6 +114,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       "/meetings": "meetings",
       "/import-ata": "import_ata",
       "/clients": "clients",
+      "/crm": "crm",
       "/reports": "reports",
       "/mural": "mural",
       "/agenda": "agenda",

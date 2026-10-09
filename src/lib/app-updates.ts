@@ -1,5 +1,15 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "meeting-empty-close"
+  | "meeting-auto-complete"
+  | "permission-save"
+  | "permission-nav-order"
+  | "crm-avatar-aligned"
+  | "crm-without-contact"
+  | "crm-company-labels"
+  | "crm-company"
+  | "crm-columns"
+  | "crm-pipeline"
   | "subtask-participation"
   | "calendar-subtask-dates"
   | "update-one-click"
@@ -27,6 +37,124 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "reunioes-sem-pauta-encerramento-manual-2026-10-09",
+    title: "Encerrar reuniões sem pauta",
+    date: "2026-10-09",
+    preview: "meeting-empty-close",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Reuniões sem itens na pauta agora mostram a opção Encerrar sem pauta, com confirmação antes de concluir.",
+      "A lista identifica essas reuniões como Sem pauta. Elas podem ser reabertas depois; reuniões com itens pendentes continuam exigindo um resultado para cada item.",
+    ],
+  },
+  {
+    id: "reunioes-encerradas-automaticamente-2026-10-09",
+    title: "Reuniões encerradas ao concluir a pauta",
+    date: "2026-10-09",
+    preview: "meeting-auto-complete",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Uma reunião com pauta é encerrada automaticamente quando todos os itens e todas as tarefas vinculadas estiverem concluídos.",
+      "Reuniões sem itens e reuniões com pautas ou tarefas pendentes permanecem abertas.",
+    ],
+  },
+  {
+    id: "permissoes-reunioes-crm-salvas-2026-10-09",
+    title: "Acessos de Reuniões e CRM salvos corretamente",
+    date: "2026-10-09",
+    preview: "permission-save",
+    audience: "admin",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ao salvar os acessos de um colaborador, as opções Reuniões e CRM permanecem marcadas ao reabrir a janela.",
+    ],
+  },
+  {
+    id: "permissoes-ordenadas-pelo-menu-2026-10-09",
+    title: "Permissões na ordem do menu",
+    date: "2026-10-09",
+    preview: "permission-nav-order",
+    audience: "admin",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "A lista de acessos dos usuários segue a ordem da barra lateral, começando por Mural LA, Dashboard e Minhas Tarefas.",
+      "A opção antiga Importar ata saiu dessa lista. A importação dentro das reuniões continua disponível.",
+    ],
+  },
+  {
+    id: "crm-avatar-alinhado-2026-10-09",
+    title: "Cartões do CRM mais alinhados",
+    date: "2026-10-09",
+    preview: "crm-avatar-aligned",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "A inicial do lead fica centralizada ao lado do título e da empresa no cartão do pipeline, com o botão de editar à direita.",
+    ],
+  },
+  {
+    id: "crm-lead-sem-contato-separado-2026-10-09",
+    title: "Lead com cadastro mais direto",
+    date: "2026-10-09",
+    preview: "crm-without-contact",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "O campo Contato foi removido do formulário e dos cartões do CRM. Nome do lead, empresa, e-mail e telefone continuam disponíveis.",
+      "Informações antigas desse campo permanecem armazenadas e não são apagadas ao editar um lead.",
+    ],
+  },
+  {
+    id: "crm-rotulos-empresa-2026-10-09",
+    title: "Opções de empresa mais claras no CRM",
+    date: "2026-10-09",
+    preview: "crm-company-labels",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "No lead, a opção para informar uma empresa sem vínculo agora se chama Sem cadastro.",
+      "O campo de escolha de uma empresa existente agora mostra Selecionar cliente cadastrado.",
+    ],
+  },
+  {
+    id: "crm-empresa-cadastrada-ou-nome-2026-10-09",
+    title: "Empresa cadastrada ou nome livre no lead",
+    date: "2026-10-09",
+    preview: "crm-company",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ao criar ou editar um lead, escolha uma empresa já cadastrada no TaskFlow ou informe somente o nome, sem criar um novo cadastro de cliente.",
+      "A empresa cadastrada fica vinculada ao lead no ambiente atual. Os leads existentes mantêm os nomes já salvos.",
+    ],
+  },
+  {
+    id: "crm-colunas-titulo-cor-2026-10-09",
+    title: "Colunas do CRM com título e cor editáveis",
+    date: "2026-10-09",
+    preview: "crm-columns",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "O botão de editar no cabeçalho de cada coluna permite alterar seu título e sua cor.",
+      "As escolhas ficam salvas por ambiente e aparecem para todas as pessoas com acesso ao CRM, inclusive nos cartões e na seleção de etapas.",
+    ],
+  },
+  {
+    id: "crm-funil-oportunidades-2026-10-09",
+    title: "CRM com funil de oportunidades",
+    date: "2026-10-09",
+    preview: "crm-pipeline",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "O CRM organiza leads em seis etapas, com busca por nome, e-mail ou telefone, valor previsto e previsão de fechamento.",
+      "Crie, edite, mova ou exclua leads e consulte a distribuição por origem. Cada ambiente tem seu próprio funil; o acesso é concedido em Usuários.",
+    ],
+  },
   {
     id: "subtarefas-concluidas-nas-visoes-2026-10-09",
     title: "Minha parte concluída nas tarefas",

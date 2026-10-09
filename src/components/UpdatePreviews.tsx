@@ -8,11 +8,13 @@ import {
   Link2,
   MousePointer2,
   Pin,
+  Pencil,
   Eye,
   Plus,
   RefreshCw,
   CheckCircle2,
   Sparkles,
+  KanbanSquare,
 } from "lucide-react";
 import type { UpdatePreviewKind } from "@/lib/app-updates";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
@@ -25,6 +27,238 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
       data-update-preview-grid
     >
       {children}
+    </div>
+  );
+}
+
+function CrmPipelinePreview() {
+  return (
+    <div
+      aria-label="Prévia do CRM com leads distribuídos por etapa"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold">
+        <KanbanSquare className="h-3.5 w-3.5 text-primary" /> CRM · Pipeline
+      </p>
+      <div className="grid grid-cols-1 gap-1.5 text-[9px] sm:grid-cols-3">
+        {[
+          { label: "Novos Leads", color: "#3278d4", card: "Nova oportunidade" },
+          { label: "Proposta Enviada", color: "#f06e43", card: "Projeto em análise" },
+          { label: "Finalizados", color: "#208b43", card: "Contrato fechado" },
+        ].map((stage) => (
+          <div
+            key={stage.label}
+            className="min-h-20 rounded-md border bg-muted/30 p-1.5"
+            style={{ borderTop: `2px solid ${stage.color}` }}
+          >
+            <p className="mb-2 font-semibold">{stage.label}</p>
+            <div className="rounded border bg-background p-1.5 shadow-sm">{stage.card}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CrmColumnsPreview() {
+  return (
+    <div
+      aria-label="Prévia da edição do título e da cor de uma coluna do CRM"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="mb-2 text-[11px] font-semibold">CRM · Editar coluna</p>
+      <div className="rounded-lg border p-2.5 text-[10px]">
+        <p className="mb-2 text-muted-foreground">Título da coluna</p>
+        <div className="rounded border px-2 py-1.5 font-medium">Proposta Enviada</div>
+        <p className="mb-2 mt-3 text-muted-foreground">Cor da coluna</p>
+        <div className="flex items-center gap-2">
+          <span className="h-6 w-8 rounded border" style={{ backgroundColor: "#f06e43" }} />
+          <span>#F06E43</span>
+        </div>
+        <div className="mt-3 rounded-md bg-primary px-2 py-1.5 text-center font-medium text-primary-foreground">
+          Salvar coluna
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CrmCompanyPreview() {
+  return (
+    <div
+      aria-label="Prévia das duas formas de informar uma empresa no lead"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="mb-2 text-[11px] font-semibold">Novo lead · Empresa</p>
+      <div className="flex flex-wrap gap-1.5 text-[9px]">
+        <span className="rounded-md bg-primary px-2 py-1 text-primary-foreground">
+          Empresa cadastrada
+        </span>
+        <span className="rounded-md border px-2 py-1">Somente o nome</span>
+      </div>
+      <div className="mt-2 rounded-md border p-2 text-[9px]">
+        <p className="text-muted-foreground">Selecionar cliente do TaskFlow</p>
+        <p className="mt-1 font-medium">Empresa exemplo ▾</p>
+      </div>
+      <p className="mt-2 text-[9px] text-muted-foreground">
+        Ou informe apenas o nome, sem criar um cadastro.
+      </p>
+    </div>
+  );
+}
+
+function CrmCompanyLabelsPreview() {
+  return (
+    <div
+      aria-label="Prévia dos novos rótulos de empresa no lead"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="mb-2 text-[11px] font-semibold">Lead · Empresa</p>
+      <div className="flex flex-wrap gap-1.5 text-[9px]">
+        <span className="rounded-md bg-primary px-2 py-1 text-primary-foreground">
+          Empresa cadastrada
+        </span>
+        <span className="rounded-md border px-2 py-1">Sem cadastro</span>
+      </div>
+      <div className="mt-2 rounded-md border p-2 text-[9px]">
+        <p className="text-muted-foreground">Selecionar cliente cadastrado</p>
+        <p className="mt-1 font-medium">Selecione uma empresa cadastrada ▾</p>
+      </div>
+    </div>
+  );
+}
+
+function CrmWithoutContactPreview() {
+  return (
+    <PreviewGrid label="Prévia do cartão e do formulário de lead sem campo de contato separado">
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="font-semibold">Lead de exemplo</p>
+        <p className="mt-1 text-muted-foreground">Empresa exemplo</p>
+        <p className="mt-3 text-muted-foreground">(11) 99999-9999</p>
+        <p className="mt-1 text-muted-foreground">equipe@exemplo.com</p>
+      </div>
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="font-semibold">Editar lead</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <span className="rounded border px-2 py-1.5">E-mail</span>
+          <span className="rounded border px-2 py-1.5">Telefone</span>
+        </div>
+      </div>
+    </PreviewGrid>
+  );
+}
+
+function CrmAvatarAlignedPreview() {
+  return (
+    <div
+      aria-label="Prévia da inicial centralizada ao lado do título e da empresa no cartão do CRM"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
+            V
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold">Lead de exemplo</p>
+            <p className="mt-0.5 truncate text-[10px] text-muted-foreground">Empresa exemplo</p>
+          </div>
+        </div>
+        <span className="rounded-md border p-1.5">
+          <Pencil className="h-3 w-3" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PermissionNavOrderPreview() {
+  return (
+    <div
+      aria-label="Prévia das permissões organizadas na ordem da barra lateral"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="mb-2 text-[11px] font-semibold">Acessos do sistema</p>
+      <div className="grid grid-cols-1 gap-1.5 text-[9px] sm:grid-cols-2">
+        {[
+          "Mural LA",
+          "Dashboard",
+          "Minhas Tarefas",
+          "Conversas",
+          "Obrigações",
+          "Reuniões",
+          "Clientes",
+          "CRM",
+        ].map((label) => (
+          <span key={label} className="flex items-center gap-1.5 rounded-md border px-2 py-1">
+            <CheckCircle2 className="h-3 w-3 shrink-0 text-primary" />
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PermissionSavePreview() {
+  return (
+    <div
+      aria-label="Prévia dos acessos de Reuniões e CRM mantidos após salvar"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="mb-2 text-[11px] font-semibold">Definir acessos</p>
+      <div className="grid grid-cols-1 gap-1.5 text-[10px] sm:grid-cols-2">
+        {["Reuniões", "CRM"].map((label) => (
+          <span key={label} className="flex items-center gap-1.5 rounded-md border px-2 py-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+            {label}
+          </span>
+        ))}
+      </div>
+      <p className="mt-2 text-[9px] text-muted-foreground">Acessos mantidos após salvar</p>
+    </div>
+  );
+}
+
+function MeetingAutoCompletePreview() {
+  return (
+    <div
+      aria-label="Prévia da reunião encerrada após concluir todos os itens e tarefas"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold">Reunião de exemplo</p>
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-medium text-primary">
+          Encerrada
+        </span>
+      </div>
+      <div className="mt-2 space-y-1 text-[9px]">
+        <p className="flex items-center gap-1.5">
+          <CheckCircle2 className="h-3 w-3 text-primary" /> Pauta concluída
+        </p>
+        <p className="flex items-center gap-1.5">
+          <CheckCircle2 className="h-3 w-3 text-primary" /> Tarefa vinculada concluída
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MeetingEmptyClosePreview() {
+  return (
+    <div
+      aria-label="Prévia da opção para encerrar uma reunião sem pauta"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="text-[11px] font-semibold">Reunião de exemplo</p>
+      <div className="mt-2 rounded-lg border bg-muted/20 px-3 py-4 text-center text-[10px] text-muted-foreground">
+        Nenhum item na pauta desta reunião.
+      </div>
+      <div className="mt-2 flex justify-end">
+        <span className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[9px] font-medium text-primary-foreground">
+          <CheckCircle2 className="h-3 w-3" /> Encerrar sem pauta
+        </span>
+      </div>
     </div>
   );
 }
@@ -595,6 +829,16 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "meeting-empty-close": MeetingEmptyClosePreview,
+  "meeting-auto-complete": MeetingAutoCompletePreview,
+  "permission-save": PermissionSavePreview,
+  "permission-nav-order": PermissionNavOrderPreview,
+  "crm-avatar-aligned": CrmAvatarAlignedPreview,
+  "crm-without-contact": CrmWithoutContactPreview,
+  "crm-company-labels": CrmCompanyLabelsPreview,
+  "crm-company": CrmCompanyPreview,
+  "crm-columns": CrmColumnsPreview,
+  "crm-pipeline": CrmPipelinePreview,
   "subtask-participation": SubtaskParticipationPreview,
   "calendar-subtask-dates": CalendarSubtaskDatesPreview,
   "update-one-click": UpdateOneClickPreview,

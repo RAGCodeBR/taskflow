@@ -5,6 +5,73 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates the manual close option for an empty meeting agenda", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "meeting-empty-close" }),
+    );
+    expect(html).toContain("Nenhum item na pauta desta reunião.");
+    expect(html).toContain("Encerrar sem pauta");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates a meeting closed after its agenda and task are completed", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "meeting-auto-complete" }),
+    );
+    expect(html).toContain("Pauta concluída");
+    expect(html).toContain("Tarefa vinculada concluída");
+    expect(html).toContain("Encerrada");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates saved meeting and CRM access without interactive controls", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "permission-save" }));
+    expect(html).toContain("Reuniões");
+    expect(html).toContain("CRM");
+    expect(html).toContain("Acessos mantidos após salvar");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates permissions in sidebar order without the old import option", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "permission-nav-order" }),
+    );
+    expect(html.indexOf("Mural LA")).toBeLessThan(html.indexOf("Dashboard"));
+    expect(html.indexOf("Dashboard")).toBeLessThan(html.indexOf("Minhas Tarefas"));
+    expect(html).not.toContain("Importar ata");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates the lead initial centered beside its title and company", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "crm-avatar-aligned" }),
+    );
+    expect(html).toContain("items-center");
+    expect(html).toContain("Lead de exemplo");
+    expect(html).toContain("Empresa exemplo");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates the lead card and form without a separate contact field", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "crm-without-contact" }),
+    );
+    expect(html).toContain("Lead de exemplo");
+    expect(html).toContain("E-mail");
+    expect(html).toContain("Telefone");
+    expect(html).not.toContain("Contato:");
+    expect(html).not.toContain("<input");
+  });
+  it("shows the updated company labels without interactive controls", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "crm-company-labels" }),
+    );
+    expect(html).toContain("Sem cadastro");
+    expect(html).toContain("Selecionar cliente cadastrado");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates linking an existing company or entering only its name", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "crm-company" }));
+    expect(html).toContain("Empresa cadastrada");
+    expect(html).toContain("Somente o nome");
+    expect(html).toContain("Selecionar cliente do TaskFlow");
+    expect(html).not.toContain("<button");
+  });
   it("shows the completed personal part without turning the parent into a completed card", () => {
     const html = renderToStaticMarkup(
       createElement(AppUpdatePreview, { kind: "subtask-participation" }),
@@ -15,6 +82,23 @@ describe("release thumbnails", () => {
     expect(html).toContain("Kanban · Concluídas");
     expect(html).toContain("Lista · Concluídas");
     expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates the title and color controls for a CRM column", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "crm-columns" }));
+    expect(html).toContain("Título da coluna");
+    expect(html).toContain("Cor da coluna");
+    expect(html).toContain("#F06E43");
+    expect(html).not.toContain("<input");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates the CRM pipeline in a responsive, non-interactive preview", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "crm-pipeline" }));
+    expect(html).toContain("Novos Leads");
+    expect(html).toContain("Proposta Enviada");
+    expect(html).toContain("Finalizados");
+    expect(html).toContain("grid-cols-1");
+    expect(html).toContain("sm:grid-cols-3");
     expect(html).not.toContain("<button");
   });
   it("illustrates one click for accumulated releases and control before reload", () => {
