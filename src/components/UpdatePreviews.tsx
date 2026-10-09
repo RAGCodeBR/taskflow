@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   ArrowRight,
+  Bell,
   CalendarDays,
   ImagePlus,
   LayoutDashboard,
@@ -25,6 +26,39 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
     >
       {children}
     </div>
+  );
+}
+
+function AssignmentPopupReadPreview() {
+  return (
+    <PreviewGrid label="Prévia dos avisos de atribuição com um ou vários pop-ups">
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold">
+          <Bell className="h-3.5 w-3.5 text-primary" />
+          Nova tarefa atribuída
+        </p>
+        <p className="mt-3 text-[10px] text-muted-foreground">Uma notificação pendente</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px]">
+          <span className="rounded-md border px-2 py-1 font-medium">Marcar como lido</span>
+          <span className="rounded-md bg-primary px-2 py-1 font-medium text-primary-foreground">
+            Ver tarefa
+          </span>
+        </div>
+      </div>
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold">
+          <Bell className="h-3.5 w-3.5 text-primary" />
+          Avisos na fila
+        </p>
+        <p className="mt-3 text-[10px] text-muted-foreground">3 notificações pendentes</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px]">
+          <span className="rounded-md border px-2 py-1 font-medium">Marcar todos como lidos</span>
+          <span className="rounded-md bg-primary px-2 py-1 font-medium text-primary-foreground">
+            Ver tarefa
+          </span>
+        </div>
+      </div>
+    </PreviewGrid>
   );
 }
 
@@ -419,6 +453,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "assignment-popup-read": AssignmentPopupReadPreview,
   "update-shortcut": UpdateShortcutPreview,
   "calendar-subtasks": CalendarSubtasksPreview,
   "update-flow": UpdateFlowPreview,

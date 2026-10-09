@@ -5,6 +5,15 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows the single and multiple assignment notification actions", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "assignment-popup-read" }),
+    );
+    expect(html).toContain("Marcar como lido");
+    expect(html).toContain("Marcar todos como lidos");
+    expect(html).toContain("Ver tarefa");
+    expect(html).not.toContain("<button");
+  });
   it("illustrates automatic verification on open and a direct update button", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "update-shortcut" }));
     expect(html).toContain("Novas atualizações");

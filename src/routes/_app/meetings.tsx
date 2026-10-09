@@ -113,6 +113,53 @@ function relativeDay(dateKey: string) {
   return days > 1 ? `em ${days} dias` : `há ${-days} dias`;
 }
 
+type MeetPhoneAccess = {
+  phoneNumber?: string;
+  pin?: string;
+  regionCode?: string;
+};
+
+function meetingInvitation(
+  title: string,
+  event: MeetingCalendarEvent,
+  phoneAccess: MeetPhoneAccess[],
+) {
+  const timeZone = "America/Sao_Paulo";
+  const start = new Date(event.starts_at);
+  const end = new Date(event.ends_at);
+  const dateFormat = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone,
+  });
+  const timeFormat = new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone,
+  });
+  const date = dateFormat.format(start);
+  const endDate = dateFormat.format(end);
+  const timeRange = `${timeFormat.format(start)} – ${endDate === date ? "" : `${endDate}, `}${timeFormat.format(end)}`;
+  const lines = [
+    title,
+    `${date} · ${timeRange}`,
+    `Fuso horário: ${timeZone}`,
+    "Como participar do Google Meet",
+    `Link da videochamada: ${event.meeting_url}`,
+  ];
+  const phone = phoneAccess.find((entry) => entry.regionCode === "BR") ?? phoneAccess[0];
+  if (phone?.phoneNumber && phone.pin) {
+    lines.push(`Ou disque: ${phone.phoneNumber}  PIN: ${phone.pin}#`);
+    const meetingCode = event.meeting_url?.match(/meet\.google\.com\/([a-z]+-[a-z]+-[a-z]+)/i)?.[1];
+    if (meetingCode)
+      lines.push(`Outros números de telefone: https://meet.google.com/tel/${meetingCode}`);
+  }
+  return lines.join("\n");
+}
+
 const isClosed = (occurrence: RecurringMeetingOccurrence) =>
   occurrence.status === "completed" || occurrence.status === "skipped";
 
@@ -162,12 +209,18 @@ function RecurringMeetingsPage() {
     null,
   );
   const [meetingId, setMeetingId] = useState<string | null>(null);
+  const [createdMeeting, setCreatedMeeting] = useState<{
+    id: string;
+    startDate: string;
+  } | null>(null);
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState("all");
   const [participantFilter, setParticipantFilter] = useState("all");
   const [datesShown, setDatesShown] = useState(DATES_PER_PAGE);
   const [archiveTarget, setArchiveTarget] = useState<RecurringMeeting | null>(null);
   const [archiving, setArchiving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RecurringMeeting | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Gera reuniões, copia pautas e dispara avisos pendentes (também roda todo dia às 7h).
   useEffect(() => {
@@ -236,6 +289,18 @@ function RecurringMeetingsPage() {
     }
     void navigate({ to: "/meetings", search: {}, replace: true });
   }, [loadingOccurrences, meetingFromLink, navigate, occurrences]);
+
+  useEffect(() => {
+    if (!createdMeeting || dialogOpen || loadingOccurrences) return;
+    const firstOccurrence = occurrences.find(
+      (occurrence) =>
+        occurrence.recurring_meeting_id === createdMeeting.id &&
+        occurrence.due_date >= createdMeeting.startDate,
+    );
+    if (!firstOccurrence) return;
+    setMeetingId(firstOccurrence.id);
+    setCreatedMeeting(null);
+  }, [createdMeeting, dialogOpen, loadingOccurrences, occurrences]);
 
   const accessibleMeetingRecords = useMemo(() => {
     if (hasPermission("meetings")) return recurring_meetings;
@@ -458,6 +523,41 @@ function RecurringMeetingsPage() {
     setArchiveTarget(null);
     await queryClient.invalidateQueries({ queryKey: ["recurring_meetings"] });
     toast.success("Reunião arquivada. Os registros foram preservados.");
+  };
+
+  const deleteMeeting = async () => {
+    if (!deleteTarget || deleting) return;
+    if (isOffline()) return toast.error("Conecte-se à internet para excluir a reunião.");
+    setDeleting(true);
+    const { error } = await (supabase as any).rpc("delete_empty_recurring_meeting", {
+      target_meeting_id: deleteTarget.id,
+    });
+    if (error) {
+      setDeleting(false);
+      return toast.error(error.message);
+    }
+    setDeleteTarget(null);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["recurring_meetings"] }),
+      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-occurrences"] }),
+      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-task-templates"] }),
+      queryClient.invalidateQueries({ queryKey: ["recurringMeeting-participants"] }),
+      queryClient.invalidateQueries({ queryKey: ["meeting-calendar-events"] }),
+      queryClient.invalidateQueries({ queryKey: ["agenda_events"] }),
+    ]);
+    if (googleConnection) {
+      const { data, error: syncError } = await supabase.functions.invoke("google-calendar-sync", {
+        body: {},
+      });
+      if (syncError || !data?.ok || data?.pushErrors?.length) {
+        toast.error("Reunião excluída. A remoção do Google Agenda ainda está pendente.");
+      } else {
+        toast.success("Reunião e evento da Agenda excluídos.");
+      }
+    } else {
+      toast.success("Reunião excluída. A Agenda será atualizada após conectar o Google.");
+    }
+    setDeleting(false);
   };
 
   const restoreMeeting = async (meeting: RecurringMeeting) => {
@@ -823,6 +923,16 @@ function RecurringMeetingsPage() {
                           >
                             <Archive className="h-4 w-4" />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            title="Excluir reunião"
+                            aria-label="Excluir reunião"
+                            onClick={() => setDeleteTarget(recurringMeeting)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -883,13 +993,25 @@ function RecurringMeetingsPage() {
                     </p>
                   </div>
                   {activeWorkspace?.id === meeting.workspace_id && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void restoreMeeting(meeting)}
-                    >
-                      <RotateCcw className="mr-2 h-4 w-4" /> Restaurar
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void restoreMeeting(meeting)}
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" /> Restaurar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        title="Excluir reunião"
+                        aria-label="Excluir reunião"
+                        onClick={() => setDeleteTarget(meeting)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </Card>
               ))}
@@ -901,6 +1023,7 @@ function RecurringMeetingsPage() {
       <RecurringMeetingDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        onCreated={(id, startDate) => setCreatedMeeting({ id, startDate })}
         recurringMeeting={editingRecurringMeeting}
       />
       <MeetingTranscriptsDialog
@@ -954,6 +1077,32 @@ function RecurringMeetingsPage() {
             </Button>
             <Button disabled={archiving} onClick={() => void archiveMeeting()}>
               {archiving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Arquivar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir esta reunião?</DialogTitle>
+            <DialogDescription>
+              A reunião “{deleteTarget?.title}” e suas datas sem registros serão removidas. Se já
+              houver tarefas, pautas registradas, atas ou transcrições, a exclusão será bloqueada;
+              nesse caso, use Arquivar. Os eventos vinculados também serão removidos do Google
+              Agenda.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" disabled={deleting} onClick={() => void deleteMeeting()}>
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Excluir reunião
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1155,6 +1304,20 @@ function MeetingDialog({
         created_at: string;
         recurring_meeting_occurrence_id: string | null;
       }>;
+    },
+  });
+  const { data: phoneAccess = [], isLoading: loadingPhoneAccess } = useQuery({
+    queryKey: ["meet-phone-access", calendarEvent?.id],
+    enabled: open && recurringMeeting.create_google_meet && Boolean(calendarEvent?.meeting_url),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    queryFn: async (): Promise<MeetPhoneAccess[]> => {
+      const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
+        body: { action: "meeting_invite", eventId: calendarEvent!.id },
+      });
+      return !error && data?.ok && Array.isArray(data.phoneAccess)
+        ? (data.phoneAccess as MeetPhoneAccess[])
+        : [];
     },
   });
   const { data: preview = [], isLoading: loadingPreview } = useRecurringMeetingAgendaPreview(
@@ -1519,6 +1682,26 @@ function MeetingDialog({
                       }
                     >
                       <Copy className="mr-1 h-3.5 w-3.5" /> Copiar link
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={loadingPhoneAccess}
+                      onClick={() =>
+                        void navigator.clipboard
+                          .writeText(
+                            meetingInvitation(recurringMeeting.title, calendarEvent, phoneAccess),
+                          )
+                          .then(() => toast.success("Convite copiado"))
+                          .catch(() => toast.error("Não foi possível copiar o convite."))
+                      }
+                    >
+                      {loadingPhoneAccess ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ClipboardList className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      Copiar convite
                     </Button>
                   </div>
                 ) : calendarEvent && recurringMeeting.create_google_meet && !readOnly ? (

@@ -836,6 +836,42 @@ async function listSavedEvents(request: Request, body: any = {}) {
   return json({ ok: true, events: eventsResult.data ?? [], sources });
 }
 
+async function meetingInviteDetails(request: Request, body: any) {
+  const { user, admin } = await authenticatedTeamUser(request);
+  if (typeof body?.eventId !== "string") throw new Error("Reunião inválida.");
+  const { data: event, error: eventError } = await admin
+    .from("calendar_events")
+    .select("meeting_url")
+    .eq("id", body.eventId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (eventError || !event?.meeting_url) throw new Error("Google Meet não encontrado.");
+  const meetingCode = googleMeetCode(event.meeting_url);
+  if (!meetingCode) return json({ ok: true, phoneAccess: [] });
+
+  const { data: connection, error: connectionError } = await admin
+    .from("calendar_google_connections")
+    .select("*")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (connectionError || !connection) return json({ ok: true, phoneAccess: [] });
+  const token = await tokenForConnection(admin, connection);
+  const space = await googleRequest(
+    token,
+    `https://meet.googleapis.com/v2/spaces/${encodeURIComponent(meetingCode)}`,
+  );
+  return json({
+    ok: true,
+    phoneAccess: Array.isArray(space?.phoneAccess)
+      ? space.phoneAccess.map((entry: any) => ({
+          phoneNumber: entry.phoneNumber,
+          pin: entry.pin,
+          regionCode: entry.regionCode,
+        }))
+      : [],
+  });
+}
+
 async function setCalendarVisibility(request: Request, body: any) {
   const { user, admin } = await authenticatedTeamUser(request);
   if (typeof body?.googleCalendarId !== "string" || typeof body?.isVisible !== "boolean")
@@ -858,6 +894,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({}));
     if (body?.action === "list_events") return await listSavedEvents(request, body);
+    if (body?.action === "meeting_invite") return await meetingInviteDetails(request, body);
     if (body?.action === "list_sources") return await listSavedSources(request);
     if (body?.action === "set_calendar_visibility")
       return await setCalendarVisibility(request, body);

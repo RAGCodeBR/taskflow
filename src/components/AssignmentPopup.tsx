@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { priorityLabels, priorityColors } from "@/lib/task-utils";
 import { RichTextView } from "@/components/RichTextEditor";
 import { LinkedText } from "@/components/LinkedText";
+import { toast } from "sonner";
 
 interface AssignmentNotification {
   id: string;
@@ -36,6 +37,7 @@ export function AssignmentPopup() {
   const qc = useQueryClient();
   const [queue, setQueue] = useState<AssignmentNotification[]>([]);
   const [preview, setPreview] = useState<TaskPreview | null>(null);
+  const [markingRead, setMarkingRead] = useState(false);
 
   const storageKey = user ? `assign-popup-seen:${user.id}` : null;
 
@@ -145,6 +147,28 @@ export function AssignmentPopup() {
     setQueue((prev) => prev.slice(1));
   };
 
+  const markAssignmentNotificationsRead = async () => {
+    if (!user || !current || markingRead) return;
+    setMarkingRead(true);
+    const markAll = queue.length > 1;
+    let request = supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+    request = markAll
+      ? request.in("type", [...ASSIGN_TYPES])
+      : request.eq("id", current.id);
+    const { error } = await request;
+    setMarkingRead(false);
+    if (error) {
+      toast.error("Não foi possível marcar os avisos como lidos.");
+      return;
+    }
+    markSeen(markAll ? queue.map(({ id }) => id) : [current.id]);
+    setQueue((previous) => (markAll ? [] : previous.filter(({ id }) => id !== current.id)));
+  };
+
   const openTask = () => {
     if (!current) return;
     const target = current;
@@ -201,7 +225,17 @@ export function AssignmentPopup() {
           {queue.length > 1 && <span className="ml-2">• {queue.length - 1} outra(s) na fila</span>}
         </p>
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="ghost" onClick={dismiss}>Depois</Button>
+          <Button
+            variant="ghost"
+            disabled={markingRead}
+            onClick={() => void markAssignmentNotificationsRead()}
+          >
+            {markingRead
+              ? "Marcando…"
+              : queue.length > 1
+                ? "Marcar todos como lidos"
+                : "Marcar como lido"}
+          </Button>
           <Button onClick={openTask}>
             <ExternalLink className="mr-2 h-4 w-4" />
             Ver tarefa
@@ -211,4 +245,3 @@ export function AssignmentPopup() {
     </Dialog>
   );
 }
-

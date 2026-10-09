@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "assignment-popup-read"
   | "update-shortcut"
   | "calendar-subtasks"
   | "update-flow"
@@ -22,6 +23,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "avisos-atribuicao-marcar-lidos-2026-10-09",
+    title: "Avisos de atribuição mais fáceis de organizar",
+    date: "2026-10-09",
+    preview: "assignment-popup-read",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "No pop-up de uma tarefa ou subtarefa atribuída, Marcar como lido substitui Depois quando há apenas um aviso.",
+      "Se houver dois ou mais avisos na fila, Marcar todos como lidos limpa os avisos de atribuição pendentes de uma vez e atualiza o sino de notificações. Ver tarefa continua disponível.",
+    ],
+  },
   {
     id: "atualizar-direto-central-2026-10-08",
     title: "Atualização da página com menos cliques",

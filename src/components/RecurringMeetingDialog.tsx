@@ -52,6 +52,7 @@ import { meetingDurationMinutes, meetingEndTime } from "@/lib/meeting-time";
 interface RecurringMeetingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreated?: (meetingId: string, startDate: string) => void;
   recurringMeeting?: RecurringMeeting | null;
 }
 
@@ -74,7 +75,6 @@ const cadenceOptions: Array<{ value: AgendaCadence; label: string }> = [
 ];
 
 const todayValue = () => new Date().toISOString().slice(0, 10);
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Pauta padrão em edição no formulário; `id` existe apenas para as já salvas. */
 type AgendaDraft = {
@@ -88,6 +88,7 @@ type AgendaDraft = {
 export function RecurringMeetingDialog({
   open,
   onOpenChange,
+  onCreated,
   recurringMeeting,
 }: RecurringMeetingDialogProps) {
   const queryClient = useQueryClient();
@@ -135,8 +136,6 @@ export function RecurringMeetingDialog({
   const [autoSmartNotes, setAutoSmartNotes] = useState(true);
   const [autoTranscription, setAutoTranscription] = useState(false);
   const [googleCalendarId, setGoogleCalendarId] = useState("");
-  const [meetingLocation, setMeetingLocation] = useState("");
-  const [meetingAttendees, setMeetingAttendees] = useState("");
   const [manualMeetingUrl, setManualMeetingUrl] = useState("");
   const [reminderDays, setReminderDays] = useState(2);
   const { data: allParticipants } = useRecurringMeetingParticipants();
@@ -188,8 +187,6 @@ export function RecurringMeetingDialog({
     setAutoSmartNotes(recurringMeeting?.auto_smart_notes ?? true);
     setAutoTranscription(recurringMeeting?.auto_transcription ?? false);
     setGoogleCalendarId(recurringMeeting?.google_calendar_id ?? "");
-    setMeetingLocation(recurringMeeting?.meeting_location ?? "");
-    setMeetingAttendees((recurringMeeting?.meeting_attendee_emails ?? []).join(", "));
     setManualMeetingUrl(recurringMeeting?.manual_meeting_url ?? "");
     setReminderDays(recurringMeeting?.reminder_days_before ?? 2);
     setParticipantIds([]);
@@ -498,12 +495,6 @@ export function RecurringMeetingDialog({
       return toast.error("Conecte-se à internet para vincular uma tarefa existente.");
     if (selectedTaskIds.length > 0 && !isRecurring && !isActive)
       return toast.error("Ative a reunião para vincular uma tarefa existente.");
-    const attendeeEmails = meetingAttendees
-      .split(/[,;\n]+/)
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean);
-    if (addToCalendar && attendeeEmails.some((email) => !emailPattern.test(email)))
-      return toast.error("Confira os e-mails dos convidados da Agenda.");
     if (addToCalendar && createGoogleMeet && !googleConnection)
       return toast.error("Conecte sua conta Google para criar um Meet.");
     if (addToCalendar && createGoogleMeet && !canCreateGoogleMeet)
@@ -545,8 +536,10 @@ export function RecurringMeetingDialog({
       auto_transcription: autoTranscription,
       google_calendar_id: addToCalendar ? googleCalendarId : null,
       duration_minutes: durationMinutes ?? recurringMeeting?.duration_minutes ?? 60,
-      meeting_location: addToCalendar ? meetingLocation.trim() || null : null,
-      meeting_attendee_emails: addToCalendar ? [...new Set(attendeeEmails)] : [],
+      meeting_location: addToCalendar ? (recurringMeeting?.meeting_location ?? null) : null,
+      meeting_attendee_emails: addToCalendar
+        ? (recurringMeeting?.meeting_attendee_emails ?? [])
+        : [],
       manual_meeting_url:
         addToCalendar && !createGoogleMeet ? manualMeetingUrl.trim() || null : null,
       priority,
@@ -761,11 +754,15 @@ export function RecurringMeetingDialog({
     if (linkError) {
       toast.error(`Reunião criada, mas as tarefas não foram vinculadas: ${linkError.message}`);
       onOpenChange(false);
+      if (!recurringMeeting && savedRecurringMeetings[0])
+        onCreated?.(savedRecurringMeetings[0].id, startDate);
       return;
     }
     if (googleError) {
       toast.error(`Reunião salva, mas a Agenda não foi sincronizada: ${googleError.message}`);
       onOpenChange(false);
+      if (!recurringMeeting && savedRecurringMeetings[0])
+        onCreated?.(savedRecurringMeetings[0].id, startDate);
       return;
     }
     toast.success(
@@ -776,6 +773,8 @@ export function RecurringMeetingDialog({
           : "Reunião criada",
     );
     onOpenChange(false);
+    if (!recurringMeeting && savedRecurringMeetings[0])
+      onCreated?.(savedRecurringMeetings[0].id, startDate);
   };
 
   return (
@@ -971,28 +970,6 @@ export function RecurringMeetingDialog({
                       </Select>
                     </div>
                   )}
-                  <div className="space-y-1">
-                    <Label htmlFor="meeting-location">Local</Label>
-                    <Input
-                      id="meeting-location"
-                      value={meetingLocation}
-                      onChange={(event) => setMeetingLocation(event.target.value)}
-                      placeholder="Adicionar local (opcional)"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="meeting-attendees">Convidados por e-mail</Label>
-                    <Textarea
-                      id="meeting-attendees"
-                      value={meetingAttendees}
-                      onChange={(event) => setMeetingAttendees(event.target.value)}
-                      rows={2}
-                      placeholder="nome@empresa.com, outra@empresa.com"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Separe os e-mails por vírgula ou linha.
-                    </p>
-                  </div>
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium">Criar Google Meet</p>
