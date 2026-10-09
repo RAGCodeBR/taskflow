@@ -394,6 +394,50 @@ function CalendarSubtasksPreview() {
   );
 }
 
+function CalendarSubtaskDatesPreview() {
+  return (
+    <PreviewGrid label="Prévia dos prazos das subtarefas e da colagem formatada">
+      <div
+        className="rounded-xl border bg-background p-3 shadow-sm"
+        aria-label="Prévia da tarefa principal no dia 9 e da subtarefa com prazo próprio no dia 12"
+      >
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold">
+          <CalendarDays className="h-3.5 w-3.5 text-primary" /> Calendário · Subtarefas
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-[10px]">
+          <div className="rounded-lg border p-2">
+            <p className="mb-1.5 font-medium text-muted-foreground">09 out</p>
+            <div className="rounded bg-primary px-2 py-1.5 text-primary-foreground">
+              Tarefa principal
+            </div>
+          </div>
+          <div className="rounded-lg border p-2">
+            <p className="mb-1.5 font-medium text-muted-foreground">12 out</p>
+            <div className="rounded border border-l-[3px] border-l-primary px-2 py-1.5">
+              <span className="block font-medium">Revisar conteúdo</span>
+              <span className="text-[9px] text-muted-foreground">
+                Subtarefa de Tarefa principal
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        className="rounded-xl border bg-background p-3 shadow-sm"
+        aria-label="Prévia do texto formatado colado na descrição sem código HTML visível"
+      >
+        <p className="mb-2 text-[11px] font-semibold">Descrição · Colar texto</p>
+        <div className="rounded-lg border p-2.5 text-[10px] leading-relaxed">
+          <p>
+            <strong>Texto em destaque</strong> permanece formatado.
+          </p>
+          <p>Parágrafos e pontuação ficam no texto, sem mostrar tags HTML.</p>
+        </div>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function UpdateShortcutPreview() {
   return (
     <PreviewGrid label="Prévia da atualização direta pela central de novidades">
@@ -503,6 +547,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "calendar-subtask-dates": CalendarSubtaskDatesPreview,
   "update-one-click": UpdateOneClickPreview,
   "update-retry": UpdateRetryPreview,
   "assignment-popup-read": AssignmentPopupReadPreview,

@@ -28,8 +28,8 @@ describe("application release catalogue", () => {
     "uses the latest visible release as the version in %s",
     (workspace) => {
       const updates = getVisibleAppUpdates(false, workspace);
-      expect(updates[0].id).toBe("atualizacao-ultima-versao-um-clique-2026-10-09");
-      expect(updates[0].preview).toBe("update-one-click");
+      expect(updates[0].id).toBe("prazos-individuais-subtarefas-calendario-2026-10-09");
+      expect(updates[0].preview).toBe("calendar-subtask-dates");
       expect(updates.every((update) => update.audience === "all")).toBe(true);
       expect(updates.some((update) => update.id === DASHBOARD_UPDATE_VERSION)).toBe(false);
       expect(

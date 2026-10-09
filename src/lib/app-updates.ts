@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "calendar-subtask-dates"
   | "update-one-click"
   | "update-retry"
   | "assignment-popup-read"
@@ -25,6 +26,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "prazos-individuais-subtarefas-calendario-2026-10-09",
+    title: "Calendário e colagem de texto mais precisos",
+    date: "2026-10-09",
+    preview: "calendar-subtask-dates",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Com o filtro Subtarefas ativado, cada subtarefa com prazo diferente da tarefa principal aparece separadamente no dia do seu próprio prazo, nas visões de semana e mês.",
+      "Subtarefas com o mesmo prazo, ou sem prazo próprio, continuam junto da tarefa principal. Clicar em qualquer subtarefa abre a tarefa para consultar seus detalhes.",
+      "Ao colar texto na descrição, o editor preserva a formatação disponível e não exibe as tags HTML da origem. Textos simples e prints continuam aceitos.",
+    ],
+  },
   {
     id: "atualizacao-ultima-versao-um-clique-2026-10-09",
     title: "Atualização até a versão mais recente em um clique",

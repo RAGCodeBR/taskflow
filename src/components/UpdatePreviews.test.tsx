@@ -71,6 +71,16 @@ describe("release thumbnails", () => {
     expect(html).toContain("data-update-preview-grid");
     expect(html).not.toContain("<button");
   });
+  it("illustrates a subtask on a different date from its parent", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "calendar-subtask-dates" }),
+    );
+    expect(html).toContain("09 out");
+    expect(html).toContain("12 out");
+    expect(html).toContain("Subtarefa de Tarefa principal");
+    expect(html).toContain("Texto em destaque");
+    expect(html).toContain("sem mostrar tags HTML");
+  });
   it("lets three feature thumbnails wrap instead of squeezing them into fixed columns", () => {
     const html = renderToStaticMarkup(
       createElement(AppUpdatePreview, { kind: "task-card-activity" }),

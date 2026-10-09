@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { Mark, Node, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { plainTextForClipboard } from "@/lib/rich-text-clipboard";
+import { htmlHasMeaningfulText, plainTextToEditorHtml, richTextPasteContent } from "@/lib/rich-text-paste";
 import { linkifyTextNodes } from "@/lib/text-links";
 
 const UnderlineMark = Mark.create({
@@ -115,14 +116,6 @@ function clipboardHtmlImageFiles(clipboardData: DataTransfer | null) {
 function allClipboardImageFiles(clipboardData: DataTransfer | null) {
   const files = clipboardImageFiles(clipboardData);
   return files.length ? files : clipboardHtmlImageFiles(clipboardData);
-}
-
-function htmlHasMeaningfulText(html: string) {
-  return html
-    .replace(/<img\b[^>]*>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .trim().length > 0;
 }
 
 function hasClipboardText(clipboardData: DataTransfer | null) {
@@ -433,7 +426,7 @@ export function RichTextEditor({
     onBlur: () => onBlur?.(),
   });
 
-  const insertPastedImages = (files: File[]) => {
+  const insertPastedImages = useCallback((files: File[]) => {
     if (!editor || !files.length || !onImagePasteRef.current) return false;
     const images = files.map((file) => ({
       id: crypto.randomUUID(),
@@ -448,7 +441,16 @@ export function RichTextEditor({
     });
     onImagePasteRef.current(images);
     return true;
-  };
+  }, [editor]);
+
+  const insertClipboardText = useCallback((html: string, text: string) => {
+    if (!editor) return;
+    const pasted = richTextPasteContent(html, text);
+    if (!pasted.content) return;
+    editor.chain().focus().insertContent(
+      pasted.kind === "html" ? pasted.content : plainTextToEditorHtml(pasted.content),
+    ).run();
+  }, [editor]);
 
   useEffect(() => {
     if (!editor) return;
@@ -507,11 +509,11 @@ export function RichTextEditor({
       // Texto da ata: inserimos diretamente o HTML disponibilizado pelo
       // Google. Isso preserva listas, negrito, links e quebras mesmo quando
       // outro handler do navegador não entrega a colagem ao ProseMirror.
-      if (hasClipboardText(event.clipboardData)) {
+      if ((html || text) && hasClipboardText(event.clipboardData)) {
         nativePasteHandledRef.current = true;
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (html || text) editor.chain().focus().insertContent(html || text).run();
+        insertClipboardText(html, text);
         return;
       }
 
@@ -526,7 +528,7 @@ export function RichTextEditor({
 
     target.addEventListener("paste", handleNativePaste, true);
     return () => target.removeEventListener("paste", handleNativePaste, true);
-  }, [editor]);
+  }, [editor, insertClipboardText, insertPastedImages]);
 
   useEffect(() => {
     if (!editor) return;
@@ -562,7 +564,7 @@ export function RichTextEditor({
             if (images.length && (!html.trim() || htmlIsOnlyImage)) {
               nativePasteHandledRef.current = insertPastedImages(images);
             } else if (html.trim() || text) {
-              editor.chain().focus().insertContent(html.trim() || text).run();
+              insertClipboardText(html, text);
             }
           }, 0);
         } catch {
@@ -574,7 +576,7 @@ export function RichTextEditor({
 
     window.addEventListener("keydown", handlePasteShortcut, true);
     return () => window.removeEventListener("keydown", handlePasteShortcut, true);
-  }, [editor]);
+  }, [editor, insertClipboardText, insertPastedImages]);
 
 
   if (!editor) return null;

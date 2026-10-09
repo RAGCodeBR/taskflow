@@ -39,7 +39,8 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { usePersonalTaskPins } from "@/hooks/use-task-card-activity";
 import { pendingPersonalPriorities } from "@/lib/task-card-activity";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
-import { CalendarTaskGroup } from "@/components/CalendarTaskGroup";
+import { CalendarSubtaskItem, CalendarTaskGroup } from "@/components/CalendarTaskGroup";
+import { calendarTaskEntriesForDay } from "@/lib/calendar-task-entries";
 import { useCalendarSubtasks } from "@/hooks/use-calendar-subtasks";
 import { Checkbox } from "@/components/ui/checkbox";
 import { taskEditError } from "@/lib/task-edit";
@@ -243,14 +244,14 @@ function CalendarPage() {
   const subtaskAssigneeTaskIds = useMemo(() => {
     const s = new Set<string>();
     if (!user?.id) return s;
-    for (const st of subtasks as any[])
+    for (const st of subtasks)
       if (st.assignee_id === user.id && (showSubtasks || !st.done) && st.task_id) s.add(st.task_id);
     return s;
   }, [subtasks, user?.id, showSubtasks]);
 
   const subtaskAssigneeTaskIdsByUser = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    for (const st of subtasks as any[]) {
+    for (const st of subtasks) {
       if (!st.assignee_id || (!showSubtasks && st.done) || !st.task_id) continue;
       const set = map.get(st.assignee_id) ?? new Set<string>();
       set.add(st.task_id);
@@ -328,11 +329,14 @@ function CalendarPage() {
     [clients],
   );
 
-  // The parent's deadline positions the entire group; child deadlines stay untouched.
   const pendingPinnedIds = new Set(pendingPersonalPriorities(taskView, pins).map(task => task.id));
   const dayEntries = (day: Date) =>
-    visible.filter((task) => (!showPinnedOnly || pendingPinnedIds.has(task.id)) && task.due_date && isSameDay(new Date(task.due_date), day))
-      .sort((a, b) => Number(pinnedIds.has(b.id)) - Number(pinnedIds.has(a.id)));
+    calendarTaskEntriesForDay(
+      visible.filter((task) => !showPinnedOnly || pendingPinnedIds.has(task.id)),
+      subtasksByTaskId,
+      format(day, "yyyy-MM-dd"),
+      showSubtasks,
+    ).sort((a, b) => Number(pinnedIds.has(b.task.id)) - Number(pinnedIds.has(a.task.id)));
   const createOnDay = (day: Date) => {
     setNewTaskDay(format(day, "yyyy-MM-dd"));
     setEdit(null);
@@ -449,7 +453,8 @@ function CalendarPage() {
                     {format(day, "d")}
                   </div>
                   <div className="space-y-1">
-                    {entries.slice(0, 3).map((task) => {
+                    {entries.slice(0, 3).map((entry) => {
+                      const task = entry.task;
                       const status = statusById.get(task.status_id ?? "");
                       const assignee = profileById.get(task.assignee_id ?? "") ?? null;
                       const clientColor = clientById.get(task.client_id ?? "")?.color || "#475569";
@@ -457,8 +462,10 @@ function CalendarPage() {
                         setEdit(task);
                         setOpen(true);
                       };
-                      return (
-                        <CalendarTaskGroup key={task.id} task={task} subtasks={showSubtasks ? subtasksByTaskId.get(task.id) ?? [] : []} profiles={profileById} onOpen={onClick}>
+                      return entry.kind === "subtask" ? (
+                        <CalendarSubtaskItem key={entry.subtask.id} task={task} subtask={entry.subtask} profiles={profileById} onOpen={onClick} standalone />
+                      ) : (
+                        <CalendarTaskGroup key={task.id} task={task} subtasks={entry.subtasks} profiles={profileById} onOpen={onClick}>
                         <DraggableCalendarTaskItem
                           disabled={!canReschedule || Boolean(reschedule) || savingDate}
                           task={task}
@@ -588,15 +595,16 @@ function CalendarPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              Tarefas de {selectedDay ? format(selectedDay, "d 'de' MMMM", { locale: ptBR }) : ""}
+              {showSubtasks ? "Tarefas e subtarefas" : "Tarefas"} de {selectedDay ? format(selectedDay, "d 'de' MMMM", { locale: ptBR }) : ""}
             </DialogTitle>
             <DialogDescription>
-              {selectedDayEntries.length} tarefa{selectedDayEntries.length === 1 ? "" : "s"} neste
+              {selectedDayEntries.length} item{selectedDayEntries.length === 1 ? "" : "s"} neste
               dia.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
-            {selectedDayEntries.map((task) => {
+            {selectedDayEntries.map((entry) => {
+              const task = entry.task;
               const status = statusById.get(task.status_id ?? "");
               const assignee = profileById.get(task.assignee_id ?? "") ?? null;
               const clientColor = clientById.get(task.client_id ?? "")?.color || "#475569";
@@ -605,8 +613,10 @@ function CalendarPage() {
                 setEdit(task);
                 setOpen(true);
               };
-              return (
-                <CalendarTaskGroup key={task.id} task={task} subtasks={showSubtasks ? subtasksByTaskId.get(task.id) ?? [] : []} profiles={profileById} onOpen={onClick} expanded>
+              return entry.kind === "subtask" ? (
+                <CalendarSubtaskItem key={entry.subtask.id} task={task} subtask={entry.subtask} profiles={profileById} onOpen={onClick} expanded standalone />
+              ) : (
+                <CalendarTaskGroup key={task.id} task={task} subtasks={entry.subtasks} profiles={profileById} onOpen={onClick} expanded>
                 <CalendarTaskItem
                   task={task}
                   pinned={pinnedIds.has(task.id)}
