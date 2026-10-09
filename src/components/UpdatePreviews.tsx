@@ -62,6 +62,54 @@ function AssignmentPopupReadPreview() {
   );
 }
 
+function SubtaskParticipationPreview() {
+  return (
+    <PreviewGrid label="Prévia da subtarefa concluída no calendário, Kanban e lista">
+      <div className="overflow-hidden rounded-xl border bg-background shadow-sm">
+        <div className="flex items-center gap-1.5 border-b px-3 py-2 text-[10px] font-semibold">
+          <CalendarDays className="h-3.5 w-3.5 text-primary" /> Calendário · Semana e mês
+        </div>
+        <div className="grid grid-cols-3 divide-x p-2">
+          <div className="min-h-24 p-1 text-[9px] text-muted-foreground">8 out</div>
+          <div className="min-h-24 p-1 text-[9px]">
+            <p className="text-muted-foreground">9 out</p>
+            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+              <p className="flex items-center gap-1 font-medium line-through">
+                <CheckCircle2 className="h-3 w-3 shrink-0" /> Revisar texto
+              </p>
+              <p className="mt-1 text-[8px] opacity-75">Subtarefa de Preparar campanha</p>
+            </div>
+          </div>
+          <div className="min-h-24 p-1 text-[9px] text-muted-foreground">10 out</div>
+        </div>
+        <p className="border-t px-3 py-2 text-[9px] text-muted-foreground">
+          A subtarefa fica no dia dela.
+        </p>
+      </div>
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <p className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700">
+          <CheckCircle2 className="h-3.5 w-3.5" /> Kanban · Concluídas
+        </p>
+        <div className="mt-3 rounded-lg border border-emerald-200 p-2.5">
+          <p className="text-[9px] font-semibold uppercase text-emerald-700">Subtarefa concluída</p>
+          <p className="mt-1 text-[11px] line-through">Revisar texto</p>
+          <p className="mt-1 text-[9px] text-muted-foreground">Na tarefa: Preparar campanha</p>
+        </div>
+      </div>
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <p className="text-[10px] font-semibold">Lista · Concluídas</p>
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 p-2 text-[10px]">
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+          <span className="line-through">Revisar texto</span>
+          <span className="ml-auto rounded border border-emerald-200 px-1 text-emerald-700">
+            Concluída
+          </span>
+        </div>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function UpdateRetryPreview() {
   return (
     <div
@@ -547,6 +595,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "subtask-participation": SubtaskParticipationPreview,
   "calendar-subtask-dates": CalendarSubtaskDatesPreview,
   "update-one-click": UpdateOneClickPreview,
   "update-retry": UpdateRetryPreview,

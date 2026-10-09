@@ -98,6 +98,8 @@ import { TagManagerDialog } from "@/components/TagManagerDialog";
 import { MarketingFormatSettings } from "@/components/MarketingFormatSettings";
 import { MarketingObjectiveSettings } from "@/components/MarketingObjectiveSettings";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
+import { CompletedSubtaskCard } from "@/components/CompletedSubtaskCard";
+import { completedSubtaskFilterTask, completedSubtaskHistory, openSubtaskTaskIdsByUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { CardFieldsPopover } from "@/components/CardFieldsPopover";
 import { useBoardPreferences, useUpdateBoardPreferences } from "@/hooks/use-board-preferences";
@@ -429,24 +431,15 @@ function KanbanPage() {
     });
   };
 
-  const subtaskAssigneeTaskIds = useMemo(() => {
-    const s = new Set<string>();
-    if (!user?.id) return s;
-    for (const st of allSubtasks as any[])
-      if (st.assignee_id === user.id && !st.done && st.task_id) s.add(st.task_id);
-    return s;
-  }, [allSubtasks, user?.id]);
+  const subtaskAssigneeTaskIds = useMemo(
+    () => openSubtaskTaskIdsForUser(allSubtasks, user?.id),
+    [allSubtasks, user?.id],
+  );
 
-  const subtaskAssigneeTaskIdsByUser = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const st of allSubtasks as any[]) {
-      if (!st.assignee_id || st.done || !st.task_id) continue;
-      const set = map.get(st.assignee_id) ?? new Set<string>();
-      set.add(st.task_id);
-      map.set(st.assignee_id, set);
-    }
-    return map;
-  }, [allSubtasks]);
+  const subtaskAssigneeTaskIdsByUser = useMemo(
+    () => openSubtaskTaskIdsByUser(allSubtasks),
+    [allSubtasks],
+  );
 
 
   const subtaskDateFilterTaskIds = useMemo(() => {
@@ -648,6 +641,29 @@ function KanbanPage() {
     subtaskDateFilterTaskIds,
     isCollaborator,
   ]);
+
+  const completedParts = useMemo(() => {
+    if (!user?.id) return [];
+    const today = new Date();
+    const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+    const hasRange = !!(completedRange.start || completedRange.end);
+    return completedSubtaskHistory(tasks, allSubtasks, user.id, collaboratorTaskIds, viewedWorkspaceId)
+      .filter(({ subtask, parent }) => {
+        const completedAt = new Date(subtask.completed_at ?? parent.updated_at);
+        if (hasRange) {
+          const start = completedRange.start ? new Date(`${completedRange.start}T00:00:00`) : null;
+          const end = completedRange.end ? new Date(`${completedRange.end}T23:59:59`) : null;
+          if ((start && completedAt < start) || (end && completedAt > end)) return false;
+        } else if (completedAt < startToday || completedAt > endToday) {
+          return false;
+        }
+        return applyTaskFilters([completedSubtaskFilterTask(parent, subtask, user.id)], filters, {
+          userId: user.id,
+          restrictToCurrentUserParticipation: isCollaborator,
+        }).length > 0;
+      });
+  }, [tasks, allSubtasks, user?.id, collaboratorTaskIds, viewedWorkspaceId, completedRange, filters, isCollaborator]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -1460,19 +1476,20 @@ function KanbanPage() {
               })}
 
               <CompletedColumn
-                count={completedTasks.length}
+                count={completedTasks.length + completedParts.length}
                 orientation={orientation}
                 minimal={minimalCards}
                 open={completedOpen}
                 onOpenChange={() => setCompletedOpen((current) => !current)}
                 taskIds={completedTasks.map((t) => t.id)}
               >
-                {completedTasks.length === 0 ? (
+                {completedTasks.length === 0 && completedParts.length === 0 ? (
                   <div className="flex w-full items-center justify-center text-xs text-muted-foreground">
                     Nenhuma tarefa concluída ainda.
                   </div>
                 ) : (
-                  completedTasks.map((t) => (
+                  <>
+                  {completedTasks.map((t) => (
                     <SortableTaskCard
                       key={t.id}
                       task={t}
@@ -1494,7 +1511,17 @@ function KanbanPage() {
                         setDuplicateDueDate("");
                       }}
                     />
-                  ))
+                  ))}
+                  {completedParts.map(({ subtask, parent }) => (
+                    <CompletedSubtaskCard
+                      key={`subtask:${subtask.id}`}
+                      subtask={subtask}
+                      parent={parent}
+                      orientation={orientation}
+                      onOpen={() => { setEditTask(parent); setDialogOpen(true); }}
+                    />
+                  ))}
+                  </>
                 )}
               </CompletedColumn>
             </div>

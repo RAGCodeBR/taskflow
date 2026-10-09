@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "subtask-participation"
   | "calendar-subtask-dates"
   | "update-one-click"
   | "update-retry"
@@ -26,6 +27,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "subtarefas-concluidas-nas-visoes-2026-10-09",
+    title: "Minha parte concluída nas tarefas",
+    date: "2026-10-09",
+    preview: "subtask-participation",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Quem participa somente por subtarefas acompanha o card principal enquanto ainda tiver alguma subtarefa atribuída em aberto. A subtarefa concluída continua visível no calendário no prazo próprio ou, se não tiver prazo, no dia da conclusão, sem recolocar o card pai na visão pessoal depois da última parte.",
+      "Quem é colaborador ou responsável pelo card continua acompanhando a tarefa principal. No Kanban, a subtarefa finalizada aparece na coluna Concluídas; na lista, na seção Concluídas. A faixa separada acima das tarefas foi removida.",
+    ],
+  },
   {
     id: "prazos-individuais-subtarefas-calendario-2026-10-09",
     title: "Calendário e colagem de texto mais precisos",

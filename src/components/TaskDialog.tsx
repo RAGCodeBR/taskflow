@@ -33,6 +33,7 @@ import {
   useTaskTags,
   useTaskObjectives,
   type Task,
+  type Subtask as CachedSubtask,
 } from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -1049,22 +1050,39 @@ export function TaskDialog({
   };
 
   const toggleSubtask = async (st: Subtask) => {
-    if (user && isOffline()) {
+    const nextDone = !st.done;
+    const nextCompletedAt = nextDone ? new Date().toISOString() : null;
+    const offline = Boolean(user && isOffline());
+    if (user && offline) {
       await enqueueOfflineOperation({
         userId: user.id,
         entity: "subtask",
         action: "update",
         entityId: st.id,
-        payload: { patch: { done: !st.done } },
+        payload: { patch: { done: nextDone } },
       });
-      setSubtasks((current) =>
-        current.map((item) => (item.id === st.id ? { ...item, done: !item.done } : item)),
-      );
-      toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
-      return;
+    } else {
+      const { error } = await supabase.from("subtasks").update({ done: nextDone }).eq("id", st.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
     }
-    await supabase.from("subtasks").update({ done: !st.done }).eq("id", st.id);
-    setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, done: !s.done } : s)));
+    setSubtasks((current) =>
+      current.map((item) =>
+        item.id === st.id ? { ...item, done: nextDone, completed_at: nextCompletedAt } : item,
+      ),
+    );
+    qc.setQueryData<CachedSubtask[]>(["subtasks"], (current) =>
+      current?.map((item) =>
+        item.id === st.id ? { ...item, done: nextDone, completed_at: nextCompletedAt } : item,
+      ),
+    );
+    if (offline) {
+      toast.success("Alteração salva neste aparelho. Será sincronizada ao reconectar.");
+    } else {
+      void qc.invalidateQueries({ queryKey: ["subtasks"] });
+    }
   };
   const deleteSubtask = async (id: string) => {
     if (user && isOffline()) {

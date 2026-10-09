@@ -32,3 +32,16 @@ export function calendarTaskEntriesForDay(
   }
   return entries;
 }
+
+/** Personal completed parts stay on their own calendar date without restoring the parent card. */
+export function completedPersonalSubtaskEntriesForDay(
+  completedParts: Array<{ subtask: Subtask; parent: Task }>,
+  day: string,
+): CalendarTaskEntry[] {
+  return completedParts
+    .filter(
+      ({ subtask, parent }) =>
+        (subtask.due_date ?? subtask.completed_at ?? parent.due_date)?.slice(0, 10) === day,
+    )
+    .map(({ subtask, parent }) => ({ kind: "subtask" as const, task: parent, subtask }));
+}

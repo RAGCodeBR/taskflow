@@ -5,6 +5,18 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows the completed personal part without turning the parent into a completed card", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "subtask-participation" }),
+    );
+    expect(html).toContain("Calendário · Semana e mês");
+    expect(html).toContain("9 out");
+    expect(html).toContain("Revisar texto");
+    expect(html).toContain("Kanban · Concluídas");
+    expect(html).toContain("Lista · Concluídas");
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+  });
   it("illustrates one click for accumulated releases and control before reload", () => {
     const html = renderToStaticMarkup(
       createElement(AppUpdatePreview, { kind: "update-one-click" }),

@@ -40,7 +40,8 @@ import { usePersonalTaskPins } from "@/hooks/use-task-card-activity";
 import { pendingPersonalPriorities } from "@/lib/task-card-activity";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
 import { CalendarSubtaskItem, CalendarTaskGroup } from "@/components/CalendarTaskGroup";
-import { calendarTaskEntriesForDay } from "@/lib/calendar-task-entries";
+import { calendarTaskEntriesForDay, completedPersonalSubtaskEntriesForDay } from "@/lib/calendar-task-entries";
+import { completedSubtasksForUser, openSubtaskTaskIdsByUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 import { useCalendarSubtasks } from "@/hooks/use-calendar-subtasks";
 import { Checkbox } from "@/components/ui/checkbox";
 import { taskEditError } from "@/lib/task-edit";
@@ -241,24 +242,15 @@ function CalendarPage() {
     );
   };
 
-  const subtaskAssigneeTaskIds = useMemo(() => {
-    const s = new Set<string>();
-    if (!user?.id) return s;
-    for (const st of subtasks)
-      if (st.assignee_id === user.id && (showSubtasks || !st.done) && st.task_id) s.add(st.task_id);
-    return s;
-  }, [subtasks, user?.id, showSubtasks]);
+  const subtaskAssigneeTaskIds = useMemo(
+    () => openSubtaskTaskIdsForUser(subtasks, user?.id),
+    [subtasks, user?.id],
+  );
 
-  const subtaskAssigneeTaskIdsByUser = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const st of subtasks) {
-      if (!st.assignee_id || (!showSubtasks && st.done) || !st.task_id) continue;
-      const set = map.get(st.assignee_id) ?? new Set<string>();
-      set.add(st.task_id);
-      map.set(st.assignee_id, set);
-    }
-    return map;
-  }, [subtasks, showSubtasks]);
+  const subtaskAssigneeTaskIdsByUser = useMemo(
+    () => openSubtaskTaskIdsByUser(subtasks),
+    [subtasks],
+  );
 
   const collaboratorTaskIds = useMemo(
     () =>
@@ -329,14 +321,50 @@ function CalendarPage() {
     [clients],
   );
 
+  const personalCompletedSubtasks = useMemo(() => {
+    if (!user?.id) return [];
+    return completedSubtasksForUser(tasks, subtasks, user.id, viewedWorkspaceId)
+      .filter(({ subtask, parent }) => {
+        const displayDate = subtask.due_date ?? subtask.completed_at ?? parent.due_date;
+        if (!displayDate) return false;
+        const calendarSubtask = {
+          ...parent,
+          id: subtask.id,
+          assignee_id: user.id,
+          due_date: displayDate,
+          status: "done" as const,
+          completed_at: subtask.completed_at ?? displayDate,
+        };
+        return applyTaskFilters([calendarSubtask], filters, {
+          userId: user.id,
+          restrictToCurrentUserParticipation: isCollaborator,
+        }).length > 0;
+      });
+  }, [tasks, subtasks, user?.id, viewedWorkspaceId, filters, isCollaborator]);
+
   const pendingPinnedIds = new Set(pendingPersonalPriorities(taskView, pins).map(task => task.id));
-  const dayEntries = (day: Date) =>
-    calendarTaskEntriesForDay(
+  const dayEntries = (day: Date) => {
+    const date = format(day, "yyyy-MM-dd");
+    const regularEntries = calendarTaskEntriesForDay(
       visible.filter((task) => !showPinnedOnly || pendingPinnedIds.has(task.id)),
       subtasksByTaskId,
-      format(day, "yyyy-MM-dd"),
+      date,
       showSubtasks,
-    ).sort((a, b) => Number(pinnedIds.has(b.task.id)) - Number(pinnedIds.has(a.task.id)));
+    );
+    const displayedSubtaskIds = new Set(
+      regularEntries.flatMap((entry) =>
+        entry.kind === "subtask" ? [entry.subtask.id] : entry.subtasks.map((subtask) => subtask.id),
+      ),
+    );
+    const completedEntries = showPinnedOnly
+      ? []
+      : completedPersonalSubtaskEntriesForDay(personalCompletedSubtasks, date).filter(
+          (entry) => entry.kind === "subtask" && !displayedSubtaskIds.has(entry.subtask.id),
+        );
+    return [...regularEntries, ...completedEntries].sort(
+      (a, b) => Number(pinnedIds.has(b.task.id)) - Number(pinnedIds.has(a.task.id)),
+    );
+  };
   const createOnDay = (day: Date) => {
     setNewTaskDay(format(day, "yyyy-MM-dd"));
     setEdit(null);

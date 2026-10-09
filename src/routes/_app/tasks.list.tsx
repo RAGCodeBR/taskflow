@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, CheckCircle2, ChevronDown, Copy, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
 import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { LinkedText } from "@/components/LinkedText";
+import { completedSubtaskFilterTask, completedSubtaskHistory, openSubtaskTaskIdsByUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 
 export const Route = createFileRoute("/_app/tasks/list")({
   component: ListPage,
@@ -98,24 +99,15 @@ function ListPage() {
     }
   }, [search.task, tasks, navigate]);
 
-  const subtaskAssigneeTaskIds = useMemo(() => {
-    const s = new Set<string>();
-    if (!user?.id) return s;
-    for (const st of subtasks as any[])
-      if (st.assignee_id === user.id && !st.done && st.task_id) s.add(st.task_id);
-    return s;
-  }, [subtasks, user?.id]);
+  const subtaskAssigneeTaskIds = useMemo(
+    () => openSubtaskTaskIdsForUser(subtasks, user?.id),
+    [subtasks, user?.id],
+  );
 
-  const subtaskAssigneeTaskIdsByUser = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const st of subtasks as any[]) {
-      if (!st.assignee_id || st.done || !st.task_id) continue;
-      const set = map.get(st.assignee_id) ?? new Set<string>();
-      set.add(st.task_id);
-      map.set(st.assignee_id, set);
-    }
-    return map;
-  }, [subtasks]);
+  const subtaskAssigneeTaskIdsByUser = useMemo(
+    () => openSubtaskTaskIdsByUser(subtasks),
+    [subtasks],
+  );
 
   const subtaskDateFilterTaskIds = useMemo(() => {
     const dateFilter = filters.date;
@@ -197,6 +189,18 @@ function ListPage() {
       return dueDateSortDirection === "asc" ? dueDateDifference : -dueDateDifference;
     });
   }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, dueDateSortDirection, pinnedIds]);
+
+  const completedParts = useMemo(() => {
+    if (!user?.id) return [];
+    return completedSubtaskHistory(tasks, subtasks, user.id, collaboratorTaskIds, viewedWorkspaceId)
+      .filter(({ subtask, parent }) =>
+        applyTaskFilters([completedSubtaskFilterTask(parent, subtask, user.id)], filters, {
+          userId: user.id,
+          restrictToCurrentUserParticipation: isCollaborator,
+        }).length > 0,
+      );
+  }, [tasks, subtasks, user?.id, collaboratorTaskIds, viewedWorkspaceId, filters, isCollaborator]);
+  const hasCompletedTasks = list.some((task) => task.status === "done" || !!task.completed_at);
 
   const completeTask = async (taskId: string, completionDate: string) => {
     const completedStatus = statuses.find((status) => status.is_completed);
@@ -305,7 +309,7 @@ function ListPage() {
             </tr>
           </thead>
           <tbody>
-            {list.length === 0 ? (
+            {list.length === 0 && completedParts.length === 0 ? (
               <tr>
                 <td colSpan={8} className="py-10 text-center text-muted-foreground">
                   Nenhuma tarefa
@@ -343,10 +347,10 @@ function ListPage() {
               return (
                 <Fragment key={t.id}>
                 {startsCompletedSection && (
-                  <tr aria-label="Tarefas concluídas">
+                  <tr aria-label="Concluídas">
                     <td colSpan={8} className="px-2 py-2">
                       <button type="button" onClick={() => setCompletedOpen((current) => !current)} className="flex w-full items-center gap-3 border-t border-dashed border-muted-foreground/45 pt-2 text-left">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tarefas concluídas</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Concluídas</span>
                         <span className="h-px flex-1 border-t border-dashed border-muted-foreground/30" />
                         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${completedOpen ? "" : "-rotate-90"}`} />
                       </button>
@@ -447,6 +451,52 @@ function ListPage() {
                 </Fragment>
               );
             })}
+            {completedParts.length > 0 && (
+              <>
+                {!hasCompletedTasks && (
+                  <tr aria-label="Concluídas">
+                    <td colSpan={8} className="px-2 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setCompletedOpen((current) => !current)}
+                        className="flex w-full items-center gap-3 border-t border-dashed border-muted-foreground/45 pt-2 text-left"
+                      >
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Concluídas</span>
+                        <span className="h-px flex-1 border-t border-dashed border-muted-foreground/30" />
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${completedOpen ? "" : "-rotate-90"}`} />
+                      </button>
+                    </td>
+                  </tr>
+                )}
+                {completedOpen && completedParts.map(({ subtask, parent }) => {
+                  const client = clients.find((item) => item.id === parent.client_id);
+                  const ownProfile = profiles.find((profile) => profile.id === user?.id);
+                  const dueDate = subtask.due_date ?? parent.due_date;
+                  return (
+                    <tr
+                      key={`subtask:${subtask.id}`}
+                      className="cursor-pointer border-t bg-emerald-50/30 transition-colors hover:bg-emerald-50/70 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20"
+                      onClick={() => { setEdit(parent); setOpen(true); }}
+                    >
+                      <td className="border-r px-2 py-2">
+                        <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="truncate font-medium line-through">{subtask.title}</span>
+                        </div>
+                        <span className="pl-5 text-[10px] text-muted-foreground">Subtarefa de {parent.title}</span>
+                      </td>
+                      <td className="border-r px-2 py-2">{client ? <Badge variant="outline" style={{ borderColor: client.color ?? undefined }}>{client.name}</Badge> : "—"}</td>
+                      <td className="border-r px-2 py-2 text-muted-foreground">{ownProfile?.full_name || ownProfile?.email || "—"}</td>
+                      <td className="border-r px-2 py-2 text-muted-foreground">—</td>
+                      <td className="border-r px-2 py-2"><Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">Concluída</Badge></td>
+                      <td className="border-r px-2 py-2 text-muted-foreground">—</td>
+                      <td className="border-r px-2 py-2 text-muted-foreground">{dueDate ? format(new Date(dueDate), "dd MMM yyyy", { locale: ptBR }) : "—"}</td>
+                      <td className="px-1 py-2 text-center text-muted-foreground">—</td>
+                    </tr>
+                  );
+                })}
+              </>
+            )}
           </tbody>
         </table>
       </div>
