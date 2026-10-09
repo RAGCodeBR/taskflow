@@ -9,9 +9,23 @@ import {
   Pin,
   Eye,
   Plus,
+  RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
 import type { UpdatePreviewKind } from "@/lib/app-updates";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
+
+function PreviewGrid({ children, label }: { children: ReactNode; label?: string }) {
+  return (
+    <div
+      className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-3"
+      aria-label={label}
+      data-update-preview-grid
+    >
+      {children}
+    </div>
+  );
+}
 
 function TaskDescriptionPreview() {
   return (
@@ -95,10 +109,7 @@ function DashboardUpdatePreview() {
 
 function TaskLinksCalendarPreview() {
   return (
-    <div
-      className="grid gap-3 sm:grid-cols-2"
-      aria-label="Prévia dos links clicáveis e do calendário com tarefas principais"
-    >
+    <PreviewGrid label="Prévia dos links clicáveis e do calendário com tarefas principais">
       <div className="overflow-hidden rounded-xl border bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <div className="flex items-center gap-2 border-b bg-white px-3 py-2 dark:bg-slate-900">
           <Link2 className="h-3.5 w-3.5 text-primary" />
@@ -147,16 +158,13 @@ function TaskLinksCalendarPreview() {
           </div>
         </div>
       </div>
-    </div>
+    </PreviewGrid>
   );
 }
 
 function CalendarReschedulePreview() {
   return (
-    <div
-      className="grid gap-3 sm:grid-cols-2"
-      aria-label="Prévia do arraste de tarefas com justificativa"
-    >
+    <PreviewGrid label="Prévia do arraste de tarefas com justificativa">
       <div className="overflow-hidden rounded-xl border bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <div className="flex items-center gap-2 border-b bg-white px-3 py-2 dark:bg-slate-900">
           <CalendarDays className="h-3.5 w-3.5 text-primary" />
@@ -217,39 +225,170 @@ function CalendarReschedulePreview() {
           </p>
         </div>
       </div>
-    </div>
+    </PreviewGrid>
   );
 }
 
 function TaskEditPreview() {
   return (
-    <div aria-label="Prévia do salvamento de descrições e prazos" className="rounded-xl border bg-background p-3 shadow-sm">
+    <div
+      aria-label="Prévia do salvamento de descrições e prazos"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
       <p className="text-xs font-semibold">Revisar campanha</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border p-3">
-          <p className="text-[10px] text-muted-foreground">Descrição editada</p>
-          <p className="mt-2 text-xs">Briefing revisado pela equipe.</p>
-          <p className="mt-3 text-[10px] text-emerald-700 dark:text-emerald-400">Texto salvo e exibido na tarefa</p>
-        </div>
-        <div className="rounded-lg border p-3">
-          <p className="text-[10px] text-muted-foreground">Prazo atualizado no calendário</p>
-          <p className="mt-2 flex items-center gap-2 text-xs"><CalendarDays className="h-4 w-4" />13 de outubro</p>
-          <p className="mt-3 text-[10px] text-muted-foreground">Preservado ao salvar somente a descrição</p>
-        </div>
+      <div className="mt-3">
+        <PreviewGrid>
+          <div className="rounded-lg border p-3">
+            <p className="text-[10px] text-muted-foreground">Descrição editada</p>
+            <p className="mt-2 text-xs">Briefing revisado pela equipe.</p>
+            <p className="mt-3 text-[10px] text-emerald-700 dark:text-emerald-400">
+              Texto salvo e exibido na tarefa
+            </p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-[10px] text-muted-foreground">Prazo atualizado no calendário</p>
+            <p className="mt-2 flex items-center gap-2 text-xs">
+              <CalendarDays className="h-4 w-4" />
+              13 de outubro
+            </p>
+            <p className="mt-3 text-[10px] text-muted-foreground">
+              Preservado ao salvar somente a descrição
+            </p>
+          </div>
+        </PreviewGrid>
       </div>
     </div>
   );
 }
 
+function CalendarSubtasksPreview() {
+  return (
+    <PreviewGrid label="Prévia das subtarefas e da atualização segura">
+      <div
+        aria-label="Prévia das subtarefas agrupadas abaixo da tarefa pai"
+        className="rounded-xl border bg-background p-3 shadow-sm"
+      >
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 text-[11px] font-medium">
+          <span className="grid h-3.5 w-3.5 place-items-center rounded-sm bg-primary text-[9px] text-primary-foreground">
+            ✓
+          </span>
+          Subtarefas
+        </div>
+        <div className="rounded-lg border p-3">
+          <p className="mb-2 text-[10px] text-muted-foreground">13</p>
+          <div className="rounded-md bg-primary px-2.5 py-2 text-xs font-semibold text-primary-foreground">
+            Carrossel da campanha
+          </div>
+          <div className="ml-1 mt-1 space-y-1 border-l-2 border-primary/20 pl-2">
+            {[
+              { title: "Conteúdo", done: true },
+              { title: "Legenda", done: true },
+              { title: "Arte", done: false },
+            ].map((row) => (
+              <div
+                key={row.title}
+                className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] ${row.done ? "bg-emerald-50 text-muted-foreground dark:bg-emerald-950/20" : "bg-background"}`}
+              >
+                <span className={row.done ? "text-emerald-600" : "text-muted-foreground"}>
+                  {row.done ? "✓" : "○"}
+                </span>
+                <span className={row.done ? "line-through" : ""}>{row.title}</span>
+                <span className="ml-auto rounded-full bg-muted px-1.5 text-[8px] text-muted-foreground">
+                  Equipe
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="mt-3 text-[10px] text-muted-foreground">
+          Pai e subtarefas juntos. Abra a tarefa para consultar os prazos.
+        </p>
+      </div>
+      <UpdateFlowPreview />
+    </PreviewGrid>
+  );
+}
+
+function UpdateFlowPreview() {
+  return (
+    <div
+      aria-label="Prévia da verificação e ativação da nova versão"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold">
+        <RefreshCw className="h-3.5 w-3.5" />
+        Atualização segura
+      </p>
+      <div className="mt-3 space-y-2 rounded-lg border p-2.5 text-[10px]">
+        <p className="text-muted-foreground">Nova versão disponível</p>
+        <div className="flex items-center gap-1.5 rounded-lg bg-primary/5 p-2">
+          <RefreshCw className="h-3 w-3" />
+          Preparando a nova versão…
+        </div>
+        <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+          <CheckCircle2 className="h-3 w-3" />
+          Pronta → Recarregar
+        </div>
+      </div>
+      <p className="mt-3 text-[10px] text-muted-foreground">
+        Verifique novamente quando precisar. Seus dados offline permanecem salvos.
+      </p>
+    </div>
+  );
+}
+
 function TaskCardActivityPreview() {
-  return <div aria-label="Prévia das aberturas, prioridades pessoais e criação pelo calendário" className="grid gap-3 sm:grid-cols-3">
-    <div className="rounded-xl border bg-background p-3 shadow-sm"><p className="flex items-center gap-1.5 text-[11px] font-semibold"><Eye className="h-3.5 w-3.5" />Aberturas do card</p><div className="mt-3 rounded-lg border p-2 text-[10px]"><p className="font-medium">Pessoa da equipe</p><p className="mt-1 text-muted-foreground">Primeira: 08/10 às 09:12</p><p className="text-muted-foreground">Última: 08/10 às 14:35</p></div><p className="mt-2 text-[10px] text-muted-foreground">Outro participante · Ainda não abriu</p></div>
-    <div className="rounded-xl border bg-background p-3 shadow-sm"><p className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2 py-1 text-[11px] font-semibold"><Pin className="h-3.5 w-3.5" />Fixadas</p><div className="mt-3 rounded-lg border p-2"><p className="text-[10px] text-muted-foreground">12 de outubro</p><div className="relative mt-2 rounded-md bg-primary p-2 text-[10px] text-primary-foreground"><CalendarTaskPin />Retomar briefing</div></div><p className="mt-3 text-[10px] text-muted-foreground">Botão direito → Fixar tarefa</p></div>
-    <div className="rounded-xl border bg-background p-3 shadow-sm"><p className="flex items-center gap-1.5 text-[11px] font-semibold"><CalendarDays className="h-3.5 w-3.5" />Criar no dia</p><div className="mt-3 rounded-lg border p-2 text-[10px]"><p>12 de outubro</p><div className="mt-2 flex items-center gap-1 rounded-md border bg-muted/50 p-2"><Plus className="h-3 w-3" />Nova tarefa</div></div><p className="mt-3 text-[10px] text-muted-foreground">Botão direito → Prazo preenchido</p></div>
-  </div>;
+  return (
+    <PreviewGrid label="Prévia das aberturas, prioridades pessoais e criação pelo calendário">
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold">
+          <Eye className="h-3.5 w-3.5" />
+          Aberturas do card
+        </p>
+        <div className="mt-3 rounded-lg border p-2 text-[10px]">
+          <p className="font-medium">Pessoa da equipe</p>
+          <p className="mt-1 text-muted-foreground">Primeira: 08/10 às 09:12</p>
+          <p className="text-muted-foreground">Última: 08/10 às 14:35</p>
+        </div>
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          Outro participante · Ainda não abriu
+        </p>
+      </div>
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <p className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2 py-1 text-[11px] font-semibold">
+          <Pin className="h-3.5 w-3.5" />
+          Fixadas
+        </p>
+        <div className="mt-3 rounded-lg border p-2">
+          <p className="text-[10px] text-muted-foreground">12 de outubro</p>
+          <div className="relative mt-2 rounded-md bg-primary p-2 text-[10px] text-primary-foreground">
+            <CalendarTaskPin />
+            Retomar briefing
+          </div>
+        </div>
+        <p className="mt-3 text-[10px] text-muted-foreground">Botão direito → Fixar tarefa</p>
+      </div>
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold">
+          <CalendarDays className="h-3.5 w-3.5" />
+          Criar no dia
+        </p>
+        <div className="mt-3 rounded-lg border p-2 text-[10px]">
+          <p>12 de outubro</p>
+          <div className="mt-2 flex items-center gap-1 rounded-md border bg-muted/50 p-2">
+            <Plus className="h-3 w-3" />
+            Nova tarefa
+          </div>
+        </div>
+        <p className="mt-3 text-[10px] text-muted-foreground">Botão direito → Prazo preenchido</p>
+      </div>
+    </PreviewGrid>
+  );
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "calendar-subtasks": CalendarSubtasksPreview,
+  "update-flow": UpdateFlowPreview,
   "task-card-activity": TaskCardActivityPreview,
   "task-edit": TaskEditPreview,
   "calendar-reschedule": CalendarReschedulePreview,

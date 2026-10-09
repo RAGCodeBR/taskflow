@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, ChevronDown, History, RefreshCw, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { AppUpdatePreview } from "@/components/UpdatePreviews";
+import { activateAppUpdate, checkAppWorkerUpdate } from "@/lib/app-update-install";
+import {
+  newerPublishedAppUpdate,
+  readPublishedAppUpdates,
+  type PublishedAppUpdate,
+} from "@/lib/published-app-updates";
 import {
   DASHBOARD_UPDATE_VERSION,
   formatAppUpdateDate,
@@ -82,7 +88,21 @@ export function UpdateCenter() {
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [checkMessage, setCheckMessage] = useState<string | null>(null);
+  const [published, setPublished] = useState<{
+    scope: string;
+    release: PublishedAppUpdate | null;
+    checked: boolean;
+  } | null>(null);
+  const checkForUpdateRef = useRef<(() => Promise<void>) | null>(null);
   const watchedRegistrationsRef = useRef(new Set<ServiceWorkerRegistration>());
+  const initialWorkerRef = useRef<ServiceWorker | null>(null);
+  const scope = `${user?.id}:${activeWorkspace?.slug}:${isAdmin}`;
+  const remoteRelease = published?.scope === scope ? published.release : null;
+  const versionVerified = published?.scope === scope && published.checked;
+  const noticeVersion = remoteRelease?.id ?? UPDATE_VERSION;
 
   const isSupportedWorkspace = Boolean(latestUpdate);
   const storageKey = useMemo(
@@ -96,9 +116,9 @@ export function UpdateCenter() {
   const promptKey = useMemo(
     () =>
       user?.id && activeWorkspace?.id
-        ? `taskflow:update-prompt:${UPDATE_VERSION}:${user.id}:${activeWorkspace.id}`
+        ? `taskflow:update-prompt:${noticeVersion}:${user.id}:${activeWorkspace.id}`
         : null,
-    [UPDATE_VERSION, activeWorkspace?.id, user?.id],
+    [noticeVersion, activeWorkspace?.id, user?.id],
   );
   // O catálogo seleciona as novidades permitidas no ambiente e para o público.
   // O histórico administrativo do Dashboard continua reservado aos admins.
@@ -106,22 +126,32 @@ export function UpdateCenter() {
 
   useEffect(() => {
     if (!canSeeUpdates || !storageKey) return;
-    setAcknowledged(window.localStorage.getItem(storageKey) === UPDATE_VERSION);
+    try {
+      setAcknowledged(window.localStorage.getItem(storageKey) === UPDATE_VERSION);
+    } catch {
+      setAcknowledged(false);
+    }
   }, [UPDATE_VERSION, canSeeUpdates, storageKey]);
 
   useEffect(() => {
     if (!canSeeUpdates || !dashboardStorageKey) return;
-    setDashboardAcknowledged(
-      window.localStorage.getItem(dashboardStorageKey) === DASHBOARD_UPDATE_VERSION,
-    );
+    try {
+      setDashboardAcknowledged(
+        window.localStorage.getItem(dashboardStorageKey) === DASHBOARD_UPDATE_VERSION,
+      );
+    } catch {
+      setDashboardAcknowledged(false);
+    }
   }, [canSeeUpdates, dashboardStorageKey]);
 
   const hasReleaseUpdate = !acknowledged;
-  const hasUpdate = hasReleaseUpdate || serviceWorkerUpdateReady;
+  const hasNewVersion = Boolean(remoteRelease) || serviceWorkerUpdateReady;
+  const hasUpdate = hasReleaseUpdate || hasNewVersion;
+  const isCurrent = !hasUpdate && versionVerified;
   const dashboardIsCurrent = acknowledged || dashboardAcknowledged;
 
   useEffect(() => {
-    if (!canSeeUpdates || !("serviceWorker" in navigator)) return;
+    if (!canSeeUpdates) return;
 
     let active = true;
     const cleanup: Array<() => void> = [];
@@ -146,75 +176,187 @@ export function UpdateCenter() {
       watchInstallingWorker();
     };
 
-    const checkForUpdate = async () => {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      if (!active) return;
-      registrations.forEach((registration) => {
-        watchRegistration(registration);
-        if (registration.waiting && navigator.serviceWorker.controller)
-          setServiceWorkerUpdateReady(true);
-        void registration.update().catch(() => undefined);
+    let running: Promise<void> | null = null;
+    const checkForUpdate = (): Promise<void> => {
+      if (running) return running;
+      running = (async () => {
+        if (!navigator.onLine)
+          throw new Error(
+            "Conecte-se à internet para verificar novas atualizações. Seus dados offline estão preservados.",
+          );
+        const workerCheck = async () => {
+          if (!("serviceWorker" in navigator)) return;
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (!active || !registration) return;
+          if (!initialWorkerRef.current) initialWorkerRef.current = registration.active;
+          watchRegistration(registration);
+          if (registration.waiting) setServiceWorkerUpdateReady(true);
+          await checkAppWorkerUpdate(registration);
+          if (active && registration.waiting) setServiceWorkerUpdateReady(true);
+        };
+        // Keep detecting installed workers even if the independent server check fails.
+        const versionCheck = async () => {
+          const response = await fetch(`/app-release.json?check=${Date.now()}`, {
+            cache: "no-store",
+            signal: AbortSignal.timeout(8_000),
+          });
+          if (!response.ok)
+            throw new Error("Não foi possível verificar a versão publicada. Tente novamente.");
+          const releases = readPublishedAppUpdates(await response.json());
+          if (active)
+            setPublished({
+              scope,
+              release: newerPublishedAppUpdate(releases, updates, isAdmin, activeWorkspace?.slug),
+              checked: true,
+            });
+        };
+        const results = await Promise.allSettled([workerCheck(), versionCheck()]);
+        if (results[1].status === "rejected") {
+          if (active)
+            setPublished((previous) =>
+              previous?.scope === scope ? { ...previous, checked: false } : null,
+            );
+          throw results[1].reason;
+        }
+      })().finally(() => {
+        running = null;
       });
+      return running;
     };
+    checkForUpdateRef.current = checkForUpdate;
+    const backgroundCheck = () =>
+      void checkForUpdate().catch(() => {
+        if (active)
+          setPublished((previous) =>
+            previous?.scope === scope ? { ...previous, checked: false } : null,
+          );
+      });
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") void checkForUpdate();
+      if (document.visibilityState === "visible") backgroundCheck();
     };
-    void checkForUpdate();
-    const interval = window.setInterval(() => void checkForUpdate(), 60_000);
+    backgroundCheck();
+    const interval = window.setInterval(backgroundCheck, 60_000);
     window.addEventListener("focus", onVisibilityChange);
+    window.addEventListener("online", backgroundCheck);
+    window.addEventListener("offline", backgroundCheck);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       active = false;
       window.clearInterval(interval);
       window.removeEventListener("focus", onVisibilityChange);
+      window.removeEventListener("online", backgroundCheck);
+      window.removeEventListener("offline", backgroundCheck);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       cleanup.forEach((remove) => remove());
       watchedRegistrations.clear();
+      if (checkForUpdateRef.current === checkForUpdate) checkForUpdateRef.current = null;
     };
-  }, [canSeeUpdates]);
+  }, [canSeeUpdates, scope, updates, isAdmin, activeWorkspace?.slug]);
 
   useEffect(() => {
     if (!canSeeUpdates || !hasUpdate || !promptKey) {
       setShowUpdatePrompt(false);
       return;
     }
-    if (serviceWorkerUpdateReady) {
+    if (hasNewVersion) {
       setShowUpdatePrompt(true);
       return;
     }
-    setShowUpdatePrompt(window.sessionStorage.getItem(promptKey) !== UPDATE_VERSION);
-  }, [UPDATE_VERSION, canSeeUpdates, hasUpdate, promptKey, serviceWorkerUpdateReady]);
+    try {
+      setShowUpdatePrompt(window.sessionStorage.getItem(promptKey) !== noticeVersion);
+    } catch {
+      setShowUpdatePrompt(true);
+    }
+  }, [noticeVersion, canSeeUpdates, hasUpdate, promptKey, hasNewVersion]);
 
   if (!canSeeUpdates) return null;
 
   const openPendingUpdate = () => {
-    if (promptKey) window.sessionStorage.setItem(promptKey, UPDATE_VERSION);
+    try {
+      if (promptKey) window.sessionStorage.setItem(promptKey, noticeVersion);
+    } catch {
+      /* Storage can be blocked. */
+    }
     setShowUpdatePrompt(false);
     setOpen(true);
   };
   const updateApplication = async () => {
-    if (!storageKey) return;
+    if (!storageKey || refreshing) return;
+    setUpdateError(null);
+    if (!navigator.onLine) {
+      setUpdateError("Conecte-se à internet para atualizar. Seus dados offline estão preservados.");
+      return;
+    }
     setRefreshing(true);
-    window.localStorage.setItem(storageKey, UPDATE_VERSION);
-    setAcknowledged(true);
-    setServiceWorkerUpdateReady(false);
 
     try {
       if ("serviceWorker" in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(
-          registrations.map(async (registration) => {
-            await registration.update();
-            registration.waiting?.postMessage({ type: "SKIP_WAITING" });
-          }),
-        );
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          const activated = await activateAppUpdate(registration);
+          const activatedInAnotherTab =
+            initialWorkerRef.current &&
+            registration.active !== initialWorkerRef.current &&
+            registration.active?.state === "activated";
+          if (hasNewVersion && !activated && !activatedInAnotherTab)
+            throw new Error(
+              "A nova versão ainda não está pronta. Aguarde alguns instantes e tente novamente.",
+            );
+        }
       }
-    } finally {
-      window.setTimeout(() => window.location.reload(), 250);
+      // Acknowledgement happens only after installation succeeds. Never clear
+      // IndexedDB, offline queues, user preferences or unrelated registrations.
+      try {
+        window.localStorage.setItem(storageKey, UPDATE_VERSION);
+        if (remoteRelease && user?.id)
+          window.localStorage.setItem(
+            `taskflow:update:${remoteRelease.id}:${user.id}`,
+            remoteRelease.id,
+          );
+      } catch {
+        /* Still allow the verified reload. */
+      }
+      window.location.reload();
+    } catch (error) {
+      setUpdateError(
+        error instanceof Error && !(error instanceof TypeError)
+          ? error.message
+          : "Não foi possível baixar a atualização. Verifique sua conexão e tente novamente.",
+      );
+      setRefreshing(false);
     }
   };
+  const manuallyCheck = async () => {
+    if (checking || refreshing) return;
+    setChecking(true);
+    setCheckMessage(null);
+    setUpdateError(null);
+    try {
+      await checkForUpdateRef.current?.();
+      setCheckMessage("Verificação concluída. Consulte o aviso de versão abaixo.");
+    } catch {
+      setCheckMessage(
+        navigator.onLine
+          ? "Não foi possível verificar a versão publicada. Tente novamente."
+          : "Conecte-se à internet para verificar novas atualizações. Seus dados offline estão preservados.",
+      );
+    } finally {
+      setChecking(false);
+    }
+  };
+  const updateButton = (
+    <Button
+      type="button"
+      className="mt-3 gap-2"
+      onClick={() => void updateApplication()}
+      disabled={refreshing}
+    >
+      <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+      {refreshing ? "Atualizando…" : "Atualizar agora"}
+    </Button>
+  );
 
   const updateDetails = (update: AppUpdate, pending: boolean) => (
     <>
@@ -229,20 +371,11 @@ export function UpdateCenter() {
           <p className="text-sm font-medium">
             Atualize para carregar esta versão no seu navegador.
           </p>
-          <Button
-            type="button"
-            className="mt-3 gap-2"
-            onClick={() => void updateApplication()}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Atualizando…" : "Atualizar agora"}
-          </Button>
+          {updateButton}
         </div>
       ) : (
         <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
-          <CheckCircle2 className="h-4 w-4 shrink-0" /> Esta versão já foi atualizada neste
-          navegador.
+          <CheckCircle2 className="h-4 w-4 shrink-0" /> Esta versão está instalada neste navegador.
         </div>
       )}
     </>
@@ -280,11 +413,17 @@ export function UpdateCenter() {
         size="sm"
         onClick={hasUpdate ? openPendingUpdate : () => setOpen(true)}
         className={`relative h-9 gap-2 rounded-full px-3 text-sm ${hasUpdate ? "animate-pulse shadow-[0_0_0_4px_hsl(var(--primary)/0.14)]" : "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"}`}
-        title={hasUpdate ? "Há uma atualização disponível" : "Este navegador está na versão atual"}
+        title={
+          hasUpdate
+            ? "Há uma atualização disponível"
+            : isCurrent
+              ? "Este navegador está na versão atual"
+              : "Versão instalada; abra para verificar atualizações"
+        }
       >
         {hasUpdate ? <Sparkles className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
         <span className="hidden lg:inline">
-          {hasUpdate ? "Novas atualizações" : "Versão atual"}
+          {hasUpdate ? "Novas atualizações" : isCurrent ? "Versão atual" : "Versão instalada"}
         </span>
         {hasUpdate && (
           <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
@@ -314,18 +453,59 @@ export function UpdateCenter() {
           </div>
 
           <div className="space-y-6 px-6 py-5">
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                disabled={checking || refreshing}
+                onClick={() => void manuallyCheck()}
+              >
+                <RefreshCw className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} />
+                {checking ? "Verificando…" : "Verificar atualizações"}
+              </Button>
+              {checkMessage ? (
+                <p role="status" className="text-sm text-muted-foreground">
+                  {checkMessage}
+                </p>
+              ) : null}
+              {updateError ? (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                >
+                  {updateError}
+                </p>
+              ) : null}
+            </div>
             {hasUpdate ? (
               <section className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                   Atualizações pendentes
                 </p>
                 <ReleaseSection
-                  title={latestUpdate.title}
-                  date={formatAppUpdateDate(latestUpdate.date)}
+                  title={
+                    hasNewVersion
+                      ? (remoteRelease?.title ?? "Nova versão do TaskFlow")
+                      : latestUpdate.title
+                  }
+                  date={formatAppUpdateDate(remoteRelease?.date ?? latestUpdate.date)}
                   defaultOpen
                   status={<Sparkles className="h-4 w-4" />}
                 >
-                  {updateDetails(latestUpdate, true)}
+                  {hasNewVersion ? (
+                    <>
+                      <AppUpdatePreview kind="update-flow" />
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        Uma versão mais recente está disponível. Atualize para carregar as novidades
+                        e suas miniaturas. A página só será recarregada depois que a nova versão
+                        estiver pronta.
+                      </p>
+                      {updateButton}
+                    </>
+                  ) : (
+                    updateDetails(latestUpdate, true)
+                  )}
                 </ReleaseSection>
               </section>
             ) : null}
@@ -335,13 +515,13 @@ export function UpdateCenter() {
                 Atualizações instaladas neste navegador
               </p>
               <div className="space-y-3">
-                {!hasUpdate ? (
+                {!hasReleaseUpdate || hasNewVersion ? (
                   <ReleaseSection
                     title={latestUpdate.title}
                     date={formatAppUpdateDate(latestUpdate.date)}
                     defaultOpen
                     status={<CheckCircle2 className="h-4 w-4" />}
-                    updated
+                    updated={isCurrent}
                   >
                     {updateDetails(latestUpdate, false)}
                   </ReleaseSection>

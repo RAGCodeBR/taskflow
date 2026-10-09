@@ -1,6 +1,13 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
-  "task-card-activity" | "task-edit" | "calendar-reschedule" | "links-calendar" | "task-prints" | "dashboard";
+  | "calendar-subtasks"
+  | "update-flow"
+  | "task-card-activity"
+  | "task-edit"
+  | "calendar-reschedule"
+  | "links-calendar"
+  | "task-prints"
+  | "dashboard";
 export type AppUpdate = {
   id: string;
   title: string;
@@ -14,6 +21,20 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "subtarefas-agrupadas-calendario-2026-10-08",
+    title: "Subtarefas agrupadas no calendário",
+    date: "2026-10-08",
+    preview: "calendar-subtasks",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ative Subtarefas nos filtros para vê-las abaixo da tarefa pai, no mesmo grupo e no dia em que a tarefa principal aparece. As linhas mostram o título, o responsável e a conclusão, sem exibir os prazos.",
+      "Clique em uma subtarefa para abrir a tarefa pai e consultar seus prazos e detalhes. A visualização funciona nas visões de semana e mês e não altera datas nem o arraste das tarefas principais.",
+      "A escolha fica lembrada neste navegador, por pessoa e ambiente. Os perfis com essa visualização pré-configurada já iniciam com o filtro ativado.",
+      "O centro de atualizações verifica a versão publicada e espera a nova versão terminar de ativar antes de recarregar. Sem internet ou em caso de falha, mantém os dados offline e permite tentar novamente. As miniaturas ficam lado a lado quando há espaço e passam para a linha seguinte quando necessário.",
+    ],
+  },
   {
     id: "aberturas-pins-atalhos-tarefas-2026-10-08",
     title: "Aberturas, prioridades pessoais e tarefas no calendário",

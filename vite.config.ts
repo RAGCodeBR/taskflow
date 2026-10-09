@@ -8,6 +8,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 import { readFileSync } from "node:fs";
 import { deflateSync, inflateSync } from "node:zlib";
+import { appUpdatesPlugin } from "./scripts/app-updates-plugin";
 
 function crc32(data: Buffer) {
   let crc = 0xffffffff;
@@ -73,6 +74,7 @@ const timbradoImagePlugin = {
 export default defineConfig({
   plugins: [
     timbradoImagePlugin,
+    appUpdatesPlugin(),
     VitePWA({
       outDir: ".vercel/output/static",
       // Não substitua o service worker no meio de uma sessão. Com atualização
@@ -98,6 +100,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Version checks must reach the published server, not the installed cache.
+        globIgnores: ["**/app-release.json"],
         // O HTML raiz é a casca do SPA: ao abrir /clientes, /dashboard etc.
         // sem rede, ele permite que o roteador renderize a rota atual usando
         // os módulos e dados já persistidos no aparelho.
@@ -118,7 +122,12 @@ export default defineConfig({
     }),
   ],
   // Generate Vercel Build Output instead of the previous Cloudflare target.
-  nitro: { preset: "vercel" },
+  nitro: {
+    preset: "vercel",
+    routeRules: {
+      "/app-release.json": { headers: { "cache-control": "no-store" } },
+    },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

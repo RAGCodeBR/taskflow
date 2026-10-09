@@ -39,6 +39,9 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { usePersonalTaskPins } from "@/hooks/use-task-card-activity";
 import { pendingPersonalPriorities } from "@/lib/task-card-activity";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
+import { CalendarTaskGroup } from "@/components/CalendarTaskGroup";
+import { useCalendarSubtasks } from "@/hooks/use-calendar-subtasks";
+import { Checkbox } from "@/components/ui/checkbox";
 import { taskEditError } from "@/lib/task-edit";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -82,10 +85,21 @@ function CalendarPage() {
   // O calendário acompanha o ambiente escolhido no filtro sem trocar o
   // ambiente ativo da sessão administrativa.
   const viewedWorkspaceId = filters.workspace;
+  const { enabled: showSubtasks, setEnabled: setShowSubtasks } = useCalendarSubtasks(viewedWorkspaceId ?? activeWorkspace?.id);
   const { data: tasks = [] } = useTasks(viewedWorkspaceId);
   const { data: clients = [] } = useClients(viewedWorkspaceId);
   const { data: columns = [] } = useColumns(viewedWorkspaceId);
   const { data: subtasks = [] } = useSubtasks();
+  const subtasksByTaskId = useMemo(() => {
+    const map = new Map<string, typeof subtasks>();
+    for (const subtask of subtasks) {
+      const group = map.get(subtask.task_id) ?? [];
+      group.push(subtask);
+      map.set(subtask.task_id, group);
+    }
+    for (const group of map.values()) group.sort((first, second) => first.position - second.position);
+    return map;
+  }, [subtasks]);
   const { data: statuses = [] } = useTaskStatuses(viewedWorkspaceId);
   const { data: profiles = [] } = useProfiles();
   const { data: collaborators = [] } = useTaskCollaborators();
@@ -230,20 +244,20 @@ function CalendarPage() {
     const s = new Set<string>();
     if (!user?.id) return s;
     for (const st of subtasks as any[])
-      if (st.assignee_id === user.id && !st.done && st.task_id) s.add(st.task_id);
+      if (st.assignee_id === user.id && (showSubtasks || !st.done) && st.task_id) s.add(st.task_id);
     return s;
-  }, [subtasks, user?.id]);
+  }, [subtasks, user?.id, showSubtasks]);
 
   const subtaskAssigneeTaskIdsByUser = useMemo(() => {
     const map = new Map<string, Set<string>>();
     for (const st of subtasks as any[]) {
-      if (!st.assignee_id || st.done || !st.task_id) continue;
+      if (!st.assignee_id || (!showSubtasks && st.done) || !st.task_id) continue;
       const set = map.get(st.assignee_id) ?? new Set<string>();
       set.add(st.task_id);
       map.set(st.assignee_id, set);
     }
     return map;
-  }, [subtasks]);
+  }, [subtasks, showSubtasks]);
 
   const collaboratorTaskIds = useMemo(
     () =>
@@ -314,8 +328,7 @@ function CalendarPage() {
     [clients],
   );
 
-  // Somente tarefas principais entram no calendário, no próprio prazo.
-  // Subtarefas continuam participando dos filtros e dos detalhes da tarefa.
+  // The parent's deadline positions the entire group; child deadlines stay untouched.
   const pendingPinnedIds = new Set(pendingPersonalPriorities(taskView, pins).map(task => task.id));
   const dayEntries = (day: Date) =>
     visible.filter((task) => (!showPinnedOnly || pendingPinnedIds.has(task.id)) && task.due_date && isSameDay(new Date(task.due_date), day))
@@ -387,7 +400,9 @@ function CalendarPage() {
         filters={filters}
         onChange={setFilters}
         hideAssignee={isCollaborator}
+        extraActiveChips={showSubtasks ? [{ key: "calendar-subtasks", label: "Subtarefas", clear: () => setShowSubtasks(false) }] : []}
         sections={{
+          visualization: <label className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-xs" htmlFor="calendar-show-subtasks"><Checkbox id="calendar-show-subtasks" checked={showSubtasks} onCheckedChange={checked => setShowSubtasks(checked === true)} />Subtarefas</label>,
           category: workspaces.length > 1 ? (
             <WorkspaceTaskFilter
               value={filters.workspace}
@@ -406,7 +421,8 @@ function CalendarPage() {
         onDragCancel={() => setDraggedTask(null)}
         onDragEnd={finishDrag}
       >
-        <div className="overflow-hidden rounded-lg border bg-card">
+        <div className={`${showSubtasks ? "overflow-x-auto" : "overflow-hidden"} rounded-lg border bg-card`}>
+          <div className={showSubtasks ? "min-w-[56rem]" : undefined}>
           <div className="grid grid-cols-7 border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
               <div key={d} className="p-2 text-center">
@@ -442,8 +458,8 @@ function CalendarPage() {
                         setOpen(true);
                       };
                       return (
+                        <CalendarTaskGroup key={task.id} task={task} subtasks={showSubtasks ? subtasksByTaskId.get(task.id) ?? [] : []} profiles={profileById} onOpen={onClick}>
                         <DraggableCalendarTaskItem
-                          key={task.id}
                           disabled={!canReschedule || Boolean(reschedule) || savingDate}
                           task={task}
                           pinned={pinnedIds.has(task.id)}
@@ -456,6 +472,7 @@ function CalendarPage() {
                           backgroundColor={clientColor}
                           onClick={onClick}
                         />
+                        </CalendarTaskGroup>
                       );
                     })}
                     {entries.length > 3 && (
@@ -474,6 +491,7 @@ function CalendarPage() {
                 </CalendarDay>
               );
             })}
+          </div>
           </div>
         </div>
         {typeof document !== "undefined" &&
@@ -588,8 +606,8 @@ function CalendarPage() {
                 setOpen(true);
               };
               return (
+                <CalendarTaskGroup key={task.id} task={task} subtasks={showSubtasks ? subtasksByTaskId.get(task.id) ?? [] : []} profiles={profileById} onOpen={onClick} expanded>
                 <CalendarTaskItem
-                  key={task.id}
                   task={task}
                   pinned={pinnedIds.has(task.id)}
                   onCreate={canReschedule && selectedDay ? () => { setDayListOpen(false); createOnDay(selectedDay); } : undefined}
@@ -602,6 +620,7 @@ function CalendarPage() {
                   expanded
                   onClick={onClick}
                 />
+                </CalendarTaskGroup>
               );
             })}
           </div>

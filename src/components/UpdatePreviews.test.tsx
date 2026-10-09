@@ -24,6 +24,26 @@ describe("release thumbnails", () => {
     expect(html).toContain("Cancelar");
     expect(html).toContain("Confirmar");
     expect(html).toContain("ESC cancela");
-    expect(html).toContain("sm:grid-cols-2");
+    expect(html).toContain("repeat(auto-fit,minmax(min(100%,220px),1fr))");
+  });
+  it("illustrates grouped subtasks and the safe updater in the same responsive delivery", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "calendar-subtasks" }),
+    );
+    expect(html).toContain("Carrossel da campanha");
+    expect(html).toContain("Conteúdo");
+    expect(html).toContain("Legenda");
+    expect(html).toContain("Arte");
+    expect(html).toContain("Atualização segura");
+    expect(html).toContain("Preparando a nova versão");
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+  });
+  it("lets three feature thumbnails wrap instead of squeezing them into fixed columns", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "task-card-activity" }),
+    );
+    expect(html).toContain("repeat(auto-fit,minmax(min(100%,220px),1fr))");
+    expect(html).not.toContain("sm:grid-cols-3");
   });
 });
