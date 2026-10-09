@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "update-retry"
   | "assignment-popup-read"
   | "update-shortcut"
   | "calendar-subtasks"
@@ -23,6 +24,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "atualizacao-navegador-recuperacao-2026-10-09",
+    title: "Atualização do navegador mais confiável",
+    date: "2026-10-09",
+    preview: "update-retry",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Se o navegador substituir o serviço de atualização durante a instalação, Atualizar agora acompanha a nova tentativa e recarrega somente após a ativação.",
+      "Quando outra aba já concluiu a atualização, o botão reconhece a versão ativada. Os dados offline permanecem preservados.",
+    ],
+  },
   {
     id: "avisos-atribuicao-marcar-lidos-2026-10-09",
     title: "Avisos de atribuição mais fáceis de organizar",

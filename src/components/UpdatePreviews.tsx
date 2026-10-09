@@ -62,6 +62,30 @@ function AssignmentPopupReadPreview() {
   );
 }
 
+function UpdateRetryPreview() {
+  return (
+    <div
+      aria-label="Prévia da atualização que acompanha a substituição do serviço de instalação"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="text-[11px] font-semibold">Novas atualizações</p>
+      <div className="mt-3 space-y-2 rounded-lg border p-2.5 text-[10px]">
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <RefreshCw className="h-3.5 w-3.5" />
+          Instalando nova versão…
+        </div>
+        <div className="rounded-md bg-primary/5 px-2 py-1.5 text-primary">
+          Serviço substituído → acompanhando a nova instalação
+        </div>
+        <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Versão ativada → recarregar página
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TaskDescriptionPreview() {
   return (
     <div
@@ -453,6 +477,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "update-retry": UpdateRetryPreview,
   "assignment-popup-read": AssignmentPopupReadPreview,
   "update-shortcut": UpdateShortcutPreview,
   "calendar-subtasks": CalendarSubtasksPreview,

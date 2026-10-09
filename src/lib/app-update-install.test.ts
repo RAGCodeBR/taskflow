@@ -57,13 +57,48 @@ describe("safe app update activation", () => {
   });
   it("rejects an installation failure rather than acknowledging or reloading", async () => {
     const worker = new Worker();
-    const result = activateAppUpdate(registration(worker));
+    const entry = registration(worker);
+    const result = activateAppUpdate(entry);
     const rejected = expect(result).rejects.toThrow("Não foi possível instalar");
     await Promise.resolve();
     await Promise.resolve();
     worker.change("redundant");
     await rejected;
     expect(worker.postMessage).not.toHaveBeenCalled();
+    expect(entry.update).toHaveBeenCalledTimes(2);
+  });
+  it("follows a replacement worker after the first installer becomes redundant", async () => {
+    const first = new Worker();
+    const replacement = new Worker();
+    const entry = registration(first);
+    vi.mocked(entry.update).mockImplementation(async () => {
+      if (first.state === "redundant") Object.assign(entry, { installing: replacement });
+      return entry;
+    });
+    const result = activateAppUpdate(entry);
+    await Promise.resolve();
+    await Promise.resolve();
+    first.change("redundant");
+    await vi.waitFor(() => expect(entry.update).toHaveBeenCalledTimes(2));
+    replacement.change("installed");
+    await vi.waitFor(() =>
+      expect(replacement.postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" }),
+    );
+    replacement.change("activated");
+    await expect(result).resolves.toBe(true);
+  });
+  it("accepts an update activated by another tab while its installer is discarded", async () => {
+    const worker = new Worker();
+    const entry = registration(worker);
+    const result = activateAppUpdate(entry);
+    await Promise.resolve();
+    await Promise.resolve();
+    const active = new Worker();
+    active.state = "activated";
+    Object.assign(entry, { active });
+    worker.change("redundant");
+    await expect(result).resolves.toBe(true);
+    expect(entry.update).toHaveBeenCalledTimes(1);
   });
   it("bounds a stuck installation and removes its listener", async () => {
     vi.useFakeTimers();

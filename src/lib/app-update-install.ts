@@ -53,32 +53,49 @@ export async function activateAppUpdate(
   timeout = INSTALL_TIMEOUT,
 ) {
   const activeBeforeCheck = registration.active;
-  try {
-    await checkAppWorkerUpdate(registration, timeout);
-  } catch (error) {
-    // A fully downloaded waiting version can still be installed if this check fails.
-    if (!registration.waiting) throw error;
-  }
-
-  const installing = registration.installing;
-  if (installing) {
-    await waitForWorker(
-      installing,
-      (state) => state === "installed" || state === "activating" || state === "activated",
-      timeout,
-    );
-  }
-
-  const worker = registration.waiting ?? installing;
-  if (!worker)
-    return Boolean(
+  const anotherWorkerActivated = () =>
+    Boolean(
       registration.active &&
       registration.active !== activeBeforeCheck &&
       registration.active.state === "activated",
     );
-  // Subscribe first: a fast worker must not activate before we start listening.
-  const activation = waitForWorker(worker, (state) => state === "activated", timeout);
-  if (worker.state === "installed") worker.postMessage({ type: "SKIP_WAITING" });
-  await activation;
-  return true;
+
+  // Another tab or an overlapping update check can replace an installing
+  // worker. Follow the current registration once before reporting a failure.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await checkAppWorkerUpdate(registration, timeout);
+    } catch (error) {
+      // A fully downloaded waiting version can still be installed if this check fails.
+      if (!registration.waiting) throw error;
+    }
+
+    const installing = registration.installing;
+    try {
+      if (installing) {
+        await waitForWorker(
+          installing,
+          (state) => state === "installed" || state === "activating" || state === "activated",
+          timeout,
+        );
+      }
+
+      const worker = registration.waiting ?? installing;
+      if (!worker) return anotherWorkerActivated();
+      // Subscribe first: a fast worker must not activate before we start listening.
+      const activation = waitForWorker(worker, (state) => state === "activated", timeout);
+      if (worker.state === "installed") worker.postMessage({ type: "SKIP_WAITING" });
+      await activation;
+      return true;
+    } catch (error) {
+      if (anotherWorkerActivated()) return true;
+      if (
+        attempt === 1 ||
+        !(error instanceof Error) ||
+        error.message !== "Não foi possível instalar a atualização. Tente novamente."
+      )
+        throw error;
+    }
+  }
+  return false;
 }

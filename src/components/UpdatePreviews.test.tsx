@@ -5,6 +5,12 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates the replacement worker and reload only after activation", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "update-retry" }));
+    expect(html).toContain("Serviço substituído");
+    expect(html).toContain("Versão ativada");
+    expect(html).not.toContain("<button");
+  });
   it("shows the single and multiple assignment notification actions", () => {
     const html = renderToStaticMarkup(
       createElement(AppUpdatePreview, { kind: "assignment-popup-read" }),
