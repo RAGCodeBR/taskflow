@@ -5,6 +5,15 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates one click for accumulated releases and control before reload", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "update-one-click" }),
+    );
+    expect(html).toContain("3 novidades acumuladas");
+    expect(html).toContain("Atualizar agora");
+    expect(html).toContain("assumindo esta aba");
+    expect(html).not.toContain("<button");
+  });
   it("illustrates the replacement worker and reload only after activation", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "update-retry" }));
     expect(html).toContain("Serviço substituído");

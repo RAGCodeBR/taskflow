@@ -26,6 +26,16 @@ describe("independent published release catalogue", () => {
       ),
     ).toBeNull();
   });
+  it.each(["marketing", "consultoria"])(
+    "targets the newest release even after seven missed releases in %s",
+    (workspace) => {
+      const installed = getVisibleAppUpdates(false, workspace).slice(7);
+      expect(installed.length).toBeGreaterThan(0);
+      expect(
+        newerPublishedAppUpdate(publishedAppUpdates().releases, installed, false, workspace)?.id,
+      ).toBe(APP_UPDATES[0].id);
+    },
+  );
   it("does not leak an admin-only or another workspace notice", () => {
     const installed = getVisibleAppUpdates(false, "marketing");
     const newer = {

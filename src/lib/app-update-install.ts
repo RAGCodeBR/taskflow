@@ -46,6 +46,33 @@ function waitForWorker(
   });
 }
 
+export function waitForAppWorkerControl(
+  worker: ServiceWorker,
+  container: ServiceWorkerContainer,
+  timeout = INSTALL_TIMEOUT,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const finish = (error?: Error) => {
+      clearTimeout(timer);
+      container.removeEventListener("controllerchange", check);
+      if (error) reject(error);
+      else resolve();
+    };
+    const check = () => {
+      if (container.controller === worker) finish();
+    };
+    const timer = setTimeout(
+      () =>
+        finish(
+          new Error("A nova versão foi ativada, mas ainda não assumiu esta aba. Tente novamente."),
+        ),
+      timeout,
+    );
+    container.addEventListener("controllerchange", check);
+    check();
+  });
+}
+
 // update() finishes the version check, not necessarily the worker installation.
 // Never reload or acknowledge a release until its worker actually activates.
 export async function activateAppUpdate(

@@ -86,6 +86,32 @@ function UpdateRetryPreview() {
   );
 }
 
+function UpdateOneClickPreview() {
+  return (
+    <div
+      aria-label="Prévia de várias novidades acumuladas carregadas em uma atualização"
+      className="rounded-xl border bg-background p-3 shadow-sm"
+    >
+      <p className="text-[11px] font-semibold">Novas atualizações</p>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px]">
+        <span className="rounded-md border px-2 py-1">3 novidades acumuladas</span>
+        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="rounded-md bg-primary px-2 py-1 font-medium text-primary-foreground">
+          Atualizar agora
+        </span>
+      </div>
+      <div className="mt-3 rounded-lg border p-2.5 text-[10px]">
+        <p className="flex items-center gap-1.5 text-muted-foreground">
+          <RefreshCw className="h-3 w-3" /> Versão mais recente assumindo esta aba…
+        </p>
+        <p className="mt-2 flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+          <CheckCircle2 className="h-3 w-3" /> 3 novidades disponíveis após recarregar
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function TaskDescriptionPreview() {
   return (
     <div
@@ -477,6 +503,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "update-one-click": UpdateOneClickPreview,
   "update-retry": UpdateRetryPreview,
   "assignment-popup-read": AssignmentPopupReadPreview,
   "update-shortcut": UpdateShortcutPreview,

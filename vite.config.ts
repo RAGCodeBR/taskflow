@@ -100,6 +100,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // After the user accepts an update, the activated worker must control
+        // the open tab before the app reloads into the new cached shell.
+        clientsClaim: true,
         // Version checks must reach the published server, not the installed cache.
         globIgnores: ["**/app-release.json"],
         // O HTML raiz é a casca do SPA: ao abrir /clientes, /dashboard etc.

@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, ChevronDown, History, RefreshCw, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { AppUpdatePreview } from "@/components/UpdatePreviews";
-import { activateAppUpdate, checkAppWorkerUpdate } from "@/lib/app-update-install";
+import { advancePendingAppUpdate, type PendingAppUpdate } from "@/lib/app-update-progress";
+import {
+  activateAppUpdate,
+  checkAppWorkerUpdate,
+  waitForAppWorkerControl,
+} from "@/lib/app-update-install";
 import {
   newerPublishedAppUpdate,
   readPublishedAppUpdates,
@@ -99,6 +104,7 @@ export function UpdateCenter() {
   const checkForUpdateRef = useRef<(() => Promise<void>) | null>(null);
   const watchedRegistrationsRef = useRef(new Set<ServiceWorkerRegistration>());
   const initialWorkerRef = useRef<ServiceWorker | null>(null);
+  const autoResumeRef = useRef<string | null>(null);
   const scope = `${user?.id}:${activeWorkspace?.slug}:${isAdmin}`;
   const remoteRelease = published?.scope === scope ? published.release : null;
   const versionVerified = published?.scope === scope && published.checked;
@@ -120,6 +126,7 @@ export function UpdateCenter() {
         : null,
     [noticeVersion, activeWorkspace?.id, user?.id],
   );
+  const pendingUpdateKey = user?.id ? `taskflow:update-pending:${user.id}` : null;
   // O catálogo seleciona as novidades permitidas no ambiente e para o público.
   // O histórico administrativo do Dashboard continua reservado aos admins.
   const canSeeUpdates = isSupportedWorkspace && Boolean(storageKey);
@@ -132,6 +139,53 @@ export function UpdateCenter() {
       setAcknowledged(false);
     }
   }, [UPDATE_VERSION, canSeeUpdates, storageKey]);
+
+  // The click authorizes the complete jump to the newest published version.
+  // Confirm the compiled catalogue after reload; if an older shell was served,
+  // continue a bounded update automatically instead of requiring another click.
+  useEffect(() => {
+    if (!canSeeUpdates || !storageKey || !pendingUpdateKey) return;
+    let pending: PendingAppUpdate | null = null;
+    try {
+      const raw = window.sessionStorage.getItem(pendingUpdateKey);
+      if (raw) pending = JSON.parse(raw) as PendingAppUpdate;
+    } catch {
+      return;
+    }
+    if (!pending || typeof pending.id !== "string" || !Number.isInteger(pending.attempts)) return;
+    const progress = advancePendingAppUpdate(pending, UPDATE_VERSION);
+    if (progress.status === "confirmed") {
+      try {
+        window.localStorage.setItem(storageKey, UPDATE_VERSION);
+        window.sessionStorage.removeItem(pendingUpdateKey);
+      } catch {
+        /* Storage may be blocked; the installed code is still current. */
+      }
+      setAcknowledged(true);
+      return;
+    }
+    if (progress.status === "exhausted") {
+      window.sessionStorage.removeItem(pendingUpdateKey);
+      return;
+    }
+    if (autoResumeRef.current === pending.id) return;
+    autoResumeRef.current = pending.id;
+    window.sessionStorage.setItem(pendingUpdateKey, JSON.stringify(progress.pending));
+    void (async () => {
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          await activateAppUpdate(registration);
+          if (registration.active && navigator.serviceWorker.controller !== registration.active)
+            await waitForAppWorkerControl(registration.active, navigator.serviceWorker);
+        }
+      }
+      window.location.reload();
+    })().catch(() => {
+      window.sessionStorage.removeItem(pendingUpdateKey);
+      autoResumeRef.current = null;
+    });
+  }, [UPDATE_VERSION, canSeeUpdates, pendingUpdateKey, storageKey]);
 
   useEffect(() => {
     if (!canSeeUpdates || !dashboardStorageKey) return;
@@ -319,6 +373,20 @@ export function UpdateCenter() {
     setRefreshing(true);
 
     try {
+      const response = await fetch(`/app-release.json?check=${Date.now()}`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok)
+        throw new Error("Não foi possível verificar a versão publicada. Tente novamente.");
+      const releases = readPublishedAppUpdates(await response.json());
+      const latestPublished = newerPublishedAppUpdate(
+        releases,
+        updates,
+        isAdmin,
+        activeWorkspace?.slug,
+      );
+      const targetVersion = latestPublished?.id ?? UPDATE_VERSION;
       if ("serviceWorker" in navigator) {
         const registration = await navigator.serviceWorker.getRegistration();
         if (registration) {
@@ -327,20 +395,25 @@ export function UpdateCenter() {
             initialWorkerRef.current &&
             registration.active !== initialWorkerRef.current &&
             registration.active?.state === "activated";
-          if (hasNewVersion && !activated && !activatedInAnotherTab)
+          if ((hasNewVersion || latestPublished) && !activated && !activatedInAnotherTab)
             throw new Error(
               "A nova versão ainda não está pronta. Aguarde alguns instantes e tente novamente.",
             );
+          if (
+            (activated || activatedInAnotherTab) &&
+            registration.active &&
+            navigator.serviceWorker.controller !== registration.active
+          )
+            await waitForAppWorkerControl(registration.active, navigator.serviceWorker);
         }
       }
-      // Acknowledgement happens only after installation succeeds. Never clear
-      // IndexedDB, offline queues, user preferences or unrelated registrations.
+      // The next page confirms it actually loaded the target compiled version.
+      // Never clear IndexedDB, offline queues, preferences or registrations.
       try {
-        window.localStorage.setItem(storageKey, UPDATE_VERSION);
-        if (remoteRelease && user?.id)
-          window.localStorage.setItem(
-            `taskflow:update:${remoteRelease.id}:${user.id}`,
-            remoteRelease.id,
+        if (pendingUpdateKey)
+          window.sessionStorage.setItem(
+            pendingUpdateKey,
+            JSON.stringify({ id: targetVersion, attempts: 0 }),
           );
       } catch {
         /* Still allow the verified reload. */

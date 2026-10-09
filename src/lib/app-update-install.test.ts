@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { activateAppUpdate } from "./app-update-install";
+import { activateAppUpdate, waitForAppWorkerControl } from "./app-update-install";
 
 class Worker extends EventTarget {
   state: ServiceWorkerState = "installing";
@@ -20,6 +20,51 @@ function registration(worker?: Worker) {
 afterEach(() => vi.useRealTimers());
 
 describe("safe app update activation", () => {
+  it("waits for the new worker to take control of the current tab", async () => {
+    const oldWorker = new Worker();
+    const newWorker = new Worker();
+    const container = Object.assign(new EventTarget(), { controller: oldWorker });
+    const result = waitForAppWorkerControl(
+      newWorker as unknown as ServiceWorker,
+      container as unknown as ServiceWorkerContainer,
+    );
+    let completed = false;
+    void result.then(() => {
+      completed = true;
+    });
+    await Promise.resolve();
+    expect(completed).toBe(false);
+    container.controller = newWorker;
+    container.dispatchEvent(new Event("controllerchange"));
+    await expect(result).resolves.toBeUndefined();
+  });
+  it("does not wait when the latest worker already controls the tab", async () => {
+    const worker = new Worker();
+    const container = Object.assign(new EventTarget(), { controller: worker });
+    await expect(
+      waitForAppWorkerControl(
+        worker as unknown as ServiceWorker,
+        container as unknown as ServiceWorkerContainer,
+      ),
+    ).resolves.toBeUndefined();
+  });
+  it("reports when an activated worker never assumes the tab", async () => {
+    vi.useFakeTimers();
+    const worker = new Worker();
+    const container = Object.assign(new EventTarget(), { controller: new Worker() });
+    const remove = vi.spyOn(container, "removeEventListener");
+    const rejected = expect(
+      waitForAppWorkerControl(
+        worker as unknown as ServiceWorker,
+        container as unknown as ServiceWorkerContainer,
+        1000,
+      ),
+    ).rejects.toThrow("ainda não assumiu esta aba");
+    await vi.advanceTimersByTimeAsync(1000);
+    await rejected;
+    expect(remove).toHaveBeenCalledWith("controllerchange", expect.any(Function));
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it("waits beyond the old 250 ms reload for both installation and activation", async () => {
     vi.useFakeTimers();
     const worker = new Worker();

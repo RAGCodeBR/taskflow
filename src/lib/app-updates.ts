@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "update-one-click"
   | "update-retry"
   | "assignment-popup-read"
   | "update-shortcut"
@@ -24,6 +25,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "atualizacao-ultima-versao-um-clique-2026-10-09",
+    title: "Atualização até a versão mais recente em um clique",
+    date: "2026-10-09",
+    preview: "update-one-click",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ao clicar em Atualizar agora, o TaskFlow espera a versão publicada assumir o controle desta aba antes de recarregar. As novidades acumuladas chegam juntas no histórico.",
+      "Depois do recarregamento, o sistema confirma que carregou a versão mais recente. Se uma versão intermediária aparecer, continua a atualização automaticamente, com limite de tentativas, sem pedir outro clique.",
+      "Os dados offline são preservados. Uma falha de instalação não marca a atualização como concluída.",
+    ],
+  },
   {
     id: "atualizacao-navegador-recuperacao-2026-10-09",
     title: "Atualização do navegador mais confiável",
