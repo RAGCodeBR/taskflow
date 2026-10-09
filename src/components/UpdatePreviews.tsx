@@ -11,6 +11,7 @@ import {
   Plus,
   RefreshCw,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import type { UpdatePreviewKind } from "@/lib/app-updates";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
@@ -309,6 +310,37 @@ function CalendarSubtasksPreview() {
   );
 }
 
+function UpdateShortcutPreview() {
+  return (
+    <PreviewGrid label="Prévia da atualização direta pela central de novidades">
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <p className="text-[11px] font-semibold">1. Abra as novidades</p>
+        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-[10px] text-primary-foreground">
+          <Sparkles className="h-3 w-3" />
+          Novas atualizações
+          <MousePointer2 className="h-3 w-3" />
+        </div>
+        <p className="mt-3 text-[10px] text-muted-foreground">
+          A versão publicada é verificada automaticamente ao abrir.
+        </p>
+      </div>
+      <div className="rounded-xl border bg-background p-3 shadow-sm">
+        <p className="text-[11px] font-semibold">2. Atualize quando quiser</p>
+        <div className="mt-3 rounded-lg border p-2.5">
+          <p className="text-[10px] font-medium">Novas atualizações</p>
+          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-1.5 text-[10px] text-primary-foreground">
+            <RefreshCw className="h-3 w-3" />
+            Atualizar agora
+          </span>
+        </div>
+        <p className="mt-3 text-[10px] text-muted-foreground">
+          Recarrega somente após seu clique e a nova versão estar pronta.
+        </p>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function UpdateFlowPreview() {
   return (
     <div
@@ -387,6 +419,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "update-shortcut": UpdateShortcutPreview,
   "calendar-subtasks": CalendarSubtasksPreview,
   "update-flow": UpdateFlowPreview,
   "task-card-activity": TaskCardActivityPreview,

@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "update-shortcut"
   | "calendar-subtasks"
   | "update-flow"
   | "task-card-activity"
@@ -21,6 +22,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "atualizar-direto-central-2026-10-08",
+    title: "Atualização da página com menos cliques",
+    date: "2026-10-08",
+    preview: "update-shortcut",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ao clicar em Novas atualizações ou abrir o histórico pelo aviso, a verificação da versão publicada acontece automaticamente. Não é mais preciso clicar em Verificar atualizações.",
+      "O botão Atualizar agora fica no início da janela. A página só recarrega após seu clique e depois que a nova versão estiver pronta. Os dados offline continuam preservados; se houver falha, você pode tentar novamente.",
+    ],
+  },
   {
     id: "subtarefas-agrupadas-calendario-2026-10-08",
     title: "Subtarefas agrupadas no calendário",

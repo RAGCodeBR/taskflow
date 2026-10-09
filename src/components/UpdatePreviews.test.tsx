@@ -5,6 +5,14 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates automatic verification on open and a direct update button", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "update-shortcut" }));
+    expect(html).toContain("Novas atualizações");
+    expect(html).toContain("Atualizar agora");
+    expect(html).toContain("automaticamente ao abrir");
+    expect(html).toContain("somente após seu clique");
+    expect(html).not.toContain("<button");
+  });
   it.each(APP_UPDATES)("renders a real, non-interactive preview for $id", (update) => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: update.preview }));
     expect(html).toContain("aria-label=");

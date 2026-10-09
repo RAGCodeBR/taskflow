@@ -271,6 +271,33 @@ export function UpdateCenter() {
     }
   }, [noticeVersion, canSeeUpdates, hasUpdate, promptKey, hasNewVersion]);
 
+  // Opening the centre performs the check; no additional verification click.
+  // It never activates the worker or reloads without the user's update click.
+  useEffect(() => {
+    if (!open || !canSeeUpdates) return;
+    let active = true;
+    setChecking(true);
+    setCheckMessage(null);
+    setUpdateError(null);
+    void (async () => {
+      try {
+        await checkForUpdateRef.current?.();
+      } catch {
+        if (active)
+          setCheckMessage(
+            navigator.onLine
+              ? "Não foi possível verificar a versão publicada. Você pode tentar novamente em Atualizar agora."
+              : "Conecte-se à internet para verificar novas atualizações. Seus dados offline estão preservados.",
+          );
+      } finally {
+        if (active) setChecking(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [open, canSeeUpdates, scope]);
+
   if (!canSeeUpdates) return null;
 
   const openPendingUpdate = () => {
@@ -283,7 +310,7 @@ export function UpdateCenter() {
     setOpen(true);
   };
   const updateApplication = async () => {
-    if (!storageKey || refreshing) return;
+    if (!storageKey || refreshing || checking) return;
     setUpdateError(null);
     if (!navigator.onLine) {
       setUpdateError("Conecte-se à internet para atualizar. Seus dados offline estão preservados.");
@@ -328,30 +355,12 @@ export function UpdateCenter() {
       setRefreshing(false);
     }
   };
-  const manuallyCheck = async () => {
-    if (checking || refreshing) return;
-    setChecking(true);
-    setCheckMessage(null);
-    setUpdateError(null);
-    try {
-      await checkForUpdateRef.current?.();
-      setCheckMessage("Verificação concluída. Consulte o aviso de versão abaixo.");
-    } catch {
-      setCheckMessage(
-        navigator.onLine
-          ? "Não foi possível verificar a versão publicada. Tente novamente."
-          : "Conecte-se à internet para verificar novas atualizações. Seus dados offline estão preservados.",
-      );
-    } finally {
-      setChecking(false);
-    }
-  };
   const updateButton = (
     <Button
       type="button"
-      className="mt-3 gap-2"
+      className="gap-2"
       onClick={() => void updateApplication()}
-      disabled={refreshing}
+      disabled={refreshing || checking}
     >
       <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
       {refreshing ? "Atualizando…" : "Atualizar agora"}
@@ -371,7 +380,6 @@ export function UpdateCenter() {
           <p className="text-sm font-medium">
             Atualize para carregar esta versão no seu navegador.
           </p>
-          {updateButton}
         </div>
       ) : (
         <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
@@ -383,7 +391,7 @@ export function UpdateCenter() {
 
   return (
     <>
-      {showUpdatePrompt ? (
+      {showUpdatePrompt && !open ? (
         <div
           className="fixed inset-x-3 top-14 z-[70] animate-in slide-in-from-top-2 fade-in md:left-auto md:right-4 md:w-[380px]"
           role="status"
@@ -411,7 +419,7 @@ export function UpdateCenter() {
         type="button"
         variant={hasUpdate ? "default" : "outline"}
         size="sm"
-        onClick={hasUpdate ? openPendingUpdate : () => setOpen(true)}
+        onClick={openPendingUpdate}
         className={`relative h-9 gap-2 rounded-full px-3 text-sm ${hasUpdate ? "animate-pulse shadow-[0_0_0_4px_hsl(var(--primary)/0.14)]" : "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"}`}
         title={
           hasUpdate
@@ -454,16 +462,13 @@ export function UpdateCenter() {
 
           <div className="space-y-6 px-6 py-5">
             <div className="space-y-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="gap-2"
-                disabled={checking || refreshing}
-                onClick={() => void manuallyCheck()}
-              >
-                <RefreshCw className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} />
-                {checking ? "Verificando…" : "Verificar atualizações"}
-              </Button>
+              {updateButton}
+              {checking ? (
+                <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  Verificando novas atualizações…
+                </p>
+              ) : null}
               {checkMessage ? (
                 <p role="status" className="text-sm text-muted-foreground">
                   {checkMessage}
@@ -501,7 +506,6 @@ export function UpdateCenter() {
                         e suas miniaturas. A página só será recarregada depois que a nova versão
                         estiver pronta.
                       </p>
-                      {updateButton}
                     </>
                   ) : (
                     updateDetails(latestUpdate, true)
