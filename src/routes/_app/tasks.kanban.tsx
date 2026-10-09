@@ -75,6 +75,8 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
+import { teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import {
   useTasks,
   useColumns,
@@ -99,7 +101,7 @@ import { MarketingFormatSettings } from "@/components/MarketingFormatSettings";
 import { MarketingObjectiveSettings } from "@/components/MarketingObjectiveSettings";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { CompletedSubtaskCard } from "@/components/CompletedSubtaskCard";
-import { completedSubtaskFilterTask, completedSubtaskHistory, openSubtaskTaskIdsByUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
+import { completedSubtaskFilterTask, completedSubtaskHistory, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { CardFieldsPopover } from "@/components/CardFieldsPopover";
 import { useBoardPreferences, useUpdateBoardPreferences } from "@/hooks/use-board-preferences";
@@ -375,6 +377,7 @@ function SortableColumn({
 }
 
 function KanbanPage() {
+  const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const qc = useQueryClient();
   const { user, isAdmin, isCollaborator, activeWorkspace, workspaces } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>({});
@@ -437,8 +440,8 @@ function KanbanPage() {
   );
 
   const subtaskAssigneeTaskIdsByUser = useMemo(
-    () => openSubtaskTaskIdsByUser(allSubtasks),
-    [allSubtasks],
+    () => teamSubtaskAssigneeTaskIds(allSubtasks, tasks, teamVisibilityWorkspaceId),
+    [allSubtasks, tasks, teamVisibilityWorkspaceId],
   );
 
 
@@ -486,13 +489,13 @@ function KanbanPage() {
   useEffect(() => {
     if (!user?.id) return;
     if (isCollaborator) {
-      setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
+      if (!teamVisibilityWorkspaceId) setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
       return;
     }
     if (didApplyDefaultAssignee.current) return;
     setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
     didApplyDefaultAssignee.current = true;
-  }, [user?.id, isCollaborator]);
+  }, [user?.id, isCollaborator, teamVisibilityWorkspaceId]);
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -579,6 +582,7 @@ function KanbanPage() {
       subtaskAssigneeTaskIdsByUser,
       subtaskDateFilterTaskIds,
       restrictToCurrentUserParticipation: isCollaborator,
+      teamVisibilityWorkspaceId,
     });
     all.sort((a, b) => {
       let cmp = 0;
@@ -640,6 +644,7 @@ function KanbanPage() {
     subtaskAssigneeTaskIdsByUser,
     subtaskDateFilterTaskIds,
     isCollaborator,
+    teamVisibilityWorkspaceId,
   ]);
 
   const completedParts = useMemo(() => {
@@ -679,6 +684,7 @@ function KanbanPage() {
       subtaskAssigneeTaskIdsByUser,
       subtaskDateFilterTaskIds,
       restrictToCurrentUserParticipation: isCollaborator,
+      teamVisibilityWorkspaceId,
     });
     return r;
   }, [
@@ -691,6 +697,7 @@ function KanbanPage() {
     subtaskAssigneeTaskIdsByUser,
     subtaskDateFilterTaskIds,
     isCollaborator,
+    teamVisibilityWorkspaceId,
   ]);
 
   const sortedTasks = useMemo(() => {
@@ -1310,7 +1317,7 @@ function KanbanPage() {
           <TaskFilters
             filters={filters}
             onChange={setFilters}
-            hideAssignee={isCollaborator}
+            hideAssignee={isCollaborator && !teamVisibilityWorkspaceId}
             extraActiveChips={completedRange.start || completedRange.end ? [{
               key: "completed-range",
               label: `Concluídas: ${completedRange.start || "início"} até ${completedRange.end || "hoje"}`,

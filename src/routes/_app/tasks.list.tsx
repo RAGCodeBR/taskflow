@@ -17,6 +17,8 @@ import {
   type Task,
 } from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
+import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
+import { teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
@@ -33,7 +35,7 @@ import { toast } from "sonner";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
 import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { LinkedText } from "@/components/LinkedText";
-import { completedSubtaskFilterTask, completedSubtaskHistory, openSubtaskTaskIdsByUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
+import { completedSubtaskFilterTask, completedSubtaskHistory, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 
 export const Route = createFileRoute("/_app/tasks/list")({
   component: ListPage,
@@ -44,6 +46,7 @@ export const Route = createFileRoute("/_app/tasks/list")({
 });
 
 function ListPage() {
+  const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const search = Route.useSearch();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
     search.mine ? { scope: "mine" } : {},
@@ -74,7 +77,7 @@ function ListPage() {
   useEffect(() => {
     if (!user?.id) return;
     if (isCollaborator) {
-      setFilters((current) =>
+      if (!teamVisibilityWorkspaceId) setFilters((current) =>
         current.assignee ? { ...current, assignee: undefined } : current,
       );
       return;
@@ -82,7 +85,7 @@ function ListPage() {
     if (didApplyDefaultAssignee.current) return;
     setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
     didApplyDefaultAssignee.current = true;
-  }, [user?.id, isCollaborator]);
+  }, [user?.id, isCollaborator, teamVisibilityWorkspaceId]);
 
   // Auto-open a task when arriving with ?task=<id>
   useEffect(() => {
@@ -105,8 +108,8 @@ function ListPage() {
   );
 
   const subtaskAssigneeTaskIdsByUser = useMemo(
-    () => openSubtaskTaskIdsByUser(subtasks),
-    [subtasks],
+    () => teamSubtaskAssigneeTaskIds(subtasks, tasks, teamVisibilityWorkspaceId),
+    [subtasks, tasks, teamVisibilityWorkspaceId],
   );
 
   const subtaskDateFilterTaskIds = useMemo(() => {
@@ -158,6 +161,7 @@ function ListPage() {
       subtaskAssigneeTaskIdsByUser,
       subtaskDateFilterTaskIds,
       restrictToCurrentUserParticipation: isCollaborator,
+      teamVisibilityWorkspaceId,
     });
     const getDueTimestamp = (task: Task) => {
       if (!task.due_date) return null;
@@ -188,7 +192,7 @@ function ListPage() {
       const dueDateDifference = aDueTimestamp - bDueTimestamp;
       return dueDateSortDirection === "asc" ? dueDateDifference : -dueDateDifference;
     });
-  }, [tasks, filters, user?.id, isCollaborator, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, dueDateSortDirection, pinnedIds]);
+  }, [tasks, filters, user?.id, isCollaborator, teamVisibilityWorkspaceId, subtaskAssigneeTaskIds, collaboratorTaskIds, subtaskAssigneeTaskIdsByUser, subtaskDateFilterTaskIds, dueDateSortDirection, pinnedIds]);
 
   const completedParts = useMemo(() => {
     if (!user?.id) return [];
@@ -266,7 +270,7 @@ function ListPage() {
       <TaskFilters
         filters={filters}
         onChange={setFilters}
-        hideAssignee={isCollaborator}
+        hideAssignee={isCollaborator && !teamVisibilityWorkspaceId}
         sections={{
           category: workspaces.length > 1 ? (
             <WorkspaceTaskFilter

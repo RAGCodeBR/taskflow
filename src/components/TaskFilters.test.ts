@@ -19,6 +19,42 @@ const task = (id: string, assignee_id: string | null = null) => ({
 });
 
 describe("applyTaskFilters: tarefas da pessoa", () => {
+  it("unlocks another person's tasks only in the granted workspace, not shared external tasks", () => {
+    const tasks = [
+      { ...task("team", OTHER), workspace_id: "marketing" },
+      { ...task("external", OTHER), workspace_id: "consultoria" },
+      { ...task("own-external", USER), workspace_id: "consultoria" },
+    ];
+    const opts = {
+      userId: USER,
+      restrictToCurrentUserParticipation: true,
+      teamVisibilityWorkspaceId: "marketing",
+    };
+    expect(applyTaskFilters(tasks, {}, opts).map((item) => item.id)).toEqual([
+      "team",
+      "own-external",
+    ]);
+    expect(applyTaskFilters(tasks, { scope: "mine" }, opts).map((item) => item.id)).toEqual([
+      "own-external",
+    ]);
+    expect(applyTaskFilters(tasks, { assignee: OTHER }, opts).map((item) => item.id)).toEqual([
+      "team",
+    ]);
+  });
+  it("lets a team viewer find the parent via another person's pending subtasks", () => {
+    const parent = { ...task("parent", "someone-else"), workspace_id: "marketing" };
+    const result = applyTaskFilters(
+      [parent],
+      { assignee: OTHER },
+      {
+        userId: USER,
+        restrictToCurrentUserParticipation: true,
+        teamVisibilityWorkspaceId: "marketing",
+        subtaskAssigneeTaskIdsByUser: new Map([[OTHER, new Set(["parent"])]]),
+      },
+    );
+    expect(result.map((item) => item.id)).toEqual(["parent"]);
+  });
   it("inclui a tarefa em que a pessoa é responsável", () => {
     const result = applyTaskFilters(
       [task("mine", USER), task("other", OTHER)],

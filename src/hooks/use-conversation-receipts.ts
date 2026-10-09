@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useProfiles } from "@/hooks/use-data";
+import { useProfiles, useSubtasks } from "@/hooks/use-data";
+import { useAuth } from "@/hooks/use-auth";
 
 export interface ConversationParticipant {
   id: string;
@@ -19,7 +20,9 @@ export interface ConversationParticipant {
  * 20260914200000_conversation_read_receipts_rls.sql).
  */
 export function useConversationParticipants(taskId: string) {
+  const { activeWorkspace } = useAuth();
   const { data: profiles = [] } = useProfiles();
+  const { data: subtasks = [] } = useSubtasks();
 
   const task = useQuery({
     queryKey: ["conversation_receipts_task", taskId],
@@ -58,12 +61,32 @@ export function useConversationParticipants(taskId: string) {
     },
   });
 
+  const followers = useQuery({
+    queryKey: ["conversation_receipts_followers", taskId],
+    enabled: !!taskId,
+    queryFn: async () => {
+      // The new table is not included in the existing generated Supabase types.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("task_conversation_followers") as any)
+        .select("user_id")
+        .eq("task_id", taskId);
+      if (error) throw error;
+      return (data ?? []) as { user_id: string }[];
+    },
+  });
+
   const participants = useMemo<ConversationParticipant[]>(() => {
     if (!task.data) return [];
     const ids = new Set<string>();
     if (task.data.assignee_id) ids.add(task.data.assignee_id);
     if (task.data.created_by) ids.add(task.data.created_by);
     (collaborators.data ?? []).forEach((row) => ids.add(row.collaborator_id));
+    if (activeWorkspace?.slug === "marketing") {
+      subtasks
+        .filter((subtask) => subtask.task_id === taskId && subtask.assignee_id)
+        .forEach((subtask) => ids.add(subtask.assignee_id!));
+    }
+    (followers.data ?? []).forEach((row) => ids.add(row.user_id));
     const lastReadByUser = new Map(
       (reads.data ?? []).map((row) => [row.user_id, row.last_read_at]),
     );
@@ -76,11 +99,20 @@ export function useConversationParticipants(taskId: string) {
         lastReadAt: lastReadByUser.get(id) ?? null,
       };
     });
-  }, [task.data, collaborators.data, reads.data, profiles]);
+  }, [
+    task.data,
+    collaborators.data,
+    subtasks,
+    taskId,
+    activeWorkspace?.slug,
+    followers.data,
+    reads.data,
+    profiles,
+  ]);
 
   return {
     participants,
-    isLoading: task.isLoading || collaborators.isLoading || reads.isLoading,
+    isLoading: task.isLoading || collaborators.isLoading || followers.isLoading || reads.isLoading,
   };
 }
 

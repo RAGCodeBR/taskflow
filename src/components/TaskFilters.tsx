@@ -537,6 +537,8 @@ export function applyTaskFilters<
     /** Parent tasks that have a subtask matching the active due-date filter. */
     subtaskDateFilterTaskIds?: Set<string> | null;
     restrictToCurrentUserParticipation?: boolean;
+    /** Team browsing is granted for this exact workspace only. */
+    teamVisibilityWorkspaceId?: string | null;
   },
 ) {
   const clientIds = f.clients && f.clients.length > 0 ? f.clients : f.client ? [f.client] : null;
@@ -544,7 +546,10 @@ export function applyTaskFilters<
   const subIds = opts?.subtaskAssigneeTaskIds ?? null;
   const collaboratorIds = opts?.collaboratorTaskIds ?? null;
   return tasks.filter((t) => {
-    if (opts?.restrictToCurrentUserParticipation) {
+    const hasTeamVisibility = Boolean(
+      opts?.teamVisibilityWorkspaceId && t.workspace_id === opts.teamVisibilityWorkspaceId,
+    );
+    if (opts?.restrictToCurrentUserParticipation && !hasTeamVisibility) {
       if (!uid) return false;
       const participatesInTask =
         t.assignee_id === uid ||

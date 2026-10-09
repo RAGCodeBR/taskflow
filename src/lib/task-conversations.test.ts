@@ -39,6 +39,32 @@ describe("isConversationRoom", () => {
   });
   it("concluída sai da lista (status done)", () => {
     expect(isConversationRoom(task({ status: "done" }), true)).toBe(false);
+    expect(
+      isConversationRoom(
+        task({ status: "done", deadline_conversation_active_at: "2026-10-09T12:00:00Z" }),
+        true,
+      ),
+    ).toBe(true);
+    expect(
+      isConversationRoom(
+        task({
+          status: "done",
+          completed_at: "2026-10-09T13:00:00Z",
+          deadline_conversation_active_at: "2026-10-09T12:00:00Z",
+        }),
+        true,
+      ),
+    ).toBe(false);
+    expect(
+      isConversationRoom(
+        task({
+          status: "done",
+          completed_at: "2026-10-09T12:00:00Z",
+          deadline_conversation_active_at: "2026-10-09T13:00:00Z",
+        }),
+        true,
+      ),
+    ).toBe(true);
   });
   it("na lixeira não é sala", () => {
     expect(isConversationRoom(task({ deleted_at: "2026-09-01T10:00:00Z" }), true)).toBe(false);

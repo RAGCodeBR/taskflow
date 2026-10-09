@@ -41,7 +41,7 @@ import { pendingPersonalPriorities } from "@/lib/task-card-activity";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
 import { CalendarSubtaskItem, CalendarTaskGroup } from "@/components/CalendarTaskGroup";
 import { calendarTaskEntriesForDay, completedPersonalSubtaskEntriesForDay } from "@/lib/calendar-task-entries";
-import { completedSubtasksForUser, openSubtaskTaskIdsByUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
+import { completedSubtasksForUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 import { useCalendarSubtasks } from "@/hooks/use-calendar-subtasks";
 import { Checkbox } from "@/components/ui/checkbox";
 import { taskEditError } from "@/lib/task-edit";
@@ -62,6 +62,8 @@ import {
   type Profile,
 } from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
+import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
+import { teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
@@ -81,6 +83,7 @@ export const Route = createFileRoute("/_app/tasks/calendar")({
 });
 
 function CalendarPage() {
+  const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const { user, isCollaborator, isClient, activeWorkspace, workspaces } = useAuth();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TaskFilterValue>({});
@@ -203,13 +206,13 @@ function CalendarPage() {
   useEffect(() => {
     if (!user?.id) return;
     if (isCollaborator) {
-      setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
+      if (!teamVisibilityWorkspaceId) setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
       return;
     }
     if (didApplyDefaultAssignee.current) return;
     setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
     didApplyDefaultAssignee.current = true;
-  }, [user?.id, isCollaborator]);
+  }, [user?.id, isCollaborator, teamVisibilityWorkspaceId]);
 
   const days = useMemo(() => {
     const start =
@@ -248,8 +251,8 @@ function CalendarPage() {
   );
 
   const subtaskAssigneeTaskIdsByUser = useMemo(
-    () => openSubtaskTaskIdsByUser(subtasks),
-    [subtasks],
+    () => teamSubtaskAssigneeTaskIds(subtasks, tasks, teamVisibilityWorkspaceId),
+    [subtasks, tasks, teamVisibilityWorkspaceId],
   );
 
   const collaboratorTaskIds = useMemo(
@@ -283,12 +286,14 @@ function CalendarPage() {
         collaboratorTaskIds,
         subtaskAssigneeTaskIdsByUser,
         restrictToCurrentUserParticipation: isCollaborator,
+        teamVisibilityWorkspaceId,
       }),
     [
       taskView,
       filters,
       user?.id,
       isCollaborator,
+      teamVisibilityWorkspaceId,
       subtaskAssigneeTaskIds,
       collaboratorTaskIds,
       subtaskAssigneeTaskIdsByUser,
@@ -431,7 +436,7 @@ function CalendarPage() {
       <TaskFilters
         filters={filters}
         onChange={setFilters}
-        hideAssignee={isCollaborator}
+        hideAssignee={isCollaborator && !teamVisibilityWorkspaceId}
         extraActiveChips={showSubtasks ? [{ key: "calendar-subtasks", label: "Subtarefas", clear: () => setShowSubtasks(false) }] : []}
         sections={{
           visualization: <label className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-xs" htmlFor="calendar-show-subtasks"><Checkbox id="calendar-show-subtasks" checked={showSubtasks} onCheckedChange={checked => setShowSubtasks(checked === true)} />Subtarefas</label>,

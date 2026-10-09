@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useProfiles, useTaskCollaborators } from "@/hooks/use-data";
+import { useProfiles, useSubtasks, useTaskCollaborators } from "@/hooks/use-data";
 import { activityToast } from "@/lib/activity-toast";
 import { isConversationRoom, unreadMessageCount } from "@/lib/task-conversations";
 import { isOffline } from "@/lib/offline-sync";
@@ -19,6 +19,7 @@ type RoomTask = {
   created_by: string | null;
   client_id: string | null;
   conversation_closed_at: string | null;
+  deadline_conversation_active_at: string | null;
 };
 type Message = {
   id: string;
@@ -45,8 +46,23 @@ const readsKey = (userId?: string) => ["task-conversation-reads", userId] as con
  * de "Outras conversas".
  */
 export function useTaskConversations() {
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const { data: collaborations = [] } = useTaskCollaborators();
+  const { data: subtasks = [] } = useSubtasks();
+
+  const followers = useQuery({
+    queryKey: ["task-conversation-followers", user?.id, activeWorkspace?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      // The new table is not included in the existing generated Supabase types.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("task_conversation_followers") as any)
+        .select("task_id")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      return (data ?? []) as { task_id: string }[];
+    },
+  });
 
   const messages = useQuery({
     queryKey: messagesKey,
@@ -71,7 +87,7 @@ export function useTaskConversations() {
     queryFn: async () => {
       const { data, error } = await (supabase.from("tasks") as any)
         .select(
-          "id, title, completed_at, status, deleted_at, assignee_id, created_by, client_id, conversation_closed_at",
+          "id, title, completed_at, status, deleted_at, assignee_id, created_by, client_id, conversation_closed_at, deadline_conversation_active_at",
         )
         .in("id", taskIds);
       if (error) throw error;
@@ -127,13 +143,23 @@ export function useTaskConversations() {
     const collabTasks = new Set(
       collaborations.filter((c) => c.collaborator_id === user.id).map((c) => c.task_id),
     );
+    const subtaskTasks = new Set(
+      subtasks.filter((s) => s.assignee_id === user.id).map((s) => s.task_id),
+    );
+    const followedTasks = new Set((followers.data ?? []).map((f) => f.task_id));
     roomTasks.forEach((task) => {
-      if (task.assignee_id === user.id || task.created_by === user.id || collabTasks.has(task.id)) {
+      if (
+        task.assignee_id === user.id ||
+        task.created_by === user.id ||
+        collabTasks.has(task.id) ||
+        (activeWorkspace?.slug === "marketing" && subtaskTasks.has(task.id)) ||
+        (activeWorkspace?.slug === "marketing" && followedTasks.has(task.id))
+      ) {
         ids.add(task.id);
       }
     });
     return ids;
-  }, [roomTasks, collaborations, user?.id]);
+  }, [roomTasks, collaborations, subtasks, followers.data, activeWorkspace?.slug, user?.id]);
 
   return {
     roomTasks,

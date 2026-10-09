@@ -20,6 +20,7 @@ export interface WorkspaceMembership {
   name: string;
   role: string;
   permissions: string[];
+  canViewAllTasks?: boolean;
 }
 
 interface AuthCtx {
@@ -139,7 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("user_id", uid)
         .maybeSingle(),
       (supabase.from("workspace_memberships") as any)
-        .select("workspace_id, role, permissions")
+        // The optional capability is absent before its migration is applied.
+        // Selecting the row keeps existing workspace access working in both schemas.
+        .select("*")
         .eq("user_id", uid),
       (supabase.from("workspaces") as any).select("id, slug, name"),
     ]);
@@ -184,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           name: workspace.name,
           role: membership.role,
           permissions: Array.isArray(membership.permissions) ? membership.permissions : [],
+          canViewAllTasks: membership.can_view_all_tasks === true,
         } as WorkspaceMembership;
       })
       .filter(Boolean) as WorkspaceMembership[];
