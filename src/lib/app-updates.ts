@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "report-subtask-metrics"
   | "meeting-empty-close"
   | "meeting-auto-complete"
   | "permission-save"
@@ -37,6 +38,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "relatorios-subtarefas-por-responsavel-2026-10-09",
+    title: "Subtarefas nos relatórios e conclusão no calendário",
+    date: "2026-10-09",
+    preview: "report-subtask-metrics",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "As subtarefas passam a contar para seu próprio responsável no ranking, no comparativo da equipe e no briefing mensal, usando o prazo e a conclusão da subtarefa.",
+      "O resumo continua separando tarefas principais de subtarefas. Entregas, atividades por cliente e formatos de Marketing incluem ambas.",
+      "No calendário de Marketing e Consultoria, o check verde aparece ao passar o mouse sobre uma tarefa aberta para concluí-la sem abrir o card. Rascunhos e tarefas com subtarefas pendentes continuam protegidos; tarefas vencidas pedem a data real de conclusão.",
+    ],
+  },
   {
     id: "reunioes-sem-pauta-encerramento-manual-2026-10-09",
     title: "Encerrar reuniões sem pauta",

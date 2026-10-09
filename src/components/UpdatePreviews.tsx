@@ -31,6 +31,46 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function ReportSubtaskMetricsPreview() {
+  return (
+    <PreviewGrid label="Prévia do ranking com subtarefas atribuídas ao próprio responsável">
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="font-semibold">Ranking da equipe</p>
+        <div className="mt-3 rounded-lg border p-2">
+          <p className="font-medium">Pessoa da equipe</p>
+          <p className="mt-1 text-muted-foreground">3 entregas · 2 subtarefas</p>
+          <div className="mt-2 flex gap-1">
+            <span className="h-1.5 w-2/3 rounded-full bg-emerald-500" />
+            <span className="h-1.5 w-1/3 rounded-full bg-amber-400" />
+          </div>
+        </div>
+        <p className="mt-2 text-muted-foreground">A subtarefa conta para quem a recebeu.</p>
+      </div>
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="font-semibold">Resumo do período</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <span className="rounded-lg border p-2">Tarefas principais<br /><strong>4</strong></span>
+          <span className="rounded-lg border p-2">Subtarefas concluídas/total<br /><strong>2/3</strong></span>
+        </div>
+        <p className="mt-2 text-muted-foreground">Prazo e conclusão próprios de cada atividade.</p>
+      </div>
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="flex items-center gap-1 font-semibold"><CalendarDays className="h-3 w-3" />Calendário · Tarefas</p>
+        <div className="mt-3 rounded-lg border p-2">
+          <p className="text-muted-foreground">Sex, 9 de outubro</p>
+          <div className="mt-2 flex items-center justify-between rounded-md bg-primary px-2 py-1.5 text-primary-foreground">
+            <span className="truncate">Revisar campanha</span>
+            <span className="ml-2 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-700" aria-label="Check verde para concluir a tarefa">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            </span>
+          </div>
+        </div>
+        <p className="mt-2 text-muted-foreground">Passe o mouse no card para concluir.</p>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function CrmPipelinePreview() {
   return (
     <div
@@ -829,6 +869,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "report-subtask-metrics": ReportSubtaskMetricsPreview,
   "meeting-empty-close": MeetingEmptyClosePreview,
   "meeting-auto-complete": MeetingAutoCompletePreview,
   "permission-save": PermissionSavePreview,

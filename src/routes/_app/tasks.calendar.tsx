@@ -45,6 +45,9 @@ import { completedSubtasksForUser, openSubtaskTaskIdsForUser } from "@/lib/task-
 import { useCalendarSubtasks } from "@/hooks/use-calendar-subtasks";
 import { Checkbox } from "@/components/ui/checkbox";
 import { taskEditError } from "@/lib/task-edit";
+import { calendarCompletionDecision } from "@/lib/calendar-task-completion";
+import { CompletionDateDialog } from "@/components/CompletionDateDialog";
+import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,7 +97,7 @@ function CalendarPage() {
   const { data: tasks = [] } = useTasks(viewedWorkspaceId);
   const { data: clients = [] } = useClients(viewedWorkspaceId);
   const { data: columns = [] } = useColumns(viewedWorkspaceId);
-  const { data: subtasks = [] } = useSubtasks();
+  const { data: subtasks = [], isLoading: subtasksLoading, isError: subtasksError } = useSubtasks();
   const subtasksByTaskId = useMemo(() => {
     const map = new Map<string, typeof subtasks>();
     for (const subtask of subtasks) {
@@ -121,6 +124,9 @@ function CalendarPage() {
   const [dayListOpen, setDayListOpen] = useState(false);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [reschedule, setReschedule] = useState<{ task: Task; date: string } | null>(null);
+  const [completionTask, setCompletionTask] = useState<Task | null>(null);
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
+  const completingTask = useRef(false);
   const [reason, setReason] = useState("");
   const [savingDate, setSavingDate] = useState(false);
   const submittingDate = useRef(false);
@@ -129,6 +135,7 @@ function CalendarPage() {
   const canReschedule = Boolean(
     user && !isClient && (!viewedWorkspaceId || viewedWorkspaceId === activeWorkspace?.id),
   );
+  const canComplete = canReschedule && !subtasksLoading && !subtasksError;
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -139,6 +146,7 @@ function CalendarPage() {
     setDraggedTask(null);
     setReschedule(null);
     setReason("");
+    setCompletionTask(null);
   }, [activeWorkspace?.id, viewedWorkspaceId]);
 
   const finishDrag = ({ active, over }: DragEndEvent) => {
@@ -273,6 +281,10 @@ function CalendarPage() {
     () => statuses.find((status) => !status.is_completed)?.id ?? null,
     [statuses],
   );
+  const completedStatusId = useMemo(
+    () => statuses.find((status) => status.is_completed)?.id ?? null,
+    [statuses],
+  );
   const taskView = useMemo(
     () => normalizeTasksWithOpenSubtasks(tasks, openSubtaskTaskIds, openStatusId),
     [tasks, openSubtaskTaskIds, openStatusId],
@@ -374,6 +386,80 @@ function CalendarPage() {
     setNewTaskDay(format(day, "yyyy-MM-dd"));
     setEdit(null);
     setOpen(true);
+  };
+
+  const completeTask = async (selectedTask: Task, completionDate: string) => {
+    if (!user || completingTask.current) return;
+    const latestTask = tasks.find((task) => task.id === selectedTask.id);
+    const today = format(new Date(), "yyyy-MM-dd");
+    if (!canComplete || !latestTask || latestTask.deleted_at || latestTask.archived_at) {
+      toast.error("Esta tarefa não está disponível para conclusão neste ambiente.");
+      setCompletionTask(null);
+      return;
+    }
+    const decision = calendarCompletionDecision(latestTask, openSubtaskTaskIds.has(latestTask.id), today);
+    if (decision === "already-completed") {
+      setCompletionTask(null);
+      return;
+    }
+    if (decision === "draft" || decision === "pending-subtasks") {
+      toast.error(decision === "draft"
+        ? "Finalize a tarefa em elaboração antes de concluí-la."
+        : "Conclua as subtarefas pendentes antes de concluir esta tarefa.");
+      setCompletionTask(null);
+      return;
+    }
+    if (!completionDate || completionDate > today) {
+      toast.error("Informe uma data de conclusão válida.");
+      return;
+    }
+    completingTask.current = true;
+    setCompletingTaskId(latestTask.id);
+    try {
+      const { queued } = await updateTaskWithOfflineSupport({
+        userId: user.id,
+        task: latestTask,
+        patch: {
+          status: "done",
+          status_id: completedStatusId ?? latestTask.status_id,
+          completed_at: new Date(`${completionDate}T12:00:00`).toISOString(),
+        },
+        queryClient,
+      });
+      setCompletionTask(null);
+      toast.success(queued
+        ? "Tarefa concluída neste aparelho. Será sincronizada ao reconectar."
+        : "Tarefa concluída");
+      if (!queued) void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    } catch (error) {
+      toast.error(taskEditError(error, "Não foi possível concluir a tarefa."));
+    } finally {
+      completingTask.current = false;
+      setCompletingTaskId(null);
+    }
+  };
+
+  const startCompletion = (task: Task) => {
+    if (!canComplete || completingTask.current) return;
+    const latestTask = tasks.find((item) => item.id === task.id);
+    if (!latestTask) return;
+    const decision = calendarCompletionDecision(
+      latestTask,
+      openSubtaskTaskIds.has(latestTask.id),
+      format(new Date(), "yyyy-MM-dd"),
+    );
+    if (decision === "draft" || decision === "pending-subtasks") {
+      toast.error(decision === "draft"
+        ? "Finalize a tarefa em elaboração antes de concluí-la."
+        : "Conclua as subtarefas pendentes antes de concluir esta tarefa.");
+      return;
+    }
+    if (decision === "already-completed") return;
+    if (decision === "choose-date") {
+      setCompletionTask(latestTask);
+      return;
+    }
+    void completeTask(latestTask, format(new Date(), "yyyy-MM-dd"));
   };
 
   const selectedDayEntries = selectedDay ? dayEntries(selectedDay) : [];
@@ -511,6 +597,7 @@ function CalendarPage() {
                           statusColor={status?.color || "#64748b"}
                           backgroundColor={clientColor}
                           onClick={onClick}
+                          onComplete={canComplete && !completingTaskId && !reschedule ? () => startCompletion(task) : undefined}
                         />
                         </CalendarTaskGroup>
                       );
@@ -662,6 +749,10 @@ function CalendarPage() {
                   backgroundColor={clientColor}
                   expanded
                   onClick={onClick}
+                  onComplete={canComplete && !completingTaskId && !reschedule ? () => {
+                    setDayListOpen(false);
+                    startCompletion(task);
+                  } : undefined}
                 />
                 </CalendarTaskGroup>
               );
@@ -669,6 +760,11 @@ function CalendarPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <CompletionDateDialog
+        open={Boolean(completionTask)}
+        onOpenChange={(nextOpen) => { if (!nextOpen && !completingTask.current) setCompletionTask(null); }}
+        onConfirm={(date) => completionTask ? completeTask(completionTask, date) : undefined}
+      />
       <TaskDialog open={open} onOpenChange={setOpen} task={edit} defaults={{ dueDate: newTaskDay }} />
     </div>
   );
@@ -775,6 +871,7 @@ function CalendarTaskItem({
   backgroundColor,
   expanded = false,
   onClick,
+  onComplete,
   onCreate,
   onTogglePin,
   drag,
@@ -788,6 +885,7 @@ function CalendarTaskItem({
   backgroundColor: string;
   expanded?: boolean;
   onClick: () => void;
+  onComplete?: () => void;
   onCreate?: () => void;
   onTogglePin?: () => Promise<void>;
   drag?: ReturnType<typeof useDraggable>;
@@ -813,7 +911,7 @@ function CalendarTaskItem({
       onClick={onClick}
       className={`relative flex w-full min-w-0 items-center gap-1.5 rounded-md border text-left shadow-sm transition hover:-translate-y-px hover:shadow ${
         expanded ? "px-2 py-2" : "px-1 py-1"
-      } ${drag ? "cursor-grab active:cursor-grabbing touch-manipulation" : ""} ${drag?.isDragging ? "opacity-35" : ""} ${completed ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-1 ring-emerald-300/80" : "hover:brightness-105"}`}
+      } ${onComplete && !completed ? "pr-7" : ""} ${drag ? "cursor-grab active:cursor-grabbing touch-manipulation" : ""} ${drag?.isDragging ? "opacity-35" : ""} ${completed ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-1 ring-emerald-300/80" : "hover:brightness-105"}`}
       style={
         completed
           ? undefined
@@ -860,8 +958,7 @@ function CalendarTaskItem({
       ) : null}
     </button>
   );
-  if (!onCreate && !onTogglePin) return button;
-  return (
+  const card = !onCreate && !onTogglePin ? button : (
     <ContextMenu>
       <ContextMenuTrigger asChild onContextMenu={event => event.stopPropagation()}>{button}</ContextMenuTrigger>
       <ContextMenuContent>
@@ -872,5 +969,24 @@ function CalendarTaskItem({
         }}><Pin className="mr-2 h-4 w-4" />{pinned ? "Desfixar tarefa" : "Fixar tarefa"}</ContextMenuItem>}
       </ContextMenuContent>
     </ContextMenu>
+  );
+  if (!onComplete || completed) return card;
+  return (
+    <div className="group/calendar-complete relative min-w-0">
+      {card}
+      <button
+        type="button"
+        aria-label={`Concluir tarefa ${task.title}`}
+        title="Concluir tarefa"
+        className="absolute right-1 top-1/2 z-10 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 opacity-0 shadow-sm transition-opacity hover:bg-emerald-100 focus:opacity-100 group-hover/calendar-complete:opacity-100 [@media(hover:none)]:opacity-100"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onComplete();
+        }}
+      >
+        <CheckCircle2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }

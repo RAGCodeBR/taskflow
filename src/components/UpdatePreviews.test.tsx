@@ -5,6 +5,19 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows the subtask owner's ranking and the separate summary counters", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "report-subtask-metrics" }),
+    );
+    expect(html).toContain("Ranking da equipe");
+    expect(html).toContain("Tarefas principais");
+    expect(html).toContain("Subtarefas concluídas/total");
+    expect(html).toContain("Check verde para concluir a tarefa");
+    expect(html).toContain("Passe o mouse no card para concluir.");
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).toContain("repeat(auto-fit,minmax(min(100%,220px),1fr))");
+    expect(html).not.toContain("<button");
+  });
   it("illustrates the manual close option for an empty meeting agenda", () => {
     const html = renderToStaticMarkup(
       createElement(AppUpdatePreview, { kind: "meeting-empty-close" }),

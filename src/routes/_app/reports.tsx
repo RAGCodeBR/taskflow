@@ -2,7 +2,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useProfiles, useClients, useTaskStatuses, useTaskTags, useTaskObjectives } from "@/hooks/use-data";
+import { useProfiles, useClients, useTaskStatuses, useTaskTags, useTaskObjectives, useSubtasks } from "@/hooks/use-data";
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -73,6 +73,7 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { isTaskCompleted } from "@/lib/task-utils";
+import { reportSubtaskActivities, reportSubtasksInPeriod } from "@/lib/report-subtasks";
 
 export const Route = createFileRoute("/_app/reports")({
   component: ReportsPage,
@@ -152,7 +153,7 @@ function TeamRankingPanel({
   onViewLateTasks: (member: any) => void;
 }) {
   const ranked = members
-    .filter((member) => member.done > 0 || member.lateCount > 0)
+    .filter((member) => member.total > 0)
     .sort((a, b) => {
       return (
         b.deliveryBalance - a.deliveryBalance ||
@@ -162,6 +163,7 @@ function TeamRankingPanel({
         a.fullName.localeCompare(b.fullName, "pt-BR")
       );
     });
+  const podium = ranked.filter((member) => member.done > 0 || member.lateCount > 0).slice(0, 3);
   const maxOnTime = Math.max(...ranked.map((member) => member.onTime), 1);
   const podiumColors = ["#f59e0b", "#94a3b8", "#b87333"];
   const podiumBackgrounds = [
@@ -183,7 +185,9 @@ function TeamRankingPanel({
           <h2 className="text-xl font-semibold">Pódio da performance</h2>
         </div>
         <div className="space-y-3 p-4">
-          {ranked.slice(0, 3).map((member, index) => {
+          {podium.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Ainda não há entregas neste período.</p>
+          ) : podium.map((member, index) => {
             const Medal = index === 0 ? Crown : Trophy;
             return (
               <div
@@ -227,7 +231,7 @@ function TeamRankingPanel({
                           onClick={() => onViewLateTasks(member)}
                           className="font-medium underline decoration-dotted underline-offset-4 hover:text-foreground"
                         >
-                          {member.lateCount} tarefa(s) fora do prazo
+                          {member.lateCount} atividade(s) fora do prazo
                         </button>{" "}
                         descontam posição.
                       </>
@@ -322,9 +326,9 @@ function LateTasksDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Cards fora do prazo — {member?.fullName}</DialogTitle>
+          <DialogTitle>Atividades fora do prazo — {member?.fullName}</DialogTitle>
           <DialogDescription>
-            O prazo final é sempre o vigente no card. Alterações justificadas aparecem abaixo.
+            O prazo final é o vigente na tarefa ou subtarefa. Alterações justificadas aparecem abaixo.
           </DialogDescription>
         </DialogHeader>
 
@@ -466,7 +470,7 @@ function MonthlyBriefingPanel({
   peopleWithoutDeadline,
 }: {
   periodLabel: string;
-  totals: { done: number; pending: number; overdue: number };
+  totals: { done: number; pending: number; overdue: number; subtasks: { done: number; total: number; overdue: number } };
   created: number;
   previousCompleted: number;
   team: any[];
@@ -477,7 +481,9 @@ function MonthlyBriefingPanel({
   const highestLoad = [...team].sort((a, b) => b.pending - a.pending)[0];
   const strongestClient = clients[0];
   const attentionClient = [...clients].sort((a, b) => a.score - b.score)[0];
-  const change = totals.done - previousCompleted;
+  const deliveries = totals.done + totals.subtasks.done;
+  const overdueActivities = totals.overdue + totals.subtasks.overdue;
+  const change = deliveries - previousCompleted;
 
   return (
     <div className="space-y-4">
@@ -491,16 +497,16 @@ function MonthlyBriefingPanel({
               Leitura da operação — {periodLabel}
             </h2>
             <p className="mt-3 text-base leading-7 text-muted-foreground">
-              Foram concluídas <strong className="text-foreground">{totals.done} entregas</strong> e
+              Foram concluídas <strong className="text-foreground">{deliveries} entregas</strong> ({totals.done} tarefas e {totals.subtasks.done} subtarefas) e
               criadas {created} novas tarefas.{" "}
               {change === 0
                 ? "O volume de entregas ficou estável em relação ao período anterior."
                 : change > 0
                   ? `Isso representa ${change} entrega(s) a mais que no período anterior.`
                   : `Isso representa ${Math.abs(change)} entrega(s) a menos que no período anterior.`}{" "}
-              {totals.overdue
-                ? `Há ${totals.overdue} tarefa(s) atrasada(s) que exigem atenção imediata.`
-                : "Não há tarefas atrasadas no recorte atual."}
+              {overdueActivities
+                ? `Há ${overdueActivities} atividade(s) atrasada(s) que exigem atenção imediata.`
+                : "Não há atividades atrasadas no recorte atual."}
             </p>
           </div>
           <div className="rounded-2xl border border-[#167c80]/20 bg-background/70 px-5 py-4 text-right shadow-sm backdrop-blur">
@@ -508,7 +514,7 @@ function MonthlyBriefingPanel({
               Foco imediato
             </p>
             <p className="mt-1 text-3xl font-bold text-[#167c80]">
-              {totals.overdue +
+              {overdueActivities +
                 peopleWithoutDeadline.reduce((sum, person) => sum + person.tasks.length, 0)}
             </p>
             <p className="text-sm text-muted-foreground">pontos de atenção</p>
@@ -572,7 +578,7 @@ function MonthlyBriefingPanel({
             <Target className="h-4 w-4 text-rose-600" /> Próximas ações
           </p>
           <ul className="mt-4 space-y-2.5 text-sm text-muted-foreground">
-            {totals.overdue ? <li>Priorizar as {totals.overdue} tarefa(s) atrasada(s).</li> : null}
+            {overdueActivities ? <li>Priorizar as {overdueActivities} atividade(s) atrasada(s).</li> : null}
             {peopleWithoutDeadline.length ? (
               <li>
                 Definir prazo com {peopleWithoutDeadline.length} pessoa(s) que têm tarefas sem data.
@@ -605,11 +611,11 @@ function MonthlyBriefingPanel({
               const withoutDeadline =
                 peopleWithoutDeadline.find((item) => item.id === person.id)?.tasks.length ?? 0;
               const attention = person.overdue
-                ? `${person.overdue} tarefa(s) atrasada(s)`
+                ? `${person.overdue} atividade(s) atrasada(s)`
                 : withoutDeadline
                   ? `${withoutDeadline} tarefa(s) sem prazo`
                   : person.pending
-                    ? `${person.pending} tarefa(s) em aberto`
+                    ? `${person.pending} atividade(s) em aberto`
                     : "Nenhum risco imediato";
               return (
                 <Card key={person.id} className="overflow-hidden">
@@ -738,14 +744,7 @@ function ReportsPage() {
   const { data: statuses = [] } = useTaskStatuses();
   const { data: marketingCategories = [] } = useTaskTags();
   const { data: marketingObjectives = [] } = useTaskObjectives();
-  const { data: subtasks = [] } = useQuery({
-    queryKey: ["subtasks_all"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("subtasks").select("id, task_id, done");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const { data: subtasks = [] } = useSubtasks();
   const { data: roles = [] } = useQuery({
     queryKey: ["roles"],
     queryFn: async () => (await supabase.from("user_roles").select("user_id, role")).data ?? [],
@@ -756,6 +755,17 @@ function ReportsPage() {
       const { data, error } = await supabase
         .from("task_due_date_changes")
         .select("id, task_id, old_due_date, new_due_date, reason, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: subtaskDueDateChanges = [] } = useQuery({
+    queryKey: ["subtask_due_date_changes_report"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subtask_due_date_changes")
+        .select("subtask_id, old_due_date, new_due_date, reason, created_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -850,10 +860,35 @@ function ReportsPage() {
   const filteredTasks = periodTasks.filter(
     (task) => userFilter === "all" || task.assignee_id === userFilter,
   );
+  const periodSubtasks = reportSubtasksInPeriod(classifiedTasks, subtasks, periodStart, periodEnd)
+    .filter((subtask) => !subtask.assignee_id || visibleIds.has(subtask.assignee_id));
+  const filteredSubtasks = periodSubtasks.filter(
+    (subtask) => userFilter === "all" || subtask.assignee_id === userFilter,
+  );
+  const parentById = new Map(classifiedTasks.map((task) => [task.id, task]));
+  const filteredSubtaskActivities = reportSubtaskActivities(classifiedTasks, filteredSubtasks);
+  const filteredActivities = [...filteredTasks, ...filteredSubtaskActivities];
+  const isSubtaskOverdue = (subtask: { due_date: string | null; done: boolean }) =>
+    Boolean(subtask.due_date && !subtask.done && isBefore(parseISO(subtask.due_date), startOfDay(new Date())));
   const latestDueDateChangeByTask = new Map<string, any>();
   dueDateChanges.forEach((change: any) => {
     if (!latestDueDateChangeByTask.has(change.task_id)) {
       latestDueDateChangeByTask.set(change.task_id, change);
+    }
+  });
+  const latestDueDateChangeBySubtask = new Map<string, {
+    old_due_date: string | null;
+    new_due_date: string | null;
+    reason: string | null;
+  }>();
+  subtaskDueDateChanges.forEach((change: {
+    subtask_id: string;
+    old_due_date: string | null;
+    new_due_date: string | null;
+    reason: string | null;
+  }) => {
+    if (!latestDueDateChangeBySubtask.has(change.subtask_id)) {
+      latestDueDateChangeBySubtask.set(change.subtask_id, change);
     }
   });
   const periodDays = Math.max(
@@ -876,45 +911,31 @@ function ReportsPage() {
     .filter((task) => userFilter === "all" || task.assignee_id === userFilter)
     .filter((task) => !task.assignee_id || visibleIds.has(task.assignee_id));
 
-  const subtasksByTask = (() => {
-    const m = new Map<string, { total: number; done: number }>();
-    subtasks.forEach((s: any) => {
-      const cur = m.get(s.task_id) ?? { total: 0, done: 0 };
-      cur.total += 1;
-      if (s.done) cur.done += 1;
-      m.set(s.task_id, cur);
-    });
-    return m;
-  })();
-
-  const sumSubtasks = (taskList: any[]) => {
-    let total = 0,
-      done = 0;
-    taskList.forEach((t: { id: string }) => {
-      const s = subtasksByTask.get(t.id);
-      if (s) {
-        total += s.total;
-        done += s.done;
-      }
-    });
-    return { total, done };
-  };
-
   const totals = {
     total: filteredTasks.length,
     done: filteredTasks.filter(isDone).length,
     pending: filteredTasks.filter((t) => !isDone(t)).length,
     overdue: filteredTasks.filter(isOverdue).length,
-    subtasks: sumSubtasks(filteredTasks),
+    subtasks: {
+      total: filteredSubtasks.length,
+      done: filteredSubtasks.filter((subtask) => subtask.done).length,
+      overdue: filteredSubtasks.filter(isSubtaskOverdue).length,
+    },
   };
 
   const perUser = visibleProfiles
     .filter((profile) => userFilter === "all" || profile.id === userFilter)
     .map((p) => {
       const userTasks = periodTasks.filter((t) => t.assignee_id === p.id);
+      const userSubtasks = periodSubtasks.filter((subtask) => subtask.assignee_id === p.id);
       const done = userTasks.filter(isDone);
+      const completedSubtasks = userSubtasks.filter((subtask) => subtask.done);
       const overdue = userTasks.filter(isOverdue);
-      const completedWithDeadline = done.filter((t) => t.due_date && t.completed_at);
+      const overdueSubtasks = userSubtasks.filter(isSubtaskOverdue);
+      const completedWithDeadline = [
+        ...done.filter((task) => task.due_date && task.completed_at),
+        ...completedSubtasks.filter((subtask) => subtask.due_date && subtask.completed_at),
+      ];
       const onTime = completedWithDeadline.filter(
         (t) => t.due_date && t.completed_at && !completedAfterDueDate(t.completed_at, t.due_date),
       ).length;
@@ -956,22 +977,54 @@ function ReportsPage() {
               : null,
           };
         }),
+        ...completedSubtasks
+          .filter((subtask) => subtask.due_date && subtask.completed_at && completedAfterDueDate(subtask.completed_at, subtask.due_date))
+          .map((subtask) => {
+            const change = latestDueDateChangeBySubtask.get(subtask.id);
+            return {
+              id: `subtask-${subtask.id}`,
+              title: `${subtask.title} · ${subtask.parentTitle}`,
+              kind: "Subtarefa concluída após o prazo",
+              dueDateLabel: formatReportDate(subtask.due_date),
+              completedAtLabel: formatReportDate(subtask.completed_at),
+              deadlineChange: change ? {
+                oldDueDateLabel: formatReportDate(change.old_due_date),
+                newDueDateLabel: formatReportDate(change.new_due_date),
+                reason: change.reason,
+              } : null,
+            };
+          }),
+        ...overdueSubtasks.map((subtask) => {
+          const change = latestDueDateChangeBySubtask.get(subtask.id);
+          return {
+            id: `subtask-${subtask.id}`,
+            title: `${subtask.title} · ${subtask.parentTitle}`,
+            kind: "Subtarefa em aberto após o prazo",
+            dueDateLabel: formatReportDate(subtask.due_date),
+            completedAtLabel: null,
+            deadlineChange: change ? {
+              oldDueDateLabel: formatReportDate(change.old_due_date),
+              newDueDateLabel: formatReportDate(change.new_due_date),
+              reason: change.reason,
+            } : null,
+          };
+        }),
       ];
       const lateCount = lateTasks.length;
       const isAdminRole = roles.some(
         (r: { user_id: string; role: string }) => r.user_id === p.id && r.role === "admin",
       );
-      const sub = sumSubtasks(userTasks);
       return {
         id: p.id,
         name: (p.full_name || p.email || "?").slice(0, 14),
         fullName: p.full_name || p.email,
         isAdmin: isAdminRole,
         isActive: (p as any).is_active !== false,
-        total: userTasks.length,
-        done: done.length,
-        pending: userTasks.length - done.length,
-        overdue: overdue.length,
+        total: userTasks.length + userSubtasks.length,
+        taskTotal: userTasks.length,
+        done: done.length + completedSubtasks.length,
+        pending: userTasks.length - done.length + userSubtasks.length - completedSubtasks.length,
+        overdue: overdue.length + overdueSubtasks.length,
         onTime,
         lateCount,
         deliveryBalance: onTime - lateCount,
@@ -979,14 +1032,14 @@ function ReportsPage() {
         onTimeRate: completedWithDeadline.length
           ? Math.round((onTime / completedWithDeadline.length) * 100)
           : 0,
-        subtasksDone: sub.done,
-        subtasksTotal: sub.total,
+        subtasksDone: completedSubtasks.length,
+        subtasksTotal: userSubtasks.length,
       };
     });
 
   const byClient = clients
     .map((client) => {
-      const clientTasks = filteredTasks.filter((task) => task.client_id === client.id);
+      const clientTasks = filteredActivities.filter((task) => task.client_id === client.id);
       const concluded = clientTasks.filter(isDone).length;
       const overdue = clientTasks.filter(isOverdue).length;
       return {
@@ -1002,7 +1055,7 @@ function ReportsPage() {
 
   const clientPerformance: ClientPerformance[] = clients
     .map((client) => {
-      const clientTasks = filteredTasks.filter((task) => task.client_id === client.id);
+      const clientTasks = filteredActivities.filter((task) => task.client_id === client.id);
       if (clientTasks.length === 0) return null;
 
       const doneTasks = clientTasks.filter(isDone);
@@ -1034,14 +1087,14 @@ function ReportsPage() {
       );
       const pending = clientTasks.length - doneTasks.length;
       const strongPoint = doneTasks.length
-        ? `${doneTasks.length} ${doneTasks.length === 1 ? "tarefa concluída" : "tarefas concluídas"}, ${onTimeRate}% das entregas no prazo.`
-        : `${clientTasks.length} ${clientTasks.length === 1 ? "tarefa acompanhada" : "tarefas acompanhadas"} no período.`;
+        ? `${doneTasks.length} ${doneTasks.length === 1 ? "atividade concluída" : "atividades concluídas"}, ${onTimeRate}% das entregas no prazo.`
+        : `${clientTasks.length} ${clientTasks.length === 1 ? "atividade acompanhada" : "atividades acompanhadas"} no período.`;
       const blocker = overdue
-        ? `${overdue} ${overdue === 1 ? "tarefa atrasada" : "tarefas atrasadas"}.`
+        ? `${overdue} ${overdue === 1 ? "atividade atrasada" : "atividades atrasadas"}.`
         : unassigned
-          ? `${unassigned} ${unassigned === 1 ? "tarefa sem responsável" : "tarefas sem responsável"}.`
+          ? `${unassigned} ${unassigned === 1 ? "atividade sem responsável" : "atividades sem responsável"}.`
           : pending
-            ? `${pending} ${pending === 1 ? "tarefa pendente" : "tarefas pendentes"}.`
+            ? `${pending} ${pending === 1 ? "atividade pendente" : "atividades pendentes"}.`
             : "Nenhum bloqueio identificado no período.";
       const contributors = Array.from(
         new Set(clientTasks.map((task) => task.assignee_id ?? "__unassigned__")),
@@ -1083,7 +1136,7 @@ function ReportsPage() {
     activeWorkspace?.slug === "marketing"
       ? marketingCategories
           .map((category) => {
-            const categoryTasks = filteredTasks.filter((task) => task.tag_id === category.id);
+            const categoryTasks = filteredActivities.filter((task) => task.tag_id === category.id);
             if (categoryTasks.length === 0) return null;
             const clientsById = new Map<string, typeof categoryTasks>();
             categoryTasks.forEach((task) => {
@@ -1148,7 +1201,7 @@ function ReportsPage() {
     activeWorkspace?.slug === "marketing"
       ? marketingObjectives
           .map((category) => {
-            const categoryTasks = filteredTasks.filter((task) => task.objective_id === category.id);
+            const categoryTasks = filteredActivities.filter((task) => task.objective_id === category.id);
             if (categoryTasks.length === 0) return null;
             const clientsById = new Map<string, typeof categoryTasks>();
             categoryTasks.forEach((task) => {
@@ -1264,7 +1317,7 @@ function ReportsPage() {
   ];
   const capacityRows = perUser
     .map((person) => {
-      const personTasks = filteredTasks.filter(
+      const personTasks = filteredActivities.filter(
         (task) => task.assignee_id === person.id && !isDone(task),
       );
       return {
@@ -1276,10 +1329,16 @@ function ReportsPage() {
       };
     })
     .sort((a, b) => b.open - a.open || b.critical - a.critical);
-  const dueDateChangesInPeriod = dueDateChanges.filter((change) =>
-    dateIsInPeriod(change.created_at, periodStart, periodEnd),
+  const scopedSubtaskIds = new Set(subtasks.filter((subtask) => parentById.has(subtask.task_id)).map((subtask) => subtask.id));
+  const dueDateChangesInPeriod = dueDateChanges.filter((change: { task_id: string; created_at: string }) =>
+    parentById.has(change.task_id) && dateIsInPeriod(change.created_at, periodStart, periodEnd),
+  ).length + subtaskDueDateChanges.filter((change: { subtask_id: string; created_at: string }) =>
+    scopedSubtaskIds.has(change.subtask_id) && dateIsInPeriod(change.created_at, periodStart, periodEnd),
   ).length;
-  const completedInPreviousPeriod = previousTasks.filter(isDone).length;
+  const completedInPreviousPeriod = previousTasks.filter(isDone).length +
+    reportSubtasksInPeriod(classifiedTasks, subtasks, previousStart, previousEnd)
+      .filter((subtask) => subtask.done && (!subtask.assignee_id || visibleIds.has(subtask.assignee_id)))
+      .length;
   const createdInPeriod = classifiedTasks.filter((task) =>
     dateIsInPeriod(task.created_at, periodStart, periodEnd),
   ).length;
@@ -1457,12 +1516,12 @@ function ReportsPage() {
       <div
         className={reportView === "summary" ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-6" : "hidden"}
       >
-        <Kpi label="Total" value={totals.total} icon={ListTodo} color="#2563eb" />
-        <Kpi label="Concluídas" value={totals.done} icon={CheckCircle2} color="#059669" />
-        <Kpi label="Pendentes" value={totals.pending} icon={Clock} color="#f59e0b" />
-        <Kpi label="Atrasadas" value={totals.overdue} icon={AlertTriangle} color="#dc2626" />
+        <Kpi label="Tarefas principais" value={totals.total} icon={ListTodo} color="#2563eb" />
+        <Kpi label="Tarefas concluídas" value={totals.done} icon={CheckCircle2} color="#059669" />
+        <Kpi label="Tarefas pendentes" value={totals.pending} icon={Clock} color="#f59e0b" />
+        <Kpi label="Tarefas atrasadas" value={totals.overdue} icon={AlertTriangle} color="#dc2626" />
         <Kpi
-          label="Subtarefas"
+          label="Subtarefas concluídas/total"
           value={`${totals.subtasks.done}/${totals.subtasks.total}`}
           icon={ListChecks}
           color="#0ea5e9"
@@ -1499,12 +1558,12 @@ function ReportsPage() {
       <div className={reportView === "operations" ? "space-y-4" : "hidden"}>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi
-            label="Entradas no período"
+            label="Tarefas criadas no período"
             value={createdInPeriod}
             icon={ArrowDownUp}
             color="#2563eb"
           />
-          <Kpi label="Entregas no período" value={totals.done} icon={TrendingUp} color="#059669" />
+          <Kpi label="Entregas no período" value={totals.done + totals.subtasks.done} icon={TrendingUp} color="#059669" />
           <Kpi
             label="Alterações de prazo"
             value={dueDateChangesInPeriod}
@@ -1541,7 +1600,7 @@ function ReportsPage() {
                       entradas: createdInPreviousPeriod,
                       entregas: completedInPreviousPeriod,
                     },
-                    { period: "Selecionado", entradas: createdInPeriod, entregas: totals.done },
+                    { period: "Selecionado", entradas: createdInPeriod, entregas: totals.done + totals.subtasks.done },
                   ]}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -1557,7 +1616,7 @@ function ReportsPage() {
                   />
                   <Bar
                     dataKey="entregas"
-                    name="Tarefas concluídas"
+                    name="Entregas concluídas"
                     fill="#059669"
                     radius={[4, 4, 0, 0]}
                   />
@@ -1571,7 +1630,7 @@ function ReportsPage() {
               <Gauge className="h-4 w-4 text-[#167c80]" /> Fluxo atual por etapa
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Volume de trabalho que está em cada etapa no período.
+              Tarefas principais em cada etapa no período; subtarefas não têm etapa própria.
             </p>
             <div className="mt-5 space-y-4">
               {statusFlow.length ? (
@@ -1642,7 +1701,7 @@ function ReportsPage() {
 
           <Card className="p-5">
             <h2 className="flex items-center gap-2 font-semibold">
-              <Flame className="h-4 w-4 text-[#dc2626]" /> Prioridades abertas
+              <Flame className="h-4 w-4 text-[#dc2626]" /> Prioridades das tarefas principais
             </h2>
             <div className="mt-5 space-y-4">
               {priorityData.map((item) => (
@@ -1757,7 +1816,7 @@ function ReportsPage() {
       </div>
 
       <div className={reportView === "summary" ? "block" : "hidden"}>
-        <ClientByUserTable clients={clients} users={perUser} tasks={filteredTasks} />
+        <ClientByUserTable clients={clients} users={perUser} tasks={filteredActivities} />
       </div>
 
       <LateTasksDialog
@@ -1793,7 +1852,7 @@ function MarketingCategoryReport({
       <Card className="p-5">
         <h2 className="font-semibold">{title}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Nenhuma tarefa categorizada no período ou nos filtros selecionados.
+          Nenhuma atividade categorizada no período ou nos filtros selecionados.
         </p>
       </Card>
     );
@@ -1819,7 +1878,7 @@ function MarketingCategoryReport({
                 <h3 className="font-semibold">{entry.category.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {entry.clients.length} {entry.clients.length === 1 ? "cliente" : "clientes"} ·{" "}
-                  {entry.total} {entry.total === 1 ? "tarefa" : "tarefas"} · {entry.done}{" "}
+                  {entry.total} {entry.total === 1 ? "atividade" : "atividades"} · {entry.done}{" "}
                   concluída(s)
                 </p>
               </div>
@@ -1837,7 +1896,7 @@ function MarketingCategoryReport({
               <thead>
                 <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                   <th className="px-5 py-3">Cliente</th>
-                  <th className="px-3 py-3 text-center">Tarefas</th>
+                  <th className="px-3 py-3 text-center">Atividades</th>
                   <th className="px-3 py-3 text-center">Concluídas</th>
                   <th className="px-5 py-3">Quem fez</th>
                 </tr>
@@ -1891,7 +1950,8 @@ function UserTable({
             <thead>
               <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                 <th className="py-2">Usuário</th>
-                <th className="py-2 text-center">Total</th>
+                <th className="py-2 text-center">Atividades</th>
+                <th className="py-2 text-center">Tarefas principais</th>
                 <th className="py-2 text-center">Concluídas</th>
                 <th className="py-2 text-center">Pendentes</th>
                 <th className="py-2 text-center">Atrasadas</th>
@@ -1918,6 +1978,7 @@ function UserTable({
                       </div>
                     </td>
                     <td className="py-2 text-center font-medium">{r.total}</td>
+                    <td className="py-2 text-center">{r.taskTotal}</td>
                     <td className="py-2 text-center text-emerald-600">{r.done}</td>
                     <td className="py-2 text-center text-amber-600">{r.pending}</td>
                     <td className="py-2 text-center text-red-600">{r.overdue}</td>
@@ -1959,7 +2020,7 @@ function ClientByUserTable({
     <Card className="p-4">
       <h3 className="mb-3 font-semibold">Demandas por cliente × usuário</h3>
       <p className="mb-3 text-xs text-muted-foreground">
-        Quantidade de tarefas atribuídas a cada usuário, agrupadas por cliente. "Concl." =
+        Quantidade de tarefas e subtarefas atribuídas a cada usuário, agrupadas por cliente. "Concl." =
         concluídas.
       </p>
       <div className="overflow-x-auto">
