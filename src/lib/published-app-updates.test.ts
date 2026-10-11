@@ -41,7 +41,7 @@ describe("independent published release catalogue", () => {
     const newer = {
       ...publishedAppUpdates().releases[0],
       id: "future",
-      date: "2026-10-09",
+      date: "2026-10-12",
       audience: "admin" as const,
     };
     expect(

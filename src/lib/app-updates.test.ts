@@ -28,10 +28,10 @@ describe("application release catalogue", () => {
     "uses the latest visible release as the version in %s",
     (workspace) => {
       const updates = getVisibleAppUpdates(false, workspace);
-      expect(updates[0].id).toBe("relatorios-subtarefas-por-responsavel-2026-10-09");
-      expect(updates[0].preview).toBe("report-subtask-metrics");
+      expect(updates[0].id).toBe("dashboard-equipe-colaboradores-2026-10-11");
+      expect(updates[0].preview).toBe("member-team-dashboard");
       expect(getVisibleAppUpdates(true, workspace)[0].id).toBe(
-        "relatorios-subtarefas-por-responsavel-2026-10-09",
+        "dashboard-equipe-colaboradores-2026-10-11",
       );
       expect(updates.every((update) => update.audience === "all")).toBe(true);
       expect(updates.some((update) => update.id === DASHBOARD_UPDATE_VERSION)).toBe(false);

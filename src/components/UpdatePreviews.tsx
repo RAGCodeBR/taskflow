@@ -31,6 +31,92 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function MemberTeamDashboardPreview() {
+  return (
+    <div
+      aria-label="Prévia do dashboard da equipe para colaboradores"
+      className="overflow-hidden rounded-xl border bg-background shadow-sm"
+    >
+      <div className="bg-[#11295a] p-3 text-white">
+        <p className="text-[9px] uppercase tracking-widest text-sky-200">Visão compartilhada</p>
+        <p className="mt-1 text-sm font-bold">O trabalho da equipe</p>
+        <div className="mt-3 grid grid-cols-2 gap-1.5 text-[9px] sm:grid-cols-4">
+          <span className="rounded-md bg-white/10 p-2">
+            Tarefas abertas
+            <br />
+            <strong className="text-amber-200">6 ↗</strong>
+          </span>
+          <span className="rounded-md bg-white/10 p-2">
+            Tarefas concluídas
+            <br />
+            <strong className="text-emerald-200">4</strong>
+          </span>
+          <span className="rounded-md bg-white/10 p-2">
+            Subtarefas abertas
+            <br />
+            <strong className="text-sky-200">3</strong>
+          </span>
+          <span className="rounded-md bg-white/10 p-2">
+            Subtarefas concluídas
+            <br />
+            <strong className="text-emerald-200">5</strong>
+          </span>
+        </div>
+      </div>
+      <div className="border-b p-3 text-[10px]">
+        <strong>Tarefas em andamento · 6</strong>
+        <p className="mt-1 rounded border px-2 py-1 text-muted-foreground">
+          Buscar por tarefa, cliente ou responsável
+        </p>
+        <p className="mt-1.5 border-b pb-1">Card principal · Cliente exemplo A ↗</p>
+        <p className="mt-1.5">Card principal · Cliente exemplo B ↗</p>
+        <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 p-2 text-slate-800">
+          <strong>Resumo do card · Marketing</strong>
+          <p className="mt-1">Tarefa exemplo · Em andamento</p>
+          <p className="text-slate-600">Cliente exemplo A · Responsável da equipe</p>
+        </div>
+      </div>
+      <div className="border-b p-3 text-[10px]">
+        <div className="flex items-center justify-between gap-2">
+          <strong>Demanda por cliente</strong>
+          <span className="rounded border px-2 py-1 text-muted-foreground">
+            Toda a equipe · Em aberto ▾
+          </span>
+        </div>
+        <p className="mt-1 text-muted-foreground">Cards principais · Subtarefas</p>
+        <div className="mt-2 space-y-2">
+          <div>
+            <span>Cliente exemplo A · 7</span>
+            <span className="mt-1 flex h-2 overflow-hidden rounded-full">
+              <span className="w-3/5 bg-blue-600" />
+              <span className="w-2/5 bg-violet-500" />
+            </span>
+          </div>
+          <div>
+            <span>Cliente exemplo B · 4</span>
+            <span className="mt-1 flex h-2 w-3/5 overflow-hidden rounded-full">
+              <span className="w-1/2 bg-blue-600" />
+              <span className="w-1/2 bg-violet-500" />
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-2 p-3 text-[10px] sm:grid-cols-2">
+        <div className="rounded-lg border p-2">
+          <strong>Quem está fazendo o quê</strong>
+          <p className="mt-2">Pessoa da equipe · 2 tarefas e 3 subtarefas concluídas</p>
+          <span className="mt-2 block h-1.5 w-3/4 rounded-full bg-emerald-500" />
+        </div>
+        <div className="rounded-lg border p-2">
+          <strong>Entregas recentes</strong>
+          <p className="mt-2">✓ Subtarefa concluída</p>
+          <p className="mt-1 text-muted-foreground">Atividade visível no ambiente</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReportSubtaskMetricsPreview() {
   return (
     <PreviewGrid label="Prévia do ranking com subtarefas atribuídas ao próprio responsável">
@@ -869,6 +955,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "member-team-dashboard": MemberTeamDashboardPreview,
   "report-subtask-metrics": ReportSubtaskMetricsPreview,
   "meeting-empty-close": MeetingEmptyClosePreview,
   "meeting-auto-complete": MeetingAutoCompletePreview,

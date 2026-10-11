@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "member-team-dashboard"
   | "report-subtask-metrics"
   | "meeting-empty-close"
   | "meeting-auto-complete"
@@ -38,6 +39,20 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "dashboard-equipe-colaboradores-2026-10-11",
+    title: "Dashboard da equipe e demanda por cliente",
+    date: "2026-10-11",
+    preview: "member-team-dashboard",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "O dashboard do colaborador agora mostra tarefas e subtarefas em aberto e concluídas, separadas por responsável, no ambiente ativo. Clique em qualquer contagem para abrir e buscar todas as atividades correspondentes.",
+      "O gráfico de demanda agrupa cards principais e subtarefas por cliente. Filtre por pessoa e por situação (em aberto, concluídas ou todas), e clique em um cliente para ver as atividades que compõem cada barra.",
+      "A seção da equipe mostra entregas recentes e permite abrir as atividades visíveis de cada pessoa. Os indicadores pessoais continuam no início da página.",
+      "No Marketing, o colaborador abre um resumo do card diretamente no dashboard, sem sair para Minhas Tarefas. Apenas tarefas do ambiente ativo podem ser abertas.",
+    ],
+  },
   {
     id: "relatorios-subtarefas-por-responsavel-2026-10-09",
     title: "Subtarefas nos relatórios e conclusão no calendário",

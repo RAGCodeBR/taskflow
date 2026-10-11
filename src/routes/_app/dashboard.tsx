@@ -2,6 +2,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type Task,
+  type Client,
+  type Profile,
+  type Subtask,
   useClients,
   useAssignableProfiles,
   useColumns,
@@ -56,6 +59,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { dashboardTaskOpenMode, getClientDemand, getMemberDashboard, getTeamSummaryActivities, type ClientDemandStatus, type TeamSummaryMetric } from "@/lib/member-dashboard";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -83,6 +87,10 @@ type Detail = {
 };
 
 const isTaskDone = (task: Task) => isTaskCompleted(task);
+const EMPTY_TASKS: Task[] = [];
+const EMPTY_CLIENTS: Client[] = [];
+const EMPTY_PROFILES: Profile[] = [];
+const EMPTY_SUBTASKS: Subtask[] = [];
 
 const SUBTASK_DOT: Record<SubtaskStatus, string> = {
   concluida: "bg-emerald-500",
@@ -149,9 +157,9 @@ function TaskPreviewDialog({
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <UserRound className="h-3.5 w-3.5" /> Consultor responsável
+              <UserRound className="h-3.5 w-3.5" /> Responsável
             </p>
-            <p className="mt-1.5 font-medium">{assigneeName || "Sem consultor responsável"}</p>
+            <p className="mt-1.5 font-medium">{assigneeName || "Sem responsável"}</p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -408,16 +416,17 @@ function TaskDetailPanel({
 }
 
 function Dashboard() {
-  const { profile, user, isAdmin, activeWorkspace, isWorkspaceTransitioning, finishWorkspaceTransition } = useAuth();
+  const { profile, user, isAdmin, isCollaborator, isClient, activeWorkspace, isWorkspaceTransitioning, finishWorkspaceTransition } = useAuth();
   const tasksQuery = useWorkspaceTasks();
+  const subtasksQuery = useSubtasks();
   const clientsQuery = useClients();
   // The chart only includes users eligible to receive tasks (admins and collaborators).
   // The database query excludes client accounts, including future ones.
   const assignableProfilesQuery = useAssignableProfiles();
   const columnsQuery = useColumns();
-  const tasks = tasksQuery.data ?? [];
-  const clients = clientsQuery.data ?? [];
-  const assignableProfiles = assignableProfilesQuery.data ?? [];
+  const tasks = tasksQuery.data ?? EMPTY_TASKS;
+  const clients = clientsQuery.data ?? EMPTY_CLIENTS;
+  const assignableProfiles = assignableProfilesQuery.data ?? EMPTY_PROFILES;
   // O painel sempre começa no mês vigente. A própria opção "Todas" permite
   // consultar o histórico quando necessário.
   const [filter, setFilter] = useState<DateFilter>("this_month");
@@ -427,6 +436,7 @@ function Dashboard() {
   const [customPeriod, setCustomPeriod] = useState<{ start: string; end: string } | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<DashboardMetric | null>(null);
   const [selectedInsight, setSelectedInsight] = useState<Detail | null>(null);
+  const [marketingPreviewTask, setMarketingPreviewTask] = useState<Task | null>(null);
   const detailSectionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -539,6 +549,14 @@ function Dashboard() {
       ),
     [assignableProfiles],
   );
+  const visibleTaskIds = useMemo(() => new Set(tasks.map((task) => task.id)), [tasks]);
+  const visibleMarketingPreviewTask =
+    activeWorkspace?.slug === "marketing" && marketingPreviewTask && visibleTaskIds.has(marketingPreviewTask.id)
+      ? marketingPreviewTask
+      : null;
+  useEffect(() => {
+    setMarketingPreviewTask(null);
+  }, [activeWorkspace?.id]);
   const details = useMemo<Record<DashboardMetric, Detail>>(
     () => ({
       total: {
@@ -680,17 +698,158 @@ function Dashboard() {
     }),
     [memberTasks],
   );
+  const teamOverview = useMemo(
+    () =>
+      getMemberDashboard(
+        tasks,
+        subtasksQuery.data ?? EMPTY_SUBTASKS,
+        assignableProfiles,
+        user?.id,
+        profile?.full_name || undefined,
+      ),
+    [tasks, subtasksQuery.data, assignableProfiles, user?.id, profile?.full_name],
+  );
+  const [selectedTeamMember, setSelectedTeamMember] = useState<string | null>(null);
+  const [selectedTeamSummary, setSelectedTeamSummary] = useState<TeamSummaryMetric | null>(null);
+  const [teamSummarySearch, setTeamSummarySearch] = useState("");
+  const teamSummaryRef = useRef<HTMLDivElement>(null);
+  const teamSummaryActivities = useMemo(
+    () =>
+      selectedTeamSummary
+        ? getTeamSummaryActivities(
+            tasks,
+            subtasksQuery.data ?? EMPTY_SUBTASKS,
+            clients,
+            selectedTeamSummary,
+          )
+        : [],
+    [selectedTeamSummary, tasks, subtasksQuery.data, clients],
+  );
+  const visibleTeamSummaryActivities = useMemo(() => {
+    const normalized = teamSummarySearch
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("pt-BR");
+    if (!normalized) return teamSummaryActivities;
+    return teamSummaryActivities.filter((item) => {
+      const content = [
+        item.title,
+        item.parentTitle,
+        item.clientName,
+        item.assigneeId ? profilesById.get(item.assigneeId) : null,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("pt-BR");
+      return content.includes(normalized);
+    });
+  }, [teamSummaryActivities, teamSummarySearch, profilesById]);
+  useEffect(() => {
+    if (!selectedTeamSummary) return;
+    const frame = requestAnimationFrame(() =>
+      teamSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [selectedTeamSummary]);
+  const [selectedDemandUserId, setSelectedDemandUserId] = useState<string | null>(null);
+  const [selectedDemandStatus, setSelectedDemandStatus] = useState<ClientDemandStatus>("open");
+  const [selectedDemandClientId, setSelectedDemandClientId] = useState<string | null>(null);
+  const clientDemand = useMemo(
+    () =>
+      getClientDemand(
+        tasks,
+        subtasksQuery.data ?? EMPTY_SUBTASKS,
+        clients,
+        selectedDemandUserId,
+        selectedDemandStatus,
+      ),
+    [tasks, subtasksQuery.data, clients, selectedDemandUserId, selectedDemandStatus],
+  );
+  const demandMax = Math.max(1, ...clientDemand.map((row) => row.taskCount + row.subtaskCount));
+  const selectedDemandClient = clientDemand.find((row) => row.id === selectedDemandClientId);
+  const selectedMember = teamOverview.members.find((person) => person.id === selectedTeamMember);
+  const teamMemberActivities = useMemo(() => {
+    if (!selectedTeamMember) return [];
+    const visibleTasks = new Map(tasks.map((task) => [task.id, task]));
+    return [
+      ...tasks
+        .filter((task) => task.assignee_id === selectedTeamMember)
+        .map((task) => ({
+          id: `task-${task.id}`,
+          taskId: task.id,
+          title: task.title,
+          parentTitle: null as string | null,
+          done: isTaskDone(task),
+          kind: "Tarefa",
+        })),
+      ...(subtasksQuery.data ?? EMPTY_SUBTASKS)
+        .filter(
+          (subtask) =>
+            subtask.assignee_id === selectedTeamMember && visibleTasks.has(subtask.task_id),
+        )
+        .map((subtask) => ({
+          id: `subtask-${subtask.id}`,
+          taskId: subtask.task_id,
+          title: subtask.title,
+          parentTitle: visibleTasks.get(subtask.task_id)?.title ?? null,
+          done: subtask.done,
+          kind: "Subtarefa",
+        })),
+    ].sort((a, b) => Number(a.done) - Number(b.done) || a.title.localeCompare(b.title, "pt-BR"));
+  }, [selectedTeamMember, tasks, subtasksQuery.data]);
 
   const openTask = (task: Task) => {
-    navigate({ to: "/tasks/list", search: { task: task.id } });
+    const mode = dashboardTaskOpenMode(task.id, visibleTaskIds, {
+      isAdmin,
+      isCollaborator,
+      isClient,
+      workspaceSlug: activeWorkspace?.slug,
+    });
+    if (mode === "ignore") return;
+    if (mode === "preview") {
+      setMarketingPreviewTask(task);
+      return;
+    }
+    navigate({ to: "/tasks/list", search: { task: task.id, mine: undefined } });
   };
 
-  // Member dashboard — only own pending/overdue tasks
+  // Member dashboard — personal work followed by a workspace-scoped team view.
   if (!isAdmin) {
     const myPending = memberDetails.pending.tasks;
     const myOverdue = memberDetails.overdue.tasks;
     const myToday = memberDetails.today.tasks;
     const myWeek = memberDetails.week.tasks;
+    const teamTiles: { key: TeamSummaryMetric; label: string; value: number; color: string }[] = [
+      {
+        key: "tasks-open",
+        label: "Tarefas em andamento",
+        value: teamOverview.tasksOpen,
+        color: "text-amber-200",
+      },
+      {
+        key: "tasks-done",
+        label: "Tarefas concluídas",
+        value: teamOverview.tasksDone,
+        color: "text-emerald-200",
+      },
+      {
+        key: "subtasks-open",
+        label: "Subtarefas em andamento",
+        value: teamOverview.subtasksOpen,
+        color: "text-sky-200",
+      },
+      {
+        key: "subtasks-done",
+        label: "Subtarefas concluídas",
+        value: teamOverview.subtasksDone,
+        color: "text-emerald-200",
+      },
+    ];
+    const selectedTeamTile = teamTiles.find((tile) => tile.key === selectedTeamSummary);
+    const showingCompletedTeamSummary = selectedTeamSummary?.endsWith("done") ?? false;
 
     return (
       <div className="space-y-6 p-6">
@@ -699,8 +858,7 @@ function Dashboard() {
           <p className="text-muted-foreground">Suas tarefas pendentes e atrasadas</p>
         </header>
 
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat
             label="Minhas pendentes"
             value={myPending.length}
@@ -736,14 +894,528 @@ function Dashboard() {
         </div>
 
         {selectedMetric && (
-          <TaskDetailPanel
-            detail={memberDetails[selectedMetric]}
-            clientsById={clientsById}
-            profilesById={profilesById}
-            onClose={() => setSelectedMetric(null)}
-            onOpenTask={openTask}
-          />
+          <div ref={detailSectionRef}>
+            <TaskDetailPanel
+              detail={memberDetails[selectedMetric]}
+              clientsById={clientsById}
+              profilesById={profilesById}
+              onClose={() => setSelectedMetric(null)}
+              onOpenTask={openTask}
+            />
+          </div>
         )}
+
+        {isCollaborator && !isClient && (
+          <section className="space-y-5" aria-labelledby="team-overview-title">
+            <div className="relative overflow-hidden rounded-2xl bg-[#11295a] px-6 py-6 text-white shadow-sm sm:px-8">
+              <div
+                className="absolute -right-12 -top-24 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl"
+                aria-hidden="true"
+              />
+              <div className="relative flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">
+                    Visão compartilhada
+                  </p>
+                  <h2
+                    id="team-overview-title"
+                    className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl"
+                  >
+                    O trabalho da equipe
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-200">
+                    Tarefas e subtarefas que você pode acompanhar em{" "}
+                    {activeWorkspace?.name || "seu ambiente"}.
+                  </p>
+                </div>
+                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-sky-100">
+                  {teamOverview.members.length}{" "}
+                  {teamOverview.members.length === 1
+                    ? "pessoa com atividade"
+                    : "pessoas com atividade"}
+                </span>
+              </div>
+              <div className="relative mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {teamTiles.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTeamSummary((current) => (current === item.key ? null : item.key));
+                      setTeamSummarySearch("");
+                    }}
+                    aria-pressed={selectedTeamSummary === item.key}
+                    aria-label={`Ver ${item.value} ${item.label.toLocaleLowerCase("pt-BR")}`}
+                    className={`rounded-xl border bg-white/10 px-4 py-3 text-left backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${selectedTeamSummary === item.key ? "border-white/70 ring-1 ring-white/50" : "border-white/15"}`}
+                  >
+                    <p className="text-xs text-slate-200">{item.label}</p>
+                    <span className="mt-1 flex items-center justify-between gap-2">
+                      <span className={`text-2xl font-bold ${item.color}`}>{item.value}</span>
+                      <ArrowUpRight className="h-4 w-4 text-sky-200" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {selectedTeamTile && (
+              <div ref={teamSummaryRef} className="scroll-mt-20">
+                <Card className="overflow-hidden border-primary/20">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/20 px-5 py-4 sm:px-6">
+                    <div>
+                      <h3 className="font-semibold">
+                        {selectedTeamTile.label}{" "}
+                        <span className="ml-1 rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground">
+                          {teamSummaryActivities.length}
+                        </span>
+                      </h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Atividades visíveis neste ambiente. Clique em uma linha para abrir a tarefa.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTeamSummary(null)}
+                      aria-label="Fechar atividades da equipe"
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="border-b px-5 py-3 sm:px-6">
+                    <Input
+                      value={teamSummarySearch}
+                      onChange={(event) => setTeamSummarySearch(event.target.value)}
+                      placeholder="Buscar por tarefa, cliente ou responsável"
+                      aria-label="Buscar nas atividades da equipe"
+                      className="max-w-xl"
+                    />
+                    {teamSummarySearch && (
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {visibleTeamSummaryActivities.length} de {teamSummaryActivities.length}{" "}
+                        atividades encontradas
+                      </p>
+                    )}
+                  </div>
+                  {tasksQuery.isLoading || subtasksQuery.isLoading ? (
+                    <p className="px-6 py-8 text-sm text-muted-foreground">
+                      Carregando atividades...
+                    </p>
+                  ) : visibleTeamSummaryActivities.length === 0 ? (
+                    <p className="px-6 py-8 text-sm text-muted-foreground">
+                      Nenhuma atividade encontrada neste recorte.
+                    </p>
+                  ) : (
+                    <div className="max-h-[38rem] divide-y overflow-y-auto">
+                      {visibleTeamSummaryActivities.map((item) => {
+                        const activityDate = showingCompletedTeamSummary
+                          ? item.completedAt
+                          : item.dueDate;
+                        const dateLabel = showingCompletedTeamSummary
+                          ? "Concluída"
+                          : "Prazo";
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              const task = tasks.find((candidate) => candidate.id === item.taskId);
+                              if (task) openTask(task);
+                            }}
+                            className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 text-left transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-6"
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium">
+                                {item.title}
+                              </span>
+                              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                                {item.kind === "subtask"
+                                  ? `Subtarefa de ${item.parentTitle} · `
+                                  : "Card principal · "}
+                                {item.clientName}
+                                {item.assigneeId
+                                  ? ` · ${profilesById.get(item.assigneeId) || "Responsável"}`
+                                  : " · Sem responsável"}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {activityDate
+                                ? `${dateLabel} ${format(parseISO(activityDate), "dd/MM/yyyy", { locale: ptBR })}`
+                                : showingCompletedTeamSummary
+                                  ? "Sem data de conclusão"
+                                  : "Sem prazo"}
+                            </span>
+                            <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Card>
+              </div>
+            )}
+
+            <Card className="overflow-hidden">
+              <div className="flex flex-wrap items-end justify-between gap-4 border-b px-5 py-5 sm:px-6">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold">Demanda por cliente</h3>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Cards principais e subtarefas contam separadamente nas atividades que você pode
+                    acompanhar.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <label className="flex min-w-[190px] flex-col gap-1 text-xs font-medium text-muted-foreground">
+                    Pessoa da equipe
+                    <select
+                      value={selectedDemandUserId ?? "all"}
+                      onChange={(event) => {
+                        setSelectedDemandUserId(
+                          event.target.value === "all" ? null : event.target.value,
+                        );
+                        setSelectedDemandClientId(null);
+                      }}
+                      className="h-10 rounded-lg border bg-background px-3 text-sm font-medium text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <option value="all">Toda a equipe</option>
+                      {teamOverview.members.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex min-w-[150px] flex-col gap-1 text-xs font-medium text-muted-foreground">
+                    Situação
+                    <select
+                      value={selectedDemandStatus}
+                      onChange={(event) => {
+                        setSelectedDemandStatus(event.target.value as ClientDemandStatus);
+                        setSelectedDemandClientId(null);
+                      }}
+                      className="h-10 rounded-lg border bg-background px-3 text-sm font-medium text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <option value="open">Em aberto</option>
+                      <option value="done">Concluídas</option>
+                      <option value="all">Todas</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-5 pt-4 text-xs text-muted-foreground sm:px-6">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-blue-600" /> Cards principais
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-violet-500" /> Subtarefas
+                </span>
+                <span className="ml-auto">Clique em um cliente para ver a composição</span>
+              </div>
+              {tasksQuery.isLoading || subtasksQuery.isLoading || clientsQuery.isLoading ? (
+                <p className="px-6 py-10 text-sm text-muted-foreground">
+                  Carregando demanda por cliente...
+                </p>
+              ) : clientDemand.length === 0 ? (
+                <p className="px-6 py-10 text-sm text-muted-foreground">
+                  Nenhuma atividade encontrada para essa pessoa neste ambiente.
+                </p>
+              ) : (
+                <div className="max-h-[38rem] space-y-1 overflow-y-auto px-3 pb-5 pt-3 sm:px-4">
+                  {clientDemand.map((row) => {
+                    const total = row.taskCount + row.subtaskCount;
+                    return (
+                      <button
+                        key={row.id}
+                        type="button"
+                        aria-pressed={selectedDemandClientId === row.id}
+                        aria-label={`${row.name}: ${row.taskCount} cards principais e ${row.subtaskCount} subtarefas. Ver atividades.`}
+                        onClick={() =>
+                          setSelectedDemandClientId((id) => (id === row.id ? null : row.id))
+                        }
+                        className={`w-full rounded-xl px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${selectedDemandClientId === row.id ? "bg-primary/5 ring-1 ring-primary/30" : "hover:bg-muted/50"}`}
+                      >
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="min-w-0 truncate text-sm font-semibold">{row.name}</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
+                            {total}
+                          </span>
+                        </span>
+                        <span className="mt-2.5 flex h-4 w-full overflow-hidden rounded-full bg-muted/80">
+                          <span
+                            className="flex h-full overflow-hidden rounded-full"
+                            style={{ width: `${(total / demandMax) * 100}%` }}
+                          >
+                            {row.taskCount > 0 && (
+                              <span
+                                className="h-full bg-blue-600"
+                                style={{ flex: row.taskCount }}
+                              />
+                            )}
+                            {row.subtaskCount > 0 && (
+                              <span
+                                className="h-full bg-violet-500"
+                                style={{ flex: row.subtaskCount }}
+                              />
+                            )}
+                          </span>
+                        </span>
+                        <span className="mt-1.5 block text-xs text-muted-foreground">
+                          {row.taskCount} {row.taskCount === 1 ? "card" : "cards"} ·{" "}
+                          {row.subtaskCount} {row.subtaskCount === 1 ? "subtarefa" : "subtarefas"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+
+            {selectedDemandClient && (
+              <Card className="overflow-hidden">
+                <div className="flex items-start justify-between gap-3 border-b px-5 py-4 sm:px-6">
+                  <div>
+                    <h3 className="font-semibold">Atividades · {selectedDemandClient.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedDemandClient.taskCount} cards principais e{" "}
+                      {selectedDemandClient.subtaskCount} subtarefas.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDemandClientId(null)}
+                    aria-label="Fechar atividades do cliente"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="max-h-96 divide-y overflow-y-auto">
+                  {[...selectedDemandClient.items]
+                    .sort(
+                      (a, b) =>
+                        Number(a.done) - Number(b.done) || a.title.localeCompare(b.title, "pt-BR"),
+                    )
+                    .map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          const task = tasks.find((candidate) => candidate.id === item.taskId);
+                          if (task) openTask(task);
+                        }}
+                        className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-6"
+                      >
+                        <span
+                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${item.kind === "task" ? "bg-blue-600" : "bg-violet-500"}`}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{item.title}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {item.kind === "task"
+                              ? "Card principal"
+                              : `Subtarefa · ${item.parentTitle}`}
+                          </span>
+                        </span>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-1 text-xs ${item.done ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}
+                        >
+                          {item.done ? "Concluída" : "Em aberto"}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </Card>
+            )}
+
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+              <Card className="overflow-hidden">
+                <div className="flex items-start gap-3 border-b px-5 py-5 sm:px-6">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                    <UsersRound className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Quem está fazendo o quê</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Clique em uma pessoa para abrir as atividades visíveis dela.
+                    </p>
+                  </div>
+                </div>
+                {tasksQuery.isLoading ||
+                subtasksQuery.isLoading ||
+                assignableProfilesQuery.isLoading ? (
+                  <p className="px-6 py-8 text-sm text-muted-foreground">
+                    Carregando atividades da equipe...
+                  </p>
+                ) : teamOverview.members.length === 0 ? (
+                  <p className="px-6 py-8 text-sm text-muted-foreground">
+                    Ainda não há tarefas ou subtarefas atribuídas às pessoas nas atividades que você
+                    pode acompanhar.
+                  </p>
+                ) : (
+                  <div className="divide-y">
+                    {teamOverview.members.map((member) => {
+                      const done = member.tasksDone + member.subtasksDone;
+                      const total = done + member.tasksOpen + member.subtasksOpen;
+                      return (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTeamMember((id) => (id === member.id ? null : member.id));
+                            setSelectedMetric(null);
+                          }}
+                          aria-pressed={selectedTeamMember === member.id}
+                          className="w-full px-5 py-4 text-left transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-6"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                              {member.name.trim().charAt(0).toUpperCase()}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="truncate font-semibold">{member.name}</span>
+                                <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                              </div>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {member.tasksDone} tarefas e {member.subtasksDone} subtarefas
+                                concluídas
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center gap-3 pl-[52px]">
+                            <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full rounded-full bg-emerald-500"
+                                style={{ width: `${total ? (done / total) * 100 : 0}%` }}
+                              />
+                            </div>
+                            <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                              {total - done} em aberto
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              <Card className="overflow-hidden">
+                <div className="flex items-start gap-3 border-b px-5 py-5 sm:px-6">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Entregas recentes</h3>
+                    <p className="text-sm text-muted-foreground">
+                      O que foi concluído nas atividades acessíveis a você.
+                    </p>
+                  </div>
+                </div>
+                {teamOverview.recentCompletions.length === 0 ? (
+                  <p className="px-6 py-8 text-sm text-muted-foreground">
+                    Ainda não há conclusões registradas para mostrar.
+                  </p>
+                ) : (
+                  <div className="max-h-[34rem] divide-y overflow-y-auto">
+                    {teamOverview.recentCompletions.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          const task = tasks.find((candidate) => candidate.id === item.taskId);
+                          if (task) openTask(task);
+                        }}
+                        className="flex w-full items-start gap-3 px-5 py-3.5 text-left transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-6"
+                      >
+                        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          <CheckCircle2 className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium">{item.title}</span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground">
+                            {item.kind === "subtask"
+                              ? `Subtarefa de ${item.parentTitle} · `
+                              : "Tarefa · "}
+                            {item.personName}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {format(parseISO(item.completedAt), "dd MMM", { locale: ptBR })}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            {selectedMember && (
+              <Card className="overflow-hidden">
+                <div className="flex items-center justify-between gap-3 border-b px-5 py-4 sm:px-6">
+                  <div>
+                    <h3 className="font-semibold">Atividades de {selectedMember.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Tarefas e subtarefas atribuídas diretamente a esta pessoa.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTeamMember(null)}
+                    aria-label="Fechar atividades da pessoa"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="max-h-96 divide-y overflow-y-auto">
+                  {teamMemberActivities.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        const task = tasks.find((candidate) => candidate.id === item.taskId);
+                        if (task) openTask(task);
+                      }}
+                      className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-6"
+                    >
+                      <span
+                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${item.done ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"}`}
+                      >
+                        {item.done ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          <Clock className="h-4 w-4" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{item.title}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {item.kind}
+                          {item.parentTitle ? ` · ${item.parentTitle}` : ""}
+                        </span>
+                      </span>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-1 text-xs ${item.done ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}
+                      >
+                        {item.done ? "Concluída" : "Em aberto"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </section>
+        )}
+        <TaskPreviewDialog
+          task={visibleMarketingPreviewTask}
+          clientsById={clientsById}
+          profilesById={profilesById}
+          onOpenChange={(open) => { if (!open) setMarketingPreviewTask(null); }}
+        />
       </div>
     );
   }
