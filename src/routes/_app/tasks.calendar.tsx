@@ -69,7 +69,7 @@ import {
 } from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
 import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
-import { teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
+import { defaultsToOwnAssignee, defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
@@ -92,7 +92,13 @@ function CalendarPage() {
   const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const { user, isCollaborator, isClient, activeWorkspace, workspaces } = useAuth();
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<TaskFilterValue>({});
+  const [filters, setFilters] = useState<TaskFilterValue>(() =>
+    defaultsToOwnScope(user?.id)
+      ? { scope: "mine" }
+      : defaultsToOwnAssignee(user?.id, teamVisibilityWorkspaceId)
+        ? { assignee: user!.id }
+        : {},
+  );
   // O calendário acompanha o ambiente escolhido no filtro sem trocar o
   // ambiente ativo da sessão administrativa.
   const viewedWorkspaceId = filters.workspace;
@@ -218,8 +224,18 @@ function CalendarPage() {
 
   useEffect(() => {
     if (!user?.id) return;
-    if (isCollaborator) {
-      if (!teamVisibilityWorkspaceId) setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
+    if (defaultsToOwnScope(user.id)) {
+      if (!didApplyDefaultAssignee.current) {
+        setFilters((current) => ({ ...current, scope: current.scope ?? "mine" }));
+        didApplyDefaultAssignee.current = true;
+      }
+      return;
+    }
+    if (isCollaborator && !defaultsToOwnAssignee(user.id, teamVisibilityWorkspaceId)) {
+      if (!teamVisibilityWorkspaceId) {
+        didApplyDefaultAssignee.current = false;
+        setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
+      }
       return;
     }
     if (didApplyDefaultAssignee.current) return;

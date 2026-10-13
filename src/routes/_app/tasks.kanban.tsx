@@ -76,7 +76,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
-import { teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
+import { defaultsToOwnAssignee, defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import {
   useTasks,
   useColumns,
@@ -380,7 +380,13 @@ function KanbanPage() {
   const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const qc = useQueryClient();
   const { user, isAdmin, isCollaborator, activeWorkspace, workspaces } = useAuth();
-  const [filters, setFilters] = useState<TaskFilterValue>({});
+  const [filters, setFilters] = useState<TaskFilterValue>(() =>
+    defaultsToOwnScope(user?.id)
+      ? { scope: "mine" }
+      : defaultsToOwnAssignee(user?.id, teamVisibilityWorkspaceId)
+        ? { assignee: user!.id }
+        : {},
+  );
   // O filtro permite ao administrador inspecionar outro ambiente sem trocar o
   // ambiente ativo exibido no topo. Os dados auxiliares acompanham a escolha,
   // para que colunas, status e clientes sejam os do quadro visualizado.
@@ -488,8 +494,18 @@ function KanbanPage() {
 
   useEffect(() => {
     if (!user?.id) return;
-    if (isCollaborator) {
-      if (!teamVisibilityWorkspaceId) setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
+    if (defaultsToOwnScope(user.id)) {
+      if (!didApplyDefaultAssignee.current) {
+        setFilters((current) => ({ ...current, scope: current.scope ?? "mine" }));
+        didApplyDefaultAssignee.current = true;
+      }
+      return;
+    }
+    if (isCollaborator && !defaultsToOwnAssignee(user.id, teamVisibilityWorkspaceId)) {
+      if (!teamVisibilityWorkspaceId) {
+        didApplyDefaultAssignee.current = false;
+        setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
+      }
       return;
     }
     if (didApplyDefaultAssignee.current) return;

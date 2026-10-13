@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { plainTextForClipboard } from "@/lib/rich-text-clipboard";
 import { htmlHasMeaningfulText, plainTextToEditorHtml, richTextPasteContent } from "@/lib/rich-text-paste";
 import { linkifyTextNodes } from "@/lib/text-links";
+import { linkifyEditorDocument } from "@/lib/editor-links";
 
 const UnderlineMark = Mark.create({
   name: "underline",
@@ -423,7 +424,11 @@ export function RichTextEditor({
       },
     },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
-    onBlur: () => onBlur?.(),
+    onBlur: ({ editor }) => {
+      const linkedContent = linkifyEditorDocument(editor.getJSON());
+      if (linkedContent) editor.commands.setContent(linkedContent, { emitUpdate: false });
+      onBlur?.();
+    },
   });
 
   const insertPastedImages = useCallback((files: File[]) => {
@@ -453,11 +458,13 @@ export function RichTextEditor({
   }, [editor]);
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isFocused) return;
     const current = editor.getHTML();
-    if (value !== current && !editor.isFocused) {
+    if (value !== current) {
       editor.commands.setContent(value || "", { emitUpdate: false });
     }
+    const linkedContent = linkifyEditorDocument(editor.getJSON());
+    if (linkedContent) editor.commands.setContent(linkedContent, { emitUpdate: false });
   }, [value, editor]);
 
   useEffect(() => {

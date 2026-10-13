@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyTaskFilters } from "./TaskFilters";
 import { completedSubtaskFilterTask, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
+import { defaultsToOwnAssignee, defaultsToOwnScope } from "@/lib/team-task-visibility";
 import type { Subtask, Task } from "@/hooks/use-data";
 
 const USER = "user-1";
@@ -19,6 +20,50 @@ const task = (id: string, assignee_id: string | null = null) => ({
 });
 
 describe("applyTaskFilters: tarefas da pessoa", () => {
+  it("starts Carol on her own Marketing work, including subtasks, without removing team access", () => {
+    const carol = "3a93e438-1f3f-42f9-aea4-d22d227e1ea1";
+    const tasks = [
+      { ...task("own", carol), workspace_id: "marketing" },
+      { ...task("own-subtask-parent", OTHER), workspace_id: "marketing" },
+      { ...task("other", OTHER), workspace_id: "marketing" },
+    ];
+    const opts = {
+      userId: carol,
+      restrictToCurrentUserParticipation: true,
+      teamVisibilityWorkspaceId: "marketing",
+      subtaskAssigneeTaskIdsByUser: new Map([[carol, new Set(["own-subtask-parent"])]]),
+    };
+    const initialFilters = defaultsToOwnAssignee(carol, opts.teamVisibilityWorkspaceId)
+      ? { assignee: carol }
+      : {};
+    expect(applyTaskFilters(tasks, initialFilters, opts).map((item) => item.id)).toEqual([
+      "own", "own-subtask-parent",
+    ]);
+    expect(applyTaskFilters(tasks, {}, opts).map((item) => item.id)).toEqual([
+      "own", "own-subtask-parent", "other",
+    ]);
+  });
+  it("defaults Eloisa to her assignments while retaining team browsing on clear", () => {
+    const eloisa = "0463e2ec-c7fe-4ba3-8df1-1f1ee0093e79";
+    const tasks = [
+      { ...task("own", eloisa), workspace_id: "marketing" },
+      { ...task("other", OTHER), workspace_id: "marketing" },
+    ];
+    const opts = { userId: eloisa, restrictToCurrentUserParticipation: true, teamVisibilityWorkspaceId: "marketing" };
+    expect(applyTaskFilters(tasks, defaultsToOwnAssignee(eloisa, "marketing") ? { assignee: eloisa } : {}, opts).map((item) => item.id)).toEqual(["own"]);
+    expect(applyTaskFilters(tasks, {}, opts).map((item) => item.id)).toEqual(["own", "other"]);
+  });
+  it("defaults Amanda to her personal scope without broadening or removing access", () => {
+    const amanda = "0140bc01-2798-4616-9903-50bc191ce9ef";
+    const tasks = [
+      { ...task("own", amanda), workspace_id: "marketing" },
+      { ...task("collaborating", OTHER), workspace_id: "marketing" },
+      { ...task("other", OTHER), workspace_id: "marketing" },
+    ];
+    const opts = { userId: amanda, restrictToCurrentUserParticipation: true, collaboratorTaskIds: new Set(["collaborating"]) };
+    expect(applyTaskFilters(tasks, defaultsToOwnScope(amanda) ? { scope: "mine" } : {}, opts).map((item) => item.id)).toEqual(["own", "collaborating"]);
+    expect(applyTaskFilters(tasks, {}, opts).map((item) => item.id)).toEqual(["own", "collaborating"]);
+  });
   it("unlocks another person's tasks only in the granted workspace, not shared external tasks", () => {
     const tasks = [
       { ...task("team", OTHER), workspace_id: "marketing" },

@@ -18,7 +18,7 @@ import {
 } from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
 import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
-import { teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
+import { defaultsToOwnAssignee, defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
@@ -48,8 +48,15 @@ export const Route = createFileRoute("/_app/tasks/list")({
 function ListPage() {
   const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const search = Route.useSearch();
+  const { user, isCollaborator, workspaces } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
-    search.mine ? { scope: "mine" } : {},
+    search.mine
+      ? { scope: "mine" }
+      : defaultsToOwnScope(user?.id)
+        ? { scope: "mine" }
+        : defaultsToOwnAssignee(user?.id, teamVisibilityWorkspaceId)
+          ? { assignee: user!.id }
+          : {},
   );
   const viewedWorkspaceId = filters.workspace;
   const { data: tasks = [] } = useTasks(viewedWorkspaceId);
@@ -60,7 +67,6 @@ function ListPage() {
   const { data: statuses = [] } = useTaskStatuses(viewedWorkspaceId);
   const { data: collaborators = [] } = useTaskCollaborators();
   const queryClient = useQueryClient();
-  const { user, isCollaborator, workspaces } = useAuth();
   const navigate = useNavigate();
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
@@ -76,10 +82,20 @@ function ListPage() {
 
   useEffect(() => {
     if (!user?.id) return;
-    if (isCollaborator) {
-      if (!teamVisibilityWorkspaceId) setFilters((current) =>
-        current.assignee ? { ...current, assignee: undefined } : current,
-      );
+    if (defaultsToOwnScope(user.id)) {
+      if (!didApplyDefaultAssignee.current) {
+        setFilters((current) => ({ ...current, scope: current.scope ?? "mine" }));
+        didApplyDefaultAssignee.current = true;
+      }
+      return;
+    }
+    if (isCollaborator && !defaultsToOwnAssignee(user.id, teamVisibilityWorkspaceId)) {
+      if (!teamVisibilityWorkspaceId) {
+        didApplyDefaultAssignee.current = false;
+        setFilters((current) =>
+          current.assignee ? { ...current, assignee: undefined } : current,
+        );
+      }
       return;
     }
     if (didApplyDefaultAssignee.current) return;
