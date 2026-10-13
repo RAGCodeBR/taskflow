@@ -59,6 +59,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { NotesWorkspace } from "@/routes/_app/notes";
 import { FileDropZone } from "@/components/FileDropZone";
 import { ClientFilesManager } from "@/components/ClientFilesManager";
+import { ClientImportantDates } from "@/components/ClientImportantDates";
 import { TaskDialog } from "@/components/TaskDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { toJpeg } from "html-to-image";
@@ -789,14 +790,15 @@ function EditClientPage() {
 
       <Card className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="h-auto flex-wrap justify-start">
-            <TabsTrigger value="client">Dados do cliente</TabsTrigger>
-            <TabsTrigger value="branches">Outras unidades</TabsTrigger>
-            <TabsTrigger value="departments">Departamentos</TabsTrigger>
-            <TabsTrigger value="system">Sistemas</TabsTrigger>
-            <TabsTrigger value="notes">Anotações</TabsTrigger>
-            <TabsTrigger value="attachments">Anexos</TabsTrigger>
-            <TabsTrigger value="archived-tasks">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl p-1.5 sm:grid-cols-4">
+            <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="client">Dados do cliente</TabsTrigger>
+            <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="important-dates">Datas importantes</TabsTrigger>
+            <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="branches">Outras unidades</TabsTrigger>
+            <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="departments">Departamentos</TabsTrigger>
+            <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="system">Sistemas</TabsTrigger>
+            <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="notes">Anotações</TabsTrigger>
+            <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="attachments">Anexos</TabsTrigger>
+            <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="archived-tasks">
               Tarefas arquivadas ({archivedTasks.length})
             </TabsTrigger>
           </TabsList>
@@ -926,6 +928,10 @@ function EditClientPage() {
                 </Button>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="important-dates" className="mt-6">
+            <ClientImportantDates clientId={clientId} />
           </TabsContent>
 
           <TabsContent value="branches" className="mt-6 space-y-4">

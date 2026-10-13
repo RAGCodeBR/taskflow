@@ -446,6 +446,44 @@ export type Database = {
         }
         Relationships: []
       }
+      client_important_dates: {
+        Row: {
+          id: string
+          client_id: string
+          title: string
+          event_date: string
+          recurrence: "annual" | "once"
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          title: string
+          event_date: string
+          recurrence?: "annual" | "once"
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          title?: string
+          event_date?: string
+          recurrence?: "annual" | "once"
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_important_dates_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_departments: {
         Row: {
           id: string
@@ -1380,6 +1418,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      list_workspace_client_important_dates_for_admin_preview: {
+        Args: { target_workspace_id: string }
+        Returns: Database["public"]["Tables"]["client_important_dates"]["Row"][]
+      }
       admin_get_profile_emails: {
         Args: never
         Returns: {

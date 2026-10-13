@@ -28,9 +28,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AgendaEventDialog } from "@/components/AgendaEventDialog";
+import { CalendarOccasionMarkers } from "@/components/CalendarOccasionMarkers";
+import { calendarOccasionsForDay } from "@/lib/calendar-occasions";
+import { useClientImportantDates } from "@/hooks/use-client-important-dates";
 import {
   useAgendaCalendarSources,
   useAgendaEvents,
+  useClients,
   useGoogleCalendarConnection,
   hasGoogleMeetPermissions,
   hasGoogleMeetFilePermission,
@@ -66,6 +70,9 @@ function AgendaPage() {
   const agendaRangeStart = useMemo(() => startOfDay(weekStart).toISOString(), [weekStart]);
   const agendaRangeEnd = useMemo(() => endOfDay(addDays(weekStart, 6)).toISOString(), [weekStart]);
   const { data: events = [], isLoading, error } = useAgendaEvents(agendaRangeStart, agendaRangeEnd);
+  const { data: clients = [] } = useClients();
+  const { data: importantDates = [] } = useClientImportantDates();
+  const clientNames = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const { data: calendarSources = [] } = useAgendaCalendarSources();
   const { user } = useAuth();
   const { data: googleConnection, isLoading: loadingGoogle } = useGoogleCalendarConnection();
@@ -530,11 +537,14 @@ function AgendaPage() {
                 <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                   {DAYS[index]}
                 </div>
-                <span
-                  className={`mx-auto mt-1 grid h-9 w-9 place-items-center rounded-full text-xl ${isToday(day) ? "bg-primary font-semibold text-primary-foreground" : ""}`}
-                >
-                  {format(day, "d")}
-                </span>
+                <div className="mt-1 flex min-w-0 flex-wrap items-center justify-center gap-1">
+                  <span
+                    className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xl ${isToday(day) ? "bg-primary font-semibold text-primary-foreground" : ""}`}
+                  >
+                    {format(day, "d")}
+                  </span>
+                  <CalendarOccasionMarkers occasions={calendarOccasionsForDay(day, importantDates, clientNames)} />
+                </div>
                 <div className="mt-1 space-y-1 text-left">
                   {allDayEventsForDay(day)
                     .slice(0, 2)

@@ -5,6 +5,18 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows recurring and one-time client dates without hiding task cards", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "client-important-dates" }));
+    expect(html).toContain("Todo ano");
+    expect(html).toContain("Uma única vez");
+    expect(html).toContain("Feriado · Nossa Senhora Aparecida");
+    expect(html).toContain("Revisar campanha");
+    expect(html).toContain("Data ao lado do dia quando couber");
+    expect(html).toContain("Abas do cliente organizadas em duas linhas");
+    expect(html).toContain("Arquivadas");
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+  });
   it("shows the subtask owner's ranking and the separate summary counters", () => {
     const html = renderToStaticMarkup(
       createElement(AppUpdatePreview, { kind: "report-subtask-metrics" }),

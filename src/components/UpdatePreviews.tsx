@@ -3,6 +3,8 @@ import {
   ArrowRight,
   Bell,
   CalendarDays,
+  CalendarHeart,
+  Flag,
   ImagePlus,
   LayoutDashboard,
   Link2,
@@ -114,6 +116,38 @@ function MemberTeamDashboardPreview() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ClientImportantDatesPreview() {
+  return (
+    <PreviewGrid label="Prévia das datas dos clientes e feriados nos calendários">
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="flex items-center gap-1 font-semibold"><CalendarHeart className="h-3 w-3 text-amber-600" />Cliente · Datas importantes</p>
+        <div className="mt-2 grid grid-cols-4 gap-0.5 rounded-lg bg-muted p-1 text-center text-[8px]" aria-label="Abas do cliente organizadas em duas linhas">
+          {["Dados", "Datas", "Unidades", "Deptos.", "Sistemas", "Notas", "Anexos", "Arquivadas"].map((tab) => (
+            <span key={tab} className={`min-w-0 truncate rounded px-0.5 py-1 ${tab === "Datas" ? "bg-background font-semibold text-foreground shadow-sm" : "text-muted-foreground"}`}>{tab}</span>
+          ))}
+        </div>
+        <div className="mt-2 rounded-md border bg-muted/20 p-2">
+          <p className="font-medium">Aniversário da fundadora</p>
+          <p className="text-muted-foreground">18 de outubro · Todo ano</p>
+        </div>
+        <div className="mt-1 rounded-md border bg-muted/20 p-2">
+          <p className="font-medium">Lançamento especial</p>
+          <p className="text-muted-foreground">22 de outubro de 2026 · Uma única vez</p>
+        </div>
+      </div>
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="flex items-center gap-1 font-semibold"><CalendarDays className="h-3 w-3" />Calendários · Outubro</p>
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full font-semibold">12</span>
+          <span className="flex max-w-full items-center gap-1 rounded-md border border-sky-200 bg-sky-50/80 px-1.5 py-0.5 text-sky-800"><Flag className="h-2.5 w-2.5 shrink-0" />Feriado · Nossa Senhora Aparecida</span>
+        </div>
+        <div className="mt-1.5 rounded-md bg-primary px-2 py-1.5 text-primary-foreground">Revisar campanha</div>
+        <p className="mt-2 text-muted-foreground">Data ao lado do dia quando couber; senão, abaixo. As tarefas permanecem visíveis.</p>
+      </div>
+    </PreviewGrid>
   );
 }
 
@@ -955,6 +989,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "client-important-dates": ClientImportantDatesPreview,
   "member-team-dashboard": MemberTeamDashboardPreview,
   "report-subtask-metrics": ReportSubtaskMetricsPreview,
   "meeting-empty-close": MeetingEmptyClosePreview,

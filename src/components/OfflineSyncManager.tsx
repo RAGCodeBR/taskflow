@@ -350,6 +350,9 @@ export function OfflineSyncManager() {
         await Promise.all([
           ...(operations.some(operation => operation.entity === "task_pin") ? [queryClient.invalidateQueries({ queryKey: ["task_personal_pins"] })] : []),
           ...(operations.some(operation => operation.entity === "task_open") ? [queryClient.invalidateQueries({ queryKey: ["task_card_opens"] })] : []),
+          ...(operations.some(operation => operation.entity === "record" && operation.payload.table === "client_important_dates")
+            ? [queryClient.invalidateQueries({ queryKey: ["client-important-dates"] })]
+            : []),
           ...(visibleSynced > 0 ? [
             queryClient.invalidateQueries({ queryKey: ["tasks"] }),
             queryClient.invalidateQueries({ queryKey: ["subtasks"] }),

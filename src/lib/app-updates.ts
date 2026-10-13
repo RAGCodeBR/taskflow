@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "client-important-dates"
   | "member-team-dashboard"
   | "report-subtask-metrics"
   | "meeting-empty-close"
@@ -39,6 +40,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "datas-importantes-e-feriados-nos-calendarios-2026-10-13",
+    title: "Datas importantes e feriados nos calendários",
+    date: "2026-10-13",
+    preview: "client-important-dates",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Na ficha de cada cliente, as abas ficam distribuídas de forma equilibrada. Datas importantes permite cadastrar, editar e excluir datas anuais ou de uma única ocorrência.",
+      "Feriados nacionais e datas dos clientes aparecem em marcadores discretos ao lado do número do dia quando houver espaço, ou abaixo dele, sem ocultar tarefas.",
+      "Quando há várias datas no mesmo dia, o indicador + mostra a lista completa. Datas anuais reaparecem nos anos seguintes; feriados nacionais fixos e a Paixão de Cristo são calculados por ano.",
+    ],
+  },
   {
     id: "dashboard-equipe-colaboradores-2026-10-11",
     title: "Dashboard da equipe e demanda por cliente",

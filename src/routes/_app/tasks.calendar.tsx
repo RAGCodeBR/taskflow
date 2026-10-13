@@ -39,6 +39,9 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { usePersonalTaskPins } from "@/hooks/use-task-card-activity";
 import { pendingPersonalPriorities } from "@/lib/task-card-activity";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
+import { CalendarOccasionMarkers } from "@/components/CalendarOccasionMarkers";
+import { calendarOccasionsForDay } from "@/lib/calendar-occasions";
+import { useClientImportantDates } from "@/hooks/use-client-important-dates";
 import { CalendarSubtaskItem, CalendarTaskGroup } from "@/components/CalendarTaskGroup";
 import { calendarTaskEntriesForDay, completedPersonalSubtaskEntriesForDay } from "@/lib/calendar-task-entries";
 import { completedSubtasksForUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
@@ -96,6 +99,8 @@ function CalendarPage() {
   const { enabled: showSubtasks, setEnabled: setShowSubtasks } = useCalendarSubtasks(viewedWorkspaceId ?? activeWorkspace?.id);
   const { data: tasks = [] } = useTasks(viewedWorkspaceId);
   const { data: clients = [] } = useClients(viewedWorkspaceId);
+  const { data: importantDates = [] } = useClientImportantDates(viewedWorkspaceId);
+  const clientNames = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const { data: columns = [] } = useColumns(viewedWorkspaceId);
   const { data: subtasks = [], isLoading: subtasksLoading, isError: subtasksError } = useSubtasks();
   const subtasksByTaskId = useMemo(() => {
@@ -558,6 +563,10 @@ function CalendarPage() {
               const inMonth = calendarView === "week" || isSameMonth(day, cursor);
               const today = isSameDay(day, new Date());
               const entries = dayEntries(day);
+              const selectedClientIds = filters.clients?.length ? filters.clients : filters.client ? [filters.client] : null;
+              const visibleDates = selectedClientIds
+                ? importantDates.filter((date) => selectedClientIds.includes(date.client_id))
+                : importantDates;
               return (
                 <CalendarDay
                   key={day.toISOString()}
@@ -566,10 +575,13 @@ function CalendarPage() {
                   disabled={!canReschedule || Boolean(reschedule) || savingDate}
                   className={`${calendarView === "week" ? "min-h-[26rem]" : "min-h-28"} border-b border-r p-2 ${inMonth ? "" : "bg-muted/20 text-muted-foreground"}`}
                 >
-                  <div
-                    className={`mb-1 inline-grid h-6 min-w-6 place-items-center rounded-full text-xs ${today ? "bg-primary text-primary-foreground font-semibold" : ""}`}
-                  >
-                    {format(day, "d")}
+                  <div className="mb-1 flex min-w-0 flex-wrap items-center gap-1">
+                    <div
+                      className={`inline-grid h-6 min-w-6 shrink-0 place-items-center rounded-full text-xs ${today ? "bg-primary text-primary-foreground font-semibold" : ""}`}
+                    >
+                      {format(day, "d")}
+                    </div>
+                    <CalendarOccasionMarkers occasions={calendarOccasionsForDay(day, visibleDates, clientNames)} />
                   </div>
                   <div className="space-y-1">
                     {entries.slice(0, 3).map((entry) => {
