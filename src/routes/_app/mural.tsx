@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { muralUnreadKey } from "@/hooks/use-mural-unread";
+import { isMuralPostCurrent } from "@/lib/mural-post-visibility";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export const Route = createFileRoute("/_app/mural")({
@@ -547,10 +548,18 @@ function MuralPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const [today, setToday] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  useEffect(() => {
+    const timer = window.setInterval(() => setToday(format(new Date(), "yyyy-MM-dd")), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const currentPosts = useMemo(
+    () => posts.filter((post) => isMuralPostCurrent(post.expires_at, today)),
+    [posts, today],
+  );
   const orderedPosts = useMemo(() => {
-    return posts
+    return currentPosts
       .filter((post) => {
-        if (post.expires_at && new Date(`${post.expires_at}T23:59:59`) < new Date()) return false;
         if (postFilter === "pinned") return post.is_pinned;
         if (postFilter === "open") return !post.completed_at;
         if (postFilter === "completed") return !!post.completed_at;
@@ -561,7 +570,7 @@ function MuralPage() {
         if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [posts, postFilter]);
+  }, [currentPosts, postFilter]);
   const openNewPost = () => {
     setEditingPost(null);
     setForm(emptyForm);
@@ -1032,12 +1041,12 @@ function MuralPage() {
         {[
           {
             label: "Recados em aberto",
-            value: posts.filter((post) => !post.completed_at).length,
+            value: currentPosts.filter((post) => !post.completed_at).length,
             tone: "bg-[#fff0cf] text-[#3d3d32]",
           },
           {
             label: "Recados fixados",
-            value: posts.filter((post) => post.is_pinned && !post.completed_at).length,
+            value: currentPosts.filter((post) => post.is_pinned && !post.completed_at).length,
             tone: "bg-[#dff2fa] text-[#304248]",
           },
           {
@@ -1047,7 +1056,7 @@ function MuralPage() {
           },
           {
             label: "Recados concluídos",
-            value: posts.filter((post) => !!post.completed_at).length,
+            value: currentPosts.filter((post) => !!post.completed_at).length,
             tone: "bg-[#f8e1ef] text-[#493742]",
           },
         ].map((metric) => (
