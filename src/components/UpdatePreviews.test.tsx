@@ -5,6 +5,16 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows the loaded collaborator selection and the refreshed task list", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "collaborator-sync" }),
+    );
+    expect(html).toContain("Participantes carregados antes de salvar.");
+    expect(html).toContain("Você foi adicionada como colaboradora.");
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+  });
+
   it("shows recurring and one-time client dates without hiding task cards", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "client-important-dates" }));
     expect(html).toContain("Todo ano");

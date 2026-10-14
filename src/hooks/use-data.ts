@@ -1,4 +1,4 @@
-﻿import { useEffect } from "react";
+﻿import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { get, set } from "idb-keyval";
 import { offlineTaskCacheKey } from "@/lib/offline-user-storage";
@@ -603,12 +603,18 @@ export function useAssignableProfiles(targetWorkspaceId?: string | null) {
 
 export function useTaskCollaborators() {
   const { user, activeWorkspace } = useAuth();
-  return useQuery({
+  const qc = useQueryClient();
+  const previousOwnTasks = useRef<{ scope: string; ids: string } | null>(null);
+  const query = useQuery({
     // This list feeds the "Atribuídas a mim" filter. Scope it exactly like
     // tasks so collaborator-only assignments are never read from a stale user
     // or workspace cache.
     queryKey: ["task_collaborators", user?.id ?? null, activeWorkspace?.id ?? null],
     enabled: !!user?.id,
+    // Outra pessoa pode adicionar/remover um participante enquanto esta aba
+    // permanece aberta. Atualize sem exigir recarga manual.
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: "always",
     queryFn: async () => {
       const { data, error } = await (supabase.from("task_collaborators") as any).select(
         "task_id, collaborator_id, added_by, created_at",
@@ -617,6 +623,25 @@ export function useTaskCollaborators() {
       return (data ?? []) as TaskCollaborator[];
     },
   });
+
+  useEffect(() => {
+    if (!user?.id || !query.data) return;
+    const scope = `${user.id}:${activeWorkspace?.id ?? ""}`;
+    const ids = query.data
+      .filter((item) => item.collaborator_id === user.id)
+      .map((item) => item.task_id)
+      .sort()
+      .join("|");
+    const previous = previousOwnTasks.current;
+    previousOwnTasks.current = { scope, ids };
+    // Novos vínculos podem liberar tarefas antes invisíveis pela RLS. Releia
+    // também os cards, além da lista de participantes, quando isso acontecer.
+    if (previous?.scope === scope && previous.ids !== ids) {
+      void qc.invalidateQueries({ queryKey: ["tasks", user.id] });
+    }
+  }, [activeWorkspace?.id, qc, query.data, user?.id]);
+
+  return query;
 }
 
 export function useTaskTags(workspaceId?: string | null) {

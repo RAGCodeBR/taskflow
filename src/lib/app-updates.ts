@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "collaborator-sync"
   | "client-important-dates"
   | "member-team-dashboard"
   | "report-subtask-metrics"
@@ -40,6 +41,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "colaboradores-salvos-e-tarefas-atualizadas-2026-10-14",
+    title: "Colaboradores salvos com segurança",
+    date: "2026-10-14",
+    preview: "collaborator-sync",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ao abrir uma tarefa existente, a lista de colaboradores é carregada antes de permitir salvar. Se a leitura falhar, é possível tentar novamente sem substituir os participantes por uma lista vazia.",
+      "As tarefas atribuídas a você como colaborador são verificadas periodicamente enquanto a tela está aberta e novamente ao voltar para a aba. Novas atribuições aparecem sem recarga manual.",
+    ],
+  },
   {
     id: "datas-importantes-e-feriados-nos-calendarios-2026-10-13",
     title: "Datas importantes e feriados nos calendários",

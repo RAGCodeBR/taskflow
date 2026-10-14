@@ -33,6 +33,32 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function CollaboratorSyncPreview() {
+  return (
+    <PreviewGrid label="Prévia dos colaboradores preservados e da tarefa atualizada para o participante">
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="mb-2 text-[11px] font-semibold">Editar tarefa · Colaboradores</p>
+        <div className="rounded-lg border p-2.5">
+          <p className="text-muted-foreground">Colaboradores</p>
+          <div className="mt-1.5 flex items-center justify-between rounded-md border bg-muted/30 px-2 py-1.5">
+            <span>2 selecionados</span>
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+          </div>
+          <p className="mt-2 text-muted-foreground">Participantes carregados antes de salvar.</p>
+        </div>
+      </div>
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="mb-2 text-[11px] font-semibold">Minhas tarefas · Atribuídas a mim</p>
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-emerald-900">
+          <p className="font-medium">Revisar campanha</p>
+          <p className="mt-1">Você foi adicionada como colaboradora.</p>
+        </div>
+        <p className="mt-2 text-muted-foreground">A lista recebe novas atribuições automaticamente.</p>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function MemberTeamDashboardPreview() {
   return (
     <div
@@ -989,6 +1015,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "collaborator-sync": CollaboratorSyncPreview,
   "client-important-dates": ClientImportantDatesPreview,
   "member-team-dashboard": MemberTeamDashboardPreview,
   "report-subtask-metrics": ReportSubtaskMetricsPreview,

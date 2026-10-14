@@ -71,6 +71,7 @@ import {
 } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isNetworkFailure, isOffline } from "@/lib/offline-sync";
 import { persistTaskEdit, taskEditError, taskEditPatch } from "@/lib/task-edit";
+import { taskCollaboratorChanges } from "@/lib/task-collaborator-changes";
 import { useRecordTaskCardOpen } from "@/hooks/use-task-card-activity";
 import { TaskCardOpenings, TaskPinButton } from "@/components/TaskCardActivity";
 
@@ -226,6 +227,12 @@ export function TaskDialog({
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>([]);
+  const [collaboratorLoad, setCollaboratorLoad] = useState<{
+    taskId: string;
+    status: "loading" | "ready" | "error";
+    loadedIds?: string[];
+  } | null>(null);
+  const [collaboratorLoadAttempt, setCollaboratorLoadAttempt] = useState(0);
   const [collaboratorPickerOpen, setCollaboratorPickerOpen] = useState(false);
   const [collaboratorSearch, setCollaboratorSearch] = useState("");
   const [dueDate, setDueDate] = useState<string>("");
@@ -277,6 +284,8 @@ export function TaskDialog({
   // or an administrator may change the list of other participants.
   const canManageCollaborators =
     !task || !!isAdmin || task.created_by === user?.id || task.assignee_id === user?.id;
+  const collaboratorsReady =
+    !task || (collaboratorLoad?.taskId === task.id && collaboratorLoad.status === "ready");
   const canDeleteSubtask = (subtask: Subtask) =>
     !!isAdmin || subtask.assignee_id !== user?.id || task?.created_by === user?.id;
 
@@ -362,7 +371,6 @@ export function TaskDialog({
       setTargetWorkspaceId(task.workspace_id ?? activeWorkspace?.id ?? "");
       setClientId(task.client_id ?? "");
       setAssigneeId(task.assignee_id ?? "");
-      void loadCollaborators(task.id);
       setDueDate(task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : "");
       setDueTime(normalizeDueTime(task.due_time));
       setCompletionDate(task.completed_at ? format(new Date(task.completed_at), "yyyy-MM-dd") : "");
@@ -414,6 +422,36 @@ export function TaskDialog({
     defaults?.dueDate,
     defaults?.dueTime,
   ]);
+
+  useEffect(() => {
+    if (!open || !task?.id) {
+      setCollaboratorLoad(null);
+      return;
+    }
+    let cancelled = false;
+    const taskId = task.id;
+    setCollaboratorIds([]);
+    setCollaboratorLoad({ taskId, status: "loading" });
+    void (async () => {
+      const { data, error } = await (supabase.from("task_collaborators") as any)
+        .select("collaborator_id")
+        .eq("task_id", taskId);
+      if (cancelled) return;
+      if (error) {
+        setCollaboratorLoad({ taskId, status: "error" });
+        toast.error(taskEditError(error, "Não foi possível carregar os participantes da tarefa."));
+        return;
+      }
+      const loadedIds = (data ?? []).map(
+        (collaborator: { collaborator_id: string }) => collaborator.collaborator_id,
+      );
+      setCollaboratorIds(loadedIds);
+      setCollaboratorLoad({ taskId, status: "ready", loadedIds });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, task?.id, collaboratorLoadAttempt]);
 
   useEffect(() => {
     if (!open || activeTab !== "comments" || !currentTaskId) return;
@@ -519,32 +557,24 @@ export function TaskDialog({
     };
   }, [open, currentTaskId]);
 
-  const loadCollaborators = async (taskId: string) => {
-    const { data, error } = await (supabase.from("task_collaborators") as any)
-      .select("collaborator_id")
-      .eq("task_id", taskId);
-    if (error) {
-      toast.error(taskEditError(error, "Não foi possível carregar os participantes da tarefa."));
-      return;
-    }
-    setCollaboratorIds(
-      (data ?? []).map((collaborator: { collaborator_id: string }) => collaborator.collaborator_id),
-    );
-  };
-
   const syncCollaborators = async (taskId: string, client: typeof supabase = supabase) => {
     if (!canManageCollaborators) return;
+    if (task && (!collaboratorsReady || task.id !== taskId)) {
+      throw new Error("Aguarde carregar os colaboradores desta tarefa antes de salvar.");
+    }
     const { data, error: loadError } = await (client.from("task_collaborators") as any)
       .select("collaborator_id")
       .eq("task_id", taskId);
     if (loadError) throw loadError;
 
-    const existingIds = new Set<string>(
-      (data ?? []).map((collaborator: { collaborator_id: string }) => collaborator.collaborator_id),
+    const existingIds = (data ?? []).map(
+      (collaborator: { collaborator_id: string }) => collaborator.collaborator_id,
     );
-    const wantedIds = new Set<string>(collaboratorIds);
-    const removedIds = [...existingIds].filter((collaboratorId) => !wantedIds.has(collaboratorId));
-    const addedIds = [...wantedIds].filter((collaboratorId) => !existingIds.has(collaboratorId));
+    const { removedIds, addedIds } = taskCollaboratorChanges(
+      task ? collaboratorLoad?.loadedIds ?? [] : existingIds,
+      existingIds,
+      collaboratorIds,
+    );
 
     if (removedIds.length > 0) {
       const { error: deleteError } = await (client.from("task_collaborators") as any)
@@ -697,6 +727,10 @@ export function TaskDialog({
   };
 
   const saveDraft = async (showConversation = false): Promise<boolean> => {
+    if (task && !collaboratorsReady) {
+      toast.error("Aguarde carregar os colaboradores desta tarefa antes de salvar.");
+      return false;
+    }
     if (!title.trim() || !dueDate) {
       toast.error("Informe o título e o prazo para salvar a tarefa em elaboração.");
       return false;
@@ -849,6 +883,10 @@ export function TaskDialog({
   };
 
   const save = async () => {
+    if (task && !collaboratorsReady && !isOffline()) {
+      toast.error("Aguarde carregar os colaboradores desta tarefa antes de salvar.");
+      return;
+    }
     if (!title.trim()) {
       toast.error("Título é obrigatório");
       return;
@@ -1714,7 +1752,7 @@ export function TaskDialog({
                   <Button
                     variant="outline"
                     className="w-full justify-between font-normal"
-                    disabled={!canManageCollaborators}
+                    disabled={!canManageCollaborators || !collaboratorsReady}
                     title={
                       canManageCollaborators
                         ? undefined
@@ -1722,9 +1760,13 @@ export function TaskDialog({
                     }
                   >
                     <span className="truncate">
-                      {collaboratorIds.length === 0
-                        ? "Selecionar nomes"
-                        : `${collaboratorIds.length} selecionado${collaboratorIds.length === 1 ? "" : "s"}`}
+                      {!collaboratorsReady
+                        ? collaboratorLoad?.status === "error"
+                          ? "Não foi possível carregar"
+                          : "Carregando colaboradores..."
+                        : collaboratorIds.length === 0
+                          ? "Selecionar nomes"
+                          : `${collaboratorIds.length} selecionado${collaboratorIds.length === 1 ? "" : "s"}`}
                     </span>
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -1761,6 +1803,17 @@ export function TaskDialog({
                   </div>
                 </PopoverContent>
               </Popover>
+              {task && collaboratorLoad?.taskId === task.id && collaboratorLoad.status === "error" && (
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto px-0 text-xs"
+                  onClick={() => setCollaboratorLoadAttempt((attempt) => attempt + 1)}
+                >
+                  Tentar carregar colaboradores novamente
+                </Button>
+              )}
             </div>
             <div className="order-2 space-y-2">
               <Label className="text-xs">Status</Label>
@@ -1939,7 +1992,7 @@ export function TaskDialog({
                 variant="outline"
                 size="sm"
                 onClick={() => void saveDraft(true)}
-                disabled={saving || descriptionImagesUploading}
+                disabled={saving || descriptionImagesUploading || !collaboratorsReady}
               >
                 <MessageSquare className="mr-1.5 h-4 w-4" /> Abrir conversa
               </Button>
@@ -2370,7 +2423,7 @@ export function TaskDialog({
               {(!task || isDraft) && (
                 <Button
                   variant="outline"
-                  disabled={saving || descriptionImagesUploading}
+                  disabled={saving || descriptionImagesUploading || !collaboratorsReady}
                   onClick={() => void saveDraft().then((saved) => {
                     if (saved) onOpenChange(false);
                   })}
@@ -2378,7 +2431,10 @@ export function TaskDialog({
                   Salvar rascunho
                 </Button>
               )}
-              <Button onClick={save} disabled={saving || descriptionImagesUploading}>
+              <Button
+                onClick={save}
+                disabled={saving || descriptionImagesUploading || (!collaboratorsReady && !isOffline())}
+              >
                 {saving || descriptionImagesUploading
                   ? "Salvando…"
                   : isDraft
