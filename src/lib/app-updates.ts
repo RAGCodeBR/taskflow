@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "meeting-delete-history"
   | "collaborator-sync"
   | "client-important-dates"
   | "member-team-dashboard"
@@ -41,6 +42,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "exclusao-de-reunioes-com-historico-2026-10-15",
+    title: "Excluir reuniões com histórico",
+    date: "2026-10-15",
+    preview: "meeting-delete-history",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "É possível excluir uma reunião mesmo quando ela possui pautas, tarefas, atas ou transcrições. A confirmação mostra o que será removido.",
+      "A exclusão remove a reunião e suas pautas; tarefas e notas de clientes permanecem sem o vínculo com ela. Os eventos da reunião são enviados para remoção do Google Agenda.",
+      "O botão de arquivar e a aba Arquivadas foram retirados da tela de Reuniões.",
+    ],
+  },
   {
     id: "colaboradores-salvos-e-tarefas-atualizadas-2026-10-14",
     title: "Colaboradores salvos com segurança",

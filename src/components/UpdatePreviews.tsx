@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Sparkles,
   KanbanSquare,
+  Trash2,
 } from "lucide-react";
 import type { UpdatePreviewKind } from "@/lib/app-updates";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
@@ -54,6 +55,34 @@ function CollaboratorSyncPreview() {
           <p className="mt-1">Você foi adicionada como colaboradora.</p>
         </div>
         <p className="mt-2 text-muted-foreground">A lista recebe novas atribuições automaticamente.</p>
+      </div>
+    </PreviewGrid>
+  );
+}
+
+function MeetingDeleteHistoryPreview() {
+  return (
+    <PreviewGrid label="Prévia da exclusão de reunião com histórico">
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <div className="mb-2 flex flex-wrap gap-1 rounded-lg bg-muted p-1" aria-label="Abas de reuniões">
+          <span className="rounded-md bg-background px-2 py-1 font-medium shadow-sm">Reuniões</span>
+          <span className="px-2 py-1 text-muted-foreground">Histórico</span>
+          <span className="px-2 py-1 text-muted-foreground">Configurações</span>
+        </div>
+        <p className="text-[11px] font-semibold">Reunião de exemplo</p>
+        <p className="mt-1 text-muted-foreground">2 pautas · 1 tarefa · 1 ata</p>
+        <div className="mt-3 flex items-center gap-2 rounded-lg border p-2">
+          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          <span>Excluir reunião</span>
+        </div>
+      </div>
+      <div className="rounded-xl border border-destructive/30 bg-background p-3 text-[10px] shadow-sm">
+        <p className="text-[11px] font-semibold">Excluir esta reunião?</p>
+        <p className="mt-2 text-muted-foreground">Pautas e vínculos com atas serão removidos.</p>
+        <p className="mt-1 text-muted-foreground">Tarefas e notas continuam disponíveis.</p>
+        <span className="mt-3 inline-block rounded-md bg-destructive px-2 py-1 text-destructive-foreground">
+          Excluir reunião
+        </span>
       </div>
     </PreviewGrid>
   );
@@ -1015,6 +1044,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "meeting-delete-history": MeetingDeleteHistoryPreview,
   "collaborator-sync": CollaboratorSyncPreview,
   "client-important-dates": ClientImportantDatesPreview,
   "member-team-dashboard": MemberTeamDashboardPreview,

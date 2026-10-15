@@ -28,12 +28,12 @@ describe("application release catalogue", () => {
     "uses the latest visible release as the version in %s",
     (workspace) => {
       const updates = getVisibleAppUpdates(false, workspace);
-      expect(updates[0].id).toBe("colaboradores-salvos-e-tarefas-atualizadas-2026-10-14");
-      expect(updates[0].preview).toBe("collaborator-sync");
-      expect(updates[1].id).toBe("datas-importantes-e-feriados-nos-calendarios-2026-10-13");
-      expect(updates[1].preview).toBe("client-important-dates");
+      expect(updates[0].id).toBe("exclusao-de-reunioes-com-historico-2026-10-15");
+      expect(updates[0].preview).toBe("meeting-delete-history");
+      expect(updates[1].id).toBe("colaboradores-salvos-e-tarefas-atualizadas-2026-10-14");
+      expect(updates[1].preview).toBe("collaborator-sync");
       expect(getVisibleAppUpdates(true, workspace)[0].id).toBe(
-        "colaboradores-salvos-e-tarefas-atualizadas-2026-10-14",
+        "exclusao-de-reunioes-com-historico-2026-10-15",
       );
       expect(updates.every((update) => update.audience === "all")).toBe(true);
       expect(updates.some((update) => update.id === DASHBOARD_UPDATE_VERSION)).toBe(false);

@@ -5,6 +5,16 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates deletion of a meeting with recorded work", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "meeting-delete-history" }),
+    );
+    expect(html).toContain("2 pautas · 1 tarefa · 1 ata");
+    expect(html).toContain("Tarefas e notas continuam disponíveis.");
+    expect(html).toContain("Configurações");
+    expect(html).not.toContain("Arquivadas");
+    expect(html).not.toContain("<button");
+  });
   it("shows the loaded collaborator selection and the refreshed task list", () => {
     const html = renderToStaticMarkup(
       createElement(AppUpdatePreview, { kind: "collaborator-sync" }),
