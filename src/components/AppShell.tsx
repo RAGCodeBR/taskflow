@@ -135,6 +135,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem("sidebar-open");
     return stored === null ? true : stored === "true";
   });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   useEffect(() => {
     localStorage.setItem("sidebar-open", String(sidebarOpen));
   }, [sidebarOpen]);
@@ -145,7 +146,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       <aside
-        className={`hidden h-dvh shrink-0 flex-col text-sidebar-foreground transition-all duration-300 md:flex ${
+        className={`hidden h-dvh shrink-0 flex-col overflow-hidden text-sidebar-foreground transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:flex ${
           sidebarOpen ? "w-56" : "w-16 items-center"
         }`}
         style={{
@@ -153,34 +154,33 @@ export function AppShell({ children }: { children: ReactNode }) {
           borderRight: "1px solid var(--sidebar-hairline)",
         }}
       >
-        <div
-          className={`flex ${sidebarOpen ? "flex-col items-center gap-3 py-4 px-5" : "items-center justify-center py-5 px-2"}`}
-        >
-          <div
-            className={`flex shrink-0 items-center justify-center ${sidebarOpen ? "h-16 w-40" : "h-9 w-9"}`}
-          >
+        <div className="flex h-32 w-full shrink-0 flex-col items-center justify-center gap-3 overflow-hidden px-2">
+          <div className="relative flex h-16 w-40 shrink-0 items-center justify-center">
             <img
               src={businessMentoringLogo}
-              alt="TaskFlow"
-              className="h-full w-full object-contain"
+              alt="LA Business Mentoring"
+              className={`absolute h-full w-full object-contain transition-opacity duration-200 motion-reduce:transition-none ${sidebarOpen ? "opacity-100" : "opacity-0"}`}
             />
+            <span
+              aria-hidden="true"
+              className={`absolute h-12 w-11 overflow-hidden transition-opacity duration-200 motion-reduce:transition-none ${sidebarOpen ? "opacity-0" : "opacity-100"}`}
+            >
+              <img
+                src={businessMentoringLogo}
+                alt=""
+                className="absolute -left-[5px] top-0 h-auto w-[220px] max-w-none"
+              />
+            </span>
           </div>
-          {sidebarOpen && <span className="text-lg font-semibold leading-none">TaskFlow</span>}
-        </div>
-
-        <div className={`flex ${sidebarOpen ? "justify-end px-3" : "justify-center"} mb-2`}>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7 text-sidebar-foreground/65 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"
-            onClick={() => setSidebarOpen((o) => !o)}
-            title={sidebarOpen ? "Recolher menu" : "Expandir menu"}
+          <span
+            aria-hidden={!sidebarOpen}
+            className={`overflow-hidden whitespace-nowrap text-lg font-semibold leading-none transition-[max-height,opacity] duration-300 motion-reduce:transition-none ${sidebarOpen ? "max-h-6 opacity-100" : "max-h-0 opacity-0"}`}
           >
-            {sidebarOpen ? <PanelLeft className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
-          </Button>
+            TaskFlow
+          </span>
         </div>
 
-        <nav className="sidebar-nav min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
+        <nav className="sidebar-nav min-h-0 w-full flex-1 space-y-1 overflow-y-auto px-3">
           {nav.map((n) => {
             if (n.to === "/portal")
               return (
@@ -199,8 +199,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={n.to}
                 to={n.to}
-                className={`flex items-center gap-3 rounded-full transition ${
-                  sidebarOpen ? "px-3 py-2 text-sm" : "justify-center px-2 py-2 text-sm"
+                className={`flex items-center rounded-full transition-[width,gap,padding,background-color,color] duration-300 motion-reduce:transition-none ${
+                  sidebarOpen ? "w-full gap-3 px-3 py-2 text-sm" : "mx-auto h-10 w-10 justify-center gap-0 p-1 text-sm"
                 } ${
                   Active
                     ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm"
@@ -213,7 +213,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                 >
                   <Icon className="h-4 w-4" />
                 </span>
-                {sidebarOpen && <span className="truncate">{n.label}</span>}
+                <span
+                  aria-hidden={!sidebarOpen}
+                  className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 motion-reduce:transition-none ${sidebarOpen ? "max-w-40 opacity-100" : "max-w-0 opacity-0"}`}
+                >
+                  {n.label}
+                </span>
                 {n.to === "/mural" && muralUnreadCount > 0 && (
                   <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                     {muralUnreadCount > 99 ? "99+" : muralUnreadCount}
@@ -230,10 +235,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div
-          className={`border-t border-sidebar-border p-3 ${sidebarOpen ? "" : "flex flex-col items-center gap-2"}`}
+          className={`border-t border-sidebar-border ${sidebarOpen ? "p-3" : "flex flex-col items-center gap-2 p-1"}`}
         >
           <div
-            className={`flex items-center gap-3 rounded-lg p-2 ${sidebarOpen ? "" : "flex-col"}`}
+            className={`flex items-center gap-3 rounded-lg ${sidebarOpen ? "flex-wrap p-2" : "flex-col p-1"}`}
           >
             <Avatar className="h-8 w-8">
               <AvatarImage
@@ -250,7 +255,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <p className="truncate text-xs text-sidebar-foreground/60">{user?.email}</p>
               </div>
             )}
-            <div className={`flex ${sidebarOpen ? "gap-1" : "flex-col gap-2"}`}>
+            <div className={`flex ${sidebarOpen ? "w-full justify-end gap-1" : "flex-col gap-2"}`}>
               <Button
                 size="icon"
                 variant="ghost"
@@ -259,6 +264,16 @@ export function AppShell({ children }: { children: ReactNode }) {
                 title={theme === "dark" ? "Modo claro" : "Modo escuro"}
               >
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-sidebar-foreground/75 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"
+                onClick={() => setSidebarOpen((open) => !open)}
+                aria-label={sidebarOpen ? "Recolher menu" : "Expandir menu"}
+                title={sidebarOpen ? "Recolher menu" : "Expandir menu"}
+              >
+                {sidebarOpen ? <PanelLeft className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
               </Button>
               <Button
                 size="icon"
@@ -275,12 +290,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Mobile sidebar toggle header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between bg-background border-b px-3 py-2">
-        <Button size="icon" variant="ghost" onClick={() => setSidebarOpen((o) => !o)}>
+      <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between gap-2 border-b bg-background px-3 md:hidden">
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Abrir menu"
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen(true)}
+        >
           <PanelLeft className="h-5 w-5" />
         </Button>
-        <span className="font-semibold">TaskFlow</span>
-        <div className="flex items-center gap-1">
+        <span className="min-w-0 truncate font-semibold">TaskFlow</span>
+        <div className="flex shrink-0 items-center gap-1">
           <UpdateCenter />
           {canSwitchEnvironments && workspaces.length > 1 && (
             <Button asChild variant="ghost" size="icon" title="Trocar ambiente">
@@ -294,13 +315,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       {/* Mobile overlay sidebar */}
-      {sidebarOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+      <div
+        className={`fixed inset-0 z-50 flex md:hidden ${mobileMenuOpen ? "" : "pointer-events-none"}`}
+        aria-hidden={!mobileMenuOpen}
+        inert={!mobileMenuOpen}
+      >
           <div
-            className="w-56 bg-background border-r flex flex-col"
+            className={`flex w-[min(18rem,calc(100vw-3rem))] min-w-0 flex-col border-r bg-background transition-transform duration-300 ease-in-out motion-reduce:transition-none ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
             style={{ background: "var(--gradient-sidebar)" }}
           >
-            <div className="flex items-center justify-between px-5 py-4">
+            <div className="px-5 py-4">
               <div className="flex flex-col items-center gap-3">
                 <div className="flex h-16 w-40 shrink-0 items-center justify-center">
                   <img
@@ -311,11 +335,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
                 <span className="text-lg font-semibold leading-none">TaskFlow</span>
               </div>
-              <Button size="icon" variant="ghost" onClick={() => setSidebarOpen(false)}>
-                <PanelLeft className="h-5 w-5" />
-              </Button>
             </div>
-            <nav className="flex-1 space-y-1 px-3">
+            <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-3">
               {nav.map((n) => {
                 if (n.to === "/portal")
                   return (
@@ -326,7 +347,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       pathname={pathname}
                       canAccessDeliveries={canAccessDeliveries}
                       canAccessFinance={canAccessFinance}
-                      onNavigate={() => setSidebarOpen(false)}
+                      onNavigate={() => setMobileMenuOpen(false)}
                     />
                   );
                 const Active = pathname === n.to || pathname.startsWith(n.to + "/");
@@ -335,7 +356,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <Link
                     key={n.to}
                     to={n.to}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 rounded-full px-3 py-2 text-sm transition ${
                       Active
                         ? "border border-sidebar-primary bg-sidebar/45 text-sidebar-foreground font-medium shadow-sm"
@@ -382,7 +403,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8"
+                  className="h-8 w-8 shrink-0"
                   onClick={toggle}
                   title={theme === "dark" ? "Modo claro" : "Modo escuro"}
                 >
@@ -391,7 +412,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8"
+                  className="h-8 w-8 shrink-0"
+                  aria-label="Fechar menu"
+                  title="Fechar menu"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <PanelLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 shrink-0"
                   onClick={signOut}
                   title="Sair"
                 >
@@ -400,12 +431,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             </div>
           </div>
-          <div className="flex-1 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div
+            className={`min-w-0 flex-1 bg-black/50 transition-opacity duration-300 ease-in-out motion-reduce:transition-none ${mobileMenuOpen ? "opacity-100" : "opacity-0"}`}
+            onClick={() => setMobileMenuOpen(false)}
+          />
         </div>
-      )}
 
       <RecurringMeetingReminderPopup />
-      <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:pt-0 pt-12">
+      <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-14 md:pt-0">
         <div className="hidden md:flex sticky top-0 z-40 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
           <UpdateCenter />
           {canSwitchEnvironments && workspaces.length > 1 && (
@@ -456,7 +489,7 @@ function PortalNavGroup({
           <button
             type="button"
             title="Portal do Cliente"
-            className={`flex w-full justify-center rounded-full px-2 py-2 transition ${active ? "bg-sidebar-primary/10 text-sidebar-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
+            className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full p-1 transition ${active ? "bg-sidebar-primary/10 text-sidebar-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground"}`}
           >
             <span
               className={`grid h-7 w-7 place-items-center ${active ? "rounded-full bg-sidebar-primary text-sidebar-primary-foreground" : ""}`}

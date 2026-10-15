@@ -9,6 +9,7 @@ import {
   startOfMonth,
   startOfWeek,
   addDays,
+  parseISO,
 } from "date-fns";
 
 export type DateFilter =
@@ -71,7 +72,8 @@ export function normalizeTasksWithOpenSubtasks<
 
 export function matchDateFilter(task: TaskLike, filter: DateFilter): boolean {
   const now = new Date();
-  const due = task.due_date ? new Date(task.due_date) : null;
+  // parseISO keeps a date-only deadline on its calendar day in the user's timezone.
+  const due = task.due_date ? parseISO(task.due_date) : null;
   const isDone = isTaskCompleted(task);
 
   switch (filter) {

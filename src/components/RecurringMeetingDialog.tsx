@@ -785,7 +785,7 @@ export function RecurringMeetingDialog({
         else closeDialog();
       }}
     >
-      <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto sm:rounded-2xl">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-3xl overflow-y-auto sm:max-h-[92vh] sm:rounded-2xl">
         <DialogHeader>
           <DialogTitle>
             {view === "import"

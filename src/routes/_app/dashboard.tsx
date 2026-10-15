@@ -11,8 +11,8 @@ import {
   useSubtasks,
 } from "@/hooks/use-data";
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
-import { DateFilterBar } from "@/components/DateFilterBar";
-import { isTaskCompleted, matchDateFilter, priorityLabels, statusLabels, type DateFilter } from "@/lib/task-utils";
+import { dateFilterLabels, isTaskCompleted, matchDateFilter, priorityLabels, statusLabels, type DateFilter } from "@/lib/task-utils";
+import { applyDashboardFilters, type DashboardAssigneeFilter, type DashboardStatusFilter } from "@/lib/dashboard-filters";
 import {
   countCompletedSubtasks,
   subtaskStatus,
@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RichTextView } from "@/components/RichTextEditor";
 import { LinkedText } from "@/components/LinkedText";
 import {
@@ -57,6 +58,8 @@ import {
   Gauge,
   UserX,
   UsersRound,
+  SlidersHorizontal,
+  RotateCcw,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { dashboardTaskOpenMode, getClientDemand, getMemberDashboard, getTeamSummaryActivities, type ClientDemandStatus, type TeamSummaryMetric } from "@/lib/member-dashboard";
@@ -77,6 +80,18 @@ type DashboardMetric =
   | "month"
   | "unassigned"
   | "urgent";
+
+const DASHBOARD_QUICK_FILTERS: readonly { value: DateFilter; label: string }[] = [
+  { value: "all", label: "Todas" },
+  { value: "due_today", label: "Vence hoje" },
+  { value: "tomorrow", label: "Amanhã" },
+  { value: "this_week", label: "Semana" },
+  { value: "this_month", label: "Mês" },
+  { value: "overdue", label: "Atrasadas" },
+  { value: "no_due", label: "Sem prazo" },
+  { value: "pending", label: "Pendentes" },
+  { value: "completed", label: "Concluídas" },
+];
 
 type Detail = {
   label: string;
@@ -273,14 +288,14 @@ function Stat({
   onClick?: () => void;
 }) {
   const card = (
-    <Card className="p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="mt-1 text-3xl font-bold tracking-tight">{value}</p>
+    <Card className="h-full min-w-0 p-3 sm:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-1.5 sm:items-center sm:gap-3">
+        <div className="min-w-0">
+          <p className="break-words text-xs leading-tight text-muted-foreground sm:text-sm">{label}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{value}</p>
         </div>
         <div
-          className="grid h-12 w-12 place-items-center rounded-xl"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl sm:h-12 sm:w-12"
           style={{ background: `${color}20`, color }}
         >
           <Icon className="h-5 w-5" />
@@ -430,6 +445,9 @@ function Dashboard() {
   // O painel sempre começa no mês vigente. A própria opção "Todas" permite
   // consultar o histórico quando necessário.
   const [filter, setFilter] = useState<DateFilter>("this_month");
+  const [statusFilter, setStatusFilter] = useState<DashboardStatusFilter>("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<DashboardAssigneeFilter>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [periodOpen, setPeriodOpen] = useState(false);
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
@@ -463,18 +481,13 @@ function Dashboard() {
 
   // Hooks MUST run unconditionally for both admin and member views.
   const filtered = useMemo(
-    () =>
-      customPeriod
-        ? tasks.filter((task) => {
-            // A closed delivery belongs to the period in which it was delivered;
-            // open work remains grouped by its due date.
-            const referenceDate = (isTaskDone(task) ? task.completed_at : task.due_date)?.slice(0, 10);
-            return Boolean(
-              referenceDate && referenceDate >= customPeriod.start && referenceDate <= customPeriod.end,
-            );
-          })
-        : tasks.filter((task) => matchDateFilter(task, filter)),
-    [tasks, filter, customPeriod],
+    () => applyDashboardFilters(tasks, {
+      period: filter,
+      customPeriod,
+      status: statusFilter,
+      assignee: assigneeFilter,
+    }),
+    [tasks, filter, customPeriod, statusFilter, assigneeFilter],
   );
   const stats = useMemo(() => {
     const total = filtered.length;
@@ -496,12 +509,15 @@ function Dashboard() {
       return `mês vigente: ${format(new Date(), "MMMM 'de' yyyy", { locale: ptBR })}`;
     if (filter === "this_week") return "semana vigente";
     if (filter === "all") return "todo o histórico";
-    return filter === "completed"
-      ? "tarefas concluídas"
-      : filter === "pending"
-        ? "tarefas pendentes"
-        : "filtro selecionado";
+    return dateFilterLabels[filter].toLocaleLowerCase("pt-BR");
   }, [filter, customPeriod]);
+  const selectedAssigneeName = assigneeFilter === "all"
+    ? null
+    : assigneeFilter === "unassigned"
+      ? "sem responsável"
+      : assignableProfiles.find((person) => person.id === assigneeFilter)?.full_name ||
+        assignableProfiles.find((person) => person.id === assigneeFilter)?.email ||
+        "responsável selecionado";
   const byClient = useMemo(
     () =>
       clients
@@ -526,12 +542,13 @@ function Dashboard() {
     () =>
       assignableProfiles.map((p) => ({
         id: p.id,
-        name: (p.full_name || p.email || "?").slice(0, 12),
+        name: p.full_name || p.email || "?",
         feitas: filtered.filter((t) => t.assignee_id === p.id && isTaskDone(t)).length,
         pendentes: filtered.filter((t) => t.assignee_id === p.id && !isTaskDone(t)).length,
       })),
     [assignableProfiles, filtered],
   );
+  const teamChartHeight = Math.max(320, byUser.length * 46 + 72);
   const completionRate = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
   const clientChartHeight = Math.max(440, byClient.length * 68);
   const leadingClient = byClient[0] ?? null;
@@ -852,13 +869,13 @@ function Dashboard() {
     const showingCompletedTeamSummary = selectedTeamSummary?.endsWith("done") ?? false;
 
     return (
-      <div className="space-y-6 p-6">
+      <div className="min-w-0 space-y-6 p-4 sm:p-6">
         <header>
           <h1 className="text-3xl font-bold tracking-tight">Olá, {greetingName}</h1>
           <p className="text-muted-foreground">Suas tarefas pendentes e atrasadas</p>
         </header>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Stat
             label="Minhas pendentes"
             value={myPending.length}
@@ -1451,119 +1468,162 @@ function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="min-w-0 space-y-6 p-4 sm:p-6">
       <header>
         <h1 className="text-3xl font-bold tracking-tight">Olá, {greetingName}</h1>
         <p className="text-muted-foreground">Visão geral da produtividade da equipe</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Exibindo <span className="font-medium text-foreground">{currentScopeLabel}</span> — o
-          total inclui tarefas concluídas e em aberto.
+          Exibindo <span className="font-medium text-foreground">{currentScopeLabel}</span>
+          {statusFilter !== "all" ? ` · ${statusFilter === "completed" ? "concluídas" : "em aberto"}` : ""}
+          {selectedAssigneeName ? ` · ${selectedAssigneeName}` : ""} — indicadores e gráficos usam estes filtros.
         </p>
       </header>
 
-
-      <div className="flex flex-wrap items-center gap-2">
-        <DateFilterBar
-          value={filter}
-          onChange={(nextFilter) => {
-            setFilter(nextFilter);
-            setCustomPeriod(null);
-          }}
-          hideToday
-        />
-        <div className="flex items-center gap-1">
-          <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
-            <PopoverTrigger asChild>
-              <Button type="button" size="sm" variant="outline" title="Escolher período">
-                <CalendarDays className="h-3.5 w-3.5" />
-                {customPeriod
-                  ? `${format(parseISO(customPeriod.start), "dd/MM/yy", { locale: ptBR })} — ${format(parseISO(customPeriod.end), "dd/MM/yy", { locale: ptBR })}`
-                  : "Escolher período"}
+      <Popover open={filtersOpen} onOpenChange={(open) => {
+        setFiltersOpen(open);
+        if (!open) setPeriodOpen(false);
+      }}>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" className="w-fit gap-2 rounded-full" aria-label="Filtros do Dashboard">
+            <SlidersHorizontal className="h-4 w-4" /> Filtros
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={8} className="max-h-[min(80vh,42rem)] w-[min(44rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h2 className="font-semibold">Filtrar tarefas</h2>
+          <span className="text-xs text-muted-foreground">
+            {format(new Date(), "MMMM 'de' yyyy", { locale: ptBR })}
+          </span>
+        </div>
+        <div className="mt-4">
+          <p className="text-xs text-muted-foreground">Visualização rápida</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {DASHBOARD_QUICK_FILTERS.map((item) => (
+              <Button
+                key={item.value}
+                type="button"
+                size="sm"
+                variant={
+                  item.value === "pending" || item.value === "completed"
+                    ? filter === "all" && statusFilter === item.value && !customPeriod ? "default" : "outline"
+                    : item.value === "all"
+                      ? filter === "all" && statusFilter === "all" && !customPeriod ? "default" : "outline"
+                    : !customPeriod && filter === item.value ? "default" : "outline"
+                }
+                className="h-8 px-3"
+                onClick={() => {
+                  if (item.value === "pending" || item.value === "completed") {
+                    setFilter("all");
+                    setStatusFilter(item.value);
+                  } else {
+                    setFilter(item.value);
+                    if (item.value === "all") setStatusFilter("all");
+                  }
+                  setCustomPeriod(null);
+                  setPeriodOpen(false);
+                }}
+              >
+                {item.label}
               </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="start"
-              sideOffset={8}
-              className="w-[22rem] overflow-hidden rounded-[1.25rem] p-0"
-            >
-              <div className="border-b bg-muted/35 px-5 py-4">
-                <p className="font-semibold">Filtrar por período</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Exibe tarefas cujo prazo esteja entre as datas escolhidas.
-                </p>
-              </div>
-              <div className="grid gap-4 px-5 py-4 sm:grid-cols-2">
-                <label className="space-y-2 text-sm font-semibold">
-                  Data inicial
-                  <Input
-                    type="date"
-                    value={periodStart}
-                    onChange={(event) => setPeriodStart(event.target.value)}
-                    max={periodEnd || undefined}
-                    className="h-10 bg-background text-sm"
-                  />
-                </label>
-                <label className="space-y-2 text-sm font-semibold">
-                  Data final
-                  <Input
-                    type="date"
-                    value={periodEnd}
-                    onChange={(event) => setPeriodEnd(event.target.value)}
-                    min={periodStart || undefined}
-                    className="h-10 bg-background text-sm"
-                  />
-                </label>
-              </div>
-              <div className="flex items-center justify-between gap-3 border-t bg-muted/20 px-5 py-3">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setPeriodStart("");
-                    setPeriodEnd("");
-                    setCustomPeriod(null);
-                    setPeriodOpen(false);
-                  }}
-                >
-                  Limpar
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!periodStart || !periodEnd}
-                  onClick={() => {
-                    setCustomPeriod({ start: periodStart, end: periodEnd });
-                    setPeriodOpen(false);
-                  }}
-                  className="px-4"
-                >
-                  Aplicar período
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
-          {customPeriod && (
+            ))}
             <Button
               type="button"
-              size="icon"
+              size="sm"
+              variant={customPeriod ? "default" : "outline"}
+              className="h-8 px-3"
+              aria-expanded={periodOpen}
+              aria-controls="dashboard-custom-period"
+              onClick={() => setPeriodOpen((open) => !open)}
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              {customPeriod
+                ? `${format(parseISO(customPeriod.start), "dd/MM/yy", { locale: ptBR })} — ${format(parseISO(customPeriod.end), "dd/MM/yy", { locale: ptBR })}`
+                : "Escolher período"}
+            </Button>
+          </div>
+          {periodOpen && (
+            <div id="dashboard-custom-period" className="mt-3 rounded-xl border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Tarefas abertas usam o prazo; concluídas usam a data de conclusão.</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs font-medium">Data inicial
+                  <Input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} max={periodEnd || undefined} className="h-9 bg-background text-sm" />
+                </label>
+                <label className="space-y-1 text-xs font-medium">Data final
+                  <Input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} min={periodStart || undefined} className="h-9 bg-background text-sm" />
+                </label>
+              </div>
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                <Button type="button" size="sm" variant="ghost" onClick={() => {
+                  setPeriodStart("");
+                  setPeriodEnd("");
+                  setCustomPeriod(null);
+                  setPeriodOpen(false);
+                }}>Limpar período</Button>
+                <Button type="button" size="sm" disabled={!periodStart || !periodEnd || periodStart > periodEnd} onClick={() => {
+                  setCustomPeriod({ start: periodStart, end: periodEnd });
+                  setPeriodOpen(false);
+                }}>Aplicar período</Button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="mt-4 border-t pt-4">
+          <p className="text-xs text-muted-foreground">Refinar resultados</p>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5 text-xs text-muted-foreground">
+              <span>Situação</span>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as DashboardStatusFilter)}>
+                <SelectTrigger aria-label="Situação das tarefas" className="bg-background text-foreground">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="pending">Em aberto</SelectItem>
+                  <SelectItem value="completed">Concluídas</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="space-y-1.5 text-xs text-muted-foreground">
+              <span>Responsável</span>
+              <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+                <SelectTrigger aria-label="Responsável pelas tarefas" className="bg-background text-foreground">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="unassigned">Sem responsável</SelectItem>
+                  {assignableProfiles.map((person) => (
+                    <SelectItem key={person.id} value={person.id}>
+                      {person.full_name || person.email || "Sem nome"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <Button
+              type="button"
+              size="sm"
               variant="ghost"
-              className="h-8 w-8"
               onClick={() => {
+                setFilter("all");
+                setStatusFilter("all");
+                setAssigneeFilter("all");
                 setCustomPeriod(null);
                 setPeriodStart("");
                 setPeriodEnd("");
+                setPeriodOpen(false);
               }}
-              title="Limpar período escolhido"
-              aria-label="Limpar período escolhido"
             >
-              <X className="h-3.5 w-3.5" />
+              <RotateCcw className="h-4 w-4" /> Limpar filtros
             </Button>
-          )}
+          </div>
         </div>
-      </div>
+        </PopoverContent>
+      </Popover>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat
           label="Total de tarefas"
           value={stats.total}
@@ -1598,7 +1658,7 @@ function Dashboard() {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <Stat
           label="Hoje"
           value={stats.today}
@@ -1615,14 +1675,16 @@ function Dashboard() {
           active={selectedMetric === "week"}
           onClick={() => toggleDetail("week")}
         />
-        <Stat
-          label="Este mês"
-          value={stats.month}
-          icon={Clock}
-          color="#0891b2"
-          active={selectedMetric === "month"}
-          onClick={() => toggleDetail("month")}
-        />
+        <div className="col-span-2 sm:col-span-1">
+          <Stat
+            label="Este mês"
+            value={stats.month}
+            icon={Clock}
+            color="#0891b2"
+            active={selectedMetric === "month"}
+            onClick={() => toggleDetail("month")}
+          />
+        </div>
       </div>
 
       <div className="grid gap-6">
@@ -1636,16 +1698,23 @@ function Dashboard() {
               <p className="mt-1 text-sm text-muted-foreground">Clique na barra de uma pessoa para abrir a carga dela.</p>
             </div>
           </div>
-          <div className="h-[26rem] lg:h-[30rem]">
+          <div style={{ height: teamChartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byUser} margin={{ top: 10, right: 12, left: 0, bottom: 14 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="name" fontSize={12} interval={0} />
-                <YAxis allowDecimals={false} fontSize={12} />
+              <BarChart data={byUser} layout="vertical" margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} fontSize={12} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={112}
+                  interval={0}
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(name: string) => name.length > 14 ? `${name.slice(0, 13)}…` : name}
+                />
                 <Tooltip />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="feitas" name="Concluídas" stackId="equipe" fill="#059669" onClick={(data: any) => openUserInsight(data.id)} />
-                <Bar dataKey="pendentes" name="Em aberto" stackId="equipe" fill="#f59e0b" radius={[5, 5, 0, 0]} onClick={(data: any) => openUserInsight(data.id)} />
+                <Bar dataKey="pendentes" name="Em aberto" stackId="equipe" fill="#f59e0b" radius={[0, 5, 5, 0]} onClick={(data: any) => openUserInsight(data.id)} />
               </BarChart>
             </ResponsiveContainer>
           </div>

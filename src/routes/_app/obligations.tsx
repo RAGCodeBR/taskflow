@@ -699,7 +699,7 @@ function ObligationsPage() {
   const pageError = obligationsError || occurrencesError;
 
   return (
-    <div className="space-y-5 p-6">
+    <div className="min-w-0 space-y-5 p-4 sm:p-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -711,7 +711,7 @@ function ObligationsPage() {
           </p>
         </div>
         <Button
-          className="h-9 rounded-full px-4 shadow-sm"
+          className="h-9 w-full rounded-full px-4 shadow-sm sm:w-auto"
           onClick={() => {
             setEditingObligation(null);
             setDialogOpen(true);
@@ -727,7 +727,7 @@ function ObligationsPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricCard
           label="Atrasadas"
           value={overdueCount}
@@ -749,8 +749,8 @@ function ObligationsPage() {
         />
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-3">
-        <div className="relative min-w-[220px] flex-1">
+      <div className="flex min-w-0 flex-wrap gap-2 rounded-xl border bg-card p-3">
+        <div className="relative w-full min-w-0 flex-1 sm:min-w-[220px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
@@ -760,7 +760,7 @@ function ObligationsPage() {
           />
         </div>
         <Select value={clientFilter} onValueChange={setClientFilter}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-full sm:w-52">
             <SelectValue placeholder="Todos os clientes" />
           </SelectTrigger>
           <SelectContent>
@@ -773,7 +773,7 @@ function ObligationsPage() {
           </SelectContent>
         </Select>
         <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-full sm:w-52">
             <SelectValue placeholder="Todos os responsáveis" />
           </SelectTrigger>
           <SelectContent>
@@ -1154,11 +1154,11 @@ function MetricCard({
     success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   };
   return (
-    <Card className="flex items-center gap-3 p-4">
-      <span className={`grid h-10 w-10 place-items-center rounded-xl ${colors[tone]}`}>
+    <Card className="flex min-w-0 flex-col items-start gap-2 p-3 sm:flex-row sm:items-center sm:gap-3 sm:p-4">
+      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl sm:h-10 sm:w-10 ${colors[tone]}`}>
         <Icon className="h-5 w-5" />
       </span>
-      <span>
+      <span className="min-w-0">
         <span className="block text-2xl font-semibold leading-none">{value}</span>
         <span className="mt-1 block text-xs text-muted-foreground">{label}</span>
       </span>

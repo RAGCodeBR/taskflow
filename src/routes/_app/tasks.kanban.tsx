@@ -1289,36 +1289,40 @@ function KanbanPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="shrink-0 border-b bg-background px-3 py-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="order-2 ml-auto flex flex-wrap items-center justify-end gap-2">
-            <Button variant="outline" className="rounded-full" onClick={() => setFilesOpen(true)}>
+      <header className="shrink-0 border-b bg-background px-4 py-2 sm:px-6">
+        <div className="flex flex-col items-start gap-3 xl:flex-row xl:flex-wrap xl:items-center xl:gap-2">
+          <div className="order-2 grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 xl:ml-auto xl:flex xl:w-auto xl:flex-wrap xl:items-center xl:justify-end">
+            <Button variant="outline" className="w-full rounded-full xl:w-auto" onClick={() => setFilesOpen(true)}>
               <FolderOpen className="mr-2 h-4 w-4" />
               Arquivos Cliente
             </Button>
             {activeWorkspace?.slug !== "marketing" ? (
-              <Button variant="outline" className="rounded-full" onClick={() => setTagsOpen(true)}>
+              <Button variant="outline" className="w-full rounded-full xl:w-auto" onClick={() => setTagsOpen(true)}>
                 Etiquetas
               </Button>
             ) : null}
             {activeWorkspace?.slug === "marketing" && isAdmin ? (
               <>
-                <Button variant="outline" className="rounded-full" onClick={() => setMarketingFormatsOpen(true)}>
+                <Button variant="outline" className="w-full rounded-full xl:w-auto" onClick={() => setMarketingFormatsOpen(true)}>
                   <Tags className="mr-2 h-4 w-4" /> Formatos
                 </Button>
-                <Button variant="outline" className="rounded-full" onClick={() => setMarketingObjectivesOpen(true)}>
+                <Button variant="outline" className="w-full rounded-full xl:w-auto" onClick={() => setMarketingObjectivesOpen(true)}>
                   <Tags className="mr-2 h-4 w-4" /> Objetivos
                 </Button>
               </>
             ) : null}
             {isAdmin && (
-              <Button variant="outline" className="rounded-full" onClick={addColumn}>
+              <Button variant="outline" className="w-full rounded-full xl:w-auto" onClick={addColumn}>
                 <Plus className="mr-2 h-4 w-4" />
                 Coluna
               </Button>
             )}
             <Button
-              className="h-9 rounded-full px-5 shadow-sm"
+              className={`h-9 w-full rounded-full px-5 shadow-sm xl:w-auto ${
+                (activeWorkspace?.slug === "marketing" ? isAdmin : !isAdmin)
+                  ? "min-[380px]:col-span-2"
+                  : ""
+              }`}
               onClick={() => {
                 setEditTask(null);
                 setDefaultCol(columns[0]?.id ?? null);
@@ -1329,7 +1333,7 @@ function KanbanPage() {
               Tarefa
             </Button>
           </div>
-          <div className="order-1">
+          <div className="order-1 w-full min-w-0 xl:w-auto">
           <TaskFilters
             filters={filters}
             onChange={setFilters}

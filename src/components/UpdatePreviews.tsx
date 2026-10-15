@@ -1,12 +1,18 @@
 import type { ReactNode } from "react";
 import {
   ArrowRight,
+  AlertTriangle,
+  Archive,
   Bell,
+  CalendarCheck2,
   CalendarDays,
+  CalendarRange,
   CalendarHeart,
   Flag,
+  FileDown,
   ImagePlus,
   LayoutDashboard,
+  ListTodo,
   Link2,
   MousePointer2,
   Pin,
@@ -14,13 +20,22 @@ import {
   Eye,
   Plus,
   RefreshCw,
+  RotateCcw,
   CheckCircle2,
+  Clock3,
   Sparkles,
   KanbanSquare,
   Trash2,
+  Menu,
+  Moon,
+  PanelLeft,
+  LogOut,
+  ShieldCheck,
+  Megaphone,
 } from "lucide-react";
-import type { UpdatePreviewKind } from "@/lib/app-updates";
+import { APP_UPDATES, type UpdatePreviewKind } from "@/lib/app-updates";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
+import businessMentoringLogo from "@/assets/la-business-mentoring.png";
 
 function PreviewGrid({ children, label }: { children: ReactNode; label?: string }) {
   return (
@@ -31,6 +46,326 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
     >
       {children}
     </div>
+  );
+}
+
+function AgendaGoogleCompactActionsPreview() {
+  return (
+    <div aria-label="Prévia das ações compactas da Google Agenda" className="mx-auto w-full max-w-64 rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <div className="text-center">
+        <strong>Google Agenda</strong>
+        <p className="text-muted-foreground">Conectado como pessoa@exemplo.com</p>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-1">
+        {(["Reconectar Google", "Desconectar", "Sincronizar agora"] as const).map((label) => (
+          <span key={label} data-agenda-compact-action className={`flex min-w-0 items-center justify-center break-words rounded-full border px-1 py-1.5 text-center leading-tight ${label === "Sincronizar agora" ? "border-primary bg-primary text-primary-foreground" : ""}`}>{label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AgendaGoogleConnectionLayoutPreview() {
+  return (
+    <div aria-label="Prévia da conexão da Google Agenda centralizada" className="mx-auto w-full max-w-sm rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <div className="text-center">
+        <strong>Google Agenda</strong>
+        <p className="text-muted-foreground">Conectado como pessoa@exemplo.com</p>
+      </div>
+      <div className="mt-3 overflow-x-auto">
+        <div className="mx-auto flex w-max min-w-full items-center justify-center gap-1.5 pb-1">
+          {(["Reconectar Google", "Desconectar", "Sincronizar agora"] as const).map((label) => (
+            <span key={label} data-agenda-connection-control className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-1 ${label === "Sincronizar agora" ? "border-primary bg-primary text-primary-foreground" : ""}`}>{label}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportsPeriodLayoutPreview() {
+  return (
+    <div aria-label="Prévia do período dos Relatórios centralizado" className="mx-auto w-full max-w-sm rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <div className="text-center">
+        <strong className="inline-flex items-center gap-1.5"><CalendarRange className="h-3.5 w-3.5 text-teal-700" /> Período analisado</strong>
+        <p className="mt-1 text-muted-foreground">1 de outubro de 2026 até 31 de outubro de 2026</p>
+      </div>
+      <div className="mt-3 grid grid-cols-[1fr_1fr_auto] items-end gap-1.5">
+        <div data-report-period-control className="min-w-0"><span>Início</span><p className="mt-1 rounded-full border px-2 py-1.5">01/10/2026</p></div>
+        <div data-report-period-control className="min-w-0"><span>Fim</span><p className="mt-1 rounded-full border px-2 py-1.5">31/10/2026</p></div>
+        <span data-report-period-control className="inline-flex items-center gap-1 rounded-full border px-2 py-1.5"><RotateCcw className="h-3 w-3" /> Mês vigente</span>
+      </div>
+    </div>
+  );
+}
+
+function MobileClientCardsPreview() {
+  return (
+    <div aria-label="Prévia dos clientes em dois cartões por linha no celular" className="mx-auto grid w-full max-w-64 grid-cols-2 gap-2 text-[10px]">
+      {["Cliente Exemplo A", "Cliente Exemplo B"].map((name, index) => (
+        <div key={name} data-mobile-client-card className="flex min-w-0 flex-col rounded-xl border bg-background p-2.5 shadow-sm">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10 font-bold text-primary">{index === 0 ? "A" : "B"}</span>
+          <strong className="mt-2 break-words leading-tight">{name}</strong>
+          <span className="text-muted-foreground">Cliente ativo</span>
+          <span className="mt-2 font-semibold">{index === 0 ? 8 : 5} <span className="font-normal text-muted-foreground">tarefas</span></span>
+          <span className="mt-auto flex gap-2 border-t pt-2 text-primary">
+            <FileDown className="h-3 w-3" /><Sparkles className="h-3 w-3" /><Pencil className="h-3 w-3" /><Archive className="h-3 w-3" /><Trash2 className="h-3 w-3 text-destructive" />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DashboardMobileMetricsPreview() {
+  const items = [
+    { label: "Total de tarefas", icon: ListTodo, color: "text-blue-600 bg-blue-50" },
+    { label: "Concluídas", icon: CheckCircle2, color: "text-emerald-600 bg-emerald-50" },
+    { label: "Pendentes", icon: Clock3, color: "text-amber-600 bg-amber-50" },
+    { label: "Atrasadas", icon: AlertTriangle, color: "text-red-600 bg-red-50" },
+  ];
+  return (
+    <div aria-label="Prévia dos indicadores do Dashboard em duas colunas no celular" className="mx-auto grid w-full max-w-64 grid-cols-2 gap-2 text-[10px]">
+      {items.map(({ label, icon: Icon, color }) => (
+        <div key={label} data-dashboard-metric className="flex min-w-0 items-start justify-between gap-1 rounded-xl border bg-background p-2.5 shadow-sm">
+          <span className="min-w-0"><span className="block leading-tight text-muted-foreground">{label}</span><strong className="mt-1 block text-base leading-none">0</strong></span>
+          <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg ${color}`}><Icon className="h-3.5 w-3.5" /></span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MobileObligationsMetricsPreview() {
+  const items = [
+    { label: "Atrasadas", icon: AlertTriangle, color: "text-red-600 bg-red-50" },
+    { label: "Vencem hoje", icon: Clock3, color: "text-amber-600 bg-amber-50" },
+    { label: "Próximos 7 dias", icon: CalendarCheck2, color: "text-primary bg-primary/10" },
+    { label: "Concluídas no mês", icon: CheckCircle2, color: "text-emerald-600 bg-emerald-50" },
+  ];
+  return (
+    <div aria-label="Prévia dos indicadores de Obrigações em duas colunas no celular" className="mx-auto grid w-full max-w-64 grid-cols-2 gap-2 text-[10px]">
+      {items.map(({ label, icon: Icon, color }) => (
+        <div key={label} data-obligation-metric className="min-w-0 rounded-xl border bg-background p-2.5 shadow-sm">
+          <span className={`grid h-7 w-7 place-items-center rounded-lg ${color}`}><Icon className="h-4 w-4" /></span>
+          <strong className="mt-1.5 block text-base leading-none">0</strong>
+          <span className="mt-1 block leading-tight text-muted-foreground">{label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MobileTaskToolbarPreview() {
+  const chip = "min-w-0 flex-1 rounded-full border bg-background px-1.5 py-1 text-center shadow-sm";
+  return (
+    <div aria-label="Prévia dos controles de tarefas na mesma largura no celular" className="mx-auto w-full max-w-64 overflow-hidden rounded-2xl border bg-muted/20 text-[10px] shadow-sm">
+      <div className="space-y-2.5 px-3 py-3">
+        <div data-mobile-task-toolbar-row className="rounded-full border bg-background px-3 py-1.5 text-muted-foreground">⌕ Buscar tarefa pelo título...</div>
+        <div data-mobile-task-toolbar-row className="flex w-full rounded-full border bg-muted/40 p-0.5">
+          {['Kanban', 'Lista', 'Calendário'].map((label) => <span key={label} className={chip}>{label}</span>)}
+        </div>
+        <div data-mobile-task-toolbar-row className="flex w-full rounded-full border bg-muted/40 p-0.5">
+          {['Todas', 'Atribuídas a mim', 'Criadas por mim'].map((label) => <span key={label} className={chip}>{label}</span>)}
+        </div>
+        <div data-mobile-task-toolbar-row className="w-full rounded-full border bg-background px-2 py-1 text-center shadow-sm">Filtros</div>
+        <div data-mobile-task-toolbar-row className="grid w-full grid-cols-2 gap-1">
+          {['Arquivos Cliente', 'Etiquetas', 'Coluna', 'Tarefa'].map((label) => <span key={label} className="rounded-full border bg-background px-1.5 py-1 text-center shadow-sm">{label}</span>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardFilterPanelPreview() {
+  return (
+    <div aria-label="Prévia dos filtros do Dashboard" className="mx-auto w-full max-w-sm text-[10px]">
+      <span className="inline-flex rounded-full border bg-background px-3 py-1.5 font-semibold shadow-sm">☷ Filtros</span>
+      <div className="mt-2 rounded-xl border bg-background p-3 shadow-sm">
+        <div className="flex justify-between gap-2">
+          <strong>Filtrar tarefas</strong>
+          <span className="text-muted-foreground">Outubro de 2026</span>
+        </div>
+        <p className="mt-3 text-muted-foreground">Visualização rápida</p>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {['Todas', 'Vence hoje', 'Amanhã', 'Semana', 'Mês', 'Atrasadas', 'Sem prazo', 'Pendentes', 'Concluídas', 'Escolher período'].map((label) => (
+            <span key={label} className={`rounded-full border px-2 py-1 ${label === 'Mês' ? 'bg-primary text-primary-foreground' : ''}`}>
+              {label}
+            </span>
+          ))}
+        </div>
+        <div className="mt-3 border-t pt-2">
+          <p className="text-muted-foreground">Refinar resultados</p>
+          <div className="mt-1.5 grid grid-cols-2 gap-2">
+            <div><span>Situação</span><p className="mt-1 rounded-full border px-2 py-1">Todas</p></div>
+            <div><span>Responsável</span><p className="mt-1 rounded-full border px-2 py-1">Todos</p></div>
+          </div>
+          <p className="mt-2 text-right">Limpar filtros</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeamDistributionLabelsPreview() {
+  return (
+    <div
+      aria-label="Prévia da distribuição da equipe com nomes em linhas separadas"
+      className="mx-auto w-full max-w-64 rounded-xl border bg-background p-3 text-[10px] shadow-sm"
+    >
+      <strong>Distribuição da equipe</strong>
+      <div className="mt-3 space-y-2.5">
+        {[
+          { name: "Ana Exemplo", done: "w-1/2", open: "w-1/5" },
+          { name: "Bruno Exemplo", done: "w-1/3", open: "w-1/4" },
+          { name: "Carla Exemplo", done: "w-2/5", open: "w-1/6" },
+        ].map((person) => (
+          <div key={person.name} data-team-preview-row className="grid grid-cols-[5rem_1fr] items-center gap-2">
+            <span className="truncate">{person.name}</span>
+            <span className="flex h-3 overflow-hidden rounded-r bg-muted/40">
+              <span className={`${person.done} bg-emerald-600`} />
+              <span className={`${person.open} bg-amber-500`} />
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 flex gap-3 text-muted-foreground">
+        <span>● Concluídas</span><span>● Em aberto</span>
+      </p>
+    </div>
+  );
+}
+
+function CompactEnvironmentsMobilePreview() {
+  return (
+    <div
+      aria-label="Prévia dos dois ambientes visíveis em uma tela compacta"
+      className="mx-auto w-full max-w-48 rounded-xl border bg-background p-2.5 text-[10px] shadow-sm"
+    >
+      <p className="text-center text-[9px] text-muted-foreground">Ambientes</p>
+      <strong className="mt-1 block text-center text-[12px]">Escolha onde trabalhar</strong>
+      <div className="mt-2 space-y-2">
+        <div className="rounded-lg border border-primary/40 bg-primary/[0.025] p-2">
+          <p className="flex items-center gap-1.5 font-semibold"><ShieldCheck className="h-3 w-3" /> Consultoria</p>
+          <p className="mt-1 text-muted-foreground">Ambiente ativo</p>
+          <span className="mt-1 block rounded-full border px-2 py-0.5 text-center">Abrir painel</span>
+        </div>
+        <div className="rounded-lg border p-2">
+          <p className="flex items-center gap-1.5 font-semibold"><Megaphone className="h-3 w-3" /> Marketing</p>
+          <p className="mt-1 text-muted-foreground">Acesso autorizado</p>
+          <span className="mt-1 block rounded-full bg-primary px-2 py-0.5 text-center text-primary-foreground">Acessar</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnimatedSidebarPreview() {
+  return (
+    <div
+      aria-label="Prévia da barra lateral deslizando entre os estados aberto e recolhido"
+      className="mx-auto flex w-full max-w-72 items-center justify-center gap-2 rounded-xl border bg-background p-3 text-[10px] shadow-sm"
+    >
+      <div className="flex h-36 w-11 shrink-0 flex-col items-center gap-2 rounded-lg border bg-muted/30 p-2">
+        <span className="relative h-7 w-6 shrink-0 overflow-hidden">
+          <img
+            src={businessMentoringLogo}
+            alt=""
+            className="absolute -left-[3px] top-0 w-[120px] max-w-none"
+          />
+        </span>
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-primary/10 text-primary">
+          <Menu className="h-4 w-4" />
+        </span>
+        <span className="h-3 w-3 rounded bg-muted-foreground/20" />
+        <PanelLeft className="mt-auto h-4 w-4" />
+      </div>
+      <ArrowRight className="h-4 w-4 shrink-0 text-primary" />
+      <div className="flex h-36 min-w-0 flex-1 flex-col gap-2 rounded-lg border bg-muted/30 p-2">
+        <img src={businessMentoringLogo} alt="" className="h-6 w-full object-contain" />
+        <strong>TaskFlow</strong>
+        <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">▦ Dashboard</span>
+        <span className="px-2 py-1">☷ Minhas tarefas</span>
+        <span className="mt-auto flex items-center gap-1 border-t pt-2">
+          <Moon className="h-3 w-3" /> <PanelLeft className="h-3 w-3" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function RecentUpdateHistoryPreview() {
+  return (
+    <div
+      aria-label="Prévia do histórico com cinco atualizações recentes"
+      className="mx-auto w-full max-w-64 rounded-xl border bg-background p-3 text-[10px] shadow-sm"
+    >
+      <strong>Histórico de atualizações</strong>
+      <div className="mt-2 space-y-1.5">
+        {APP_UPDATES.slice(0, 5).map(({ id, title }, index) => (
+          <div key={id} className="flex items-center gap-2 rounded-md border px-2 py-1.5">
+            <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+              {index + 1}
+            </span>
+            <span className="truncate">{title}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SidebarControlFooterPreview() {
+  return (
+    <div
+      aria-label="Prévia do controle do menu junto ao modo noturno"
+      className="mx-auto flex h-48 w-full max-w-56 flex-col overflow-hidden rounded-xl border bg-background text-[10px] shadow-sm"
+    >
+      <div className="flex-1 space-y-2 p-3">
+        <strong>TaskFlow</strong>
+        <div className="rounded-full bg-primary/10 px-2 py-1 text-primary">Dashboard</div>
+        <div className="px-2 py-1 text-muted-foreground">Minhas tarefas</div>
+      </div>
+      <div className="flex items-center gap-2 border-t p-2">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/15 font-semibold">TF</span>
+        <span className="min-w-0 flex-1 truncate font-medium">Seu perfil</span>
+        <Moon className="h-4 w-4 shrink-0" aria-label="Modo noturno" />
+        <PanelLeft className="h-4 w-4 shrink-0" aria-label="Recolher menu" />
+        <LogOut className="h-4 w-4 shrink-0" aria-label="Sair" />
+      </div>
+    </div>
+  );
+}
+
+function MobileLayoutPreview() {
+  return (
+    <PreviewGrid label="Prévia da navegação e das telas ajustadas para celular">
+      <div className="mx-auto w-full max-w-52 overflow-hidden rounded-2xl border bg-background text-[10px] shadow-sm">
+        <div className="flex items-center justify-between border-b p-2">
+          <Menu className="h-4 w-4" />
+          <strong>TaskFlow</strong>
+          <span className="h-4 w-4 rounded-full bg-primary/20" />
+        </div>
+        <div className="space-y-2 p-2">
+          <p className="font-semibold">Reuniões</p>
+          <div className="rounded-md border px-2 py-1.5 text-muted-foreground">
+            Buscar reunião...
+          </div>
+          <div className="rounded-md border px-2 py-1.5">Todos os clientes</div>
+          <div className="rounded-md border px-2 py-1.5">Todos os participantes</div>
+          <p className="rounded-md bg-muted px-2 py-1.5">Reuniões · Histórico · Configurações</p>
+        </div>
+      </div>
+      <div className="mx-auto w-full max-w-52 overflow-hidden rounded-2xl border bg-background p-2 text-[10px] shadow-sm">
+        <strong>CRM · Funil</strong>
+        <p className="mt-1 text-muted-foreground">Deslize para ver as etapas →</p>
+        <div className="mt-2 rounded-lg border border-t-4 border-t-emerald-500 bg-muted/20 p-2">
+          <strong>Atendendo</strong>
+          <div className="mt-2 rounded-md border bg-background p-2">Lead de exemplo · R$ 0,00</div>
+        </div>
+        <p className="mt-2 text-muted-foreground">Agenda · deslize para ver outros dias →</p>
+      </div>
+    </PreviewGrid>
   );
 }
 
@@ -64,7 +399,10 @@ function MeetingDeleteHistoryPreview() {
   return (
     <PreviewGrid label="Prévia da exclusão de reunião com histórico">
       <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
-        <div className="mb-2 flex flex-wrap gap-1 rounded-lg bg-muted p-1" aria-label="Abas de reuniões">
+        <div
+          className="mb-2 flex flex-wrap gap-1 rounded-lg bg-muted p-1"
+          aria-label="Abas de reuniões"
+        >
           <span className="rounded-md bg-background px-2 py-1 font-medium shadow-sm">Reuniões</span>
           <span className="px-2 py-1 text-muted-foreground">Histórico</span>
           <span className="px-2 py-1 text-muted-foreground">Configurações</span>
@@ -1044,6 +1382,20 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "agenda-google-compact-actions": AgendaGoogleCompactActionsPreview,
+  "agenda-google-connection-layout": AgendaGoogleConnectionLayoutPreview,
+  "reports-period-layout": ReportsPeriodLayoutPreview,
+  "mobile-client-cards": MobileClientCardsPreview,
+  "dashboard-mobile-metrics": DashboardMobileMetricsPreview,
+  "mobile-obligations-metrics": MobileObligationsMetricsPreview,
+  "mobile-task-toolbar": MobileTaskToolbarPreview,
+  "dashboard-filter-panel": DashboardFilterPanelPreview,
+  "team-distribution-labels": TeamDistributionLabelsPreview,
+  "compact-environments-mobile": CompactEnvironmentsMobilePreview,
+  "animated-sidebar": AnimatedSidebarPreview,
+  "recent-update-history": RecentUpdateHistoryPreview,
+  "sidebar-control-footer": SidebarControlFooterPreview,
+  "mobile-layout": MobileLayoutPreview,
   "meeting-delete-history": MeetingDeleteHistoryPreview,
   "collaborator-sync": CollaboratorSyncPreview,
   "client-important-dates": ClientImportantDatesPreview,

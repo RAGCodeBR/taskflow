@@ -1,5 +1,19 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "agenda-google-compact-actions"
+  | "agenda-google-connection-layout"
+  | "reports-period-layout"
+  | "mobile-client-cards"
+  | "dashboard-mobile-metrics"
+  | "mobile-obligations-metrics"
+  | "mobile-task-toolbar"
+  | "dashboard-filter-panel"
+  | "team-distribution-labels"
+  | "compact-environments-mobile"
+  | "animated-sidebar"
+  | "recent-update-history"
+  | "sidebar-control-footer"
+  | "mobile-layout"
   | "meeting-delete-history"
   | "collaborator-sync"
   | "client-important-dates"
@@ -43,358 +57,148 @@ export type AppUpdate = {
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
   {
-    id: "exclusao-de-reunioes-com-historico-2026-10-15",
-    title: "Excluir reuniões com histórico",
+    id: "acoes-google-agenda-sem-rolagem-2026-10-15",
+    title: "Ações da Google Agenda sem rolagem",
     date: "2026-10-15",
-    preview: "meeting-delete-history",
+    preview: "agenda-google-compact-actions",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "É possível excluir uma reunião mesmo quando ela possui pautas, tarefas, atas ou transcrições. A confirmação mostra o que será removido.",
-      "A exclusão remove a reunião e suas pautas; tarefas e notas de clientes permanecem sem o vínculo com ela. Os eventos da reunião são enviados para remoção do Google Agenda.",
-      "O botão de arquivar e a aba Arquivadas foram retirados da tela de Reuniões.",
+      "Os botões Reconectar Google, Desconectar e Sincronizar agora foram compactados para ocupar a mesma linha dentro do cartão, sem barra de rolagem horizontal. Em telas estreitas, o texto pode quebrar dentro dos botões.",
     ],
   },
   {
-    id: "colaboradores-salvos-e-tarefas-atualizadas-2026-10-14",
-    title: "Colaboradores salvos com segurança",
-    date: "2026-10-14",
-    preview: "collaborator-sync",
+    id: "conexao-google-agenda-centralizada-2026-10-15",
+    title: "Conexão da Google Agenda organizada",
+    date: "2026-10-15",
+    preview: "agenda-google-connection-layout",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "Ao abrir uma tarefa existente, a lista de colaboradores é carregada antes de permitir salvar. Se a leitura falhar, é possível tentar novamente sem substituir os participantes por uma lista vazia.",
-      "As tarefas atribuídas a você como colaborador são verificadas periodicamente enquanto a tela está aberta e novamente ao voltar para a aba. Novas atribuições aparecem sem recarga manual.",
+      "O cartão de conexão da Google Agenda centraliza o título e a conta conectada. Reconectar Google, Desconectar e Sincronizar agora ficam na mesma linha, com rolagem horizontal em telas estreitas.",
     ],
   },
   {
-    id: "datas-importantes-e-feriados-nos-calendarios-2026-10-13",
-    title: "Datas importantes e feriados nos calendários",
-    date: "2026-10-13",
-    preview: "client-important-dates",
+    id: "periodo-dos-relatorios-centralizado-2026-10-15",
+    title: "Período dos Relatórios centralizado",
+    date: "2026-10-15",
+    preview: "reports-period-layout",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "Na ficha de cada cliente, as abas ficam distribuídas de forma equilibrada. Datas importantes permite cadastrar, editar e excluir datas anuais ou de uma única ocorrência.",
-      "Feriados nacionais e datas dos clientes aparecem em marcadores discretos ao lado do número do dia quando houver espaço, ou abaixo dele, sem ocultar tarefas.",
-      "Quando há várias datas no mesmo dia, o indicador + mostra a lista completa. Datas anuais reaparecem nos anos seguintes; feriados nacionais fixos e a Paixão de Cristo são calculados por ano.",
+      "No cartão de período dos Relatórios, o título e o intervalo analisado ficam centralizados. Início, Fim e Mês vigente aparecem na mesma linha; em telas muito estreitas, a linha pode ser deslizada sem cortar os campos.",
     ],
   },
   {
-    id: "dashboard-equipe-colaboradores-2026-10-11",
-    title: "Dashboard da equipe e demanda por cliente",
-    date: "2026-10-11",
-    preview: "member-team-dashboard",
+    id: "clientes-em-dois-cartoes-no-celular-2026-10-15",
+    title: "Clientes em dois cartões por linha no celular",
+    date: "2026-10-15",
+    preview: "mobile-client-cards",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "O dashboard do colaborador agora mostra tarefas e subtarefas em aberto e concluídas, separadas por responsável, no ambiente ativo. Clique em qualquer contagem para abrir e buscar todas as atividades correspondentes.",
-      "O gráfico de demanda agrupa cards principais e subtarefas por cliente. Filtre por pessoa e por situação (em aberto, concluídas ou todas), e clique em um cliente para ver as atividades que compõem cada barra.",
-      "A seção da equipe mostra entregas recentes e permite abrir as atividades visíveis de cada pessoa. Os indicadores pessoais continuam no início da página.",
-      "No Marketing, o colaborador abre um resumo do card diretamente no dashboard, sem sair para Minhas Tarefas. Apenas tarefas do ambiente ativo podem ser abertas.",
+      "A lista de clientes mostra dois cartões por linha no celular. Logo, nome, quantidade de tarefas e ações ficam mais próximos; nomes longos quebram de linha e a mensagem de informações ausentes não ocupa espaço no cartão.",
     ],
   },
   {
-    id: "relatorios-subtarefas-por-responsavel-2026-10-09",
-    title: "Subtarefas nos relatórios e conclusão no calendário",
-    date: "2026-10-09",
-    preview: "report-subtask-metrics",
+    id: "indicadores-do-dashboard-em-duas-colunas-2026-10-15",
+    title: "Indicadores do Dashboard em duas colunas no celular",
+    date: "2026-10-15",
+    preview: "dashboard-mobile-metrics",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "As subtarefas passam a contar para seu próprio responsável no ranking, no comparativo da equipe e no briefing mensal, usando o prazo e a conclusão da subtarefa.",
-      "O resumo continua separando tarefas principais de subtarefas. Entregas, atividades por cliente e formatos de Marketing incluem ambas.",
-      "No calendário de Marketing e Consultoria, o check verde aparece ao passar o mouse sobre uma tarefa aberta para concluí-la sem abrir o card. Rascunhos e tarefas com subtarefas pendentes continuam protegidos; tarefas vencidas pedem a data real de conclusão.",
+      "No celular, os indicadores do Dashboard aparecem dois por linha, tanto na visão geral quanto na visão individual. O conteúdo dos cartões foi ajustado para caber na largura menor.",
     ],
   },
   {
-    id: "reunioes-sem-pauta-encerramento-manual-2026-10-09",
-    title: "Encerrar reuniões sem pauta",
-    date: "2026-10-09",
-    preview: "meeting-empty-close",
+    id: "indicadores-de-obrigacoes-em-duas-colunas-2026-10-15",
+    title: "Indicadores de Obrigações em duas colunas no celular",
+    date: "2026-10-15",
+    preview: "mobile-obligations-metrics",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "Reuniões sem itens na pauta agora mostram a opção Encerrar sem pauta, com confirmação antes de concluir.",
-      "A lista identifica essas reuniões como Sem pauta. Elas podem ser reabertas depois; reuniões com itens pendentes continuam exigindo um resultado para cada item.",
+      "Na página de Obrigações, Atrasadas e Vencem hoje aparecem lado a lado; Próximos 7 dias e Concluídas no mês ocupam a linha seguinte. Os cartões se ajustam para manter os textos legíveis no celular.",
     ],
   },
   {
-    id: "reunioes-encerradas-automaticamente-2026-10-09",
-    title: "Reuniões encerradas ao concluir a pauta",
-    date: "2026-10-09",
-    preview: "meeting-auto-complete",
+    id: "barra-de-tarefas-alinhada-no-celular-2026-10-15",
+    title: "Controles de tarefas na mesma largura no celular",
+    date: "2026-10-15",
+    preview: "mobile-task-toolbar",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "Uma reunião com pauta é encerrada automaticamente quando todos os itens e todas as tarefas vinculadas estiverem concluídos.",
-      "Reuniões sem itens e reuniões com pautas ou tarefas pendentes permanecem abertas.",
+      "Na página de tarefas, a busca, as visualizações, os filtros e os botões de ação ocupam a mesma largura no celular. Os três tipos de visualização e os três recortes de tarefas se distribuem por toda a linha; os botões de ação preenchem duas colunas quando há espaço.",
+      "As telas de lista e calendário usam a mesma margem da busca em dispositivos móveis.",
     ],
   },
   {
-    id: "permissoes-reunioes-crm-salvas-2026-10-09",
-    title: "Acessos de Reuniões e CRM salvos corretamente",
-    date: "2026-10-09",
-    preview: "permission-save",
-    audience: "admin",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Ao salvar os acessos de um colaborador, as opções Reuniões e CRM permanecem marcadas ao reabrir a janela.",
-    ],
-  },
-  {
-    id: "permissoes-ordenadas-pelo-menu-2026-10-09",
-    title: "Permissões na ordem do menu",
-    date: "2026-10-09",
-    preview: "permission-nav-order",
-    audience: "admin",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "A lista de acessos dos usuários segue a ordem da barra lateral, começando por Mural LA, Dashboard e Minhas Tarefas.",
-      "A opção antiga Importar ata saiu dessa lista. A importação dentro das reuniões continua disponível.",
-    ],
-  },
-  {
-    id: "crm-avatar-alinhado-2026-10-09",
-    title: "Cartões do CRM mais alinhados",
-    date: "2026-10-09",
-    preview: "crm-avatar-aligned",
+    id: "filtros-do-dashboard-organizados-2026-10-15",
+    title: "Filtros do Dashboard em uma janela",
+    date: "2026-10-15",
+    preview: "dashboard-filter-panel",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "A inicial do lead fica centralizada ao lado do título e da empresa no cartão do pipeline, com o botão de editar à direita.",
+      "No Dashboard administrativo, o botão Filtros abre uma janela no celular e no computador. A visualização rápida reúne Vence hoje, Amanhã, Semana, Mês, Atrasadas, Sem prazo, Pendentes, Concluídas e o período personalizado. Limpar filtros retorna à visão de todas as tarefas.",
+      "Os filtros podem ser combinados e atualizam os indicadores, gráficos e listas do painel.",
+      "Prazos informados somente como data são interpretados no dia correto do fuso local.",
     ],
   },
   {
-    id: "crm-lead-sem-contato-separado-2026-10-09",
-    title: "Lead com cadastro mais direto",
-    date: "2026-10-09",
-    preview: "crm-without-contact",
+    id: "grafico-equipe-legivel-2026-10-15",
+    title: "Gráfico da equipe mais legível",
+    date: "2026-10-15",
+    preview: "team-distribution-labels",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "O campo Contato foi removido do formulário e dos cartões do CRM. Nome do lead, empresa, e-mail e telefone continuam disponíveis.",
-      "Informações antigas desse campo permanecem armazenadas e não são apagadas ao editar um lead.",
+      "O gráfico Distribuição da equipe mostra uma pessoa por linha, evitando nomes sobrepostos em telas estreitas. Passe sobre a barra para ver o nome completo e clique para abrir a carga da pessoa.",
     ],
   },
   {
-    id: "crm-rotulos-empresa-2026-10-09",
-    title: "Opções de empresa mais claras no CRM",
-    date: "2026-10-09",
-    preview: "crm-company-labels",
+    id: "ambientes-compactos-no-celular-2026-10-15",
+    title: "Ambientes mais compactos no celular",
+    date: "2026-10-15",
+    preview: "compact-environments-mobile",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "No lead, a opção para informar uma empresa sem vínculo agora se chama Sem cadastro.",
-      "O campo de escolha de uma empresa existente agora mostra Selecionar cliente cadastrado.",
+      "Na escolha de ambientes, o título, os espaços e os cartões ficaram menores em telas estreitas. Os dois ambientes e seus botões cabem melhor na mesma tela, sem alterar o layout do computador.",
     ],
   },
   {
-    id: "crm-empresa-cadastrada-ou-nome-2026-10-09",
-    title: "Empresa cadastrada ou nome livre no lead",
-    date: "2026-10-09",
-    preview: "crm-company",
+    id: "animacao-da-barra-lateral-2026-10-15",
+    title: "Barra lateral com animação",
+    date: "2026-10-15",
+    preview: "animated-sidebar",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "Ao criar ou editar um lead, escolha uma empresa já cadastrada no TaskFlow ou informe somente o nome, sem criar um novo cadastro de cliente.",
-      "A empresa cadastrada fica vinculada ao lead no ambiente atual. Os leads existentes mantêm os nomes já salvos.",
+      "Ao expandir ou recolher a barra lateral no computador, a largura e os nomes dos itens mudam suavemente. A marca, os ícones e o destaque do item ativo permanecem alinhados nas duas posições. No celular, o menu desliza ao abrir e fechar.",
     ],
   },
   {
-    id: "crm-colunas-titulo-cor-2026-10-09",
-    title: "Colunas do CRM com título e cor editáveis",
-    date: "2026-10-09",
-    preview: "crm-columns",
+    id: "historico-limitado-a-cinco-atualizacoes-2026-10-15",
+    title: "Histórico com as cinco atualizações mais recentes",
+    date: "2026-10-15",
+    preview: "recent-update-history",
     audience: "all",
     workspaces: ["marketing", "consultoria"],
     details: [
-      "O botão de editar no cabeçalho de cada coluna permite alterar seu título e sua cor.",
-      "As escolhas ficam salvas por ambiente e aparecem para todas as pessoas com acesso ao CRM, inclusive nos cartões e na seleção de etapas.",
-    ],
-  },
-  {
-    id: "crm-funil-oportunidades-2026-10-09",
-    title: "CRM com funil de oportunidades",
-    date: "2026-10-09",
-    preview: "crm-pipeline",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "O CRM organiza leads em seis etapas, com busca por nome, e-mail ou telefone, valor previsto e previsão de fechamento.",
-      "Crie, edite, mova ou exclua leads e consulte a distribuição por origem. Cada ambiente tem seu próprio funil; o acesso é concedido em Usuários.",
-    ],
-  },
-  {
-    id: "subtarefas-concluidas-nas-visoes-2026-10-09",
-    title: "Minha parte concluída nas tarefas",
-    date: "2026-10-09",
-    preview: "subtask-participation",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Quem participa somente por subtarefas acompanha o card principal enquanto ainda tiver alguma subtarefa atribuída em aberto. A subtarefa concluída continua visível no calendário no prazo próprio ou, se não tiver prazo, no dia da conclusão, sem recolocar o card pai na visão pessoal depois da última parte.",
-      "Quem é colaborador ou responsável pelo card continua acompanhando a tarefa principal. No Kanban, a subtarefa finalizada aparece na coluna Concluídas; na lista, na seção Concluídas. A faixa separada acima das tarefas foi removida.",
-    ],
-  },
-  {
-    id: "prazos-individuais-subtarefas-calendario-2026-10-09",
-    title: "Calendário e colagem de texto mais precisos",
-    date: "2026-10-09",
-    preview: "calendar-subtask-dates",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Com o filtro Subtarefas ativado, cada subtarefa com prazo diferente da tarefa principal aparece separadamente no dia do seu próprio prazo, nas visões de semana e mês.",
-      "Subtarefas com o mesmo prazo, ou sem prazo próprio, continuam junto da tarefa principal. Clicar em qualquer subtarefa abre a tarefa para consultar seus detalhes.",
-      "Ao colar texto na descrição, o editor preserva a formatação disponível e não exibe as tags HTML da origem. Textos simples e prints continuam aceitos.",
-    ],
-  },
-  {
-    id: "atualizacao-ultima-versao-um-clique-2026-10-09",
-    title: "Atualização até a versão mais recente em um clique",
-    date: "2026-10-09",
-    preview: "update-one-click",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Ao clicar em Atualizar agora, o TaskFlow espera a versão publicada assumir o controle desta aba antes de recarregar. As novidades acumuladas chegam juntas no histórico.",
-      "Depois do recarregamento, o sistema confirma que carregou a versão mais recente. Se uma versão intermediária aparecer, continua a atualização automaticamente, com limite de tentativas, sem pedir outro clique.",
-      "Os dados offline são preservados. Uma falha de instalação não marca a atualização como concluída.",
-    ],
-  },
-  {
-    id: "atualizacao-navegador-recuperacao-2026-10-09",
-    title: "Atualização do navegador mais confiável",
-    date: "2026-10-09",
-    preview: "update-retry",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Se o navegador substituir o serviço de atualização durante a instalação, Atualizar agora acompanha a nova tentativa e recarrega somente após a ativação.",
-      "Quando outra aba já concluiu a atualização, o botão reconhece a versão ativada. Os dados offline permanecem preservados.",
-    ],
-  },
-  {
-    id: "avisos-atribuicao-marcar-lidos-2026-10-09",
-    title: "Avisos de atribuição mais fáceis de organizar",
-    date: "2026-10-09",
-    preview: "assignment-popup-read",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "No pop-up de uma tarefa ou subtarefa atribuída, Marcar como lido substitui Depois quando há apenas um aviso.",
-      "Se houver dois ou mais avisos na fila, Marcar todos como lidos limpa os avisos de atribuição pendentes de uma vez e atualiza o sino de notificações. Ver tarefa continua disponível.",
-    ],
-  },
-  {
-    id: "atualizar-direto-central-2026-10-08",
-    title: "Atualização da página com menos cliques",
-    date: "2026-10-08",
-    preview: "update-shortcut",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Ao clicar em Novas atualizações ou abrir o histórico pelo aviso, a verificação da versão publicada acontece automaticamente. Não é mais preciso clicar em Verificar atualizações.",
-      "O botão Atualizar agora fica no início da janela. A página só recarrega após seu clique e depois que a nova versão estiver pronta. Os dados offline continuam preservados; se houver falha, você pode tentar novamente.",
-    ],
-  },
-  {
-    id: "subtarefas-agrupadas-calendario-2026-10-08",
-    title: "Subtarefas agrupadas no calendário",
-    date: "2026-10-08",
-    preview: "calendar-subtasks",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Ative Subtarefas nos filtros para vê-las abaixo da tarefa pai, no mesmo grupo e no dia em que a tarefa principal aparece. As linhas mostram o título, o responsável e a conclusão, sem exibir os prazos.",
-      "Clique em uma subtarefa para abrir a tarefa pai e consultar seus prazos e detalhes. A visualização funciona nas visões de semana e mês e não altera datas nem o arraste das tarefas principais.",
-      "A escolha fica lembrada neste navegador, por pessoa e ambiente. Os perfis com essa visualização pré-configurada já iniciam com o filtro ativado.",
-      "O centro de atualizações verifica a versão publicada e espera a nova versão terminar de ativar antes de recarregar. Sem internet ou em caso de falha, mantém os dados offline e permite tentar novamente. As miniaturas ficam lado a lado quando há espaço e passam para a linha seguinte quando necessário.",
-    ],
-  },
-  {
-    id: "aberturas-pins-atalhos-tarefas-2026-10-08",
-    title: "Aberturas, prioridades pessoais e tarefas no calendário",
-    date: "2026-10-08",
-    preview: "task-card-activity",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Em Aberturas do card, consulte a primeira e a última vez que cada pessoa abriu a tarefa, com data e horário de Brasília. O registro começa nesta atualização; aberturas offline aparecem ao sincronizar.",
-      "No calendário, clique com o botão direito na tarefa e escolha Fixar tarefa ou Desfixar tarefa. Um pin pequeno em azul-marinho, com fundo claro, aparece sobreposto no canto do card. O botão Fixadas mostra apenas suas tarefas pendentes fixadas no período exibido; clicar novamente retorna à visualização normal. Cada pessoa tem seus próprios pins.",
-      "Clique com o botão direito no dia ou em uma tarefa do calendário e selecione Nova tarefa. O formulário abre com o prazo daquele dia preenchido, nas visões de semana e mês.",
-    ],
-  },
-  {
-    id: "edicao-tarefas-prazos-descricoes-2026-10-08",
-    title: "Salvamento de descrições e prazos",
-    date: "2026-10-08",
-    preview: "task-edit",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Ao editar uma tarefa, apenas os campos alterados são enviados. Salvar a descrição preserva um prazo atualizado enquanto a janela estava aberta.",
-      "O salvamento confirma a tarefa retornada pelo servidor e atualiza sua exibição. Se a descrição no card não puder ser salva, o texto permanece no editor para tentar novamente. As permissões de acesso continuam as mesmas.",
-    ],
-  },
-  {
-    id: "arraste-calendario-justificativa-2026-10-07",
-    title: "Arraste tarefas para alterar o prazo",
-    date: "2026-10-07",
-    preview: "calendar-reschedule",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Nas visões de mês e semana, arraste a tarefa para outra data. Um pop-up pequeno pede a justificativa; o prazo só muda depois de preencher e confirmar. ESC ou Cancelar mantêm a data original.",
-      "Apenas o prazo da tarefa principal é alterado. Horário e subtarefas ficam intactos. Uma tarefa aberta movida para uma data anterior a hoje aparece como atrasada; uma tarefa concluída continua concluída.",
-      "As alterações e suas justificativas ficam salvas neste aparelho quando você está offline e são sincronizadas ao reconectar. O histórico dos relatórios também é atualizado após a sincronização.",
-    ],
-  },
-  {
-    id: "links-clicaveis-calendario-tarefas-2026-10-06-r2",
-    title: "Links clicáveis e calendário mais organizado",
-    date: "2026-10-06",
-    preview: "links-calendar",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Links nas tarefas, descrições, subtarefas e conversas abrem em uma nova aba. Nos campos de edição simples, os links aparecem logo abaixo do texto para você abrir sem copiar e colar. No editor de descrição, ficam apenas na própria linha do texto.",
-      "O calendário mostra apenas as tarefas principais, no prazo de cada tarefa. Para visualizar as subtarefas, abra a tarefa principal. A mudança vale para Marketing e Consultoria, nas visões de semana e mês.",
-    ],
-  },
-  {
-    id: "prints-organizados-em-arquivos-2026-10-02",
-    title: "Agora você pode colar prints nas tarefas",
-    date: "2026-10-02",
-    preview: "task-prints",
-    audience: "all",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "Na criação ou edição da tarefa, escreva normalmente na descrição e cole uma imagem com ⌘V ou Ctrl+V. Enquanto edita, o print aparece no texto; ao salvar, ele fica organizado somente em Arquivos, com miniatura e download.",
-    ],
-  },
-  {
-    id: "dashboard-interativo-2026-10-01",
-    title: "Dashboard mais interativo",
-    date: "2026-10-01",
-    preview: "dashboard",
-    audience: "admin",
-    workspaces: ["marketing", "consultoria"],
-    details: [
-      "A distribuição da equipe ganhou mais espaço e os indicadores passaram a abrir as tarefas relacionadas por cliente.",
+      "O histórico mostra somente as cinco atualizações mais recentes, incluindo esta. As entradas mais antigas foram retiradas do catálogo.",
     ],
   },
 ];
-
-export const DASHBOARD_UPDATE_VERSION = "dashboard-interativo-2026-10-01";
 
 export function getVisibleAppUpdates(isAdmin: boolean, workspace?: string) {
   return APP_UPDATES.filter(
     (update) =>
       update.workspaces.some((name) => name === workspace) &&
       (update.audience === "all" || isAdmin),
-  );
+  ).slice(0, 5);
 }
 
 export function formatAppUpdateDate(date: string) {

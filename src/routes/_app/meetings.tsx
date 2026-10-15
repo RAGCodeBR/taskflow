@@ -547,24 +547,24 @@ function RecurringMeetingsPage() {
     : null;
 
   return (
-    <div className="space-y-5 p-6">
+    <div className="min-w-0 space-y-5 p-4 sm:p-6">
       <header className="space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <CalendarClock className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-semibold tracking-tight">Reuniões</h1>
           </div>
-          <div className="ml-auto flex flex-wrap gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
             <Button
               variant="outline"
-              className="h-9 rounded-full px-4 shadow-sm"
+              className="h-9 flex-1 rounded-full px-4 shadow-sm sm:flex-none"
               onClick={() => setTranscriptsOpen(true)}
             >
               <FileText className="mr-2 h-4 w-4" /> Transcrições
             </Button>
             {hasPermission("meetings") && (
               <Button
-                className="h-9 rounded-full px-4 shadow-sm"
+                className="h-9 flex-1 rounded-full px-4 shadow-sm sm:flex-none"
                 onClick={() => {
                   setEditingRecurringMeeting(null);
                   setDialogOpen(true);
@@ -591,8 +591,8 @@ function RecurringMeetingsPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-3">
-        <div className="relative min-w-[220px] flex-1">
+      <div className="flex min-w-0 flex-wrap gap-2 rounded-xl border bg-card p-3">
+        <div className="relative w-full min-w-0 flex-1 sm:min-w-[220px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
@@ -602,7 +602,7 @@ function RecurringMeetingsPage() {
           />
         </div>
         <Select value={clientFilter} onValueChange={setClientFilter}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-full sm:w-52">
             <SelectValue placeholder="Todos os clientes" />
           </SelectTrigger>
           <SelectContent>
@@ -615,7 +615,7 @@ function RecurringMeetingsPage() {
           </SelectContent>
         </Select>
         <Select value={participantFilter} onValueChange={setParticipantFilter}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-full sm:w-52">
             <SelectValue placeholder="Todos os participantes" />
           </SelectTrigger>
           <SelectContent>
@@ -1466,7 +1466,7 @@ function MeetingDialog({
   return (
     <>
       <Dialog open={open && !taskFor} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+        <DialogContent className="max-h-[calc(100dvh-1rem)] overflow-y-auto sm:max-h-[92vh] sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2">
               {recurringMeeting.title}

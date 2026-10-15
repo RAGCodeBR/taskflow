@@ -1377,7 +1377,7 @@ function ReportsPage() {
     };
   })();
   return (
-    <div className="space-y-6 p-6">
+    <div className="min-w-0 space-y-6 p-4 sm:p-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Relatórios</h1>
@@ -1436,9 +1436,9 @@ function ReportsPage() {
         </div>
       </header>
 
-      <Card className="flex flex-wrap items-end justify-between gap-3 p-4">
-        <div>
-          <p className="flex items-center gap-2 text-sm font-semibold">
+      <Card className="space-y-4 p-4">
+        <div className="text-center">
+          <p className="flex items-center justify-center gap-2 text-sm font-semibold">
             <CalendarRange className="h-4 w-4 text-[#167c80]" /> Período analisado
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -1446,8 +1446,9 @@ function ReportsPage() {
             {format(periodEnd, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="space-y-1 text-xs text-muted-foreground">
+        <div className="overflow-x-auto pb-1">
+          <div className="mx-auto grid w-full min-w-[23rem] max-w-2xl grid-cols-[minmax(7.5rem,1fr)_minmax(7.5rem,1fr)_auto] items-end gap-2">
+          <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
             Início
             <Input
               type="date"
@@ -1456,10 +1457,10 @@ function ReportsPage() {
               onChange={(event) =>
                 setPeriod((current) => ({ ...current, start: event.target.value }))
               }
-              className="h-9 w-36"
+              className="h-9 min-w-0 px-2 text-xs"
             />
           </label>
-          <label className="space-y-1 text-xs text-muted-foreground">
+          <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
             Fim
             <Input
               type="date"
@@ -1468,17 +1469,19 @@ function ReportsPage() {
               onChange={(event) =>
                 setPeriod((current) => ({ ...current, end: event.target.value }))
               }
-              className="h-9 w-36"
+              className="h-9 min-w-0 px-2 text-xs"
             />
           </label>
           <Button
             type="button"
             size="sm"
             variant="outline"
+            className="h-9 shrink-0 gap-1 px-2"
             onClick={() => setPeriod(currentMonthPeriod)}
           >
-            <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Mês vigente
+            <RotateCcw className="h-3.5 w-3.5" /> Mês vigente
           </Button>
+          </div>
         </div>
       </Card>
 

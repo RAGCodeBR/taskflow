@@ -271,7 +271,7 @@ function ListPage() {
   };
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-4 p-4 sm:p-6">
       <header className="flex items-center justify-end gap-3 flex-wrap">
         <Button
           onClick={() => {

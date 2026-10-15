@@ -59,7 +59,7 @@ function TrashPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="min-w-0 p-4 sm:p-6">
       <header className="mb-4 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Lixeira</h1>

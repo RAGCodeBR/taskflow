@@ -368,6 +368,11 @@ function CrmPage() {
           />
         </div>
       </div>
+      {tab === "pipeline" && (
+        <p className="text-xs text-muted-foreground sm:hidden">
+          Deslize para os lados para ver as etapas do funil.
+        </p>
+      )}
       {opportunities.isLoading || stageSettings.isLoading ? (
         <p className="py-12 text-center text-sm text-muted-foreground">Carregando leads…</p>
       ) : opportunities.isError || stageSettings.isError ? (
@@ -388,7 +393,7 @@ function CrmPage() {
         </div>
       ) : tab === "pipeline" ? (
         <div
-          className="flex min-h-[55vh] gap-3 overflow-x-auto pb-4"
+          className="flex min-h-[55vh] w-full min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-4 sm:snap-none"
           aria-label="Funil de oportunidades"
         >
           {stages.map((stage) => {
@@ -397,7 +402,7 @@ function CrmPage() {
             return (
               <section
                 key={stage.id}
-                className="flex w-[272px] min-w-[272px] flex-col rounded-xl border bg-muted/25"
+                className="flex w-[min(272px,calc(100vw-2rem))] min-w-[min(272px,calc(100vw-2rem))] snap-start flex-col rounded-xl border bg-muted/25 sm:w-[272px] sm:min-w-[272px]"
                 style={{ borderTop: `4px solid ${stage.color}` }}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {

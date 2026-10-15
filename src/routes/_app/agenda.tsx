@@ -399,10 +399,10 @@ function AgendaPage() {
         </div>
       </header>
 
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <div className="flex flex-col items-center gap-3 rounded-lg border bg-card p-4 text-center">
+        <div className="max-w-full">
           <p className="text-sm font-medium">Google Agenda</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="break-words text-xs text-muted-foreground">
             {googleConnection
               ? `Conectado como ${googleConnection.google_email}`
               : "Conecte sua conta para autorizar a Agenda compartilhada."}
@@ -430,9 +430,10 @@ function AgendaPage() {
           </Button>
         )}
         {!loadingGoogle && googleConnection && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full max-w-xl grid-cols-3 items-stretch gap-1.5 sm:gap-2">
             <Button
               variant="outline"
+              className="h-auto min-h-9 min-w-0 whitespace-normal break-words px-1.5 py-2 text-[11px] leading-tight sm:px-3 sm:text-sm"
               onClick={() => void connectGoogle()}
               disabled={connectingGoogle}
             >
@@ -440,12 +441,17 @@ function AgendaPage() {
             </Button>
             <Button
               variant="ghost"
+              className="h-auto min-h-9 min-w-0 whitespace-normal break-words px-1.5 py-2 text-[11px] leading-tight sm:px-3 sm:text-sm"
               onClick={() => void disconnectGoogle()}
               disabled={connectingGoogle}
             >
               Desconectar
             </Button>
-            <Button onClick={() => void syncGoogle({ fullRange: true })} disabled={syncingGoogle}>
+            <Button
+              className="h-auto min-h-9 min-w-0 whitespace-normal break-words px-1.5 py-2 text-[11px] leading-tight sm:px-3 sm:text-sm"
+              onClick={() => void syncGoogle({ fullRange: true })}
+              disabled={syncingGoogle}
+            >
               {syncingGoogle ? "Sincronizando…" : "Sincronizar agora"}
             </Button>
           </div>
@@ -525,7 +531,10 @@ function AgendaPage() {
           Não foi possível carregar a Agenda: {(error as Error).message}
         </div>
       )}
-      <div className="max-h-[70vh] overflow-auto rounded-lg border bg-card">
+      <p className="text-xs text-muted-foreground sm:hidden">
+        Deslize a agenda para os lados para ver os outros dias da semana.
+      </p>
+      <div className="max-h-[70dvh] w-full min-w-0 overflow-auto overscroll-x-contain rounded-lg border bg-card">
         <div className="min-w-[1400px]">
           <div className="sticky top-0 z-30 grid grid-cols-[64px_repeat(7,minmax(190px,1fr))] border-b bg-card">
             <div className="border-r" />

@@ -5,6 +5,140 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates three compact Google Agenda actions without horizontal scrolling", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "agenda-google-compact-actions" }));
+    expect(html).toContain("grid-cols-3");
+    expect((html.match(/data-agenda-compact-action/g) ?? [])).toHaveLength(3);
+    expect(html).toContain("Sincronizar agora");
+    expect(html).not.toContain("overflow-x-auto");
+    expect(html).not.toContain("<button");
+  });
+
+  it("illustrates the centered Google Agenda connection and its three controls on one row", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "agenda-google-connection-layout" }));
+    expect(html).toContain("text-center");
+    expect(html).toContain("overflow-x-auto");
+    expect((html.match(/data-agenda-connection-control/g) ?? [])).toHaveLength(3);
+    expect(html).toContain("pessoa@exemplo.com");
+    expect(html).not.toContain("<button");
+  });
+
+  it("centers the report period and keeps its three controls on one row", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "reports-period-layout" }));
+    expect(html).toContain("text-center");
+    expect(html).toContain("grid-cols-[1fr_1fr_auto]");
+    expect((html.match(/data-report-period-control/g) ?? [])).toHaveLength(3);
+    expect(html).toContain("Mês vigente");
+    expect(html).not.toContain("<button");
+  });
+
+  it("shows two compact client cards in the mobile preview", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "mobile-client-cards" }));
+    expect(html).toContain("grid-cols-2");
+    expect((html.match(/data-mobile-client-card/g) ?? [])).toHaveLength(2);
+    expect(html).toContain("Cliente Exemplo A");
+    expect(html).toContain("tarefas");
+    expect(html).not.toContain("<button");
+  });
+
+  it("shows the Dashboard metrics in two mobile columns", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "dashboard-mobile-metrics" }));
+    expect(html).toContain("grid-cols-2");
+    expect((html.match(/data-dashboard-metric/g) ?? [])).toHaveLength(4);
+    for (const label of ["Total de tarefas", "Concluídas", "Pendentes", "Atrasadas"]) {
+      expect(html).toContain(label);
+    }
+    expect(html).not.toContain("<button");
+  });
+
+  it("shows the four obligation metrics in two mobile columns", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "mobile-obligations-metrics" }));
+    expect(html).toContain("grid-cols-2");
+    expect((html.match(/data-obligation-metric/g) ?? [])).toHaveLength(4);
+    for (const label of ["Atrasadas", "Vencem hoje", "Próximos 7 dias", "Concluídas no mês"]) {
+      expect(html).toContain(label);
+    }
+    expect(html).not.toContain("<button");
+  });
+
+  it("shows the task controls sharing a mobile gutter", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "mobile-task-toolbar" }));
+    expect((html.match(/data-mobile-task-toolbar-row/g) ?? [])).toHaveLength(5);
+    for (const label of ["Buscar tarefa", "Kanban", "Lista", "Calendário", "Atribuídas a mim", "Criadas por mim", "Filtros", "Arquivos Cliente", "Etiquetas", "Coluna", "Tarefa"]) {
+      expect(html).toContain(label);
+    }
+    expect(html).not.toContain("<button");
+  });
+
+  it("illustrates the Dashboard filters on narrow and wide layouts", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "dashboard-filter-panel" }),
+    );
+    expect(html).toContain("Filtros");
+    expect(html).toContain("Visualização rápida");
+    expect(html).toContain("Vence hoje");
+    expect(html).toContain("Amanhã");
+    expect(html).toContain("Sem prazo");
+    expect(html).toContain("Escolher período");
+    expect(html).toContain("Situação");
+    expect(html).toContain("Responsável");
+    expect(html).not.toContain(">Hoje<");
+    expect(html).not.toContain("Mais filtros");
+    expect(html).toContain("Limpar filtros");
+    expect(html).not.toContain("<button");
+  });
+  it("shows separate rows for members in the team chart preview", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "team-distribution-labels" }),
+    );
+    expect((html.match(/data-team-preview-row/g) ?? [])).toHaveLength(3);
+    expect(html).toContain("Concluídas");
+    expect(html).toContain("Em aberto");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates both compact environment cards", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "compact-environments-mobile" }),
+    );
+    expect(html).toContain("Consultoria");
+    expect(html).toContain("Marketing");
+    expect(html).toContain("Abrir painel");
+    expect(html).toContain("Acessar");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates both widths of the animated navigation", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "animated-sidebar" }),
+    );
+    expect(html).toContain("Dashboard");
+    expect(html).toContain("Minhas tarefas");
+    expect(html).toContain("barra lateral deslizando");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates the five retained updates", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "recent-update-history" }),
+    );
+    expect(html).toContain("Histórico de atualizações");
+    expect((html.match(/rounded-md border px-2 py-1.5/g) ?? [])).toHaveLength(5);
+    expect(html).not.toContain("<button");
+  });
+  it("shows the sidebar control beside the night mode in the profile footer", () => {
+    const html = renderToStaticMarkup(
+      createElement(AppUpdatePreview, { kind: "sidebar-control-footer" }),
+    );
+    expect(html).toContain("Modo noturno");
+    expect(html).toContain("Recolher menu");
+    expect(html).toContain("Seu perfil");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates the mobile navigation and horizontally browsable views", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "mobile-layout" }));
+    expect(html).toContain("Buscar reunião...");
+    expect(html).toContain("Deslize para ver as etapas");
+    expect(html).toContain("Agenda · deslize para ver outros dias");
+    expect(html).not.toContain("<button");
+  });
   it("illustrates deletion of a meeting with recorded work", () => {
     const html = renderToStaticMarkup(
       createElement(AppUpdatePreview, { kind: "meeting-delete-history" }),
@@ -185,7 +319,7 @@ describe("release thumbnails", () => {
     expect(html).not.toContain("<button");
     expect(html).not.toContain("<input");
     expect(html).not.toContain("<textarea");
-    expect(html).not.toContain("href=");
+    expect(html).not.toMatch(/<a(?:\s|>)/);
   });
 
   it("shows the drag and the mandatory reason rather than an unrelated generic image", () => {

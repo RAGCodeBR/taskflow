@@ -486,7 +486,7 @@ function CalendarPage() {
   const selectedDayEntries = selectedDay ? dayEntries(selectedDay) : [];
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-4 p-4 sm:p-6">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium capitalize">{calendarLabel}</span>

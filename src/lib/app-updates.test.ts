@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   APP_UPDATES,
-  DASHBOARD_UPDATE_VERSION,
   formatAppUpdateDate,
   getVisibleAppUpdates,
 } from "./app-updates";
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES.length).toBeGreaterThan(0);
+    expect(APP_UPDATES).toHaveLength(12);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -28,31 +27,24 @@ describe("application release catalogue", () => {
     "uses the latest visible release as the version in %s",
     (workspace) => {
       const updates = getVisibleAppUpdates(false, workspace);
-      expect(updates[0].id).toBe("exclusao-de-reunioes-com-historico-2026-10-15");
-      expect(updates[0].preview).toBe("meeting-delete-history");
-      expect(updates[1].id).toBe("colaboradores-salvos-e-tarefas-atualizadas-2026-10-14");
-      expect(updates[1].preview).toBe("collaborator-sync");
+      expect(updates).toHaveLength(5);
+      expect(updates.map((update) => update.id)).toEqual([
+        "acoes-google-agenda-sem-rolagem-2026-10-15",
+        "conexao-google-agenda-centralizada-2026-10-15",
+        "periodo-dos-relatorios-centralizado-2026-10-15",
+        "clientes-em-dois-cartoes-no-celular-2026-10-15",
+        "indicadores-do-dashboard-em-duas-colunas-2026-10-15",
+      ]);
+      expect(updates[0].preview).toBe("agenda-google-compact-actions");
       expect(getVisibleAppUpdates(true, workspace)[0].id).toBe(
-        "exclusao-de-reunioes-com-historico-2026-10-15",
+        "acoes-google-agenda-sem-rolagem-2026-10-15",
       );
       expect(updates.every((update) => update.audience === "all")).toBe(true);
-      expect(updates.some((update) => update.id === DASHBOARD_UPDATE_VERSION)).toBe(false);
-      expect(
-        getVisibleAppUpdates(true, workspace).some(
-          (update) => update.id === DASHBOARD_UPDATE_VERSION,
-        ),
-      ).toBe(true);
     },
   );
 
-  it("keeps past versions and their acknowledgement identifiers", () => {
-    expect(APP_UPDATES.map((update) => update.id)).toContain(
-      "links-clicaveis-calendario-tarefas-2026-10-06-r2",
-    );
-    expect(APP_UPDATES.map((update) => update.id)).toContain(
-      "prints-organizados-em-arquivos-2026-10-02",
-    );
-    expect(APP_UPDATES.map((update) => update.id)).toContain(DASHBOARD_UPDATE_VERSION);
+  it("removes older history entries from the release catalogue", () => {
+    expect(APP_UPDATES.some((update) => update.date < "2026-10-14")).toBe(false);
   });
 
   it("does not show notices outside a permitted workspace", () => {

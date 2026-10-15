@@ -27,10 +27,9 @@ describe("independent published release catalogue", () => {
     ).toBeNull();
   });
   it.each(["marketing", "consultoria"])(
-    "targets the newest release even after seven missed releases in %s",
+    "targets the newest release when the installed version has left the five-entry history in %s",
     (workspace) => {
-      const installed = getVisibleAppUpdates(false, workspace).slice(7);
-      expect(installed.length).toBeGreaterThan(0);
+      const installed = [{ ...APP_UPDATES[4], id: "versao-antiga", date: "2026-10-01" }];
       expect(
         newerPublishedAppUpdate(publishedAppUpdates().releases, installed, false, workspace)?.id,
       ).toBe(APP_UPDATES[0].id);

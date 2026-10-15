@@ -1583,15 +1583,15 @@ export function TaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl">
-        <DialogHeader className="border-b bg-muted/20 px-6 py-5">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl sm:max-h-[90vh]">
+        <DialogHeader className="border-b bg-muted/20 px-4 py-4 sm:px-6 sm:py-5">
           <DialogTitle className="text-xl">
             {isDraft ? "Tarefa em elaboração" : task ? "Editar tarefa" : "Nova tarefa"}
           </DialogTitle>
           {task && <div className="flex flex-wrap gap-1"><TaskPinButton task={task} /><TaskCardOpenings task={task} /></div>}
         </DialogHeader>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 px-4 py-5 sm:px-6">
           <div className="space-y-2">
             <Label>Título *</Label>
             <Input

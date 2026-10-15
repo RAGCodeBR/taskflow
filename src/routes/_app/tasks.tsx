@@ -57,7 +57,7 @@ function TasksLayout() {
   ] as const;
   return (
     <div className="flex flex-col">
-      <div className="sticky top-0 z-30 flex flex-wrap items-center gap-3 border-b bg-background/95 px-6 py-2.5 backdrop-blur">
+      <div className="sticky top-0 z-30 flex min-w-0 flex-wrap items-center gap-3 border-b bg-background/95 px-4 py-2.5 backdrop-blur sm:px-6">
         <div className="relative w-full sm:w-80 lg:w-[28rem]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -81,11 +81,11 @@ function TasksLayout() {
             </Button>
           )}
         </div>
-        <div className="ml-auto flex max-w-full items-center gap-3 overflow-x-auto">
-          <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <div className="flex w-full min-w-0 items-center gap-3 overflow-x-auto sm:ml-auto sm:w-auto">
+          <span className="hidden shrink-0 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground sm:inline">
             Visualizar
           </span>
-          <div className="inline-flex shrink-0 rounded-md border bg-muted/35 p-0.5">
+          <div className="flex w-full min-w-0 rounded-md border bg-muted/35 p-0.5 sm:inline-flex sm:w-auto sm:shrink-0">
             {views.map((v) => {
               const active = pathname === v.to || pathname.startsWith(v.to + "/");
               const Icon = v.icon;
@@ -93,7 +93,7 @@ function TasksLayout() {
                 <Link
                   key={v.to}
                   to={v.to}
-                  className={`flex items-center gap-2 rounded-sm px-3 py-1.5 text-sm transition ${
+                  className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1 py-1.5 text-center text-xs leading-tight transition sm:flex-none sm:gap-2 sm:px-3 sm:text-sm ${
                     active
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
@@ -108,7 +108,7 @@ function TasksLayout() {
         </div>
       </div>
       {searching && (
-        <div className="space-y-3 p-6">
+        <div className="space-y-3 p-4 sm:p-6">
           <p className="text-sm text-muted-foreground">
             {loadingTasks
               ? "Buscando tarefas..."

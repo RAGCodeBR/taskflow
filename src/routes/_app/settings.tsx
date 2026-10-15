@@ -171,7 +171,7 @@ function Settings() {
   const initials = (name || user?.email || "U").slice(0, 2).toUpperCase();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-6">
+    <div className="mx-auto min-w-0 max-w-2xl space-y-6 p-4 sm:p-6">
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Personalização</h1>
         <p className="text-sm text-muted-foreground">

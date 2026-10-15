@@ -207,8 +207,8 @@ export function TaskFilters({
   ].filter((chip): chip is { key: string; label: string; clear: () => void } => chip !== null);
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="inline-flex max-w-full flex-wrap rounded-full border bg-muted/40 p-0.5">
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:w-auto">
+      <div className="flex w-full min-w-0 rounded-full border bg-muted/40 p-0.5 sm:inline-flex sm:w-auto sm:flex-wrap">
         <ScopeBtn
           active={scope === "all"}
           onClick={() => onChange({ ...filters, scope: undefined, assignee: undefined })}
@@ -233,7 +233,7 @@ export function TaskFilters({
       </div>
       <Popover open={panelOpen} onOpenChange={setPanelOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9 gap-2 rounded-full px-4 shadow-sm">
+          <Button variant="outline" size="sm" className="h-9 w-full gap-2 rounded-full px-4 shadow-sm sm:w-auto">
             <FilterIcon className="h-4 w-4" />
             Filtros
             {activeCount > 0 && (
@@ -500,7 +500,7 @@ function ScopeBtn({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium transition ${
+      className={`inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-1 py-1 text-center text-xs font-medium leading-tight transition sm:flex-none sm:gap-1.5 sm:px-2 sm:py-0.5 ${
         active
           ? "bg-background text-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground"

@@ -14,7 +14,6 @@ import {
   type PublishedAppUpdate,
 } from "@/lib/published-app-updates";
 import {
-  DASHBOARD_UPDATE_VERSION,
   formatAppUpdateDate,
   getVisibleAppUpdates,
   type AppUpdate,
@@ -89,7 +88,6 @@ export function UpdateCenter() {
   const UPDATE_VERSION = latestUpdate?.id ?? "";
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(true);
-  const [dashboardAcknowledged, setDashboardAcknowledged] = useState(false);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -115,10 +113,6 @@ export function UpdateCenter() {
     () => (user?.id ? `taskflow:update:${UPDATE_VERSION}:${user.id}` : null),
     [UPDATE_VERSION, user?.id],
   );
-  const dashboardStorageKey = useMemo(
-    () => (user?.id ? `taskflow:update:${DASHBOARD_UPDATE_VERSION}:${user.id}` : null),
-    [user?.id],
-  );
   const promptKey = useMemo(
     () =>
       user?.id && activeWorkspace?.id
@@ -128,7 +122,6 @@ export function UpdateCenter() {
   );
   const pendingUpdateKey = user?.id ? `taskflow:update-pending:${user.id}` : null;
   // O catálogo seleciona as novidades permitidas no ambiente e para o público.
-  // O histórico administrativo do Dashboard continua reservado aos admins.
   const canSeeUpdates = isSupportedWorkspace && Boolean(storageKey);
 
   useEffect(() => {
@@ -187,22 +180,10 @@ export function UpdateCenter() {
     });
   }, [UPDATE_VERSION, canSeeUpdates, pendingUpdateKey, storageKey]);
 
-  useEffect(() => {
-    if (!canSeeUpdates || !dashboardStorageKey) return;
-    try {
-      setDashboardAcknowledged(
-        window.localStorage.getItem(dashboardStorageKey) === DASHBOARD_UPDATE_VERSION,
-      );
-    } catch {
-      setDashboardAcknowledged(false);
-    }
-  }, [canSeeUpdates, dashboardStorageKey]);
-
   const hasReleaseUpdate = !acknowledged;
   const hasNewVersion = Boolean(remoteRelease) || serviceWorkerUpdateReady;
   const hasUpdate = hasReleaseUpdate || hasNewVersion;
   const isCurrent = !hasUpdate && versionVerified;
-  const dashboardIsCurrent = acknowledged || dashboardAcknowledged;
 
   useEffect(() => {
     if (!canSeeUpdates) return;
@@ -610,7 +591,6 @@ export function UpdateCenter() {
                     title={update.title}
                     date={formatAppUpdateDate(update.date)}
                     status={<CheckCircle2 className="h-4 w-4" />}
-                    updated={update.id === DASHBOARD_UPDATE_VERSION && dashboardIsCurrent}
                   >
                     {updateDetails(update, false)}
                   </ReleaseSection>

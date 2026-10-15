@@ -598,7 +598,7 @@ export function ClientsIndexPage() {
   };
 
   return (
-    <div className="min-h-full bg-background px-5 py-6 md:px-8 md:py-7">
+    <div className="min-h-full min-w-0 bg-background px-4 py-5 sm:px-5 sm:py-6 md:px-8 md:py-7">
       <div className="mx-auto max-w-[1280px]">
         <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-5">
           <div>
@@ -611,7 +611,7 @@ export function ClientsIndexPage() {
               {clients.length === 1 ? "" : "s"} no TaskFlow.
             </p>
           </div>
-          <Button asChild className="rounded-full px-4">
+          <Button asChild className="w-full rounded-full px-4 sm:w-auto">
             <Link to="/clients/new">
               <Plus className="mr-2 h-4 w-4" />
               Novo cliente
@@ -620,7 +620,7 @@ export function ClientsIndexPage() {
         </header>
 
         <section className="flex flex-wrap items-center gap-x-5 gap-y-3 py-5">
-          <div className="relative min-w-[240px] flex-1 sm:max-w-md">
+          <div className="relative w-full min-w-0 flex-1 sm:min-w-[240px] sm:max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
@@ -652,7 +652,7 @@ export function ClientsIndexPage() {
           </p>
         </section>
 
-        <section className="border-t border-border/70">
+        <section className="grid grid-cols-2 gap-2 sm:gap-3 md:block md:border-t md:border-border/70">
           <div className="hidden grid-cols-[minmax(280px,1.4fr)_minmax(140px,.7fr)_minmax(250px,1fr)_auto] gap-6 border-b border-border/70 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground md:grid">
             <span>Cliente</span>
             <span>Atividades</span>
@@ -660,7 +660,7 @@ export function ClientsIndexPage() {
             <span className="text-right">Ações</span>
           </div>
           {shouldWaitForLogos ? (
-            <div className="grid min-h-72 place-items-center border-b border-border/60 text-sm text-muted-foreground">
+            <div className="col-span-2 grid min-h-72 place-items-center border-b border-border/60 text-sm text-muted-foreground md:col-span-1">
               <div className="flex items-center gap-2">
                 <LoaderCircle className="h-4 w-4 animate-spin" /> Carregando clientes…
               </div>
@@ -669,62 +669,64 @@ export function ClientsIndexPage() {
             filteredClients.map((c) => {
               const count = tasks.filter((t) => t.client_id === c.id).length;
               const isActive = c.is_active !== false;
+              const info = c.description || c.responsible || c.email;
               return (
                 <article
                   key={c.id}
-                  className={`grid gap-4 border-b border-border/60 px-2 py-4 transition-colors hover:bg-muted/35 md:grid-cols-[minmax(280px,1.4fr)_minmax(140px,.7fr)_minmax(250px,1fr)_auto] md:items-center md:gap-6 md:px-4 ${isActive ? "" : "opacity-65"}`}
+                  className={`grid min-w-0 grid-cols-1 grid-rows-[auto_auto_1fr_auto] gap-2 rounded-xl border border-border/70 bg-card p-3 shadow-sm transition-colors hover:bg-muted/35 md:grid-cols-[minmax(280px,1.4fr)_minmax(140px,.7fr)_minmax(250px,1fr)_auto] md:grid-rows-none md:items-center md:gap-6 md:rounded-none md:border-x-0 md:border-t-0 md:border-b-border/60 md:bg-transparent md:px-4 md:py-4 md:shadow-none ${isActive ? "" : "opacity-65"}`}
                 >
-                  <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex min-w-0 flex-col items-start gap-2 min-[420px]:flex-row min-[420px]:items-center md:flex-row md:gap-3">
                     {avatarUrls[c.id] ? (
                       <img
                         src={avatarUrls[c.id]}
                         alt={`Logo de ${c.name}`}
-                        className="block h-11 w-11 shrink-0 rounded-xl border border-border bg-muted object-contain p-0.5"
+                        className="block h-9 w-9 shrink-0 rounded-xl border border-border bg-muted object-contain p-0.5 md:h-11 md:w-11"
                       />
                     ) : (
                       <div
-                        className="h-11 w-11 shrink-0 rounded-xl shadow-sm"
+                        className="h-9 w-9 shrink-0 rounded-xl shadow-sm md:h-11 md:w-11"
                         style={{ background: c.color || "#1e3a8a" }}
                       />
                     )}
                     <div className="min-w-0">
-                      <h2 className="truncate font-semibold">{c.name}</h2>
+                      <h2 className="break-words text-sm font-semibold leading-tight md:truncate md:text-base">{c.name}</h2>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {isActive ? "Cliente ativo" : "Cliente inativo"}
                       </p>
                     </div>
                   </div>
-                  <div>
+                  <div className="whitespace-nowrap md:text-left">
                     <span className="text-lg font-semibold tabular-nums">{count}</span>
                     <span className="ml-1 text-xs text-muted-foreground">
                       tarefa{count === 1 ? "" : "s"}
                     </span>
                   </div>
-                  <p className="line-clamp-2 text-sm text-muted-foreground">
-                    {c.description || c.responsible || c.email || "Sem informações adicionais."}
+                  <p className={`line-clamp-2 min-w-0 break-words text-xs text-muted-foreground md:text-sm ${info ? "" : "hidden md:block"}`}>
+                    {info || "Sem informações adicionais."}
                   </p>
-                  <div className="flex items-center gap-0.5 md:justify-end">
+                  <div className="flex flex-wrap items-center self-end gap-0.5 border-t border-border/60 pt-1 md:justify-end md:self-auto md:border-0 md:pt-0">
                     <Button
                       size="icon"
                       variant="ghost"
+                      className="h-8 w-8 md:h-9 md:w-9"
                       title="Gerar relatório PDF"
                       onClick={() => openReport(c)}
                     >
                       <FileDown className="h-4 w-4 text-primary" />
                     </Button>
-                    <Button asChild size="icon" variant="ghost" title="Relatório IA">
+                    <Button asChild size="icon" variant="ghost" className="h-8 w-8 md:h-9 md:w-9" title="Relatório IA">
                       <Link to="/client-report/$clientId" params={{ clientId: c.id }}>
                         <Sparkles className="h-4 w-4 text-primary" />
                       </Link>
                     </Button>
                     {activeWorkspace?.slug === "marketing" && (
-                      <Button asChild size="icon" variant="ghost" title="Insights do Instagram">
+                      <Button asChild size="icon" variant="ghost" className="h-8 w-8 md:h-9 md:w-9" title="Insights do Instagram">
                         <Link to="/clients/$clientId/insights" params={{ clientId: c.id }}>
                           <Instagram className="h-4 w-4 text-primary" />
                         </Link>
                       </Button>
                     )}
-                    <Button asChild size="icon" variant="ghost" title="Editar cliente">
+                    <Button asChild size="icon" variant="ghost" className="h-8 w-8 md:h-9 md:w-9" title="Editar cliente">
                       <Link to="/clients/$clientId/edit" params={{ clientId: c.id }}>
                         <Pencil className="h-4 w-4" />
                       </Link>
@@ -732,6 +734,7 @@ export function ClientsIndexPage() {
                     <Button
                       size="icon"
                       variant="ghost"
+                      className="h-8 w-8 md:h-9 md:w-9"
                       onClick={() => void setClientActive(c, !isActive)}
                       title={isActive ? "Inativar cliente" : "Reativar cliente"}
                     >
@@ -744,6 +747,7 @@ export function ClientsIndexPage() {
                     <Button
                       size="icon"
                       variant="ghost"
+                      className="h-8 w-8 md:h-9 md:w-9"
                       title="Excluir cliente"
                       onClick={() => remove(c)}
                     >
@@ -755,12 +759,12 @@ export function ClientsIndexPage() {
             })
           )}
           {clients.length === 0 && (
-            <div className="py-16 text-center text-sm text-muted-foreground">
+            <div className="col-span-2 py-16 text-center text-sm text-muted-foreground md:col-span-1">
               Nenhum cliente cadastrado. Crie um para começar a organizar tarefas.
             </div>
           )}
           {clients.length > 0 && filteredClients.length === 0 && (
-            <div className="py-16 text-center text-sm text-muted-foreground">
+            <div className="col-span-2 py-16 text-center text-sm text-muted-foreground md:col-span-1">
               Nenhum cliente encontrado neste filtro.
             </div>
           )}
