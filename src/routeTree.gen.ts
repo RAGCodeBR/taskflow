@@ -31,6 +31,7 @@ import { Route as AppTrashRouteImport } from './routes/_app/trash'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppClientReportClientIdRouteImport } from './routes/_app/client-report.$clientId'
 import { Route as AppClientsIndexRouteImport } from './routes/_app/clients.index'
+import { Route as AppClientsDirectoryRouteImport } from './routes/_app/clients.directory'
 import { Route as AppClientsNewRouteImport } from './routes/_app/clients.new'
 import { Route as AppPortalEntregasRouteImport } from './routes/_app/portal.entregas'
 import { Route as AppPortalFinanceiroRouteImport } from './routes/_app/portal.financeiro'
@@ -150,6 +151,11 @@ const AppClientsIndexRoute = AppClientsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppClientsRoute,
 } as any)
+const AppClientsDirectoryRoute = AppClientsDirectoryRouteImport.update({
+  id: '/directory',
+  path: '/directory',
+  getParentRoute: () => AppClientsRoute,
+} as any)
 const AppClientsNewRoute = AppClientsNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -218,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/trash': typeof AppTrashRoute
   '/users': typeof AppUsersRoute
   '/client-report/$clientId': typeof AppClientReportClientIdRoute
+  '/clients/directory': typeof AppClientsDirectoryRoute
   '/clients/new': typeof AppClientsNewRoute
   '/portal/entregas': typeof AppPortalEntregasRoute
   '/portal/financeiro': typeof AppPortalFinanceiroRoute
@@ -248,6 +255,7 @@ export interface FileRoutesByTo {
   '/trash': typeof AppTrashRoute
   '/users': typeof AppUsersRoute
   '/client-report/$clientId': typeof AppClientReportClientIdRoute
+  '/clients/directory': typeof AppClientsDirectoryRoute
   '/clients/new': typeof AppClientsNewRoute
   '/portal/entregas': typeof AppPortalEntregasRoute
   '/portal/financeiro': typeof AppPortalFinanceiroRoute
@@ -282,6 +290,7 @@ export interface FileRoutesById {
   '/_app/trash': typeof AppTrashRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/client-report/$clientId': typeof AppClientReportClientIdRoute
+  '/_app/clients/directory': typeof AppClientsDirectoryRoute
   '/_app/clients/new': typeof AppClientsNewRoute
   '/_app/portal/entregas': typeof AppPortalEntregasRoute
   '/_app/portal/financeiro': typeof AppPortalFinanceiroRoute
@@ -316,6 +325,7 @@ export interface FileRouteTypes {
     | '/trash'
     | '/users'
     | '/client-report/$clientId'
+    | '/clients/directory'
     | '/clients/new'
     | '/portal/entregas'
     | '/portal/financeiro'
@@ -346,6 +356,7 @@ export interface FileRouteTypes {
     | '/trash'
     | '/users'
     | '/client-report/$clientId'
+    | '/clients/directory'
     | '/clients/new'
     | '/portal/entregas'
     | '/portal/financeiro'
@@ -379,6 +390,7 @@ export interface FileRouteTypes {
     | '/_app/trash'
     | '/_app/users'
     | '/_app/client-report/$clientId'
+    | '/_app/clients/directory'
     | '/_app/clients/new'
     | '/_app/portal/entregas'
     | '/_app/portal/financeiro'
@@ -553,6 +565,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppClientsIndexRouteImport
       parentRoute: typeof AppClientsRoute
     }
+    '/_app/clients/directory': {
+      id: '/_app/clients/directory'
+      path: '/directory'
+      fullPath: '/clients/directory'
+      preLoaderRoute: typeof AppClientsDirectoryRouteImport
+      parentRoute: typeof AppClientsRoute
+    }
     '/_app/clients/new': {
       id: '/_app/clients/new'
       path: '/new'
@@ -620,6 +639,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppClientsRouteChildren {
+  AppClientsDirectoryRoute: typeof AppClientsDirectoryRoute
   AppClientsNewRoute: typeof AppClientsNewRoute
   AppClientsIndexRoute: typeof AppClientsIndexRoute
   AppClientsClientIdEditRoute: typeof AppClientsClientIdEditRoute
@@ -627,6 +647,7 @@ interface AppClientsRouteChildren {
 }
 
 const AppClientsRouteChildren: AppClientsRouteChildren = {
+  AppClientsDirectoryRoute: AppClientsDirectoryRoute,
   AppClientsNewRoute: AppClientsNewRoute,
   AppClientsIndexRoute: AppClientsIndexRoute,
   AppClientsClientIdEditRoute: AppClientsClientIdEditRoute,

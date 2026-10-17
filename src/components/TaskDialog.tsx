@@ -82,6 +82,7 @@ interface Props {
   defaultColumnId?: string | null;
   recurringMeetingAgendaItemId?: string | null;
   defaults?: {
+    clientId?: string;
     title?: string;
     description?: string;
     dueDate?: string;
@@ -391,7 +392,7 @@ export function TaskDialog({
       setCategoryId("");
       setColumnId(defaultColumnId ?? "");
       setTargetWorkspaceId(activeWorkspace?.id ?? "");
-      setClientId("");
+      setClientId(defaults?.clientId ?? "");
       setAssigneeId(defaults?.assigneeId ?? user?.id ?? "");
       setCollaboratorIds([]);
       setDueDate(defaults?.dueDate ?? "");
@@ -416,6 +417,7 @@ export function TaskDialog({
     user?.id,
     activeWorkspace?.id,
     defaults?.title,
+    defaults?.clientId,
     defaults?.description,
     defaults?.priority,
     defaults?.assigneeId,

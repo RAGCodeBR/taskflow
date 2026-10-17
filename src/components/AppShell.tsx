@@ -49,6 +49,7 @@ import {
 import { canSwitchTaskFlowEnvironment } from "@/lib/environment-access";
 import { WorkspaceLoadingScreen } from "@/components/WorkspaceLoadingScreen";
 import { useHasInvitedMeeting } from "@/hooks/use-meetings";
+import { ClientsNavGroup } from "@/components/ClientsNavGroup";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -182,6 +183,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <nav className="sidebar-nav min-h-0 w-full flex-1 space-y-1 overflow-y-auto px-3">
           {nav.map((n) => {
+            if (n.to === "/clients") return <ClientsNavGroup key={`${activeWorkspace?.id}:clients`} expanded={sidebarOpen} active={pathname.startsWith('/clients')} />;
             if (n.to === "/portal")
               return (
                 <PortalNavGroup
@@ -338,6 +340,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-3">
               {nav.map((n) => {
+                if (n.to === "/clients") return <ClientsNavGroup key={`${activeWorkspace?.id}:clients-mobile`} expanded active={pathname.startsWith('/clients')} onNavigate={() => setMobileMenuOpen(false)} />;
                 if (n.to === "/portal")
                   return (
                     <PortalNavGroup

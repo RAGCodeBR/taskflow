@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "client-calendar-references"
   | "agenda-google-compact-actions"
   | "agenda-google-connection-layout"
   | "reports-period-layout"
@@ -56,6 +57,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "calendario-dos-clientes-e-referencias-2026-10-16",
+    title: "Calendário dos clientes e referências por tópico",
+    date: "2026-10-16",
+    preview: "client-calendar-references",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Clique em Clientes para abrir o calendário geral ou use a seta do menu para escolher um cliente. Os cards mostram apenas o título; clique para abrir a tarefa completa.",
+      "No calendário de um cliente, consulte cadastro, sistemas e senhas ou referências em um painel lateral. Gerenciar clientes mantém acesso à lista e ao cadastro completo.",
+      "A nova aba Referências reúne posts, links, observações e imagens por tópico. Edite uma referência para movê-la entre campanhas ou assuntos do mesmo cliente.",
+    ],
+  },
   {
     id: "acoes-google-agenda-sem-rolagem-2026-10-15",
     title: "Ações da Google Agenda sem rolagem",

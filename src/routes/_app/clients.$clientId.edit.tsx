@@ -60,6 +60,7 @@ import { NotesWorkspace } from "@/routes/_app/notes";
 import { FileDropZone } from "@/components/FileDropZone";
 import { ClientFilesManager } from "@/components/ClientFilesManager";
 import { ClientImportantDates } from "@/components/ClientImportantDates";
+import { ClientReferences } from "@/components/ClientReferences";
 import { TaskDialog } from "@/components/TaskDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { toJpeg } from "html-to-image";
@@ -69,6 +70,9 @@ import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
 export const Route = createFileRoute("/_app/clients/$clientId/edit")({
   component: EditClientPage,
+  validateSearch: (search: Record<string, unknown>): { tab?: string } =>
+    typeof search.tab === 'string' && ['client', 'important-dates', 'references', 'branches', 'departments', 'system', 'notes', 'attachments', 'archived-tasks'].includes(search.tab)
+      ? { tab: search.tab } : {},
 });
 
 const EMPTY_DEPARTMENTS: ClientDepartment[] = [];
@@ -78,6 +82,7 @@ const EMPTY_BRANCHES: ClientBranch[] = [];
 
 function EditClientPage() {
   const { clientId } = Route.useParams();
+  const search = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -205,7 +210,8 @@ function EditClientPage() {
   const [branchPhone, setBranchPhone] = useState("");
   const [branchEmail, setBranchEmail] = useState("");
   const [branchNotes, setBranchNotes] = useState("");
-  const [activeTab, setActiveTab] = useState("client");
+  const [activeTab, setActiveTab] = useState(search.tab ?? "client");
+  useEffect(() => { setActiveTab(search.tab ?? 'client'); }, [clientId, search.tab]);
   const [archivedTaskFilter, setArchivedTaskFilter] = useState<"all" | "open" | "completed">("all");
   const [selectedArchivedTask, setSelectedArchivedTask] = useState<Task | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -790,9 +796,10 @@ function EditClientPage() {
 
       <Card className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl p-1.5 sm:grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl p-1.5 sm:grid-cols-3 [&>button:last-child]:col-span-2 sm:[&>button:last-child]:col-span-1">
             <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="client">Dados do cliente</TabsTrigger>
             <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="important-dates">Datas importantes</TabsTrigger>
+            <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="references">Referências</TabsTrigger>
             <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="branches">Outras unidades</TabsTrigger>
             <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="departments">Departamentos</TabsTrigger>
             <TabsTrigger className="min-h-9 w-full whitespace-normal px-2 text-xs sm:text-sm" value="system">Sistemas</TabsTrigger>
@@ -932,6 +939,10 @@ function EditClientPage() {
 
           <TabsContent value="important-dates" className="mt-6">
             <ClientImportantDates clientId={clientId} />
+          </TabsContent>
+
+          <TabsContent value="references" className="mt-6">
+            <ClientReferences key={clientId} clientId={clientId} />
           </TabsContent>
 
           <TabsContent value="branches" className="mt-6 space-y-4">

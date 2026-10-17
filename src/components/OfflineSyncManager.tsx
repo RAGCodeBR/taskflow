@@ -96,6 +96,12 @@ async function syncTaskDelete(client: SyncClient, operation: OfflineOperation) {
 }
 
 async function syncOperation(client: SyncClient, operation: OfflineOperation) {
+  const isClientReference = operation.payload.table === "client_references" || operation.payload.table === "client_reference_topics";
+  if (isClientReference) {
+    const { data, error } = await client.from("clients").select("id").eq("id", String(operation.payload.clientId)).maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error("Abra o ambiente do cliente para sincronizar suas referências.");
+  }
   if (operation.entity === "task_open" || operation.entity === "task_pin") {
     return syncTaskCardActivity(client as unknown as Parameters<typeof syncTaskCardActivity>[0], operation);
   }
@@ -207,14 +213,24 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
       return false;
     }
     if (operation.action === "update") {
-      const { error } = await (client.from(table as any) as any)
+      const request = (client.from(table as any) as any)
         .update(operation.payload.patch)
         .eq("id", operation.entityId);
+      const { error } = await (isClientReference ? request.select("id").single() : request);
       if (error) throw error;
       return false;
     }
     const { error } = await (client.from(table as any) as any).delete().eq("id", operation.entityId);
     if (error) throw error;
+    if (isClientReference) {
+      const { data: remaining, error: readError } = await (client.from(table as any) as any).select("id").eq("id", operation.entityId).maybeSingle();
+      if (readError) throw readError;
+      if (remaining) throw new Error("Seu acesso não permite excluir esta referência.");
+    }
+    if (table === "client_references" && typeof operation.payload.storagePath === "string") {
+      const { error: fileError } = await client.storage.from("client-references").remove([operation.payload.storagePath]);
+      if (fileError) throw fileError;
+    }
     return false;
   }
 
@@ -243,6 +259,11 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
       const { error } = await (client.from("clients") as any)
         .update({ avatar_path: attachment.storage_path })
         .eq("id", attachment.client_id);
+      if (error) throw error;
+      return false;
+    }
+    if (operation.payload.table === "client_references" && operation.action === "update") {
+      const { error } = await (client.from("client_references") as any).update(attachment).eq("id", operation.entityId).select("id").single();
       if (error) throw error;
       return false;
     }
@@ -319,8 +340,12 @@ export function OfflineSyncManager() {
         }
         return;
       }
+      const blockedReferenceClients = new Set<string>();
       for (const operation of operations) {
         if (isOffline()) break;
+        const referenceClient = operation.payload.table === "client_references" || operation.payload.table === "client_reference_topics"
+          ? String(operation.payload.clientId ?? "") : null;
+        if (referenceClient && blockedReferenceClients.has(referenceClient)) continue;
         try {
           const hasConflict = await syncOperation(client, operation);
           await removeOfflineOperation(user.id, operation.id);
@@ -328,6 +353,7 @@ export function OfflineSyncManager() {
           if (operation.entity !== "task_open" && operation.entity !== "task_pin") visibleSynced += 1;
           if (hasConflict) conflicts += 1;
         } catch (error) {
+          if (referenceClient) blockedReferenceClients.add(referenceClient);
           // Uma operação inválida ou temporariamente recusada não pode prender
           // toda a fila. Ela permanece guardada para nova tentativa, enquanto
           // criações posteriores e independentes (como uma tarefa) seguem.
@@ -348,6 +374,9 @@ export function OfflineSyncManager() {
       }
       if (synced > 0) {
         await Promise.all([
+          ...(operations.some(operation => operation.payload.table === "client_references" || operation.payload.table === "client_reference_topics")
+            ? [queryClient.invalidateQueries({ queryKey: ["client_references"] }), queryClient.invalidateQueries({ queryKey: ["client_reference_topics"] })]
+            : []),
           ...(operations.some(operation => operation.entity === "task_pin") ? [queryClient.invalidateQueries({ queryKey: ["task_personal_pins"] })] : []),
           ...(operations.some(operation => operation.entity === "task_open") ? [queryClient.invalidateQueries({ queryKey: ["task_card_opens"] })] : []),
           ...(operations.some(operation => operation.entity === "record" && operation.payload.table === "client_important_dates")

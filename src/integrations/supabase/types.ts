@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_reference_topics: {
+        Row: { id: string; client_id: string; title: string; created_at: string }
+        Insert: { id?: string; client_id: string; title: string; created_at?: string }
+        Update: { title?: string }
+        Relationships: [{ foreignKeyName: "client_reference_topics_client_id_fkey"; columns: ["client_id"]; isOneToOne: false; referencedRelation: "clients"; referencedColumns: ["id"] }]
+      }
+      client_references: {
+        Row: { id: string; client_id: string; topic_id: string; title: string; url: string | null; notes: string; storage_path: string | null; file_name: string | null; mime_type: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; client_id: string; topic_id: string; title: string; url?: string | null; notes?: string; storage_path?: string | null; file_name?: string | null; mime_type?: string | null; created_at?: string; updated_at?: string }
+        Update: { topic_id?: string; title?: string; url?: string | null; notes?: string; storage_path?: string | null; file_name?: string | null; mime_type?: string | null; updated_at?: string }
+        Relationships: [
+          { foreignKeyName: "client_references_client_id_fkey"; columns: ["client_id"]; isOneToOne: false; referencedRelation: "clients"; referencedColumns: ["id"] },
+          { foreignKeyName: "client_references_topic_id_client_id_fkey"; columns: ["topic_id", "client_id"]; isOneToOne: false; referencedRelation: "client_reference_topics"; referencedColumns: ["id", "client_id"] }
+        ]
+      }
       crm_pipeline_stages: {
         Row: {
           workspace_id: string

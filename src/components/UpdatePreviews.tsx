@@ -37,6 +37,22 @@ import { APP_UPDATES, type UpdatePreviewKind } from "@/lib/app-updates";
 import { CalendarTaskPin } from "@/components/CalendarTaskPin";
 import businessMentoringLogo from "@/assets/la-business-mentoring.png";
 
+function ClientCalendarReferencesPreview() {
+  return <PreviewGrid label="Prévia do calendário dos clientes e referências por tópico">
+    <div className="overflow-hidden rounded-xl border bg-background text-[10px] shadow-sm">
+      <div className="border-b bg-muted/30 p-3 font-semibold">Clientes <span className="float-right">⌄</span></div>
+      <div className="p-3"><p className="rounded-md bg-primary/10 px-2 py-1.5 font-medium text-primary">Cliente Exemplo · Calendário</p>
+        <div className="mt-2 flex flex-wrap gap-1 text-[9px]">{['Cadastro', 'Sistemas e senhas', 'Referências'].map(label => <span key={label} className="rounded-md border px-2 py-1">{label}</span>)}</div>
+        <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-lg border"><div className="min-h-20 border-r p-2"><p className="text-muted-foreground">16</p><p className="mt-2 truncate rounded bg-primary px-2 py-1 text-primary-foreground">Campanha de verão</p></div><div className="p-2"><p className="text-muted-foreground">17</p><p className="mt-2 truncate rounded bg-primary px-2 py-1 text-primary-foreground">Revisar publicação</p></div></div>
+      </div>
+    </div>
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm"><p className="font-semibold">Referências</p><p className="mt-1 text-muted-foreground">Organizadas por campanha ou assunto</p>
+      <div className="mt-3 rounded-lg border p-2"><p className="font-medium">Campanha de verão (2)</p><div className="mt-2 grid grid-cols-2 gap-2"><div className="rounded-md border p-2"><div className="h-10 rounded bg-gradient-to-br from-sky-100 to-amber-100" /><p className="mt-1">Inspiração visual</p></div><div className="rounded-md border p-2"><Link2 className="mb-2 h-4 w-4 text-primary" /><p>Post de referência</p><p className="mt-1 text-primary underline">example.com/post</p></div></div></div>
+      <div className="mt-2 rounded-lg border p-2 font-medium">Gincana (1)</div>
+    </div>
+  </PreviewGrid>;
+}
+
 function PreviewGrid({ children, label }: { children: ReactNode; label?: string }) {
   return (
     <div
@@ -1382,6 +1398,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "client-calendar-references": ClientCalendarReferencesPreview,
   "agenda-google-compact-actions": AgendaGoogleCompactActionsPreview,
   "agenda-google-connection-layout": AgendaGoogleConnectionLayoutPreview,
   "reports-period-layout": ReportsPeriodLayoutPreview,

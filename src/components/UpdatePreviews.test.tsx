@@ -5,6 +5,15 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows the client calendar and categorized references side by side without real actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "client-calendar-references" }));
+    expect(html).toContain('Sistemas e senhas');
+    expect(html).toContain('Campanha de verão (2)');
+    expect(html).toContain('Gincana (1)');
+    expect(html).toContain('data-update-preview-grid');
+    expect(html).not.toContain('<button');
+    expect(html).not.toContain('href=');
+  });
   it("illustrates three compact Google Agenda actions without horizontal scrolling", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "agenda-google-compact-actions" }));
     expect(html).toContain("grid-cols-3");
