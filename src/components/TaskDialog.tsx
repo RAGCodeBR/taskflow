@@ -49,6 +49,8 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  FileText,
+  ImageIcon,
   Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -69,11 +71,12 @@ import {
   deleteTaskWithOfflineSupport,
   updateTaskWithOfflineSupport,
 } from "@/lib/offline-task-mutations";
-import { enqueueOfflineOperation, isNetworkFailure, isOffline } from "@/lib/offline-sync";
+import { enqueueOfflineOperation, isNetworkFailure, isOffline, listOfflineOperations } from "@/lib/offline-sync";
 import { persistTaskEdit, taskEditError, taskEditPatch } from "@/lib/task-edit";
 import { taskCollaboratorChanges } from "@/lib/task-collaborator-changes";
 import { useRecordTaskCardOpen } from "@/hooks/use-task-card-activity";
 import { TaskCardOpenings, TaskPinButton } from "@/components/TaskCardActivity";
+import { groupSubtaskAttachments } from "@/lib/subtask-attachment-groups";
 
 interface Props {
   open: boolean;
@@ -109,6 +112,65 @@ interface SubtaskAttachment {
   storage_path: string;
   mime_type: string | null;
   size_bytes: number | null;
+}
+
+const isSubtaskImage = (attachment: SubtaskAttachment) =>
+  Boolean(attachment.mime_type?.startsWith("image/") || /\.(?:png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(attachment.file_name));
+
+function SubtaskFileThumbnail({
+  attachment,
+  userId,
+}: {
+  attachment: SubtaskAttachment;
+  userId?: string;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+  const isImage = isSubtaskImage(attachment);
+
+  useEffect(() => {
+    if (!isImage) return;
+    let active = true;
+    let localUrl: string | null = null;
+    setSrc(null);
+    void (async () => {
+      if (userId) {
+        const pending = (await listOfflineOperations(userId)).find(
+          (operation) => operation.entity === "attachment" && operation.entityId === attachment.id,
+        );
+        const blob = pending?.payload.blob;
+        if (blob instanceof Blob) {
+          localUrl = URL.createObjectURL(blob);
+          if (active) setSrc(localUrl);
+          else URL.revokeObjectURL(localUrl);
+          return;
+        }
+      }
+      if (!navigator.onLine) return;
+      const { data } = await supabase.storage
+        .from("task-attachments")
+        .createSignedUrl(attachment.storage_path, 3600);
+      if (active && data?.signedUrl) setSrc(data.signedUrl);
+    })().catch(() => {
+      if (active) setSrc(null);
+    });
+    return () => {
+      active = false;
+      if (localUrl) URL.revokeObjectURL(localUrl);
+    };
+  }, [attachment.id, attachment.storage_path, isImage, userId]);
+
+  return isImage && src ? (
+    <img
+      src={src}
+      alt={`Miniatura de ${attachment.file_name}`}
+      className="h-9 w-9 shrink-0 rounded object-cover"
+      onError={() => setSrc(null)}
+    />
+  ) : (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+      {isImage ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+    </span>
+  );
 }
 interface SubtaskDueChange {
   id: string;
@@ -464,12 +526,33 @@ export function TaskDialog({
   }, [open, activeTab, currentTaskId]);
 
   const loadRelated = async (taskId: string) => {
-    const [s, c, a] = await Promise.all([
+    const [s, c, a, subFiles] = await Promise.all([
       supabase.from("subtasks").select("*").eq("task_id", taskId).order("position"),
       supabase.from("comments").select("*").eq("task_id", taskId).order("created_at"),
       supabase.from("attachments").select("*").eq("task_id", taskId).order("created_at"),
+      supabase.from("subtask_attachments").select("*").eq("task_id", taskId).order("created_at"),
     ]);
-    setSubtasks((s.data ?? []) as Subtask[]);
+    const loadedSubtasks = (s.data ?? []) as Subtask[];
+    setSubtasks(loadedSubtasks);
+    let pendingAttachments: Awaited<ReturnType<typeof listOfflineOperations>> = [];
+    if (user?.id) {
+      try {
+        pendingAttachments = await listOfflineOperations(user.id);
+      } catch {
+        // The server list remains usable when the local offline store is unavailable.
+      }
+    }
+    const groupedSubFiles = groupSubtaskAttachments(
+      loadedSubtasks.map((subtask) => subtask.id),
+      (subFiles.data ?? []) as SubtaskAttachment[],
+      pendingAttachments,
+    );
+    if (subFiles.error) {
+      for (const subtaskId of Object.keys(groupedSubFiles)) {
+        if (groupedSubFiles[subtaskId].length === 0) delete groupedSubFiles[subtaskId];
+      }
+    }
+    setSubAttachments(groupedSubFiles);
     const nextComments = (c.data ?? []) as Comment[];
     setComments(nextComments);
     setAttachments((a.data ?? []) as Attachment[]);
@@ -2147,6 +2230,16 @@ export function TaskDialog({
                           )}
                           Alterações
                         </Button>
+                        {!expanded && files.length > 0 && (
+                          <span
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary"
+                            title={`${files.length} arquivo(s) anexado(s)`}
+                            aria-label={`${files.length} arquivo(s) anexado(s) à subtarefa`}
+                          >
+                            <Paperclip className="h-3 w-3" />
+                            {files.length} {files.length === 1 ? "arquivo" : "arquivos"}
+                          </span>
+                        )}
                       </div>
                       {historyOpen && (
                         <div className="ml-6 space-y-1 border-l pl-2">
@@ -2232,8 +2325,8 @@ export function TaskDialog({
                                 key={a.id}
                                 className="flex items-center gap-2 rounded border bg-background px-2 py-1 text-xs"
                               >
-                                <Paperclip className="h-3 w-3 text-muted-foreground" />
-                                <span className="flex-1 truncate">{a.file_name}</span>
+                                <SubtaskFileThumbnail attachment={a} userId={user?.id} />
+                                <span className="min-w-0 flex-1 truncate" title={a.file_name}>{a.file_name}</span>
                                 <Button
                                   size="icon"
                                   variant="ghost"

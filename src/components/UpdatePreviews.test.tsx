@@ -5,6 +5,26 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates the attachment count while a subtask is collapsed", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "subtask-attachment-indicator" }));
+    expect(html).toContain("data-subtask-attachment-count");
+    expect(html).toContain("2 arquivos");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates a real image thumbnail beside an attachment name", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "subtask-file-thumbnails" }));
+    expect(html).toContain("data-subtask-file-thumbnail");
+    expect(html).toContain("imagem-campanha.png");
+    expect(html).toContain("briefing.pdf");
+    expect(html).not.toContain("<button");
+  });
+  it("illustrates dragging an image into a subtask and previewing it before save", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "subtask-dragged-images" }));
+    expect(html).toContain("Arraste imagens aqui");
+    expect(html).toContain("data-subtask-drag-preview");
+    expect(html).toContain("Arquivos da subtarefa (1)");
+    expect(html).not.toContain("<button");
+  });
   it("shows when the new version installs automatically and when it waits", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "automatic-safe-update" }));
     expect(html).toContain("Nova versão disponível");

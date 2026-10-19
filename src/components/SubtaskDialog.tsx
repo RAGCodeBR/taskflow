@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ClipboardEvent } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
 import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
@@ -107,6 +107,8 @@ export function SubtaskDialog({
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingPrints, setPendingPrints] = useState<PendingPrint[]>([]);
+  const [draggingImages, setDraggingImages] = useState(false);
+  const dragDepthRef = useRef(0);
   const savedSubtaskRef = useRef<EditableSubtask | null>(null);
   const pendingPrintsRef = useRef<PendingPrint[]>([]);
   const initializedForRef = useRef<string | null>(null);
@@ -125,6 +127,8 @@ export function SubtaskDialog({
     pendingPrintsRef.current.forEach((print) => URL.revokeObjectURL(print.previewUrl));
     pendingPrintsRef.current = [];
     setPendingPrints([]);
+    dragDepthRef.current = 0;
+    setDraggingImages(false);
     savedSubtaskRef.current = subtask ?? null;
     setTitle(subtask?.title ?? defaultTitle);
     setDueDate(toDateInputValue(subtask?.due_date) || defaultDueDate);
@@ -145,26 +149,67 @@ export function SubtaskDialog({
     setPendingPrints(pendingPrintsRef.current);
   };
 
-  const handlePrintPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    if (hasClipboardText(event.clipboardData)) return;
-    const files = allClipboardImageFiles(event.clipboardData);
-    if (!files.length) return;
-    event.preventDefault();
-    const accepted = files.filter((file) => !isTaskAttachmentTooLarge(file));
-    if (accepted.length !== files.length)
-      toast.error(`Alguns prints ultrapassam o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+  const addImages = (files: File[]) => {
+    const images = files.filter((file) => file.type.startsWith("image/"));
+    const accepted = images.filter((file) => !isTaskAttachmentTooLarge(file));
+    if (images.length !== files.length)
+      toast.error("Somente imagens podem ser adicionadas à descrição da subtarefa.");
+    if (accepted.length !== images.length)
+      toast.error(`Algumas imagens ultrapassam o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
     const added = accepted.map((file) => ({
       id: crypto.randomUUID(),
       file,
       previewUrl: URL.createObjectURL(file),
     }));
+    if (!added.length) return;
     pendingPrintsRef.current = [...pendingPrintsRef.current, ...added];
     setPendingPrints(pendingPrintsRef.current);
+  };
+
+  const handlePrintPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (hasClipboardText(event.clipboardData)) return;
+    const files = allClipboardImageFiles(event.clipboardData);
+    if (!files.length) return;
+    event.preventDefault();
+    addImages(files);
+  };
+
+  const hasDraggedFiles = (event: DragEvent<HTMLElement>) =>
+    Array.from(event.dataTransfer.types).includes("Files") || event.dataTransfer.files.length > 0;
+
+  const handleImageDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setDraggingImages(true);
+  };
+
+  const handleImageDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleImageDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!dragDepthRef.current) return;
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDraggingImages(false);
+  };
+
+  const handleImageDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setDraggingImages(false);
+    if (!saving) addImages(Array.from(event.dataTransfer.files));
   };
 
   const handleOpenChange = (nextOpen: boolean, force = false) => {
     if (!nextOpen && saving && !force) return;
     if (!nextOpen) {
+      dragDepthRef.current = 0;
+      setDraggingImages(false);
       pendingPrintsRef.current.forEach((print) => URL.revokeObjectURL(print.previewUrl));
       pendingPrintsRef.current = [];
       setPendingPrints([]);
@@ -302,7 +347,7 @@ export function SubtaskDialog({
         qc.invalidateQueries({ queryKey: ["subtasks"] }),
       ]);
       if (failedPrints) {
-        toast.error(`${failedPrints} print(s) não foram enviados. A subtarefa foi salva; tente salvar novamente.`);
+        toast.error(`${failedPrints} imagem(ns) não foram enviadas. A subtarefa foi salva; tente salvar novamente.`);
         return;
       }
       toast.success(isOffline()
@@ -392,17 +437,26 @@ export function SubtaskDialog({
 
           <div className="space-y-2">
             <Label htmlFor="subtask-notes">Descrição</Label>
-            <Textarea
-              id="subtask-notes"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              onPaste={handlePrintPaste}
-              placeholder="Descreva a subtarefa... Cole um print com ⌘V / Ctrl+V."
-              rows={6}
-            />
+            <div
+              onDragEnter={handleImageDragEnter}
+              onDragOver={handleImageDragOver}
+              onDragLeave={handleImageDragLeave}
+              onDrop={handleImageDrop}
+              className={`rounded-md transition-colors ${draggingImages ? "ring-2 ring-primary bg-primary/5" : ""}`}
+            >
+              <Textarea
+                id="subtask-notes"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                onPaste={handlePrintPaste}
+                placeholder="Descreva a subtarefa... Cole ou arraste imagens aqui."
+                rows={6}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">Cole com ⌘V / Ctrl+V ou arraste imagens para a descrição.</p>
             <FieldLinks value={notes} />
             {pendingPrints.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Prints da subtarefa aguardando salvamento">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Imagens da subtarefa aguardando salvamento">
                 {pendingPrints.map((print) => (
                   <div key={print.id} className="relative rounded-lg border bg-muted/20 p-2">
                     <img src={print.previewUrl} alt={print.file.name} className="h-28 w-full object-contain" />
@@ -421,7 +475,7 @@ export function SubtaskDialog({
               </div>
             )}
             {pendingPrints.length > 0 && (
-              <p className="text-xs text-muted-foreground">Os prints aparecerão nos arquivos da subtarefa após salvar.</p>
+              <p className="text-xs text-muted-foreground">As imagens aparecerão nos arquivos da subtarefa após salvar.</p>
             )}
           </div>
         </div>

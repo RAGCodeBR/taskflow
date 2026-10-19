@@ -10,11 +10,13 @@ import {
   CalendarHeart,
   Flag,
   FileDown,
+  Download,
   ImagePlus,
   LayoutDashboard,
   ListTodo,
   Link2,
   MousePointer2,
+  Paperclip,
   Pin,
   Pencil,
   Eye,
@@ -22,6 +24,7 @@ import {
   RefreshCw,
   RotateCcw,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Sparkles,
   KanbanSquare,
@@ -92,6 +95,57 @@ function AutomaticSafeUpdatePreview() {
       <div className="mt-2 grid grid-cols-2 gap-2">
         <div className="rounded-lg border p-2"><CheckCircle2 className="mb-1 h-3.5 w-3.5 text-emerald-600" /><strong>Sem edição aberta</strong><p className="text-muted-foreground">Atualiza a página</p></div>
         <div className="rounded-lg border p-2"><Clock3 className="mb-1 h-3.5 w-3.5 text-amber-600" /><strong>Trabalho em andamento</strong><p className="text-muted-foreground">Aguarda para instalar</p></div>
+      </div>
+    </div>
+  );
+}
+
+function SubtaskDraggedImagesPreview() {
+  return (
+    <div aria-label="Prévia de imagens arrastadas para uma subtarefa" className="mx-auto w-full max-w-xs rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <strong>Editar subtarefa</strong>
+      <p className="mt-2 text-muted-foreground">Descrição</p>
+      <div className="mt-1 rounded-lg border-2 border-dashed border-primary bg-primary/5 px-3 py-4 text-center text-primary">
+        <ImagePlus className="mx-auto mb-1 h-5 w-5" />
+        Arraste imagens aqui
+      </div>
+      <div data-subtask-drag-preview className="mt-2 flex items-center gap-2 rounded-lg border p-2">
+        <div className="h-10 w-12 rounded bg-gradient-to-br from-sky-200 to-amber-100" />
+        <div><strong>imagem-campanha.png</strong><p className="text-muted-foreground">Prévia antes de salvar</p></div>
+      </div>
+      <p className="mt-2 text-muted-foreground">Após salvar: Arquivos da subtarefa (1)</p>
+    </div>
+  );
+}
+
+function SubtaskFileThumbnailsPreview() {
+  return (
+    <div aria-label="Prévia das miniaturas dos arquivos da subtarefa" className="mx-auto w-full max-w-sm rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <strong>Subtarefa · Arquivos</strong>
+      <div className="mt-2 flex items-center gap-2 rounded-lg border p-2">
+        <div data-subtask-file-thumbnail className="h-10 w-10 shrink-0 rounded bg-gradient-to-br from-sky-200 via-emerald-100 to-amber-100" />
+        <span className="min-w-0 flex-1 truncate">imagem-campanha.png</span>
+        <Download className="h-3.5 w-3.5" />
+      </div>
+      <div className="mt-1 flex items-center gap-2 rounded-lg border p-2">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted"><FileDown className="h-4 w-4" /></span>
+        <span className="min-w-0 flex-1 truncate">briefing.pdf</span>
+        <Download className="h-3.5 w-3.5" />
+      </div>
+    </div>
+  );
+}
+
+function SubtaskAttachmentIndicatorPreview() {
+  return (
+    <div aria-label="Prévia do indicador de anexos na subtarefa recolhida" className="mx-auto w-full max-w-sm rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <p className="mb-2 font-semibold">Subtarefas (1)</p>
+      <div className="rounded-lg border bg-muted/20 p-2">
+        <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-muted-foreground" /><strong className="min-w-0 flex-1 truncate">Revisar arte da campanha</strong><ChevronDown className="h-3.5 w-3.5 -rotate-90" /></div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-muted-foreground">
+          <span>Prazo 20/10</span>
+          <span data-subtask-attachment-count className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 font-medium text-primary"><Paperclip className="h-3 w-3" />2 arquivos</span>
+        </div>
       </div>
     </div>
   );
@@ -1430,6 +1484,9 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "subtask-attachment-indicator": SubtaskAttachmentIndicatorPreview,
+  "subtask-file-thumbnails": SubtaskFileThumbnailsPreview,
+  "subtask-dragged-images": SubtaskDraggedImagesPreview,
   "automatic-safe-update": AutomaticSafeUpdatePreview,
   "subtask-pasted-prints": SubtaskPastedPrintsPreview,
   "client-calendar-references": ClientCalendarReferencesPreview,

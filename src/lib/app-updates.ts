@@ -1,5 +1,8 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "subtask-attachment-indicator"
+  | "subtask-file-thumbnails"
+  | "subtask-dragged-images"
   | "automatic-safe-update"
   | "subtask-pasted-prints"
   | "client-calendar-references"
@@ -59,6 +62,39 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "anexos-visiveis-nas-subtarefas-recolhidas-2026-10-19",
+    title: "Anexos visíveis nas subtarefas recolhidas",
+    date: "2026-10-19",
+    preview: "subtask-attachment-indicator",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "A subtarefa recolhida mostra um indicador com a quantidade de arquivos anexados. A contagem aparece ao abrir a tarefa e acompanha novos anexos e exclusões, inclusive os registrados offline.",
+    ],
+  },
+  {
+    id: "miniaturas-dos-arquivos-das-subtarefas-2026-10-19",
+    title: "Miniaturas nos arquivos das subtarefas",
+    date: "2026-10-19",
+    preview: "subtask-file-thumbnails",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Os arquivos de imagem das subtarefas exibem uma miniatura ao lado do nome. Imagens aguardando envio offline também mostram uma prévia local; outros arquivos mantêm um ícone de documento.",
+    ],
+  },
+  {
+    id: "imagens-arrastadas-para-subtarefas-2026-10-19",
+    title: "Imagens arrastadas para subtarefas",
+    date: "2026-10-19",
+    preview: "subtask-dragged-images",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Arraste uma ou mais imagens para o campo de descrição da subtarefa. Confira as prévias antes de salvar; as imagens passam a aparecer nos arquivos da subtarefa, inclusive quando o envio fica pendente no modo offline.",
+    ],
+  },
   {
     id: "atualizacao-automatica-segura-2026-10-19",
     title: "Atualização automática do TaskFlow",
