@@ -62,7 +62,7 @@ import {
 } from "@/lib/sync-task-attachment-to-client";
 import { RichTextEditor, type PastedEditorImage } from "@/components/RichTextEditor";
 import { FieldLinks, LinkedText } from "@/components/LinkedText";
-import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
+import { SubtaskDialog, type EditableSubtask, type EditableSubtaskAttachment } from "@/components/SubtaskDialog";
 import {
   createSubtaskWithOfflineSupport,
   createTaskWithOfflineSupport,
@@ -1087,6 +1087,14 @@ export function TaskDialog({
     setNewSubtask("");
     setNewSubtaskDue("");
     setNewSubtaskAssignee("");
+  };
+
+  const handleSubtaskAttachmentSaved = (attachment: EditableSubtaskAttachment) => {
+    setSubAttachments((current) => {
+      const existing = current[attachment.subtask_id] ?? [];
+      if (existing.some((item) => item.id === attachment.id)) return current;
+      return { ...current, [attachment.subtask_id]: [...existing, attachment] };
+    });
   };
 
   const toggleSubtask = async (st: Subtask) => {
@@ -2467,6 +2475,8 @@ export function TaskDialog({
             assigneeId: newSubtaskAssignee,
           }}
           onSaved={handleSubtaskDialogSaved}
+          onAttachmentSaved={handleSubtaskAttachmentSaved}
+          onAttachmentsComplete={(subtaskId) => void loadSubAttachments(subtaskId)}
         />
         <Dialog
           open={subDueReason.open}

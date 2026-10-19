@@ -1,4 +1,4 @@
-export type PendingAppUpdate = { id: string; attempts: number };
+export type PendingAppUpdate = { id: string; attempts: number; automatic?: boolean };
 
 const MAX_AUTO_UPDATE_ATTEMPTS = 8;
 

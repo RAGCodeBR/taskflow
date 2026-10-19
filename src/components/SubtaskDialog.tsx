@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useRef, useState, type ClipboardEvent } from "react";
+import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
+import { allClipboardImageFiles, hasClipboardText } from "@/components/RichTextEditor";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +40,17 @@ export interface EditableSubtask {
   completed_at: string | null;
 }
 
+export interface EditableSubtaskAttachment {
+  id: string;
+  subtask_id: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number;
+}
+
+type PendingPrint = { id: string; file: File; previewUrl: string };
+
 interface SubtaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -52,6 +65,8 @@ interface SubtaskDialogProps {
     assigneeId?: string;
   };
   onSaved: (subtask: EditableSubtask) => void;
+  onAttachmentSaved?: (attachment: EditableSubtaskAttachment) => void;
+  onAttachmentsComplete?: (subtaskId: string) => void;
 }
 
 const toDateInputValue = (value: string | null | undefined) =>
@@ -78,6 +93,8 @@ export function SubtaskDialog({
   position,
   defaults,
   onSaved,
+  onAttachmentSaved,
+  onAttachmentsComplete,
 }: SubtaskDialogProps) {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -89,12 +106,26 @@ export function SubtaskDialog({
   const [dueDateReason, setDueDateReason] = useState("");
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingPrints, setPendingPrints] = useState<PendingPrint[]>([]);
+  const savedSubtaskRef = useRef<EditableSubtask | null>(null);
+  const pendingPrintsRef = useRef<PendingPrint[]>([]);
+  const initializedForRef = useRef<string | null>(null);
   const defaultTitle = defaults?.title ?? "";
   const defaultDueDate = defaults?.dueDate ?? "";
   const defaultAssigneeId = defaults?.assigneeId ?? "";
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initializedForRef.current = null;
+      return;
+    }
+    const key = subtask?.id ?? "new";
+    if (initializedForRef.current === key) return;
+    initializedForRef.current = key;
+    pendingPrintsRef.current.forEach((print) => URL.revokeObjectURL(print.previewUrl));
+    pendingPrintsRef.current = [];
+    setPendingPrints([]);
+    savedSubtaskRef.current = subtask ?? null;
     setTitle(subtask?.title ?? defaultTitle);
     setDueDate(toDateInputValue(subtask?.due_date) || defaultDueDate);
     setAssigneeId(subtask?.assignee_id ?? defaultAssigneeId);
@@ -103,8 +134,90 @@ export function SubtaskDialog({
     setDone(subtask?.done ?? false);
   }, [open, subtask, defaultTitle, defaultDueDate, defaultAssigneeId]);
 
+  useEffect(() => () => {
+    pendingPrintsRef.current.forEach((print) => URL.revokeObjectURL(print.previewUrl));
+  }, []);
+
+  const removePrint = (id: string) => {
+    const print = pendingPrintsRef.current.find((item) => item.id === id);
+    if (print) URL.revokeObjectURL(print.previewUrl);
+    pendingPrintsRef.current = pendingPrintsRef.current.filter((item) => item.id !== id);
+    setPendingPrints(pendingPrintsRef.current);
+  };
+
+  const handlePrintPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (hasClipboardText(event.clipboardData)) return;
+    const files = allClipboardImageFiles(event.clipboardData);
+    if (!files.length) return;
+    event.preventDefault();
+    const accepted = files.filter((file) => !isTaskAttachmentTooLarge(file));
+    if (accepted.length !== files.length)
+      toast.error(`Alguns prints ultrapassam o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+    const added = accepted.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    pendingPrintsRef.current = [...pendingPrintsRef.current, ...added];
+    setPendingPrints(pendingPrintsRef.current);
+  };
+
+  const handleOpenChange = (nextOpen: boolean, force = false) => {
+    if (!nextOpen && saving && !force) return;
+    if (!nextOpen) {
+      pendingPrintsRef.current.forEach((print) => URL.revokeObjectURL(print.previewUrl));
+      pendingPrintsRef.current = [];
+      setPendingPrints([]);
+    }
+    onOpenChange(nextOpen);
+  };
+
   const dueDateChanged =
     Boolean(subtask?.due_date) && dueDate !== toDateInputValue(subtask?.due_date);
+
+  const uploadPrint = async (subtaskId: string, print: PendingPrint) => {
+    if (!user || !taskId) throw new Error("Não foi possível identificar a tarefa para enviar o print.");
+    const path = `${taskId}/subtasks/${subtaskId}/arquivo-${crypto.randomUUID()}`;
+    const attachment = {
+      id: crypto.randomUUID(),
+      subtask_id: subtaskId,
+      task_id: taskId,
+      file_name: print.file.name,
+      storage_path: path,
+      mime_type: print.file.type || null,
+      size_bytes: print.file.size,
+      uploaded_by: user.id,
+    };
+    if (isOffline()) {
+      await enqueueOfflineOperation({
+        userId: user.id,
+        entity: "attachment",
+        action: "create",
+        entityId: attachment.id,
+        payload: {
+          table: "subtask_attachments",
+          bucket: "task-attachments",
+          blob: print.file,
+          attachment,
+        },
+      });
+      onAttachmentSaved?.(attachment);
+      return;
+    }
+    const { error: uploadError } = await supabase.storage
+      .from("task-attachments")
+      .upload(path, print.file);
+    if (uploadError) throw uploadError;
+    const { data, error } = await (supabase.from("subtask_attachments") as any)
+      .insert(attachment)
+      .select()
+      .single();
+    if (error) {
+      await supabase.storage.from("task-attachments").remove([path]);
+      throw error;
+    }
+    onAttachmentSaved?.(data as EditableSubtaskAttachment);
+  };
 
   const save = async () => {
     if (!taskId) {
@@ -120,7 +233,6 @@ export function SubtaskDialog({
       return;
     }
 
-    setSaving(true);
     const payload = {
       title: title.trim(),
       due_date: dueDateToIso(dueDate),
@@ -128,66 +240,84 @@ export function SubtaskDialog({
       notes: notes.trim() || null,
       done,
     };
-
-    if (user && isOffline()) {
-      const local = subtask
-        ? { ...subtask, ...payload }
-        : { id: crypto.randomUUID(), ...payload, task_id: taskId, position, completed_at: null };
-      await enqueueOfflineOperation({
-        userId: user.id,
-        entity: "subtask",
-        action: subtask ? "update" : "create",
-        entityId: local.id,
-        payload: subtask ? { patch: payload } : { subtask: local },
-      });
-      setSaving(false);
-      onSaved(local as EditableSubtask);
-      toast.success("Subtarefa salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
-      onOpenChange(false);
-      return;
-    }
-
-    const request = subtask
-      ? (supabase.from("subtasks") as any)
-          .update(payload)
-          .eq("id", subtask.id)
-          .select("id, title, done, position, due_date, assignee_id, notes, completed_at")
-          .single()
-      : (supabase.from("subtasks") as any)
-          .insert({ ...payload, task_id: taskId, position })
-          .select("id, title, done, position, due_date, assignee_id, notes, completed_at")
-          .single();
-    const { data, error } = await request;
-    setSaving(false);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    onSaved(data as EditableSubtask);
-    if (subtask && dueDateChanged && user) {
-      const { error: historyError } = await supabase.from("subtask_due_date_changes").insert({
-        subtask_id: subtask.id,
-        old_due_date: subtask.due_date,
-        new_due_date: payload.due_date,
-        reason: dueDateReason.trim(),
-        user_id: user.id,
-      });
-      if (historyError) {
-        toast.warning("Prazo atualizado, mas não foi possível registrar a justificativa.");
+    setSaving(true);
+    try {
+      const existing = savedSubtaskRef.current;
+      const recordDueDateChange = Boolean(
+        subtask && dueDateChanged && user && existing?.due_date !== payload.due_date,
+      );
+      let saved: EditableSubtask;
+      if (user && isOffline()) {
+        saved = existing
+          ? { ...existing, ...payload }
+          : { id: crypto.randomUUID(), ...payload, position, completed_at: null };
+        await enqueueOfflineOperation({
+          userId: user.id,
+          entity: "subtask",
+          action: existing ? "update" : "create",
+          entityId: saved.id,
+          payload: existing ? { patch: payload } : { subtask: { ...saved, task_id: taskId } },
+        });
+      } else {
+        const request = existing
+          ? (supabase.from("subtasks") as any)
+              .update(payload)
+              .eq("id", existing.id)
+              .select("id, title, done, position, due_date, assignee_id, notes, completed_at")
+              .single()
+          : (supabase.from("subtasks") as any)
+              .insert({ ...payload, task_id: taskId, position })
+              .select("id, title, done, position, due_date, assignee_id, notes, completed_at")
+              .single();
+        const { data, error } = await request;
+        if (error) throw error;
+        saved = data as EditableSubtask;
       }
+      savedSubtaskRef.current = saved;
+      onSaved(saved);
+      if (recordDueDateChange && subtask && user && !isOffline()) {
+        const { error: historyError } = await supabase.from("subtask_due_date_changes").insert({
+          subtask_id: subtask.id,
+          old_due_date: subtask.due_date,
+          new_due_date: payload.due_date,
+          reason: dueDateReason.trim(),
+          user_id: user.id,
+        });
+        if (historyError)
+          toast.warning("Prazo atualizado, mas não foi possível registrar a justificativa.");
+      }
+      let failedPrints = 0;
+      const hadPrints = pendingPrintsRef.current.length > 0;
+      for (const print of [...pendingPrintsRef.current]) {
+        try {
+          await uploadPrint(saved.id, print);
+          removePrint(print.id);
+        } catch {
+          failedPrints += 1;
+        }
+      }
+      if (hadPrints && !isOffline()) onAttachmentsComplete?.(saved.id);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["tasks"] }),
+        qc.invalidateQueries({ queryKey: ["subtasks"] }),
+      ]);
+      if (failedPrints) {
+        toast.error(`${failedPrints} print(s) não foram enviados. A subtarefa foi salva; tente salvar novamente.`);
+        return;
+      }
+      toast.success(isOffline()
+        ? "Subtarefa salva neste aparelho. Será sincronizada ao reconectar."
+        : subtask ? "Subtarefa atualizada" : "Subtarefa criada");
+      handleOpenChange(false, true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar a subtarefa.");
+    } finally {
+      setSaving(false);
     }
-    await Promise.all([
-      qc.invalidateQueries({ queryKey: ["tasks"] }),
-      qc.invalidateQueries({ queryKey: ["subtasks"] }),
-    ]);
-    toast.success(subtask ? "Subtarefa atualizada" : "Subtarefa criada");
-    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl gap-5 p-6 sm:rounded-2xl">
         <DialogHeader>
           <DialogTitle>{subtask ? "Editar subtarefa" : "Nova subtarefa"}</DialogTitle>
@@ -266,15 +396,38 @@ export function SubtaskDialog({
               id="subtask-notes"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              placeholder="Descreva a subtarefa..."
+              onPaste={handlePrintPaste}
+              placeholder="Descreva a subtarefa... Cole um print com ⌘V / Ctrl+V."
               rows={6}
             />
             <FieldLinks value={notes} />
+            {pendingPrints.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Prints da subtarefa aguardando salvamento">
+                {pendingPrints.map((print) => (
+                  <div key={print.id} className="relative rounded-lg border bg-muted/20 p-2">
+                    <img src={print.previewUrl} alt={print.file.name} className="h-28 w-full object-contain" />
+                    <p className="mt-1 truncate text-xs text-muted-foreground" title={print.file.name}>{print.file.name}</p>
+                    <button
+                      type="button"
+                      aria-label={`Remover ${print.file.name}`}
+                      className="absolute right-1 top-1 rounded-full bg-background p-1 shadow-sm"
+                      onClick={() => removePrint(print.id)}
+                      disabled={saving}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {pendingPrints.length > 0 && (
+              <p className="text-xs text-muted-foreground">Os prints aparecerão nos arquivos da subtarefa após salvar.</p>
+            )}
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>
           <Button onClick={save} disabled={saving}>

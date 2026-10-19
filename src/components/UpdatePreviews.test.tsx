@@ -5,6 +5,21 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows when the new version installs automatically and when it waits", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "automatic-safe-update" }));
+    expect(html).toContain("Nova versão disponível");
+    expect(html).toContain("Atualiza a página");
+    expect(html).toContain("Aguarda para instalar");
+    expect(html).not.toContain("<button");
+  });
+  it("shows the pasted print preview and its destination in subtask files", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "subtask-pasted-prints" }));
+    expect(html).toContain("Editar subtarefa");
+    expect(html).toContain("data-subtask-print-preview");
+    expect(html).toContain("Arquivos da subtarefa (1)");
+    expect(html).not.toContain("<button");
+  });
+
   it("shows the client calendar and categorized references side by side without real actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "client-calendar-references" }));
     expect(html).toContain('Sistemas e senhas');

@@ -65,6 +65,38 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function SubtaskPastedPrintsPreview() {
+  return (
+    <div aria-label="Prévia de print colado na descrição de uma subtarefa" className="mx-auto w-full max-w-xs rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <strong>Editar subtarefa</strong>
+      <p className="mt-2 text-muted-foreground">Descrição</p>
+      <div className="mt-1 rounded-lg border px-2 py-2">
+        <p>Revisar a arte da campanha</p>
+        <div data-subtask-print-preview className="mt-2 flex h-16 items-center justify-center rounded-md border bg-muted/40 text-primary">
+          <ImagePlus className="h-6 w-6" />
+          <span className="ml-2">Prévia do print colado</span>
+        </div>
+      </div>
+      <p className="mt-2 text-muted-foreground">Após salvar: Arquivos da subtarefa (1)</p>
+    </div>
+  );
+}
+
+function AutomaticSafeUpdatePreview() {
+  return (
+    <div aria-label="Prévia da atualização automática segura" className="mx-auto w-full max-w-sm rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <div className="flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/5 p-2">
+        <Sparkles className="h-4 w-4 text-primary" />
+        <div><strong>Nova versão disponível</strong><p className="text-muted-foreground">Instalação automática quando for seguro</p></div>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="rounded-lg border p-2"><CheckCircle2 className="mb-1 h-3.5 w-3.5 text-emerald-600" /><strong>Sem edição aberta</strong><p className="text-muted-foreground">Atualiza a página</p></div>
+        <div className="rounded-lg border p-2"><Clock3 className="mb-1 h-3.5 w-3.5 text-amber-600" /><strong>Trabalho em andamento</strong><p className="text-muted-foreground">Aguarda para instalar</p></div>
+      </div>
+    </div>
+  );
+}
+
 function AgendaGoogleCompactActionsPreview() {
   return (
     <div aria-label="Prévia das ações compactas da Google Agenda" className="mx-auto w-full max-w-64 rounded-xl border bg-background p-3 text-[10px] shadow-sm">
@@ -1398,6 +1430,8 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "automatic-safe-update": AutomaticSafeUpdatePreview,
+  "subtask-pasted-prints": SubtaskPastedPrintsPreview,
   "client-calendar-references": ClientCalendarReferencesPreview,
   "agenda-google-compact-actions": AgendaGoogleCompactActionsPreview,
   "agenda-google-connection-layout": AgendaGoogleConnectionLayoutPreview,

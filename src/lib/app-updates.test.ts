@@ -7,7 +7,7 @@ import {
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES).toHaveLength(13);
+    expect(APP_UPDATES).toHaveLength(15);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -29,15 +29,15 @@ describe("application release catalogue", () => {
       const updates = getVisibleAppUpdates(false, workspace);
       expect(updates).toHaveLength(5);
       expect(updates.map((update) => update.id)).toEqual([
+        "atualizacao-automatica-segura-2026-10-19",
+        "prints-colados-nas-subtarefas-2026-10-19",
         "calendario-dos-clientes-e-referencias-2026-10-16",
         "acoes-google-agenda-sem-rolagem-2026-10-15",
         "conexao-google-agenda-centralizada-2026-10-15",
-        "periodo-dos-relatorios-centralizado-2026-10-15",
-        "clientes-em-dois-cartoes-no-celular-2026-10-15",
       ]);
-      expect(updates[0].preview).toBe("client-calendar-references");
+      expect(updates[0].preview).toBe("automatic-safe-update");
       expect(getVisibleAppUpdates(true, workspace)[0].id).toBe(
-        "calendario-dos-clientes-e-referencias-2026-10-16",
+        "atualizacao-automatica-segura-2026-10-19",
       );
       expect(updates.every((update) => update.audience === "all")).toBe(true);
     },

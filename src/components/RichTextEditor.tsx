@@ -114,12 +114,12 @@ function clipboardHtmlImageFiles(clipboardData: DataTransfer | null) {
   });
 }
 
-function allClipboardImageFiles(clipboardData: DataTransfer | null) {
+export function allClipboardImageFiles(clipboardData: DataTransfer | null) {
   const files = clipboardImageFiles(clipboardData);
   return files.length ? files : clipboardHtmlImageFiles(clipboardData);
 }
 
-function hasClipboardText(clipboardData: DataTransfer | null) {
+export function hasClipboardText(clipboardData: DataTransfer | null) {
   const plainText = clipboardData?.getData("text/plain").trim() || "";
   const html = clipboardData?.getData("text/html").trim() || "";
   // Imagem copiada por Lightshot/extensões pode ter um HTML com apenas <img>

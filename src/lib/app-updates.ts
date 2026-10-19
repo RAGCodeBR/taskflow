@@ -1,5 +1,7 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "automatic-safe-update"
+  | "subtask-pasted-prints"
   | "client-calendar-references"
   | "agenda-google-compact-actions"
   | "agenda-google-connection-layout"
@@ -57,6 +59,28 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "atualizacao-automatica-segura-2026-10-19",
+    title: "Atualização automática do TaskFlow",
+    date: "2026-10-19",
+    preview: "automatic-safe-update",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Quando uma nova versão estiver disponível, o TaskFlow avisa e tenta instalá-la automaticamente após um período sem edição. A página só recarrega se não houver editor aberto nem alterações offline pendentes; o botão Atualizar agora continua disponível.",
+    ],
+  },
+  {
+    id: "prints-colados-nas-subtarefas-2026-10-19",
+    title: "Prints nas subtarefas",
+    date: "2026-10-19",
+    preview: "subtask-pasted-prints",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Cole prints com Ctrl+V ou ⌘V na descrição da subtarefa. Veja a prévia antes de salvar; depois, os prints ficam nos arquivos da subtarefa. Arquivos de até 50 MB também podem ser preparados offline para envio ao reconectar.",
+    ],
+  },
   {
     id: "calendario-dos-clientes-e-referencias-2026-10-16",
     title: "Calendário dos clientes e referências por tópico",

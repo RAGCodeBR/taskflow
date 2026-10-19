@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, ChevronDown, History, RefreshCw, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { AppUpdatePreview } from "@/components/UpdatePreviews";
 import { advancePendingAppUpdate, type PendingAppUpdate } from "@/lib/app-update-progress";
+import { canAutoInstallAppUpdate } from "@/lib/app-update-auto";
+import { listOfflineOperations } from "@/lib/offline-sync";
 import {
   activateAppUpdate,
   checkAppWorkerUpdate,
@@ -27,6 +29,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+const AUTO_UPDATE_IDLE_MS = 30_000;
+let lastUserInputAt = Date.now();
+let updateInstallationRunning = false;
+
+function hasOpenEditor() {
+  const visible = (element: Element) => element.getClientRects().length > 0;
+  return [...document.querySelectorAll('[role="dialog"], [role="alertdialog"], textarea, [contenteditable="true"], [contenteditable=""]')].some(visible) ||
+    Boolean(document.activeElement?.matches("input, textarea, select, [contenteditable]"));
+}
+
+async function automaticReloadIsSafe(userId: string | undefined) {
+  if (!userId) return false;
+  let hasPendingWrites: boolean;
+  try {
+    hasPendingWrites = (await listOfflineOperations(userId)).length > 0;
+  } catch {
+    return false;
+  }
+  return canAutoInstallAppUpdate({
+    online: navigator.onLine,
+    visible: document.visibilityState === "visible",
+    hasOpenEditor: hasOpenEditor(),
+    hasPendingWrites,
+    hasRecentInput: Date.now() - lastUserInputAt < AUTO_UPDATE_IDLE_MS,
+  });
+}
 
 function ReleaseSection({
   title,
@@ -125,6 +154,16 @@ export function UpdateCenter() {
   const canSeeUpdates = isSupportedWorkspace && Boolean(storageKey);
 
   useEffect(() => {
+    const recordInput = () => { lastUserInputAt = Date.now(); };
+    document.addEventListener("input", recordInput, true);
+    document.addEventListener("change", recordInput, true);
+    return () => {
+      document.removeEventListener("input", recordInput, true);
+      document.removeEventListener("change", recordInput, true);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!canSeeUpdates || !storageKey) return;
     try {
       setAcknowledged(window.localStorage.getItem(storageKey) === UPDATE_VERSION);
@@ -161,24 +200,38 @@ export function UpdateCenter() {
       window.sessionStorage.removeItem(pendingUpdateKey);
       return;
     }
-    if (autoResumeRef.current === pending.id) return;
-    autoResumeRef.current = pending.id;
-    window.sessionStorage.setItem(pendingUpdateKey, JSON.stringify(progress.pending));
-    void (async () => {
-      if ("serviceWorker" in navigator) {
-        const registration = await navigator.serviceWorker.getRegistration();
-        if (registration) {
-          await activateAppUpdate(registration);
-          if (registration.active && navigator.serviceWorker.controller !== registration.active)
-            await waitForAppWorkerControl(registration.active, navigator.serviceWorker);
+    const resume = () => void (async () => {
+      if (autoResumeRef.current === pending.id || updateInstallationRunning) return;
+      updateInstallationRunning = true;
+      try {
+        if (pending.automatic && !(await automaticReloadIsSafe(user?.id))) return;
+        autoResumeRef.current = pending.id;
+        window.sessionStorage.setItem(pendingUpdateKey, JSON.stringify(progress.pending));
+        if ("serviceWorker" in navigator) {
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (registration) {
+            await activateAppUpdate(registration);
+            if (registration.active && navigator.serviceWorker.controller !== registration.active)
+              await waitForAppWorkerControl(registration.active, navigator.serviceWorker);
+          }
         }
+        if (pending.automatic && !(await automaticReloadIsSafe(user?.id))) {
+          autoResumeRef.current = null;
+          return;
+        }
+        window.location.reload();
+      } finally {
+        updateInstallationRunning = false;
       }
-      window.location.reload();
     })().catch(() => {
       window.sessionStorage.removeItem(pendingUpdateKey);
       autoResumeRef.current = null;
     });
-  }, [UPDATE_VERSION, canSeeUpdates, pendingUpdateKey, storageKey]);
+    resume();
+    if (!pending.automatic) return;
+    const interval = window.setInterval(resume, 15_000);
+    return () => window.clearInterval(interval);
+  }, [UPDATE_VERSION, canSeeUpdates, pendingUpdateKey, storageKey, user?.id]);
 
   const hasReleaseUpdate = !acknowledged;
   const hasNewVersion = Boolean(remoteRelease) || serviceWorkerUpdateReady;
@@ -333,8 +386,6 @@ export function UpdateCenter() {
     };
   }, [open, canSeeUpdates, scope]);
 
-  if (!canSeeUpdates) return null;
-
   const openPendingUpdate = () => {
     try {
       if (promptKey) window.sessionStorage.setItem(promptKey, noticeVersion);
@@ -344,12 +395,36 @@ export function UpdateCenter() {
     setShowUpdatePrompt(false);
     setOpen(true);
   };
-  const updateApplication = async () => {
-    if (!storageKey || refreshing || checking) return;
-    setUpdateError(null);
+  const updateApplication = useCallback(async (automatic = false) => {
+    if (!storageKey || refreshing || checking || updateInstallationRunning) return;
+    const autoAttemptKey = `taskflow:auto-update-attempt:${remoteRelease?.id ?? UPDATE_VERSION}`;
+    if (automatic) {
+      try {
+        if (window.sessionStorage.getItem(autoAttemptKey)) return;
+      } catch {
+        // Private browsing can disable session storage; the pending update
+        // counter still bounds follow-up reloads.
+      }
+    }
+    updateInstallationRunning = true;
+    if (!automatic) setUpdateError(null);
     if (!navigator.onLine) {
-      setUpdateError("Conecte-se à internet para atualizar. Seus dados offline estão preservados.");
+      if (!automatic) setUpdateError("Conecte-se à internet para atualizar. Seus dados offline estão preservados.");
+      updateInstallationRunning = false;
       return;
+    }
+    if (automatic) {
+      try {
+        if (!(await automaticReloadIsSafe(user?.id))) return;
+      } catch {
+        return;
+      } finally {
+        updateInstallationRunning = false;
+      }
+      // The second gate keeps the two responsive UpdateCenter mounts from
+      // installing the same release at the same time.
+      if (updateInstallationRunning) return;
+      updateInstallationRunning = true;
     }
     setRefreshing(true);
 
@@ -388,27 +463,50 @@ export function UpdateCenter() {
             await waitForAppWorkerControl(registration.active, navigator.serviceWorker);
         }
       }
+      if (automatic) {
+        if (!(await automaticReloadIsSafe(user?.id))) return;
+      }
       // The next page confirms it actually loaded the target compiled version.
       // Never clear IndexedDB, offline queues, preferences or registrations.
       try {
         if (pendingUpdateKey)
           window.sessionStorage.setItem(
             pendingUpdateKey,
-            JSON.stringify({ id: targetVersion, attempts: 0 }),
+            JSON.stringify({ id: targetVersion, attempts: 0, automatic }),
           );
+        if (automatic) window.sessionStorage.setItem(autoAttemptKey, targetVersion);
       } catch {
         /* Still allow the verified reload. */
       }
       window.location.reload();
     } catch (error) {
-      setUpdateError(
+      if (!automatic) setUpdateError(
         error instanceof Error && !(error instanceof TypeError)
           ? error.message
           : "Não foi possível baixar a atualização. Verifique sua conexão e tente novamente.",
       );
+    } finally {
       setRefreshing(false);
+      updateInstallationRunning = false;
     }
-  };
+  }, [storageKey, refreshing, checking, updates, isAdmin, activeWorkspace?.slug, hasNewVersion, pendingUpdateKey, user?.id, remoteRelease?.id, UPDATE_VERSION]);
+
+  useEffect(() => {
+    if (!canSeeUpdates || !hasNewVersion || open) return;
+    const tryAutomaticUpdate = () => void updateApplication(true);
+    const timer = window.setInterval(tryAutomaticUpdate, 15_000);
+    const start = window.setTimeout(tryAutomaticUpdate, 2_000);
+    window.addEventListener("focus", tryAutomaticUpdate);
+    window.addEventListener("online", tryAutomaticUpdate);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(start);
+      window.removeEventListener("focus", tryAutomaticUpdate);
+      window.removeEventListener("online", tryAutomaticUpdate);
+    };
+  }, [canSeeUpdates, hasNewVersion, open, updateApplication]);
+
+  if (!canSeeUpdates) return null;
   const updateButton = (
     <Button
       type="button"
@@ -456,10 +554,10 @@ export function UpdateCenter() {
                 <Sparkles className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">Nova atualização disponível</p>
+                <p className="text-sm font-semibold">Nova versão disponível</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Esta tela está em uma versão anterior. Veja a novidade e recarregue o TaskFlow
-                  para atualizar.
+                  O TaskFlow atualizará esta página automaticamente quando não houver edição
+                  em andamento nem dados aguardando sincronização.
                 </p>
                 <Button type="button" size="sm" className="mt-3" onClick={openPendingUpdate}>
                   Ver atualizações
@@ -509,7 +607,8 @@ export function UpdateCenter() {
               </div>
               <DialogTitle className="pt-3 text-2xl">Novas atualizações</DialogTitle>
               <DialogDescription className="leading-6">
-                Veja o que mudou no TaskFlow e atualize o navegador quando houver uma nova versão.
+                Veja o que mudou no TaskFlow. A nova versão será instalada automaticamente quando
+                for seguro recarregar esta página.
               </DialogDescription>
             </DialogHeader>
           </div>

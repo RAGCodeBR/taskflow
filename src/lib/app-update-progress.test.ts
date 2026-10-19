@@ -18,4 +18,12 @@ describe("one click update progress", () => {
       status: "exhausted",
     });
   });
+
+  it("keeps automatic safety checks on every reload toward the latest version", () => {
+    expect(advancePendingAppUpdate({ id: "latest", attempts: 0, automatic: true }, "older"))
+      .toEqual({
+        status: "retry",
+        pending: { id: "latest", attempts: 1, automatic: true },
+      });
+  });
 });
