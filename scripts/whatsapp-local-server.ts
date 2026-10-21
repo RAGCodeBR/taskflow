@@ -4,6 +4,7 @@ import type { Socket } from "node:net";
 import { Transform } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
 import { WHATSAPP_PILOT_OWNER } from "../src/lib/whatsapp-local-access";
+import { embeddedNotifications } from "./whatsapp-notification-client";
 
 const COOKIE = "taskflow_whatsapp_local";
 const TTL = 15 * 60_000;
@@ -73,7 +74,7 @@ export function createLocalChatBridge(config: {
   const cookieFlags = `HttpOnly; SameSite=Strict; Path=/${publicUrl ? "; Secure" : ""}`;
   const hostAllowed = (request: IncomingMessage) => publicUrl
     ? request.headers.host === publicUrl.host : /^localhost:\d+$/.test(request.headers.host ?? "");
-  const presentation = EMBED_STYLE + `<style id="taskflow-whatsapp-theme">${config.themeCss ?? ""}</style>` + `<script>(()=>{
+  const presentation = EMBED_STYLE + `<style id="taskflow-whatsapp-theme">${config.themeCss ?? ""}</style>` + embeddedNotifications(config.origin) + `<script>(()=>{
     const origin=${JSON.stringify(config.origin)};
     const colors=['background','foreground','card','card-foreground','popover','popover-foreground','primary','primary-foreground','secondary','secondary-foreground','muted','muted-foreground','accent','accent-foreground','border','input','ring'];
     window.addEventListener('message',e=>{

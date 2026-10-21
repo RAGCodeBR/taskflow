@@ -28,6 +28,7 @@ deployment = target / "deployment"
 (deployment / "bridge/scripts").mkdir(parents=True)
 (deployment / "bridge/src/lib").mkdir(parents=True)
 shutil.copy2(taskflow / "scripts/whatsapp-local-server.ts", deployment / "bridge/scripts")
+shutil.copy2(taskflow / "scripts/whatsapp-notification-client.ts", deployment / "bridge/scripts")
 shutil.copy2(taskflow / "src/lib/whatsapp-local-access.ts", deployment / "bridge/src/lib")
 shutil.copy2(taskflow / "src/styles/whatsapp-embed.css", deployment)
 shutil.copy2(Path(__file__).parent / "start.mts", deployment)

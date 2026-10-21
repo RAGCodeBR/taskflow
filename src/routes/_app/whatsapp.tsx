@@ -8,6 +8,7 @@ import { canUseLocalWhatsApp } from "@/lib/whatsapp-local-access";
 import { Button } from "@/components/ui/button";
 import type { AuthChangeEvent } from "@supabase/supabase-js";
 import { whatsappSection } from "@/lib/whatsapp-local-sections";
+import {useWhatsAppNotifications} from '@/hooks/use-whatsapp-notifications';
 
 export const Route = createFileRoute("/_app/whatsapp")({
   validateSearch: (search: Record<string, unknown>) => ({ section: whatsappSection(search.section).key }),
@@ -25,6 +26,7 @@ function WhatsAppLocalPage() {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
+  const notifications=useWhatsAppNotifications(frame,BRIDGE,allowed&&ready);
   const syncTheme = useCallback(() => {
     const style = getComputedStyle(document.documentElement);
     const keys = ['background','foreground','card','card-foreground','popover','popover-foreground','primary','primary-foreground','secondary','secondary-foreground','muted','muted-foreground','accent','accent-foreground','border','input','ring'];
@@ -82,9 +84,14 @@ function WhatsAppLocalPage() {
 
   if (loading) return <div className="grid h-full place-items-center"><LoaderCircle className="animate-spin" /></div>;
   if (!allowed) return <div className="grid h-full place-items-center p-6"><p role="alert">Acesso não disponível para esta conta.</p></div>;
-  return <section className="flex h-full min-h-0 flex-col" aria-label="WhatsApp privado">
+  return <section className="flex min-h-0 flex-1 flex-col overflow-hidden" aria-label="WhatsApp privado">
+    {(notifications.requestId||notifications.blocked)&&<div role="status" className="flex shrink-0 flex-wrap items-center gap-3 border-b bg-muted px-4 py-2 text-sm">
+      <p className="min-w-0 flex-1">{notifications.blocked?'As notificações estão bloqueadas no navegador. No ícone ao lado do endereço, permita Notificações para o Taskfloww.':'Permita que o Taskfloww avise quando chegar uma mensagem no chat.'}</p>
+      {notifications.requestId&&<Button size="sm" onClick={()=>void notifications.allow()}>Ativar no navegador</Button>}
+      <Button variant="ghost" size="sm" onClick={notifications.dismiss}>Fechar</Button>
+    </div>}
     {error ? <div className="grid flex-1 place-content-center gap-4 p-6 text-center"><p role="alert">{error}</p><Button variant="outline" onClick={() => { setReady(false); setError(""); setAttempt(value => value + 1); }}><RotateCcw className="mr-2 h-4 w-4" />Tentar novamente</Button></div>
-      : ready ? <iframe ref={frame} onLoad={syncTheme} title="Conversas e configurações do WhatsApp" src={`${BRIDGE}${selectedSection.path}`}
+      : ready ? <iframe ref={frame} onLoad={()=>{syncTheme();notifications.sync();}} title="Conversas e configurações do WhatsApp" src={`${BRIDGE}${selectedSection.path}`}
         className="min-h-0 w-full flex-1 border-0" allow="clipboard-write; fullscreen" referrerPolicy="no-referrer" />
       : <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="h-4 w-4 animate-spin" />Validando seu acesso ao chat…</div>}
   </section>;

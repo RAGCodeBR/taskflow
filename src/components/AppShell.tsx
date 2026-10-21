@@ -451,8 +451,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
       <RecurringMeetingReminderPopup />
-      <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-14 md:pt-0">
-        <div className="hidden md:flex sticky top-0 z-40 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
+      <main className={`min-w-0 flex-1 pt-14 md:pt-0 ${quietWhatsAppPilot ? "flex min-h-0 flex-col overflow-hidden" : "overflow-x-hidden overflow-y-auto"}`}>
+        <div className="hidden shrink-0 md:flex sticky top-0 z-40 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
             {!quietWhatsAppPilot && <UpdateCenter />}
           {canSwitchEnvironments && workspaces.length > 1 && (
             <Button

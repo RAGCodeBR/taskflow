@@ -53,7 +53,8 @@ header.backdrop-blur-2xl.sticky [role="combobox"] { height:28px!important; borde
 header.backdrop-blur-2xl.sticky button[title] { height:28px!important; width:28px!important; }
 header.backdrop-blur-2xl.sticky svg { width:14px!important; height:14px!important; }
 main.styled-scrollbar { padding:0 12px 12px!important; }
-main.styled-scrollbar > div[class*="h-[calc"] { height:calc(100dvh - 50px)!important; }
+main.styled-scrollbar:has(> div[class*="h-[calc"]) { display:flex!important; flex-direction:column!important; min-height:0!important; overflow:hidden!important; }
+main.styled-scrollbar > div[class*="h-[calc"] { height:100%!important; min-height:0!important; flex:1!important; }
 /* Use TaskFlow's compact card geometry and quiet surfaces. */
 [aria-label="Quadro de atendimento"] { background:var(--background)!important; padding:10px!important; gap:12px!important; }
 [aria-label="Quadro de atendimento"] > section { background:var(--muted)!important; border:1px solid var(--border)!important; border-radius:12px!important; }
@@ -61,6 +62,8 @@ main.styled-scrollbar > div[class*="h-[calc"] { height:calc(100dvh - 50px)!impor
 [aria-label="Quadro de atendimento"] h3 { font-size:13px!important; font-weight:600!important; letter-spacing:-.01em; }
 [aria-label="Quadro de atendimento"] article { border:1px solid var(--border)!important; border-radius:12px!important; background:var(--card)!important; box-shadow:0 1px 3px rgb(0 0 0 / .05)!important; }
 [aria-label="Quadro de atendimento"] article:hover { border-color:color-mix(in oklab,var(--primary) 40%,var(--border))!important; box-shadow:0 3px 10px rgb(0 0 0 / .06)!important; }
+[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]) { background:color-mix(in srgb,#10b981 15%,var(--card))!important; border-color:#10b981!important; box-shadow:inset 3px 0 #10b981,0 0 0 1px rgb(16 185 129 / .15)!important; }
+[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]):hover { border-color:#059669!important; background:color-mix(in srgb,#10b981 21%,var(--card))!important; }
 [data-slot="button"] { border-radius:8px!important; box-shadow:none!important; transition:background-color .15s,border-color .15s,color .15s!important; }
 [data-slot="button"][data-variant="default"] { background:var(--primary)!important; color:var(--primary-foreground)!important; }
 input:not([type="checkbox"]):not([type="radio"]),textarea,select { border-radius:8px!important; border-color:var(--border)!important; background-color:var(--card)!important; }
