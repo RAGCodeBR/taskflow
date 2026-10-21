@@ -1,0 +1,70 @@
+/* TaskFlow palette, applied only by the private local WhatsApp bridge. */
+:root {
+  --radius: 0.875rem !important;
+  --background: oklch(0.98 0.005 250) !important;
+  --foreground: oklch(0.18 0.04 260) !important;
+  --card: oklch(1 0 0) !important;
+  --card-foreground: oklch(0.18 0.04 260) !important;
+  --popover: oklch(1 0 0) !important;
+  --popover-foreground: oklch(0.18 0.04 260) !important;
+  --primary: oklch(0.28 0.09 264) !important;
+  --primary-foreground: oklch(0.98 0.005 250) !important;
+  --secondary: oklch(0.95 0.012 250) !important;
+  --secondary-foreground: oklch(0.28 0.09 264) !important;
+  --muted: oklch(0.95 0.012 250) !important;
+  --muted-foreground: oklch(0.5 0.03 260) !important;
+  --accent: oklch(0.93 0.03 250) !important;
+  --accent-foreground: oklch(0.28 0.09 264) !important;
+  --destructive: oklch(0.58 0.22 27) !important;
+  --destructive-foreground: oklch(0.98 0 0) !important;
+  --border: oklch(0.9 0.012 250) !important;
+  --input: oklch(0.92 0.012 250) !important;
+  --ring: oklch(0.45 0.16 264) !important;
+}
+.dark {
+  --background: oklch(0.175 0.012 250) !important;
+  --foreground: oklch(0.94 0.008 250) !important;
+  --card: oklch(0.22 0.014 250) !important;
+  --card-foreground: oklch(0.94 0.008 250) !important;
+  --popover: oklch(0.235 0.016 250) !important;
+  --popover-foreground: oklch(0.94 0.008 250) !important;
+  --primary: oklch(0.68 0.11 232) !important;
+  --primary-foreground: oklch(0.16 0.015 250) !important;
+  --secondary: oklch(0.275 0.016 250) !important;
+  --secondary-foreground: oklch(0.94 0.008 250) !important;
+  --muted: oklch(0.265 0.014 250) !important;
+  --muted-foreground: oklch(0.72 0.014 250) !important;
+  --accent: oklch(0.31 0.024 235) !important;
+  --accent-foreground: oklch(0.95 0.008 250) !important;
+  --border: oklch(0.34 0.016 250) !important;
+  --input: oklch(0.285 0.014 250) !important;
+  --ring: oklch(0.68 0.11 232) !important;
+}
+html,body { background:var(--background)!important; color:var(--foreground)!important; font-family:var(--taskflow-font,ui-sans-serif,system-ui,sans-serif)!important; }
+/* A single small account selector replaces the former tall utility header. */
+header.backdrop-blur-2xl.sticky { height:38px!important; min-height:38px!important; padding:0 12px!important; background:var(--background)!important; border:0!important; box-shadow:none!important; backdrop-filter:none!important; }
+header.backdrop-blur-2xl.sticky > div:first-child,
+header.backdrop-blur-2xl.sticky > div:last-child > span,
+header.backdrop-blur-2xl.sticky > div:last-child > button,
+header.backdrop-blur-2xl.sticky > div:last-child > div:not(:has([role="combobox"]):has(button[title])) { display:none!important; }
+header.backdrop-blur-2xl.sticky > div:last-child { margin-left:auto; gap:0!important; }
+header.backdrop-blur-2xl.sticky > div:last-child > div:has([role="combobox"]):has(button[title]) > span { display:none!important; }
+header.backdrop-blur-2xl.sticky [role="combobox"] { height:28px!important; border:1px solid var(--border)!important; border-radius:8px!important; background:var(--card)!important; box-shadow:none!important; font-size:11px!important; }
+header.backdrop-blur-2xl.sticky button[title] { height:28px!important; width:28px!important; }
+header.backdrop-blur-2xl.sticky svg { width:14px!important; height:14px!important; }
+main.styled-scrollbar { padding:0 12px 12px!important; }
+main.styled-scrollbar > div[class*="h-[calc"] { height:calc(100dvh - 50px)!important; }
+/* Use TaskFlow's compact card geometry and quiet surfaces. */
+[aria-label="Quadro de atendimento"] { background:var(--background)!important; padding:10px!important; gap:12px!important; }
+[aria-label="Quadro de atendimento"] > section { background:var(--muted)!important; border:1px solid var(--border)!important; border-radius:12px!important; }
+[aria-label="Quadro de atendimento"] > section > header { padding:12px!important; border-color:var(--border)!important; }
+[aria-label="Quadro de atendimento"] h3 { font-size:13px!important; font-weight:600!important; letter-spacing:-.01em; }
+[aria-label="Quadro de atendimento"] article { border:1px solid var(--border)!important; border-radius:12px!important; background:var(--card)!important; box-shadow:0 1px 3px rgb(0 0 0 / .05)!important; }
+[aria-label="Quadro de atendimento"] article:hover { border-color:color-mix(in oklab,var(--primary) 40%,var(--border))!important; box-shadow:0 3px 10px rgb(0 0 0 / .06)!important; }
+[data-slot="button"] { border-radius:8px!important; box-shadow:none!important; transition:background-color .15s,border-color .15s,color .15s!important; }
+[data-slot="button"][data-variant="default"] { background:var(--primary)!important; color:var(--primary-foreground)!important; }
+input:not([type="checkbox"]):not([type="radio"]),textarea,select { border-radius:8px!important; border-color:var(--border)!important; background-color:var(--card)!important; }
+[data-slot="dialog-content"],[data-slot="popover-content"],[data-slot="dropdown-menu-content"] { border-radius:12px!important; border-color:var(--border)!important; background:var(--popover)!important; }
+[role="group"][aria-label="Visualização das conversas"],[aria-label="Orientação do Kanban"] { border-radius:8px!important; background:var(--muted)!important; }
+svg.lucide { stroke-width:1.75!important; }
+@media(max-width:640px){main.styled-scrollbar{padding:0 6px 6px!important} [aria-label="Quadro de atendimento"]{padding:6px!important}}

@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { resolveWhatsAppPilotConfig } from "@/lib/whatsapp-pilot-config";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,8 @@ import { canSwitchTaskFlowEnvironment } from "@/lib/environment-access";
 import { WorkspaceLoadingScreen } from "@/components/WorkspaceLoadingScreen";
 import { useHasInvitedMeeting } from "@/hooks/use-meetings";
 import { ClientsNavGroup } from "@/components/ClientsNavGroup";
+import { canUseLocalWhatsApp } from "@/lib/whatsapp-local-access";
+import { WhatsAppNavGroup } from "@/components/WhatsAppNavGroup";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -71,6 +74,7 @@ const allNav: readonly NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/tasks", label: "Minhas Tarefas", icon: ListChecks },
   { to: "/conversations", label: "Conversas", icon: MessagesSquare },
+  { to: "/whatsapp", label: "WhatsApp", icon: MessagesSquare },
   { to: "/obligations", label: "Obrigações", icon: CalendarCog },
   { to: "/meetings", label: "Reuniões", icon: Handshake },
   { to: "/clients", label: "Clientes", icon: Building2 },
@@ -124,11 +128,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       "/settings": "settings",
     };
     return allNav.filter((item) => {
+      if (item.to === "/whatsapp") return canUseLocalWhatsApp(user, isAdmin,
+        resolveWhatsAppPilotConfig(import.meta.env).enabled);
       if (item.to === "/portal") return canAccessDeliveries || canAccessFinance;
       if (item.to === "/meetings" && hasInvitedMeeting) return true;
       return (!item.adminOnly || isAdmin) && hasPermission(accessByPath[item.to]);
     });
-  }, [canAccessDeliveries, canAccessFinance, hasInvitedMeeting, isAdmin, hasPermission]);
+  }, [canAccessDeliveries, canAccessFinance, hasInvitedMeeting, isAdmin, hasPermission, user?.id, user?.email]);
 
   const { theme, toggle } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -142,6 +148,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [sidebarOpen]);
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const quietWhatsAppPilot = pathname === "/whatsapp" && canUseLocalWhatsApp(user, isAdmin,
+    resolveWhatsAppPilotConfig(import.meta.env).enabled);
   const initials = (profile?.full_name || user?.email || "?").slice(0, 2).toUpperCase();
 
   return (
@@ -183,6 +191,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <nav className="sidebar-nav min-h-0 w-full flex-1 space-y-1 overflow-y-auto px-3">
           {nav.map((n) => {
+            if (n.to === "/whatsapp") return <WhatsAppNavGroup key="whatsapp" expanded={sidebarOpen} active={pathname === "/whatsapp"} />;
             if (n.to === "/clients") return <ClientsNavGroup key={`${activeWorkspace?.id}:clients`} expanded={sidebarOpen} active={pathname.startsWith('/clients')} />;
             if (n.to === "/portal")
               return (
@@ -304,7 +313,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Button>
         <span className="min-w-0 truncate font-semibold">TaskFlow</span>
         <div className="flex shrink-0 items-center gap-1">
-          <UpdateCenter />
+          {!quietWhatsAppPilot && <UpdateCenter />}
           {canSwitchEnvironments && workspaces.length > 1 && (
             <Button asChild variant="ghost" size="icon" title="Trocar ambiente">
               <Link to="/ambientes">
@@ -340,6 +349,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-3">
               {nav.map((n) => {
+                if (n.to === "/whatsapp") return <WhatsAppNavGroup key="whatsapp-mobile" expanded active={pathname === "/whatsapp"} onNavigate={() => setMobileMenuOpen(false)} />;
                 if (n.to === "/clients") return <ClientsNavGroup key={`${activeWorkspace?.id}:clients-mobile`} expanded active={pathname.startsWith('/clients')} onNavigate={() => setMobileMenuOpen(false)} />;
                 if (n.to === "/portal")
                   return (
@@ -443,7 +453,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <RecurringMeetingReminderPopup />
       <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-14 md:pt-0">
         <div className="hidden md:flex sticky top-0 z-40 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
-          <UpdateCenter />
+            {!quietWhatsAppPilot && <UpdateCenter />}
           {canSwitchEnvironments && workspaces.length > 1 && (
             <Button
               asChild

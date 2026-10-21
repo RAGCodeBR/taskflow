@@ -6,6 +6,7 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
+import { whatsappLocalPlugin } from "./scripts/whatsapp-local-plugin";
 import { readFileSync } from "node:fs";
 import { deflateSync, inflateSync } from "node:zlib";
 import { appUpdatesPlugin } from "./scripts/app-updates-plugin";
@@ -73,6 +74,7 @@ const timbradoImagePlugin = {
 
 export default defineConfig({
   plugins: [
+    whatsappLocalPlugin(),
     timbradoImagePlugin,
     appUpdatesPlugin(),
     VitePWA({
@@ -125,6 +127,7 @@ export default defineConfig({
     }),
   ],
   // Generate Vercel Build Output instead of the previous Cloudflare target.
+  vite: { server: { host: "127.0.0.1", port: 5173, strictPort: true } },
   nitro: {
     preset: "vercel",
     routeRules: {

@@ -29,6 +29,8 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppTrashRouteImport } from './routes/_app/trash'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
+import { Route as AppWhatsappRouteImport } from './routes/_app/whatsapp'
+import { Route as ApiWhatsappPilotRouteImport } from './routes/api.whatsapp-pilot'
 import { Route as AppClientReportClientIdRouteImport } from './routes/_app/client-report.$clientId'
 import { Route as AppClientsIndexRouteImport } from './routes/_app/clients.index'
 import { Route as AppClientsDirectoryRouteImport } from './routes/_app/clients.directory'
@@ -141,6 +143,16 @@ const AppUsersRoute = AppUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AppRoute,
 } as any)
+const AppWhatsappRoute = AppWhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => AppRoute,
+} as any)
+const ApiWhatsappPilotRoute = ApiWhatsappPilotRouteImport.update({
+  id: '/api/whatsapp-pilot',
+  path: '/api/whatsapp-pilot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppClientReportClientIdRoute = AppClientReportClientIdRouteImport.update({
   id: '/client-report/$clientId',
   path: '/client-report/$clientId',
@@ -223,6 +235,8 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AppTasksRouteWithChildren
   '/trash': typeof AppTrashRoute
   '/users': typeof AppUsersRoute
+  '/whatsapp': typeof AppWhatsappRoute
+  '/api/whatsapp-pilot': typeof ApiWhatsappPilotRoute
   '/client-report/$clientId': typeof AppClientReportClientIdRoute
   '/clients/directory': typeof AppClientsDirectoryRoute
   '/clients/new': typeof AppClientsNewRoute
@@ -254,6 +268,8 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/trash': typeof AppTrashRoute
   '/users': typeof AppUsersRoute
+  '/whatsapp': typeof AppWhatsappRoute
+  '/api/whatsapp-pilot': typeof ApiWhatsappPilotRoute
   '/client-report/$clientId': typeof AppClientReportClientIdRoute
   '/clients/directory': typeof AppClientsDirectoryRoute
   '/clients/new': typeof AppClientsNewRoute
@@ -289,6 +305,8 @@ export interface FileRoutesById {
   '/_app/tasks': typeof AppTasksRouteWithChildren
   '/_app/trash': typeof AppTrashRoute
   '/_app/users': typeof AppUsersRoute
+  '/_app/whatsapp': typeof AppWhatsappRoute
+  '/api/whatsapp-pilot': typeof ApiWhatsappPilotRoute
   '/_app/client-report/$clientId': typeof AppClientReportClientIdRoute
   '/_app/clients/directory': typeof AppClientsDirectoryRoute
   '/_app/clients/new': typeof AppClientsNewRoute
@@ -324,6 +342,8 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/trash'
     | '/users'
+    | '/whatsapp'
+    | '/api/whatsapp-pilot'
     | '/client-report/$clientId'
     | '/clients/directory'
     | '/clients/new'
@@ -355,6 +375,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/trash'
     | '/users'
+    | '/whatsapp'
+    | '/api/whatsapp-pilot'
     | '/client-report/$clientId'
     | '/clients/directory'
     | '/clients/new'
@@ -389,6 +411,8 @@ export interface FileRouteTypes {
     | '/_app/tasks'
     | '/_app/trash'
     | '/_app/users'
+    | '/_app/whatsapp'
+    | '/api/whatsapp-pilot'
     | '/_app/client-report/$clientId'
     | '/_app/clients/directory'
     | '/_app/clients/new'
@@ -407,6 +431,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiWhatsappPilotRoute: typeof ApiWhatsappPilotRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -551,6 +576,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppUsersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/whatsapp': {
+      id: '/_app/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof AppWhatsappRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/api/whatsapp-pilot': {
+      id: '/api/whatsapp-pilot'
+      path: '/api/whatsapp-pilot'
+      fullPath: '/api/whatsapp-pilot'
+      preLoaderRoute: typeof ApiWhatsappPilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/client-report/$clientId': {
       id: '/_app/client-report/$clientId'
       path: '/client-report/$clientId'
@@ -694,6 +733,7 @@ interface AppRouteChildren {
   AppTasksRoute: typeof AppTasksRouteWithChildren
   AppTrashRoute: typeof AppTrashRoute
   AppUsersRoute: typeof AppUsersRoute
+  AppWhatsappRoute: typeof AppWhatsappRoute
   AppClientReportClientIdRoute: typeof AppClientReportClientIdRoute
   AppPortalEntregasRoute: typeof AppPortalEntregasRoute
   AppPortalFinanceiroRoute: typeof AppPortalFinanceiroRoute
@@ -717,6 +757,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTasksRoute: AppTasksRouteWithChildren,
   AppTrashRoute: AppTrashRoute,
   AppUsersRoute: AppUsersRoute,
+  AppWhatsappRoute: AppWhatsappRoute,
   AppClientReportClientIdRoute: AppClientReportClientIdRoute,
   AppPortalEntregasRoute: AppPortalEntregasRoute,
   AppPortalFinanceiroRoute: AppPortalFinanceiroRoute,
@@ -728,6 +769,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiWhatsappPilotRoute: ApiWhatsappPilotRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
