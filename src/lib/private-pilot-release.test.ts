@@ -3,7 +3,7 @@ import {pilotRoutes,pilotCookie,pilotVersion} from '../../scripts/private-pilot-
 
 describe('silent owner pilot routing',()=>{
   const routes=pilotRoutes();
-  const match=(url:string,cookie='')=>routes.find(route=>new RegExp('^'+route.src+'$').test(url)&&
+  const match=(url:string,cookie='')=>routes.find(route=>route.dest&&new RegExp('^'+route.src+'$').test(url)&&
     (!route.missing||!cookie.includes(`${pilotCookie}=${pilotVersion}`)))?.dest;
   it('keeps ordinary navigation and the exact public worker on the baseline',()=>{
     for(const url of ['/','/auth','/clients','/tasks/kanban','/dashboard','/whatsapp'])

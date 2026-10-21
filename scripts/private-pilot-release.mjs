@@ -13,11 +13,12 @@ const output = '.vercel/output';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 export function pilotRoutes() {
   return [
+    { src: '/sw.js', headers:{'cache-control':'private, no-store', vary:'Cookie'}, continue:true },
     // Old workers already exclude /api/* navigation. Activation must not register
     // a new worker until the gateway has verified the exact owner.
     { src: '/api/whatsapp-pilot', dest: '/__server' },
     { src: '/sw.js', missing: [{type:'cookie', key:pilotCookie, value:pilotVersion}],
-      dest: '/__private-baseline/sw.js', headers:{'cache-control':'no-store'} },
+      dest: '/__private-baseline/sw.js', headers:{'cache-control':'private, no-store', vary:'Cookie'} },
     { src: '/((?!api/|_serverFn/|assets/|__server|__private-baseline/|.*\\.[^/]+$).*)',
       missing: [{type:'cookie', key:pilotCookie, value:pilotVersion}],
       dest: '/__private-baseline/shell.html', headers:{'cache-control':'private, no-store'} },
