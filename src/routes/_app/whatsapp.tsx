@@ -92,7 +92,7 @@ function WhatsAppLocalPage() {
     </div>}
     {error ? <div className="grid flex-1 place-content-center gap-4 p-6 text-center"><p role="alert">{error}</p><Button variant="outline" onClick={() => { setReady(false); setError(""); setAttempt(value => value + 1); }}><RotateCcw className="mr-2 h-4 w-4" />Tentar novamente</Button></div>
       : ready ? <iframe ref={frame} onLoad={()=>{syncTheme();notifications.sync();}} title="Conversas e configurações do WhatsApp" src={`${BRIDGE}${selectedSection.path}`}
-        className="min-h-0 w-full flex-1 border-0" allow="clipboard-write; fullscreen" referrerPolicy="no-referrer" />
+        className="min-h-0 w-full flex-1 border-0" allow="clipboard-write; fullscreen; microphone" referrerPolicy="no-referrer" />
       : <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="h-4 w-4 animate-spin" />Validando seu acesso ao chat…</div>}
   </section>;
 }
