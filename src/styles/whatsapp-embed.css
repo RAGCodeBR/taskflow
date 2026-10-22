@@ -231,7 +231,7 @@ svg.lucide { stroke-width:1.75!important; }
 .border-t:has(textarea) { background:color-mix(in oklab,var(--card) 90%,transparent)!important; border-color:var(--tf-hair)!important; backdrop-filter:blur(12px); padding:10px 14px!important; }
 div:has(> textarea).rounded-2xl { border:1px solid var(--tf-hair)!important; background:var(--background)!important; border-radius:22px!important; transition:border-color .15s ease,box-shadow .2s var(--tf-ease); }
 div:has(> textarea).rounded-2xl:focus-within { border-color:color-mix(in oklab,var(--ring) 55%,transparent)!important; box-shadow:0 0 0 4px color-mix(in oklab,var(--ring) 12%,transparent); }
-div:has(> textarea).rounded-2xl textarea { background:transparent!important; border:0!important; box-shadow:none!important; padding-left:12px!important; }
+div:has(> textarea).rounded-2xl textarea { background:transparent!important; border:0!important; box-shadow:none!important; outline:none!important; padding-left:12px!important; }
 button[aria-label="Enviar mensagem"],button[aria-label="Enviando mensagem"] { background:linear-gradient(160deg,var(--tf-out-2),var(--tf-out))!important; color:#fff!important; transition:transform .16s var(--tf-ease),opacity .15s ease!important; }
 button[aria-label="Enviar mensagem"]:not(:disabled):active { transform:scale(.9); }
 button[aria-label="Enviar mensagem"]:disabled { opacity:.35; }
