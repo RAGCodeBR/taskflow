@@ -55,19 +55,351 @@ header.backdrop-blur-2xl.sticky svg { width:14px!important; height:14px!importan
 main.styled-scrollbar { padding:0 12px 12px!important; }
 main.styled-scrollbar:has(> div[class*="h-[calc"]) { display:flex!important; flex-direction:column!important; min-height:0!important; overflow:hidden!important; }
 main.styled-scrollbar > div[class*="h-[calc"] { height:100%!important; min-height:0!important; flex:1!important; }
-/* Use TaskFlow's compact card geometry and quiet surfaces. */
-[aria-label="Quadro de atendimento"] { background:var(--background)!important; padding:10px!important; gap:12px!important; }
-[aria-label="Quadro de atendimento"] > section { background:var(--muted)!important; border:1px solid var(--border)!important; border-radius:12px!important; }
-[aria-label="Quadro de atendimento"] > section > header { padding:12px!important; border-color:var(--border)!important; }
-[aria-label="Quadro de atendimento"] h3 { font-size:13px!important; font-weight:600!important; letter-spacing:-.01em; }
-[aria-label="Quadro de atendimento"] article { border:1px solid var(--border)!important; border-radius:12px!important; background:var(--card)!important; box-shadow:0 1px 3px rgb(0 0 0 / .05)!important; }
-[aria-label="Quadro de atendimento"] article:hover { border-color:color-mix(in oklab,var(--primary) 40%,var(--border))!important; box-shadow:0 3px 10px rgb(0 0 0 / .06)!important; }
-[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]) { background:color-mix(in srgb,#10b981 15%,var(--card))!important; border-color:#10b981!important; box-shadow:inset 3px 0 #10b981,0 0 0 1px rgb(16 185 129 / .15)!important; }
-[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]):hover { border-color:#059669!important; background:color-mix(in srgb,#10b981 21%,var(--card))!important; }
-[data-slot="button"] { border-radius:8px!important; box-shadow:none!important; transition:background-color .15s,border-color .15s,color .15s!important; }
+/* ───────────────── TaskFlow chat theme v2 ─────────────────
+   Tokens, then shell controls, Kanban, conversation window, wallpapers. */
+:root {
+  --tf-ease:cubic-bezier(.23,1,.32,1);
+  --tf-hair:color-mix(in oklab,var(--foreground) 9%,transparent);
+  --tf-shadow-sm:0 1px 2px rgb(15 23 42 / .05),0 0 0 1px rgb(15 23 42 / .04);
+  --tf-shadow-md:0 10px 24px -10px rgb(15 23 42 / .22),0 0 0 1px rgb(15 23 42 / .05);
+  --tf-shadow-lg:0 30px 80px -20px rgb(15 23 42 / .45);
+  --tf-unread:oklch(.63 .15 160);
+  --tf-out:oklch(.33 .1 264);
+  --tf-out-2:oklch(.4 .13 268);
+}
+.dark {
+  --tf-hair:color-mix(in oklab,var(--foreground) 11%,transparent);
+  --tf-shadow-sm:0 1px 2px rgb(0 0 0 / .4),0 0 0 1px rgb(255 255 255 / .04);
+  --tf-shadow-md:0 12px 28px -10px rgb(0 0 0 / .7),0 0 0 1px rgb(255 255 255 / .06);
+  --tf-unread:oklch(.74 .14 160);
+  --tf-out:oklch(.42 .1 255);
+  --tf-out-2:oklch(.48 .12 262);
+}
+::selection { background:color-mix(in oklab,var(--primary) 24%,transparent); }
+* { scrollbar-width:thin; scrollbar-color:color-mix(in oklab,var(--foreground) 16%,transparent) transparent; }
+:focus-visible { outline:2px solid var(--ring)!important; outline-offset:2px; }
+
+/* Shell controls */
+[data-slot="button"] { border-radius:9px!important; box-shadow:none!important; transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .16s var(--tf-ease)!important; }
+[data-slot="button"]:active { transform:scale(.97); }
 [data-slot="button"][data-variant="default"] { background:var(--primary)!important; color:var(--primary-foreground)!important; }
-input:not([type="checkbox"]):not([type="radio"]),textarea,select { border-radius:8px!important; border-color:var(--border)!important; background-color:var(--card)!important; }
-[data-slot="dialog-content"],[data-slot="popover-content"],[data-slot="dropdown-menu-content"] { border-radius:12px!important; border-color:var(--border)!important; background:var(--popover)!important; }
-[role="group"][aria-label="Visualização das conversas"],[aria-label="Orientação do Kanban"] { border-radius:8px!important; background:var(--muted)!important; }
+input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),select { border-radius:9px!important; border-color:var(--tf-hair)!important; background-color:var(--card)!important; transition:border-color .15s ease,box-shadow .15s ease; }
+input:not([type="checkbox"]):not([type="radio"]):focus,select:focus { border-color:color-mix(in oklab,var(--ring) 55%,transparent)!important; box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 14%,transparent)!important; outline:none!important; }
+[data-slot="dialog-content"],[data-slot="popover-content"],[data-slot="dropdown-menu-content"] { border-radius:14px!important; border-color:var(--tf-hair)!important; background:var(--popover)!important; }
+[role="group"][aria-label="Visualização das conversas"],[aria-label="Orientação do Kanban"] { border-radius:10px!important; background:color-mix(in oklab,var(--foreground) 5%,transparent)!important; border:0!important; padding:3px!important; }
+[role="group"][aria-label="Visualização das conversas"] button,[aria-label="Orientação do Kanban"] button { border-radius:7px!important; transition:background-color .15s ease,color .15s ease,box-shadow .15s ease; }
+[role="group"][aria-label="Visualização das conversas"] button[aria-pressed="true"],[aria-label="Orientação do Kanban"] button[aria-pressed="true"] { background:var(--card)!important; box-shadow:var(--tf-shadow-sm)!important; color:var(--foreground)!important; }
 svg.lucide { stroke-width:1.75!important; }
-@media(max-width:640px){main.styled-scrollbar{padding:0 6px 6px!important} [aria-label="Quadro de atendimento"]{padding:6px!important}}
+
+/* ───────── Kanban ───────── */
+[aria-label="Quadro de atendimento"] { background:transparent!important; padding:14px 12px!important; gap:14px!important; }
+[aria-label="Quadro de atendimento"] > section {
+  --stage-c:var(--stage,var(--primary));
+  background:color-mix(in oklab,var(--stage-c) 5%,color-mix(in oklab,var(--foreground) 2.5%,var(--background)))!important;
+  border:1px solid color-mix(in oklab,var(--stage-c) 12%,var(--tf-hair))!important; border-radius:18px!important; overflow:hidden;
+  transition:background-color .2s ease,box-shadow .2s var(--tf-ease)!important;
+}
+[aria-label="Quadro de atendimento"] > section[class*="ring-2"] { background:color-mix(in oklab,var(--stage-c) 12%,var(--background))!important; box-shadow:inset 0 0 0 2px color-mix(in oklab,var(--stage-c) 50%,transparent)!important; }
+[aria-label="Quadro de atendimento"] > section > header { padding:12px 12px 10px!important; border:0!important; background:transparent!important; }
+[aria-label="Quadro de atendimento"] > section > header > div:first-child { gap:8px!important; }
+/* Stage title becomes a tinted pill */
+[aria-label="Quadro de atendimento"] > section > header h3 { display:inline-flex; align-items:center; font-size:12.5px!important; font-weight:650!important; letter-spacing:-.005em; padding:4px 10px 4px 8px; border-radius:999px; background:color-mix(in oklab,var(--stage-c) 14%,var(--card)); color:color-mix(in oklab,var(--stage-c) 45%,var(--foreground)); max-width:100%; }
+[aria-label="Quadro de atendimento"] > section > header > div:first-child > span.rounded-full[style] { width:8px!important; height:8px!important; margin-right:-4px; position:relative; z-index:1; left:14px; }
+[aria-label="Quadro de atendimento"] > section > header h3 { padding-left:20px; }
+[aria-label="Quadro de atendimento"] > section > header span.ml-auto.rounded-full { background:transparent!important; color:var(--muted-foreground); font-weight:600; font-size:12px!important; font-variant-numeric:tabular-nums; }
+[aria-label="Quadro de atendimento"] > section > header button { border-radius:8px; color:var(--muted-foreground); transition:background-color .15s ease,color .15s ease,transform .16s var(--tf-ease),opacity .15s ease; }
+[aria-label="Quadro de atendimento"] > section > header button[aria-label^="Arrastar coluna"] { opacity:0; }
+[aria-label="Quadro de atendimento"] > section:hover > header button[aria-label^="Arrastar coluna"] { opacity:.6; }
+[aria-label="Quadro de atendimento"] > section > header button:active { transform:scale(.92); }
+/* Hide the "Organização manual" filler; keep automatic label chips */
+[aria-label="Quadro de atendimento"] > section > header > div.flex-wrap:has(> span.text-muted-foreground:only-child) { display:none!important; }
+[aria-label="Quadro de atendimento"] > section > header > div.flex-wrap { margin-top:8px!important; }
+[aria-label="Quadro de atendimento"] > section > div { padding:4px 10px 12px!important; }
+[aria-label="Quadro de atendimento"] > section > div.space-y-2\.5 { display:flex!important; flex-direction:column; gap:8px; }
+[aria-label="Quadro de atendimento"] > section > div.space-y-2\.5 > * + * { margin-top:0!important; }
+
+/* Card: compact, avatar-led, actions float in on hover */
+[aria-label="Quadro de atendimento"] article {
+  position:relative; padding:12px 12px 10px!important; border:0!important; border-radius:14px!important;
+  background:var(--card)!important; box-shadow:var(--tf-shadow-sm)!important;
+  transition:transform .22s var(--tf-ease),box-shadow .22s var(--tf-ease),background-color .15s ease,opacity .15s ease!important;
+}
+@media (hover:hover) and (pointer:fine) {
+  [aria-label="Quadro de atendimento"] article:hover { transform:translateY(-1px); box-shadow:var(--tf-shadow-md)!important; }
+}
+/* Click feels like a click: pointer cursor; the grabbing hand only while a drag is in progress */
+[aria-label="Quadro de atendimento"] article,[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] { cursor:pointer!important; }
+[aria-label="Quadro de atendimento"] article[class*="opacity-50"] { cursor:grabbing!important; }
+[aria-label="Quadro de atendimento"] article[class*="opacity-50"] { opacity:.55!important; transform:rotate(-1.5deg) scale(.98); box-shadow:var(--tf-shadow-md)!important; }
+[aria-label="Quadro de atendimento"] article[class*="border-t-primary"] { box-shadow:0 -3px 0 0 var(--stage-c),var(--tf-shadow-sm)!important; }
+[aria-label="Quadro de atendimento"] article[class*="border-b-primary"] { box-shadow:0 3px 0 0 var(--stage-c),var(--tf-shadow-sm)!important; }
+/* Top row splits: pin badge sits on the avatar, actions float top-right */
+[aria-label="Quadro de atendimento"] article > div:first-child { position:static!important; margin:0!important; height:0; display:block!important; }
+[aria-label="Quadro de atendimento"] article > div:first-child > span:not(:has(> svg.lucide-grip-vertical)) { position:absolute; left:42px; top:40px; z-index:2; border-radius:999px!important; padding:3px!important; background:var(--primary)!important; color:var(--primary-foreground)!important; box-shadow:0 0 0 2px var(--card); }
+[aria-label="Quadro de atendimento"] article > div:first-child > [data-no-card-drag] { position:absolute; top:8px; right:8px; z-index:3; }
+[aria-label="Quadro de atendimento"] article > div:first-child > span:has(> svg.lucide-grip-vertical) { display:none!important; }
+[aria-label="Quadro de atendimento"] article > div:first-child > span { font-size:0!important; gap:0!important; }
+[aria-label="Quadro de atendimento"] article > div:first-child > span svg { width:10px!important; height:10px!important; }
+[aria-label="Quadro de atendimento"] article [data-no-card-drag].flex { gap:1px!important; padding:2px; border-radius:9px; background:var(--card); box-shadow:var(--tf-shadow-md); opacity:0; transform:translateY(-2px) scale(.96); transition:opacity .15s ease,transform .18s var(--tf-ease); pointer-events:none; }
+[aria-label="Quadro de atendimento"] article:hover [data-no-card-drag].flex,[aria-label="Quadro de atendimento"] article:focus-within [data-no-card-drag].flex { opacity:1; transform:none; pointer-events:auto; }
+[aria-label="Quadro de atendimento"] article [data-no-card-drag] button { opacity:1!important; border-radius:9px; padding:7px!important; transition:background-color .15s ease,transform .16s var(--tf-ease); }
+[aria-label="Quadro de atendimento"] article [data-no-card-drag] button:active { transform:scale(.9); }
+@media (hover:none) { [aria-label="Quadro de atendimento"] article [data-no-card-drag].flex { opacity:1; transform:none; pointer-events:auto; box-shadow:none; background:transparent; } }
+/* Identity block */
+[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] { gap:11px!important; align-items:center!important; }
+[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] > :first-child { width:42px!important; height:42px!important; flex:none; border-radius:999px; box-shadow:0 0 0 2px var(--card),0 0 0 4px color-mix(in oklab,var(--stage-c) 45%,transparent); }
+[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] > :first-child img,[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] > :first-child > * { width:100%!important; height:100%!important; }
+[aria-label="Quadro de atendimento"] article p.font-medium { font-size:13.5px!important; font-weight:620!important; letter-spacing:-.01em; padding-right:4px; }
+[aria-label="Quadro de atendimento"] article p.font-medium + p { font-size:11px!important; margin-top:1px!important; opacity:.85; font-variant-numeric:tabular-nums; }
+[aria-label="Quadro de atendimento"] article p.line-clamp-2 { -webkit-line-clamp:1!important; font-size:12.5px!important; margin-top:3px!important; color:color-mix(in oklab,var(--foreground) 62%,transparent)!important; }
+[aria-label="Quadro de atendimento"] article time { display:block; margin-top:2px; font-size:10.5px!important; font-variant-numeric:tabular-nums; opacity:.8; }
+/* Labels: each chip wears its own color (--lc is copied from the chip dot) */
+[aria-label="Quadro de atendimento"] span.rounded-full:has(> span.rounded-full[style]) { --lc-c:var(--lc,var(--muted-foreground)); gap:5px!important; padding:2px 8px 2px 7px!important; font-size:10.5px!important; font-weight:600; border:0!important; background:color-mix(in oklab,var(--lc-c) 15%,var(--card))!important; color:color-mix(in oklab,var(--lc-c) 58%,var(--foreground))!important; }
+[aria-label="Quadro de atendimento"] article > div.flex-wrap { margin-top:9px!important; padding-left:53px; gap:4px!important; }
+/* Stage select: quiet inline pill */
+[aria-label="Quadro de atendimento"] article > select { margin:8px 0 0 53px!important; height:22px!important; padding:0 6px!important; border-radius:999px!important; border:0!important; background:color-mix(in oklab,var(--foreground) 4%,transparent)!important; font-size:10.5px!important; opacity:.75!important; cursor:pointer; }
+[aria-label="Quadro de atendimento"] article > select:hover { opacity:1!important; }
+/* Unread */
+[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]) { background:color-mix(in oklab,var(--tf-unread) 8%,var(--card))!important; box-shadow:0 0 0 1.5px color-mix(in oklab,var(--tf-unread) 55%,transparent),0 8px 20px -12px color-mix(in oklab,var(--tf-unread) 60%,transparent)!important; }
+[aria-label="Quadro de atendimento"] [aria-label$="mensagens não lidas"] { background:var(--tf-unread)!important; font-weight:700; font-variant-numeric:tabular-nums; }
+/* Empty column */
+[aria-label="Quadro de atendimento"] .py-10.text-center { margin:2px; padding:28px 12px!important; border:1.5px dashed color-mix(in oklab,var(--stage-c) 22%,var(--tf-hair)); border-radius:14px; color:color-mix(in oklab,var(--stage-c) 30%,var(--muted-foreground)); }
+
+/* ───────── Conversation window ───────── */
+/* Kanban dialog: slim title bar, opens with a short scale-in */
+[data-slot="dialog-content"]:has(#kanban-chat-description) { width:calc(100vw - 24px)!important; height:calc(100dvh - 24px)!important; border:0!important; border-radius:20px!important; box-shadow:var(--tf-shadow-lg)!important; animation:none!important; }
+@keyframes tf-pop { from { opacity:0; scale:.97; } to { opacity:1; scale:1; } }
+[data-slot="dialog-overlay"] { background:rgb(15 23 42 / .35)!important; backdrop-filter:blur(3px); }
+[data-slot="dialog-content"]:has(#kanban-chat-description) > div:first-child { padding:8px 10px 8px 16px!important; background:var(--card)!important; border-color:var(--tf-hair)!important; }
+[data-slot="dialog-content"]:has(#kanban-chat-description) > div:first-child h2 { font-size:12px!important; font-weight:600!important; color:var(--muted-foreground); }
+#kanban-chat-description { display:none!important; }
+[data-slot="dialog-content"]:has(#kanban-chat-description) > div:first-child button { border:0!important; padding:6px 12px!important; font-size:13px!important; border-radius:999px!important; background:color-mix(in oklab,var(--foreground) 5%,transparent); transition:background-color .15s ease,transform .16s var(--tf-ease); }
+[data-slot="dialog-content"]:has(#kanban-chat-description) > div:first-child button:hover { background:color-mix(in oklab,var(--foreground) 9%,transparent); }
+[data-slot="dialog-content"]:has(#kanban-chat-description) > div:first-child button:active { transform:scale(.96); }
+
+/* Chat header */
+.backdrop-blur-sm.border-b:has(> div > h3),.backdrop-blur-sm.border-b:has(h3.truncate) { padding:10px 16px!important; background:color-mix(in oklab,var(--card) 88%,transparent)!important; border-color:var(--tf-hair)!important; backdrop-filter:blur(12px)!important; }
+.backdrop-blur-sm.border-b h3.truncate { font-size:15px!important; font-weight:650!important; letter-spacing:-.01em; }
+.backdrop-blur-sm.border-b h3.truncate + p { font-size:11.5px!important; font-variant-numeric:tabular-nums; }
+
+/* Message field + wallpaper */
+.styled-scrollbar.overflow-y-auto { --wall-base:color-mix(in oklab,var(--primary) 3%,var(--background)); }
+.styled-scrollbar.overflow-y-auto:not([data-wall]):has(.cursor-context-menu) { background:var(--wall-base)!important; }
+.styled-scrollbar.overflow-y-auto:has(.cursor-context-menu) { padding-top:18px!important; padding-bottom:22px!important; }
+.styled-scrollbar .max-w-5xl { gap:4px!important; max-width:880px!important; }
+.styled-scrollbar .max-w-5xl > div > .flex.justify-center { margin:14px 0 8px!important; }
+.styled-scrollbar .max-w-5xl > div > .flex.justify-center span { background:color-mix(in oklab,var(--card) 92%,transparent)!important; border:0!important; box-shadow:var(--tf-shadow-sm)!important; font-weight:600; font-size:10.5px!important; letter-spacing:.02em; color:var(--muted-foreground); padding:4px 12px!important; backdrop-filter:blur(8px); }
+
+/* Bubbles: hug the text; info + reactions float instead of stacking */
+.cursor-context-menu.rounded-2xl { position:relative; overflow:visible!important; border-radius:18px!important; padding:7px 11px 6px!important; box-shadow:0 1px 1.5px rgb(15 23 42 / .08)!important; line-height:1.42; max-width:min(560px,78%)!important; }
+.cursor-context-menu.rounded-bl-sm { border-bottom-left-radius:5px!important; background:var(--card)!important; border:0!important; }
+.cursor-context-menu.rounded-br-sm { border-bottom-right-radius:5px!important; background:linear-gradient(160deg,var(--tf-out-2),var(--tf-out))!important; color:#fff!important; border:0!important; }
+.cursor-context-menu.rounded-br-sm [class*="text-primary-foreground"] { color:rgb(255 255 255 / .62)!important; }
+.cursor-context-menu .text-sm.break-words { font-size:14px!important; }
+.cursor-context-menu .flex.items-end.gap-2 { gap:10px!important; }
+.cursor-context-menu [class*="text-[9px]"] { font-size:10px!important; font-variant-numeric:tabular-nums; position:relative; top:2px; }
+.cursor-context-menu > button[aria-label^="Ver quem recebeu"] { position:absolute!important; top:50%; left:-30px; transform:translateY(-50%); padding:4px!important; border-radius:999px; color:var(--muted-foreground)!important; background:var(--card); box-shadow:var(--tf-shadow-sm); opacity:0!important; transition:opacity .15s ease; }
+.cursor-context-menu > div.flex.items-center.justify-end { position:absolute; bottom:-13px; right:8px; z-index:2; gap:3px!important; }
+.cursor-context-menu.rounded-bl-sm > div.flex.items-center.justify-end { right:auto; left:8px; }
+.cursor-context-menu > div.flex.items-center.justify-end > button:not([aria-label="Reagir à mensagem"]) { background:var(--card)!important; border:0!important; box-shadow:var(--tf-shadow-md); font-size:12px!important; padding:1px 6px!important; }
+.cursor-context-menu button[aria-label="Reagir à mensagem"] { padding:4px!important; background:var(--card)!important; color:var(--muted-foreground)!important; box-shadow:var(--tf-shadow-md); opacity:0!important; transform:scale(.85); transition:opacity .15s ease,transform .18s var(--tf-ease); }
+.group:hover .cursor-context-menu > button[aria-label^="Ver quem recebeu"],.cursor-context-menu > button[aria-label^="Ver quem recebeu"]:focus-visible { opacity:1!important; }
+.group:hover .cursor-context-menu button[aria-label="Reagir à mensagem"],.cursor-context-menu button[aria-label="Reagir à mensagem"]:focus-visible,.cursor-context-menu button[aria-label="Reagir à mensagem"][data-state="open"] { opacity:1!important; transform:none; }
+.flex.group:has(> .cursor-context-menu > div.flex.items-center.justify-end > button:not([aria-label="Reagir à mensagem"])) { margin-bottom:12px; }
+.cursor-context-menu button:active { transform:scale(.9); }
+/* Reply arrow beside the bubble */
+.flex.group > button:has(svg.lucide-corner-up-left) { border-radius:999px!important; }
+/* Quoted reply */
+.cursor-context-menu .line-clamp-2.text-xs { font-size:12.5px!important; }
+.cursor-context-menu [class*="border-l-"]:has(.line-clamp-2),.cursor-context-menu .cursor-pointer:has(.line-clamp-2) { margin:2px -4px 6px!important; padding:6px 10px!important; border-radius:10px!important; border-left-width:0!important; background:color-mix(in oklab,var(--foreground) 6%,transparent)!important; box-shadow:inset 3px 0 0 0 currentColor; }
+.cursor-context-menu.rounded-br-sm [class*="border-l-"]:has(.line-clamp-2),.cursor-context-menu.rounded-br-sm .cursor-pointer:has(.line-clamp-2) { background:rgb(255 255 255 / .12)!important; }
+/* Media */
+.cursor-context-menu img,.cursor-context-menu video { border-radius:12px!important; }
+.cursor-context-menu .flex.items-center.gap-2:has(> audio) { margin:2px 0 4px!important; }
+.cursor-context-menu audio { height:36px; width:250px; max-width:100%; border-radius:999px; }
+.cursor-context-menu.rounded-br-sm audio { color-scheme:dark; }
+.dark .cursor-context-menu audio { color-scheme:dark; }
+
+/* Group participants: a stable, distinct color per person (hue from the chat app),
+   uniform OKLCH lightness so every name is equally readable. */
+.cursor-context-menu[data-participant-bubble="true"] { --p-ink:oklch(.5 .16 var(--participant-hue)); --p-dot:oklch(.66 .17 var(--participant-hue)); background:color-mix(in oklab,oklch(.97 .03 var(--participant-hue)) 75%,var(--card))!important; border:0!important; }
+.dark .cursor-context-menu[data-participant-bubble="true"] { --p-ink:oklch(.82 .12 var(--participant-hue)); --p-dot:oklch(.74 .15 var(--participant-hue)); background:color-mix(in oklab,oklch(.32 .05 var(--participant-hue)) 50%,var(--card))!important; }
+.cursor-context-menu[data-participant-bubble="true"] > span:first-child { display:inline-flex!important; align-items:center; gap:6px; color:var(--p-ink)!important; font-size:12px!important; font-weight:650!important; margin-bottom:2px!important; }
+.cursor-context-menu[data-participant-bubble="true"] > span:first-child::before { content:""; width:7px; height:7px; flex:none; border-radius:999px; background:var(--p-dot); }
+
+/* Composer */
+.border-t:has(textarea) { background:color-mix(in oklab,var(--card) 90%,transparent)!important; border-color:var(--tf-hair)!important; backdrop-filter:blur(12px); padding:10px 14px!important; }
+div:has(> textarea).rounded-2xl { border:1px solid var(--tf-hair)!important; background:var(--background)!important; border-radius:22px!important; transition:border-color .15s ease,box-shadow .2s var(--tf-ease); }
+div:has(> textarea).rounded-2xl:focus-within { border-color:color-mix(in oklab,var(--ring) 55%,transparent)!important; box-shadow:0 0 0 4px color-mix(in oklab,var(--ring) 12%,transparent); }
+div:has(> textarea).rounded-2xl textarea { background:transparent!important; border:0!important; box-shadow:none!important; padding-left:12px!important; }
+button[aria-label="Enviar mensagem"],button[aria-label="Enviando mensagem"] { background:linear-gradient(160deg,var(--tf-out-2),var(--tf-out))!important; color:#fff!important; transition:transform .16s var(--tf-ease),opacity .15s ease!important; }
+button[aria-label="Enviar mensagem"]:not(:disabled):active { transform:scale(.9); }
+button[aria-label="Enviar mensagem"]:disabled { opacity:.35; }
+.border-t:has(textarea) .rounded-full.h-9.w-9 { transition:background-color .15s ease,color .15s ease,transform .16s var(--tf-ease)!important; }
+.border-t:has(textarea) .rounded-full.h-9.w-9:active { transform:scale(.9); }
+.animate-bounce:has(> svg.lucide-arrow-down) { animation:tf-rise .32s var(--tf-ease) both!important; background:linear-gradient(160deg,var(--tf-out-2),var(--tf-out))!important; box-shadow:var(--tf-shadow-md)!important; }
+@keyframes tf-rise { from { opacity:0; transform:translateY(8px) scale(.96); } }
+
+/* Wallpaper picker (button injected into the chat header) */
+.tf-wall-picker { position:relative; margin-left:4px; flex:none; }
+.tf-wall-picker > button { display:grid; place-items:center; width:32px; height:32px; border-radius:999px; color:var(--muted-foreground); transition:background-color .15s ease,color .15s ease,transform .16s var(--tf-ease); }
+.tf-wall-picker > button:hover { background:color-mix(in oklab,var(--foreground) 7%,transparent); color:var(--foreground); }
+.tf-wall-picker > button:active { transform:scale(.92); }
+.tf-wall-menu { position:absolute; right:0; top:calc(100% + 8px); z-index:60; width:244px; padding:12px; border-radius:16px; background:var(--popover); box-shadow:var(--tf-shadow-md); transform-origin:top right; animation:tf-menu .18s var(--tf-ease) both; }
+@keyframes tf-menu { from { opacity:0; transform:scale(.96) translateY(-4px); } }
+.tf-wall-menu p { margin:0 0 10px; font-size:12px; font-weight:600; color:var(--foreground); }
+.tf-wall-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.tf-wall-grid button { display:block; width:100%; padding:0; aspect-ratio:3/4; border-radius:10px; box-shadow:inset 0 0 0 1px var(--tf-hair); transition:transform .16s var(--tf-ease),box-shadow .15s ease; }
+.tf-wall-grid button:hover { transform:translateY(-1px); }
+.tf-wall-grid button[aria-pressed="true"] { box-shadow:inset 0 0 0 1px var(--tf-hair),0 0 0 2px var(--popover),0 0 0 4px var(--ring); }
+.tf-wall-grid span { display:block; margin-top:4px; font-size:10px; text-align:center; color:var(--muted-foreground); }
+.tf-wall-grid label { display:block; }
+
+/* Wallpapers — applied to the message field and to their swatches */
+[data-wall="pontos"] { background:radial-gradient(circle at 1px 1px,color-mix(in oklab,var(--foreground) 9%,transparent) 1.1px,transparent 0) 0 0/16px 16px,var(--wall-base,var(--background))!important; }
+[data-wall="grade"] { background:linear-gradient(color-mix(in oklab,var(--foreground) 5%,transparent) 1px,transparent 1px) 0 0/22px 22px,linear-gradient(90deg,color-mix(in oklab,var(--foreground) 5%,transparent) 1px,transparent 1px) 0 0/22px 22px,var(--wall-base,var(--background))!important; }
+[data-wall="marinho"] { background:radial-gradient(120% 80% at 100% 0%,color-mix(in oklab,var(--primary) 16%,transparent),transparent 60%),radial-gradient(90% 70% at 0% 100%,color-mix(in oklab,oklch(.7 .1 220) 16%,transparent),transparent 60%),var(--wall-base,var(--background))!important; }
+[data-wall="aurora"] { background:radial-gradient(70% 60% at 15% 10%,oklch(.9 .06 300 / .55),transparent 70%),radial-gradient(70% 60% at 90% 30%,oklch(.92 .06 200 / .6),transparent 70%),radial-gradient(80% 70% at 50% 100%,oklch(.93 .07 150 / .5),transparent 70%),var(--wall-base,var(--background))!important; }
+.dark [data-wall="aurora"] { background:radial-gradient(70% 60% at 15% 10%,oklch(.35 .08 300 / .5),transparent 70%),radial-gradient(70% 60% at 90% 30%,oklch(.35 .07 200 / .5),transparent 70%),radial-gradient(80% 70% at 50% 100%,oklch(.33 .07 150 / .45),transparent 70%),var(--wall-base,var(--background))!important; }
+[data-wall="ondas"] { background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='24' viewBox='0 0 80 24'%3E%3Cpath d='M0 12c10 0 10-8 20-8s10 8 20 8 10-8 20-8 10 8 20 8' fill='none' stroke='%2364748b' stroke-opacity='.14' stroke-width='1.2'/%3E%3C/svg%3E") 0 0/80px 24px,var(--wall-base,var(--background))!important; }
+[data-wall="papel"] { --wall-own:oklch(.975 .012 85); background:radial-gradient(circle at 1px 1px,oklch(.6 .03 70 / .12) 1px,transparent 0) 0 0/6px 6px,var(--wall-own)!important; }
+.dark [data-wall="papel"] { --wall-own:oklch(.24 .012 70); background:radial-gradient(circle at 1px 1px,oklch(.8 .02 70 / .07) 1px,transparent 0) 0 0/6px 6px,var(--wall-own)!important; }
+[data-wall="noite"] { --wall-own:oklch(.24 .04 264); background:radial-gradient(circle at 1px 1px,oklch(1 0 0 / .08) 1px,transparent 0) 0 0/18px 18px,radial-gradient(100% 70% at 50% 0%,oklch(.32 .07 264),transparent 70%),var(--wall-own)!important; }
+.styled-scrollbar[data-wall="noite"] .max-w-5xl > div > .flex.justify-center span { background:oklch(1 0 0 / .1)!important; color:oklch(.95 0 0)!important; }
+
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after { animation-duration:.01ms!important; }
+  [aria-label="Quadro de atendimento"] article,[aria-label="Quadro de atendimento"] article:hover,[aria-label="Quadro de atendimento"] article:active,*:active { transform:none!important; }
+}
+@media (max-width:640px) {
+  main.styled-scrollbar { padding:0 6px 6px!important; }
+  [aria-label="Quadro de atendimento"] { padding:8px 6px!important; }
+  [aria-label="Quadro de atendimento"] > section { border-radius:16px!important; }
+  [data-slot="dialog-content"]:has(#kanban-chat-description) { width:100vw!important; height:100dvh!important; border-radius:0!important; }
+  .cursor-context-menu.rounded-2xl { max-width:86%!important; }
+  .cursor-context-menu > button[aria-label^="Ver quem recebeu"] { display:none!important; }
+}
+/* Card text column as a grid: name + time on one line, details below */
+[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] > div.min-w-0 { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:8px; align-items:baseline; }
+[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] > div.min-w-0 > * { grid-column:1 / -1; }
+[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] > div.min-w-0 > p.font-medium { grid-column:1; grid-row:1; }
+[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] > div.min-w-0 > time { grid-column:2; grid-row:1; margin:0!important; }
+[aria-label="Quadro de atendimento"] article > select { position:absolute; right:10px; bottom:10px; margin:0!important; opacity:0!important; background:var(--card)!important; box-shadow:var(--tf-shadow-md); transition:opacity .15s ease; }
+[aria-label="Quadro de atendimento"] article:hover > select,[aria-label="Quadro de atendimento"] article > select:focus { opacity:1!important; }
+@media (hover:none) { [aria-label="Quadro de atendimento"] article > select { position:static; margin:8px 0 0 53px!important; opacity:.75!important; box-shadow:none; } }
+
+/* Bigger card actions (pin, labels, contact) */
+[aria-label="Quadro de atendimento"] article [data-no-card-drag].flex { gap:2px!important; padding:3px; border-radius:12px; }
+[aria-label="Quadro de atendimento"] article [data-no-card-drag] button svg { width:17px!important; height:17px!important; }
+[aria-label="Quadro de atendimento"] article [data-no-card-drag] button:hover { background:color-mix(in oklab,var(--foreground) 7%,transparent)!important; color:var(--foreground)!important; }
+[aria-label="Quadro de atendimento"] article > div:first-child > span:not(:has(> svg.lucide-grip-vertical)) { padding:4px!important; left:38px; top:36px; }
+[aria-label="Quadro de atendimento"] article > div:first-child > span svg { width:12px!important; height:12px!important; }
+
+/* Unread conversations rise to the top of their column and stand out */
+[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]) { order:-1; background:color-mix(in oklab,var(--tf-unread) 13%,var(--card))!important; box-shadow:0 0 0 2px color-mix(in oklab,var(--tf-unread) 70%,transparent),0 10px 24px -12px color-mix(in oklab,var(--tf-unread) 75%,transparent)!important; }
+[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]) p.font-medium { color:color-mix(in oklab,var(--tf-unread) 45%,var(--foreground)); }
+[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]) p.line-clamp-2 { color:var(--foreground)!important; font-weight:550; }
+[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]) > button[aria-label^="Abrir conversa"] > :first-child { box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--tf-unread); }
+[aria-label="Quadro de atendimento"] [aria-label$="mensagens não lidas"] { padding:2px 8px!important; font-size:11px!important; box-shadow:0 2px 6px -1px color-mix(in oklab,var(--tf-unread) 70%,transparent); }
+/* The app already spaces cards with margins; the flex gap alone sets the rhythm. */
+[aria-label="Quadro de atendimento"] > section > div > * { margin:0!important; }
+
+/* Hover toolbar lives in the name row, replacing the time, so it never covers the preview.
+   The stage select becomes a compact icon at the toolbar's left (--tb-w is measured by script). */
+[aria-label="Quadro de atendimento"] article { --card-bg:var(--card); background:var(--card-bg)!important; }
+[aria-label="Quadro de atendimento"] article > div:first-child > [data-no-card-drag] { top:9px; right:8px; }
+[aria-label="Quadro de atendimento"] article [data-no-card-drag].flex { padding:0 0 0 18px!important; gap:0!important; border-radius:0; box-shadow:none!important; background:linear-gradient(90deg,transparent,var(--card-bg) 16px)!important; }
+[aria-label="Quadro de atendimento"] article [data-no-card-drag] button { padding:4px!important; border-radius:7px; }
+[aria-label="Quadro de atendimento"] article [data-no-card-drag] button svg { width:15px!important; height:15px!important; }
+[aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] time { transition:opacity .12s ease; }
+@media (hover:hover) and (pointer:fine) {
+  [aria-label="Quadro de atendimento"] article:hover > button[aria-label^="Abrir conversa"] time,[aria-label="Quadro de atendimento"] article:focus-within > button[aria-label^="Abrir conversa"] time { opacity:0; }
+}
+[aria-label="Quadro de atendimento"] article > select {
+  appearance:none; -webkit-appearance:none; top:9px; bottom:auto!important; right:calc(var(--tb-w,60px) + 8px); width:23px; height:23px!important; padding:0!important;
+  border-radius:7px!important; color:transparent!important; box-shadow:none!important; background:var(--card-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Cpath d='M9 3v18M15 3v18'/%3E%3C/svg%3E") center/15px no-repeat!important;
+}
+[aria-label="Quadro de atendimento"] article > select:hover { background-color:color-mix(in oklab,var(--foreground) 7%,var(--card-bg))!important; }
+[aria-label="Quadro de atendimento"] article > select option { color:var(--foreground); background:var(--popover); }
+@media (hover:none) {
+  [aria-label="Quadro de atendimento"] article > select { position:absolute; margin:0!important; opacity:.8!important; }
+  [aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] time { display:none; }
+}
+
+/* Unread — from WhatsApp or marked by hand — rises to the top and stands out */
+[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]),[aria-label="Quadro de atendimento"] article[data-tf-unread] { --card-bg:color-mix(in oklab,var(--tf-unread) 13%,var(--card)); order:-1; box-shadow:0 0 0 2px color-mix(in oklab,var(--tf-unread) 70%,transparent),0 10px 24px -12px color-mix(in oklab,var(--tf-unread) 75%,transparent)!important; }
+[aria-label="Quadro de atendimento"] article[data-tf-unread] p.font-medium { color:color-mix(in oklab,var(--tf-unread) 45%,var(--foreground)); }
+[aria-label="Quadro de atendimento"] article[data-tf-unread] p.line-clamp-2 { color:var(--foreground)!important; font-weight:550; }
+[aria-label="Quadro de atendimento"] article[data-tf-unread] > button[aria-label^="Abrir conversa"] > :first-child { box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--tf-unread); }
+[aria-label="Quadro de atendimento"] article[data-tf-unread]:not(:has([aria-label$="mensagens não lidas"])) p.font-medium::after { content:""; flex:none; width:9px; height:9px; margin-left:auto; border-radius:999px; background:var(--tf-unread); box-shadow:0 0 0 3px color-mix(in oklab,var(--tf-unread) 22%,transparent); }
+
+/* "Marcar como não lida" in the chat header */
+.tf-unread-toggle { display:inline-flex; align-items:center; gap:6px; flex:none; height:32px; padding:0 12px; border-radius:999px; font-size:12.5px; font-weight:550; color:var(--muted-foreground); transition:background-color .15s ease,color .15s ease,transform .16s var(--tf-ease); }
+.tf-unread-toggle:hover { background:color-mix(in oklab,var(--foreground) 7%,transparent); color:var(--foreground); }
+.tf-unread-toggle:active { transform:scale(.96); }
+.tf-unread-toggle[aria-pressed="true"] { background:color-mix(in oklab,var(--tf-unread) 16%,transparent); color:color-mix(in oklab,var(--tf-unread) 55%,var(--foreground)); }
+.tf-unread-toggle svg { width:16px; height:16px; }
+@media (max-width:640px) { .tf-unread-toggle span { display:none; } .tf-unread-toggle { padding:0 8px; } }
+
+/* Unread from WhatsApp: green card, plain count — no pill, no pulsing dot */
+[aria-label="Quadro de atendimento"] [aria-label$="mensagens não lidas"] { background:none!important; box-shadow:none!important; padding:0!important; color:var(--tf-unread)!important; font-size:12px!important; font-weight:750!important; }
+[aria-label="Quadro de atendimento"] [aria-label$="mensagens não lidas"] > span { display:none!important; }
+/* Marked unread by hand: white card, green outline and a "Não lida" tag — distinct from real unread */
+[aria-label="Quadro de atendimento"] article[data-tf-unread]:not(:has([aria-label$="mensagens não lidas"])) { --card-bg:var(--card); box-shadow:0 0 0 2px var(--tf-unread),0 8px 20px -12px color-mix(in oklab,var(--tf-unread) 70%,transparent)!important; }
+[aria-label="Quadro de atendimento"] article[data-tf-unread]:not(:has([aria-label$="mensagens não lidas"])) p.line-clamp-2 { font-weight:400; color:color-mix(in oklab,var(--foreground) 62%,transparent)!important; }
+[aria-label="Quadro de atendimento"] article[data-tf-unread]:not(:has([aria-label$="mensagens não lidas"])) p.font-medium::after { content:"Não lida"; width:auto; height:auto; margin-left:6px; padding:1px 7px; border-radius:999px; font-size:10px; font-weight:700; letter-spacing:.01em; color:#fff; background:var(--tf-unread); box-shadow:none; }
+
+/* Right-click menu on Kanban cards */
+.tf-ctx { position:fixed; z-index:9999; min-width:220px; padding:5px; border-radius:12px; background:var(--popover); color:var(--popover-foreground); box-shadow:var(--tf-shadow-md),0 0 0 1px var(--tf-hair); font-size:13px; transform-origin:var(--tf-origin,top left); animation:tf-menu .14s var(--tf-ease) both; }
+.tf-ctx button { display:flex; align-items:center; gap:9px; width:100%; padding:7px 9px; border-radius:8px; text-align:left; color:inherit; transition:background-color .1s ease; }
+.tf-ctx button:hover,.tf-ctx button:focus-visible { background:color-mix(in oklab,var(--foreground) 7%,transparent); outline:none!important; }
+.tf-ctx button svg { width:15px; height:15px; flex:none; color:var(--muted-foreground); }
+.tf-ctx button.tf-ctx-unread svg { color:var(--tf-unread); }
+.tf-ctx hr { margin:4px 6px; border:0; border-top:1px solid var(--tf-hair); }
+.tf-ctx p { margin:2px 9px 4px; font-size:11px; font-weight:600; color:var(--muted-foreground); }
+.tf-ctx button[aria-current="true"] { font-weight:600; }
+.tf-ctx button[aria-current="true"]::after { content:""; margin-left:auto; width:7px; height:7px; border-radius:999px; background:var(--stage-dot,var(--primary)); }
+.tf-ctx .tf-ctx-dot { width:8px; height:8px; border-radius:999px; flex:none; margin:0 3px; }
+.tf-ctx .tf-ctx-stages { max-height:220px; overflow:auto; }
+
+/* "Não lidas" filter */
+.tf-unread-filter { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 11px; border-radius:9px; border:1px solid var(--tf-hair); background:var(--card); font-size:12px; font-weight:550; color:var(--foreground); transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .16s var(--tf-ease); }
+.tf-unread-filter:hover { background:color-mix(in oklab,var(--foreground) 5%,var(--card)); }
+.tf-unread-filter:active { transform:scale(.97); }
+.tf-unread-filter-dot { width:8px; height:8px; border-radius:999px; background:var(--tf-unread); box-shadow:0 0 0 3px color-mix(in oklab,var(--tf-unread) 20%,transparent); }
+.tf-unread-filter[aria-pressed="true"] { background:var(--tf-unread); border-color:transparent; color:#fff; }
+.tf-unread-filter[aria-pressed="true"] .tf-unread-filter-dot { background:#fff; box-shadow:none; }
+html[data-tf-only-unread] [aria-label="Quadro de atendimento"] article:not([data-tf-any-unread]) { display:none!important; }
+html[data-tf-only-unread] [aria-label="Quadro de atendimento"] > section > div:not(:has(article[data-tf-any-unread]))::before { content:"Nenhuma conversa não lida nesta etapa"; display:block; padding:28px 12px; text-align:center; font-size:12px; color:var(--muted-foreground); border:1.5px dashed var(--tf-hair); border-radius:14px; }
+html[data-tf-only-unread] [aria-label="Quadro de atendimento"] > section > div > .py-10.text-center { display:none!important; }
+
+/* Pinned conversations always come first, above unread ones */
+[aria-label="Quadro de atendimento"] article:has(button[aria-label^="Desafixar"]) { order:-2!important; }
+
+/* Audio speed toggle */
+.tf-speed { flex:none; min-width:42px; height:26px; padding:0 8px; border-radius:999px; font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--foreground); background:color-mix(in oklab,var(--foreground) 8%,transparent); transition:background-color .15s ease,transform .16s var(--tf-ease); }
+.tf-speed:hover { background:color-mix(in oklab,var(--foreground) 14%,transparent); }
+.tf-speed:active { transform:scale(.92); }
+.cursor-context-menu.rounded-br-sm .tf-speed { color:#fff; background:rgb(255 255 255 / .16); }
+.cursor-context-menu.rounded-br-sm .tf-speed:hover { background:rgb(255 255 255 / .26); }
+
+/* Pinned messages bar (below the chat header) */
+.tf-pinned-bar { padding:7px 16px!important; gap:10px!important; background:color-mix(in oklab,var(--card) 92%,transparent)!important; border-color:var(--tf-hair)!important; backdrop-filter:blur(10px); }
+.tf-pinned-bar > button:first-child { color:var(--tf-out)!important; background:color-mix(in oklab,var(--tf-out) 10%,transparent); border-radius:8px!important; padding:5px 7px!important; }
+.dark .tf-pinned-bar > button:first-child { color:var(--tf-out-2)!important; }
+.tf-pinned-bar > button:nth-child(2) { border-left:2px solid color-mix(in oklab,var(--tf-out) 45%,transparent); padding-left:10px; }
+.tf-pinned-bar > button:nth-child(2):hover .truncate { color:var(--foreground); }
+/* Message reached from favorites or the pinned bar */
+.cursor-context-menu.tf-focus { outline:3px solid var(--tf-unread)!important; outline-offset:3px; animation:tf-focus 1.6s ease-out both; }
+@keyframes tf-focus { 0%,45% { outline-color:var(--tf-unread); } 100% { outline-color:transparent; } }
+/* Favorites panel */
+.tf-starred-panel { background:var(--background)!important; border-color:var(--tf-hair)!important; }
+.tf-starred-panel .tf-starred-item { border:0!important; border-radius:14px!important; background:var(--card)!important; box-shadow:var(--tf-shadow-sm); transition:box-shadow .2s var(--tf-ease),transform .2s var(--tf-ease); }
+@media (hover:hover) and (pointer:fine) { .tf-starred-panel .tf-starred-item:hover { box-shadow:var(--tf-shadow-md); transform:translateY(-1px); } }
+.tf-starred-panel h4 { background:color-mix(in oklab,var(--background) 94%,transparent)!important; }
+
+/* Column reordering: a visible handle and a clear drop target */
+[aria-label="Quadro de atendimento"] > section > header button[aria-label^="Arrastar coluna"] { opacity:.45!important; cursor:grab; padding:3px; margin:-3px; }
+[aria-label="Quadro de atendimento"] > section > header button[aria-label^="Arrastar coluna"]:hover { opacity:1!important; background:color-mix(in oklab,var(--foreground) 7%,transparent); }
+[aria-label="Quadro de atendimento"] > section > header button[aria-label^="Arrastar coluna"]:active { cursor:grabbing; }
+[aria-label="Quadro de atendimento"] > section[data-tf-col-drop] { box-shadow:inset 0 0 0 2px color-mix(in oklab,var(--stage-c) 60%,transparent),0 12px 28px -14px color-mix(in oklab,var(--stage-c) 60%,transparent)!important; }

@@ -31,6 +31,7 @@ export function whatsappLocalPlugin(): Plugin {
       if (!owner || owner.role !== "SUPERADMIN") throw new Error("Administrador do chat local não encontrado.");
       const bridge = createLocalChatBridge({
         themeCss: readFileSync(path.join(vite.config.root, "src/styles/whatsapp-embed.css"), "utf8"),
+        themeScript: readFileSync(path.join(vite.config.root, "src/styles/whatsapp-embed.js"), "utf8"),
         origin: "http://localhost:5173", upstream: new URL("http://127.0.0.1:3039"),
         verifyAccess: token => verifyTaskflowOwner(token, {
           url: env.SUPABASE_URL, key: env.SUPABASE_PUBLISHABLE_KEY,

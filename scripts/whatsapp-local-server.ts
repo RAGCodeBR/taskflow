@@ -65,6 +65,7 @@ export function createLocalChatBridge(config: {
   mintUpstreamCookie: () => Promise<string>;
   now?: () => number;
   themeCss?: string;
+  themeScript?: string;
   publicOrigin?: string;
   healthcheck?: () => Promise<boolean>;
   pilotActivation?: boolean;
@@ -84,7 +85,7 @@ export function createLocalChatBridge(config: {
       if(typeof e.data.font==='string'&&e.data.font.length<300)root.style.setProperty('--taskflow-font',e.data.font,'important');
     });
     window.parent.postMessage({type:'taskflow-whatsapp-theme-ready'},origin);
-  })();</script>`;
+  })();</script>` + (config.themeScript ? `<script id="taskflow-whatsapp-enhancements">${config.themeScript.replaceAll("</script", "<\\/script")}</script>` : "");
   const now = config.now ?? Date.now;
   const sessions = new Map<string, { expires: number; cookie: string; sockets: Set<Socket> }>();
   const expire = (key: string) => {
