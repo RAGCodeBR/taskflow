@@ -186,7 +186,7 @@ svg.lucide { stroke-width:1.75!important; }
 .styled-scrollbar.overflow-y-auto { --wall-base:color-mix(in oklab,var(--primary) 3%,var(--background)); }
 .styled-scrollbar.overflow-y-auto:not([data-wall]):has(.cursor-context-menu) { background:var(--wall-base)!important; }
 .styled-scrollbar.overflow-y-auto:has(.cursor-context-menu) { padding-top:18px!important; padding-bottom:22px!important; }
-.styled-scrollbar .max-w-5xl { gap:4px!important; max-width:880px!important; }
+.styled-scrollbar .max-w-5xl { gap:4px!important; max-width:none!important; }
 .styled-scrollbar .max-w-5xl > div > .flex.justify-center { margin:14px 0 8px!important; }
 .styled-scrollbar .max-w-5xl > div > .flex.justify-center span { background:color-mix(in oklab,var(--card) 92%,transparent)!important; border:0!important; box-shadow:var(--tf-shadow-sm)!important; font-weight:600; font-size:10.5px!important; letter-spacing:.02em; color:var(--muted-foreground); padding:4px 12px!important; backdrop-filter:blur(8px); }
 
