@@ -52,6 +52,7 @@ import {
   FileText,
   ImageIcon,
   Pencil,
+  LockKeyhole,
 } from "lucide-react";
 import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
@@ -84,6 +85,9 @@ interface Props {
   task?: Task | null;
   defaultColumnId?: string | null;
   recurringMeetingAgendaItemId?: string | null;
+  fixedClientId?: string | null;
+  fixedClientName?: string | null;
+  overlayClassName?: string;
   defaults?: {
     clientId?: string;
     title?: string;
@@ -237,8 +241,13 @@ export function TaskDialog({
   task,
   defaultColumnId,
   recurringMeetingAgendaItemId,
+  fixedClientId,
+  fixedClientName,
+  overlayClassName,
   defaults,
 }: Props) {
+  const meetingClientLocked = Boolean(recurringMeetingAgendaItemId) || fixedClientId !== undefined;
+  const meetingClientId = meetingClientLocked ? fixedClientId ?? null : null;
   const qc = useQueryClient();
   const { user, profile, isAdmin, activeWorkspace, workspaces } = useAuth();
   const { data: cols } = useColumns();
@@ -432,7 +441,7 @@ export function TaskDialog({
       setObjectiveId(task.objective_id ?? "");
       setColumnId(task.column_id ?? "");
       setTargetWorkspaceId(task.workspace_id ?? activeWorkspace?.id ?? "");
-      setClientId(task.client_id ?? "");
+      setClientId(meetingClientLocked ? meetingClientId ?? "" : task.client_id ?? "");
       setAssigneeId(task.assignee_id ?? "");
       setDueDate(task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : "");
       setDueTime(normalizeDueTime(task.due_time));
@@ -454,7 +463,7 @@ export function TaskDialog({
       setCategoryId("");
       setColumnId(defaultColumnId ?? "");
       setTargetWorkspaceId(activeWorkspace?.id ?? "");
-      setClientId(defaults?.clientId ?? "");
+      setClientId(meetingClientLocked ? meetingClientId ?? "" : defaults?.clientId ?? "");
       setAssigneeId(defaults?.assigneeId ?? user?.id ?? "");
       setCollaboratorIds([]);
       setDueDate(defaults?.dueDate ?? "");
@@ -480,6 +489,8 @@ export function TaskDialog({
     activeWorkspace?.id,
     defaults?.title,
     defaults?.clientId,
+    meetingClientLocked,
+    meetingClientId,
     defaults?.description,
     defaults?.priority,
     defaults?.assigneeId,
@@ -716,7 +727,7 @@ export function TaskDialog({
       status_id: matchingStatus?.id ?? null,
       priority,
       column_id: columnId || null,
-      client_id: clientId || null,
+      client_id: meetingClientLocked ? meetingClientId : clientId || null,
       assignee_id: assigneeId || null,
       due_date: deadlineToIso(dueDate),
       due_time: dueDate ? dueTime || null : null,
@@ -1676,7 +1687,10 @@ export function TaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl sm:max-h-[90vh]">
+      <DialogContent
+        overlayClassName={overlayClassName}
+        className="max-h-[calc(100dvh-1rem)] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl sm:max-h-[90vh]"
+      >
         <DialogHeader className="border-b bg-muted/20 px-4 py-4 sm:px-6 sm:py-5">
           <DialogTitle className="text-xl">
             {isDraft ? "Tarefa em elaboração" : task ? "Editar tarefa" : "Nova tarefa"}
@@ -1957,60 +1971,78 @@ export function TaskDialog({
             ) : null}
             <div className="order-3 space-y-2">
               <Label className="text-xs">Cliente</Label>
-              <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between font-normal">
-                    <span className="truncate">{selectedClient?.name ?? "Nenhum"}</span>
-                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  className="w-[var(--radix-popover-trigger-width)] p-2"
+              {meetingClientLocked ? (
+                <div
+                  aria-label="Cliente da reunião, não editável"
+                  className="flex h-9 w-full items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 text-sm"
                 >
-                  <Input
-                    autoFocus
-                    value={clientSearch}
-                    onChange={(event) => setClientSearch(event.target.value)}
-                    placeholder="Pesquisar cliente..."
-                    className="mb-2 h-8 text-xs"
+                  <span className="truncate">
+                    {meetingClientId
+                      ? fixedClientName ?? selectedClient?.name ?? "Cliente da reunião"
+                      : "Nenhum"}
+                  </span>
+                  <LockKeyhole
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
                   />
-                  <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClientId("");
-                        setClientPickerOpen(false);
-                      }}
-                      className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${!clientId ? "bg-muted font-medium" : ""}`}
-                    >
-                      Nenhum
-                    </button>
-                    {filteredClients.map((client) => (
+                </div>
+              ) : null}
+              {!meetingClientLocked && (
+                <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between font-normal">
+                      <span className="truncate">{selectedClient?.name ?? "Nenhum"}</span>
+                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    className="w-[var(--radix-popover-trigger-width)] p-2"
+                  >
+                    <Input
+                      autoFocus
+                      value={clientSearch}
+                      onChange={(event) => setClientSearch(event.target.value)}
+                      placeholder="Pesquisar cliente..."
+                      className="mb-2 h-8 text-xs"
+                    />
+                    <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
                       <button
-                        key={client.id}
                         type="button"
                         onClick={() => {
-                          setClientId(client.id);
+                          setClientId("");
                           setClientPickerOpen(false);
                         }}
-                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${clientId === client.id ? "bg-muted font-medium" : ""}`}
+                        className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${!clientId ? "bg-muted font-medium" : ""}`}
                       >
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: client.color ?? "#94a3b8" }}
-                        />
-                        <span className="truncate">{client.name}</span>
+                        Nenhum
                       </button>
-                    ))}
-                    {filteredClients.length === 0 && (
-                      <p className="px-2 py-2 text-xs text-muted-foreground">
-                        Nenhum cliente encontrado.
-                      </p>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                      {filteredClients.map((client) => (
+                        <button
+                          key={client.id}
+                          type="button"
+                          onClick={() => {
+                            setClientId(client.id);
+                            setClientPickerOpen(false);
+                          }}
+                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${clientId === client.id ? "bg-muted font-medium" : ""}`}
+                        >
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: client.color ?? "#94a3b8" }}
+                          />
+                          <span className="truncate">{client.name}</span>
+                        </button>
+                      ))}
+                      {filteredClients.length === 0 && (
+                        <p className="px-2 py-2 text-xs text-muted-foreground">
+                          Nenhum cliente encontrado.
+                        </p>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
             <div className="order-4 space-y-2">
               <Label className="text-xs">Responsável</Label>

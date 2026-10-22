@@ -5,6 +5,17 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows an agenda task row and the meeting client as a fixed field without an action", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "meeting-agenda-tasks" }));
+    expect(html).toContain("data-meeting-task-row");
+    expect(html).toContain("data-meeting-task-backdrop");
+    expect(html).toContain("Fundo da reunião preservado");
+    expect(html).toContain("data-meeting-task-client");
+    expect(html).toContain("Tarefa da pauta");
+    expect(html).toContain("Cliente Exemplo");
+    expect(html).toContain("Preparar proposta");
+    expect(html).not.toContain("<button");
+  });
   it("illustrates the attachment count while a subtask is collapsed", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "subtask-attachment-indicator" }));
     expect(html).toContain("data-subtask-attachment-count");

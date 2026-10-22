@@ -25,6 +25,7 @@ import {
   RotateCcw,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Clock3,
   Sparkles,
   KanbanSquare,
@@ -64,6 +65,40 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
       data-update-preview-grid
     >
       {children}
+    </div>
+  );
+}
+
+function MeetingAgendaTasksPreview() {
+  return (
+    <div
+      aria-label="Prévia da tarefa clicável na pauta e do cliente fixo no formulário"
+      className="mx-auto w-full max-w-sm rounded-xl border bg-background p-3 text-[10px] shadow-sm"
+    >
+      <p className="font-semibold">Pauta da reunião · Cliente Exemplo</p>
+      <div
+        data-meeting-task-row
+        className="mt-2 flex items-center justify-between rounded-lg border bg-muted/20 px-2 py-1.5"
+      >
+        <span>Preparar proposta</span>
+        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+      </div>
+      <p data-meeting-task-backdrop className="mt-2 rounded-md bg-muted/30 px-2 py-1 text-muted-foreground">
+        Fundo da reunião preservado ao abrir a tarefa
+      </p>
+      <div className="mt-2 rounded-lg border bg-muted/20 p-2">
+        <p className="font-medium">Tarefa da pauta</p>
+        <p className="mt-2 text-muted-foreground">Título</p>
+        <p className="rounded-md border bg-background px-2 py-1.5">Preparar proposta</p>
+        <p className="mt-2 text-muted-foreground">Cliente</p>
+        <p
+          data-meeting-task-client
+          className="flex items-center justify-between rounded-md border bg-muted/40 px-2 py-1.5"
+        >
+          <span>Cliente Exemplo</span>
+          <span aria-hidden="true">🔒</span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -1484,6 +1519,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "meeting-agenda-tasks": MeetingAgendaTasksPreview,
   "subtask-attachment-indicator": SubtaskAttachmentIndicatorPreview,
   "subtask-file-thumbnails": SubtaskFileThumbnailsPreview,
   "subtask-dragged-images": SubtaskDraggedImagesPreview,

@@ -1,5 +1,6 @@
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "meeting-agenda-tasks"
   | "subtask-attachment-indicator"
   | "subtask-file-thumbnails"
   | "subtask-dragged-images"
@@ -62,6 +63,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "tarefas-da-pauta-vinculadas-e-acessiveis-2026-10-22",
+    title: "Tarefas da pauta com acesso direto",
+    date: "2026-10-22",
+    preview: "meeting-agenda-tasks",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ao gerar ou abrir uma tarefa pela pauta, o formulário mostra o cliente da reunião em um campo fixo e salva a tarefa com esse vínculo.",
+      "As tarefas exibidas em cada item da pauta podem ser abertas para ver e editar seus detalhes completos, mantendo o fundo da reunião sem escurecimento adicional.",
+    ],
+  },
   {
     id: "anexos-visiveis-nas-subtarefas-recolhidas-2026-10-19",
     title: "Anexos visíveis nas subtarefas recolhidas",

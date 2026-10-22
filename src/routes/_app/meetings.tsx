@@ -1222,6 +1222,7 @@ function MeetingDialog({
   const [taskPickerOpen, setTaskPickerOpen] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [taskFor, setTaskFor] = useState<RecurringMeetingAgendaItem | null>(null);
+  const [openedTask, setOpenedTask] = useState<Task | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
   const [newDate, setNewDate] = useState(occurrence.due_date);
   const closed = isClosed(occurrence);
@@ -1679,6 +1680,7 @@ function MeetingDialog({
                     readOnly={readOnly}
                     onDone={() => void setResult(row, row.item?.result === "done" ? null : "done")}
                     onGenerateTask={() => void generateTask(row)}
+                    onOpenTask={setOpenedTask}
                     onRemove={() => void removeRow(row)}
                   />
                 ))}
@@ -1824,6 +1826,8 @@ function MeetingDialog({
           void refresh();
         }}
         recurringMeetingAgendaItemId={taskFor?.id ?? null}
+        fixedClientId={recurringMeeting.client_id}
+        fixedClientName={client?.name}
         defaults={{
           title: taskFor?.title,
           dueDate: occurrence.due_date >= todayKey() ? occurrence.due_date : todayKey(),
@@ -1831,6 +1835,18 @@ function MeetingDialog({
           assigneeId: recurringMeeting.assignee_id,
           priority: recurringMeeting.priority,
         }}
+      />
+      <TaskDialog
+        open={!!openedTask}
+        overlayClassName="bg-transparent"
+        fixedClientId={recurringMeeting.client_id}
+        fixedClientName={client?.name}
+        onOpenChange={(next) => {
+          if (next) return;
+          setOpenedTask(null);
+          void Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: ["tasks"] })]);
+        }}
+        task={openedTask}
       />
     </>
   );
@@ -1846,6 +1862,7 @@ function AgendaItemRow({
   readOnly,
   onDone,
   onGenerateTask,
+  onOpenTask,
   onRemove,
 }: {
   number: number;
@@ -1857,6 +1874,7 @@ function AgendaItemRow({
   readOnly: boolean;
   onDone: () => void;
   onGenerateTask: () => void;
+  onOpenTask: (task: Task) => void;
   onRemove: () => void;
 }) {
   const result = row.item?.result ?? null;
@@ -1926,22 +1944,30 @@ function AgendaItemRow({
             const done = isTaskDone(task);
             const assignee = profileById.get(task.assignee_id ?? "");
             return (
-              <li
-                key={task.id}
-                className="flex items-center gap-2 rounded-lg bg-background px-2 py-1 text-xs shadow-sm"
-              >
-                {done ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                ) : (
-                  <Clock3 className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                )}
-                <span className={`min-w-0 flex-1 truncate ${done ? "line-through" : ""}`}>
-                  {task.title}
-                </span>
-                <span className="shrink-0 text-muted-foreground">
-                  {assignee?.full_name || assignee?.email || "Sem responsável"}
-                  {task.due_date ? ` · ${format(new Date(task.due_date), "dd/MM")}` : ""}
-                </span>
+              <li key={task.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenTask(task)}
+                  aria-label={`Abrir tarefa ${task.title}`}
+                  className="flex w-full items-center gap-2 rounded-lg bg-background px-2 py-1 text-left text-xs shadow-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {done ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  ) : (
+                    <Clock3 className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  )}
+                  <span className={`min-w-0 flex-1 truncate ${done ? "line-through" : ""}`}>
+                    {task.title}
+                  </span>
+                  <span className="max-w-[45%] shrink-0 truncate text-right text-muted-foreground">
+                    {assignee?.full_name || assignee?.email || "Sem responsável"}
+                    {task.due_date ? ` · ${format(new Date(task.due_date), "dd/MM")}` : ""}
+                  </span>
+                  <ChevronRight
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                </button>
               </li>
             );
           })}

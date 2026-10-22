@@ -7,7 +7,7 @@ import {
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES).toHaveLength(18);
+    expect(APP_UPDATES).toHaveLength(19);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -29,15 +29,15 @@ describe("application release catalogue", () => {
       const updates = getVisibleAppUpdates(false, workspace);
       expect(updates).toHaveLength(5);
       expect(updates.map((update) => update.id)).toEqual([
+        "tarefas-da-pauta-vinculadas-e-acessiveis-2026-10-22",
         "anexos-visiveis-nas-subtarefas-recolhidas-2026-10-19",
         "miniaturas-dos-arquivos-das-subtarefas-2026-10-19",
         "imagens-arrastadas-para-subtarefas-2026-10-19",
         "atualizacao-automatica-segura-2026-10-19",
-        "prints-colados-nas-subtarefas-2026-10-19",
       ]);
-      expect(updates[0].preview).toBe("subtask-attachment-indicator");
+      expect(updates[0].preview).toBe("meeting-agenda-tasks");
       expect(getVisibleAppUpdates(true, workspace)[0].id).toBe(
-        "anexos-visiveis-nas-subtarefas-recolhidas-2026-10-19",
+        "tarefas-da-pauta-vinculadas-e-acessiveis-2026-10-22",
       );
       expect(updates.every((update) => update.audience === "all")).toBe(true);
     },
