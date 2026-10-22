@@ -23,6 +23,7 @@ config_path.write_text(json.dumps(config, indent=2) + "\n")
 config_path.chmod(0o600)
 shutil.copy2(source / "hosting/mac/supervise.py", install / "supervise.py")
 shutil.copy2(source / "src/styles/whatsapp-embed.css", install / "whatsapp-embed.css")
+shutil.copy2(source / "src/styles/whatsapp-embed.js", install / "whatsapp-embed.js")
 build_script = """
 const path = require('node:path');
 const esbuild = require(path.join(process.argv[1], 'node_modules/esbuild'));

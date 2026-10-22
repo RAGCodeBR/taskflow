@@ -134,7 +134,10 @@ describe("private local WhatsApp access", () => {
     }));
     const verifyAccess = vi.fn(async token => token === "owner-token");
     const mintUpstreamCookie = vi.fn(async () => "authjs.session-token=server-only");
-    const bridge = await listen(createLocalChatBridge({ origin, upstream: new URL(upstream), verifyAccess, mintUpstreamCookie, now: () => clock }));
+    const bridge = await listen(createLocalChatBridge({
+      origin, upstream: new URL(upstream), verifyAccess, mintUpstreamCookie, now: () => clock,
+      themeCss: ".tf-card{color:red}", themeScript: "window.taskflowChatEnhancements=true;",
+    }));
     for (const path of ["/dashboard/chat", "/api/chat/rei_Pessoal/messages", "/api/media/photo", "/api/socket/io"])
       expect((await fetch(bridge + path)).status).toBe(401);
     const auth = (accessToken: string, source = origin) => fetch(bridge + "/__taskflow/auth", {
@@ -153,7 +156,11 @@ describe("private local WhatsApp access", () => {
     expect(response.headers.get("content-security-policy")).toContain(origin);
     const embedded = await fetch(bridge + "/embedded", { headers: { Cookie: cookie } });
     expect(embedded.headers.get("content-length")).toBeNull();
-    expect(await embedded.text()).toContain('id="taskflow-whatsapp-embedded"');
+    const html = await embedded.text();
+    expect(html).toContain('id="taskflow-whatsapp-embedded"');
+    expect(html).toContain(".tf-card{color:red}");
+    expect(html).toContain('id="taskflow-whatsapp-enhancements"');
+    expect(html).toContain("window.taskflowChatEnhancements=true;");
     const selected = await fetch(bridge + "/selected-account", { headers: {
       Cookie: `${cookie}; sessionId=zap-rei; authjs.session-token=forged-browser-login`,
     } });

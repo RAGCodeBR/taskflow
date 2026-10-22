@@ -32,3 +32,16 @@ Os logs de cada serviço ficam na pasta `logs` da instalação, sem necessidade 
 Para desativar a inicialização de um serviço, executar `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.taskfloww.chat.ROLE.plist`, substituindo `ROLE` por `database`, `app`, `gateway`, `tunnel` ou `awake`. Isso não apaga dados. Um processo adotado anteriormente continua funcionando: parar o supervisor não deve ser confundido com desligar a aplicação. Não apagar a pasta do WA-AKG, o banco ou as credenciais para desinstalar os agentes.
 
 O instalador inicial recusa substituir agentes já registrados. Inspecionar os arquivos e atualizar de forma controlada; não executar outra instalação em paralelo.
+
+## Atualizar o visual incorporado
+
+O visual do WhatsApp no Taskfloww é servido pelo gateway deste Mac, não pela Vercel. O `npm run dev` injeta `src/styles/whatsapp-embed.css` e `.js` diretamente; no site publicado, o gateway lê as cópias instaladas desses arquivos. Por isso, um push para o repositório não atualiza sozinho o visual do chat.
+
+Depois de revisar o código e publicar o frontend, execute na pasta `taskflow`:
+
+```sh
+python3 hosting/mac/update-gateway.py
+python3 hosting/mac/update-gateway.py --apply
+```
+
+O primeiro comando apenas confere a instalação. O segundo compila o gateway, copia CSS e JS e reinicia somente o gateway. Ele preserva os arquivos anteriores com sufixo `.previous`; não reinicia o aplicativo WhatsApp nem o banco. Verifique o chat publicado após a mensagem `Updated gateway is healthy.`

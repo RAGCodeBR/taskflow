@@ -29,6 +29,7 @@ const bridge = createLocalChatBridge({
   pilotActivation: true,
   origin: config.origin, publicOrigin: config.publicOrigin, upstream,
   themeCss: readFileSync(path.join(config.installRoot, "whatsapp-embed.css"), "utf8"),
+  themeScript: readFileSync(path.join(config.installRoot, "whatsapp-embed.js"), "utf8"),
   verifyAccess: token => verifyTaskflowOwner(token, {
     url: taskflow.SUPABASE_URL!, key: taskflow.SUPABASE_PUBLISHABLE_KEY!,
   }),
