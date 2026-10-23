@@ -9,8 +9,9 @@ import {
 describe("independent published release catalogue", () => {
   it("derives metadata directly from the existing catalogue", () => {
     const releases = readPublishedAppUpdates(publishedAppUpdates());
-    expect(releases.map((release) => release.id)).toEqual(APP_UPDATES.map((release) => release.id));
+    expect(releases.map((release) => release.id)).toEqual(APP_UPDATES.filter((release) => release.audience !== "owner").map((release) => release.id));
     expect(releases[0].title).toBe(APP_UPDATES[0].title);
+    expect(releases.every((release) => release.audience === "all" || release.audience === "admin")).toBe(true);
   });
   it.each(["marketing", "consultoria"])("detects an old compiled catalogue in %s", (workspace) => {
     const installed = getVisibleAppUpdates(false, workspace).slice(1);

@@ -9,13 +9,16 @@ export type PublishedAppUpdate = Pick<
 // Generated from the same catalogue as the UI; never maintain a second version list.
 export function publishedAppUpdates() {
   return {
-    releases: APP_UPDATES.map(({ id, title, date, audience, workspaces }) => ({
+    // Browsers already in production accept only "all" and "admin". Keep the
+    // public version index backward compatible so those clients can upgrade.
+    releases: APP_UPDATES.filter((release) => release.audience !== "owner")
+      .map(({ id, title, date, audience, workspaces }) => ({
       id,
       title,
       date,
       audience,
       workspaces,
-    })),
+      })),
   };
 }
 
