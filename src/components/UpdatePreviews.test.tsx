@@ -377,6 +377,12 @@ describe("release thumbnails", () => {
     expect(html).not.toMatch(/<a(?:\s|>)/);
   });
 
+  it("illustrates the owner task panel in Consultoria", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "consultoria-owner-task-panel" }));
+    expect(html).toContain("Equipe de Consultoria");
+    expect(html).toContain("painel lateral de tarefas na Consultoria");
+  });
+
   it("shows the drag and the mandatory reason rather than an unrelated generic image", () => {
     const html = renderToStaticMarkup(
       createElement(AppUpdatePreview, { kind: "calendar-reschedule" }),

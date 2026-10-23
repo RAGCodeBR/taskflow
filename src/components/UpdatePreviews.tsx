@@ -70,9 +70,9 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
-function MarketingCreateSidePanelPreview() {
+function MarketingCreateSidePanelPreview({ workspace = "Marketing" }: { workspace?: "Marketing" | "Consultoria" }) {
   return (
-    <div aria-label="Prévia do calendário compacto e do painel lateral de tarefas no Marketing" className="mx-auto flex w-full max-w-sm flex-col items-end overflow-hidden rounded-xl border bg-muted/40 text-[10px] shadow-sm">
+    <div aria-label={`Prévia do calendário compacto e do painel lateral de tarefas na ${workspace}`} className="mx-auto flex w-full max-w-sm flex-col items-end overflow-hidden rounded-xl border bg-muted/40 text-[10px] shadow-sm">
       <div className="grid w-full grid-cols-2 gap-2 border-b bg-background p-2">
         <div className="flex h-9 items-center gap-1 rounded-full border-2 border-dashed border-slate-400 bg-white px-2 text-slate-900 shadow-sm"><span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-emerald-500 text-emerald-700"><Check className="h-3 w-3" /></span><span className="line-clamp-2 leading-3">Sem cliente · só título</span></div>
         <div className="flex h-9 items-center gap-1 rounded-full border border-[#e8dfa8] bg-[#e8dfa8] px-2 text-slate-900 shadow-sm saturate-125"><Check className="h-3.5 w-3.5 shrink-0" /><span className="line-clamp-2 leading-3">Cliente salvo · publicar</span></div>
@@ -85,7 +85,7 @@ function MarketingCreateSidePanelPreview() {
         <div className="space-y-3 p-3">
           <p className="text-base font-semibold">Planejar campanha</p>
           <div className="grid grid-cols-[70px_1fr] gap-y-2">
-            <span className="text-muted-foreground">Responsável</span><span>Equipe de Marketing</span>
+            <span className="text-muted-foreground">Responsável</span><span>Equipe de {workspace}</span>
             <span className="text-muted-foreground">Prazo</span><span>24 out</span>
             <span className="text-muted-foreground">Cliente</span><span>Cliente exemplo</span>
           </div>
@@ -1582,6 +1582,7 @@ function TaskCardActivityPreview() {
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
   "task-list-quick-actions": TaskListQuickActionsPreview,
+  "consultoria-owner-task-panel": () => <MarketingCreateSidePanelPreview workspace="Consultoria" />,
   "marketing-create-side-panel": MarketingCreateSidePanelPreview,
   "marketing-inline-task-images": MarketingInlineTaskImagesPreview,
   "meeting-agenda-tasks": MeetingAgendaTasksPreview,

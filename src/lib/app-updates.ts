@@ -3,6 +3,7 @@ import { canManageMarketingAccess } from "./environment-access";
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
   | "task-list-quick-actions"
+  | "consultoria-owner-task-panel"
   | "marketing-create-side-panel"
   | "marketing-inline-task-images"
   | "meeting-agenda-tasks"
@@ -68,6 +69,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "painel-de-tarefas-consultoria-reinan-2026-10-22",
+    title: "Novo painel de tarefas na Consultoria",
+    date: "2026-10-22",
+    preview: "consultoria-owner-task-panel",
+    audience: "owner",
+    workspaces: ["consultoria"],
+    details: [
+      "Na sua conta, a Consultoria passa a usar o mesmo painel lateral de criação e edição de tarefas do Marketing, no Kanban, na Lista e no Calendário.",
+      "Você também pode criar pelo dia do calendário, abrir uma subtarefa em seu próprio painel e posicionar prints na descrição. Os anexos continuam disponíveis em Arquivos.",
+      "As outras contas da Consultoria continuam com a interface anterior; a Lista e a correção dos prints das subtarefas permanecem disponíveis para todos.",
+    ],
+  },
   {
     id: "lista-com-status-e-lixeira-2026-10-22",
     title: "Lista de tarefas mais prática",

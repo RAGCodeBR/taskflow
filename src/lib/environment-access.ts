@@ -10,7 +10,8 @@ export function canManageMarketingAccess(email?: string | null) {
   return email?.trim().toLowerCase() === MARKETING_MANAGER_EMAIL;
 }
 
-/** The new task workflow follows the Marketing environment, regardless of role. */
-export function hasMarketingTaskExperience(workspaceSlug?: string | null, _email?: string | null) {
-  return workspaceSlug === "marketing";
+/** Everyone in Marketing sees the new workflow; only Reinan sees it in Consultoria. */
+export function hasMarketingTaskExperience(workspaceSlug?: string | null, email?: string | null) {
+  return workspaceSlug === "marketing" ||
+    (workspaceSlug === "consultoria" && canManageMarketingAccess(email));
 }
