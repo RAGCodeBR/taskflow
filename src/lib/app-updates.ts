@@ -1,4 +1,4 @@
-import { canManageMarketingAccess, hasMarketingTaskExperience } from "./environment-access";
+import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
@@ -60,7 +60,7 @@ export type AppUpdate = {
   title: string;
   date: string;
   preview: UpdatePreviewKind;
-  audience: "all" | "admin" | "owner" | "marketing-or-owner";
+  audience: "all" | "admin" | "owner";
   workspaces: readonly UpdateWorkspace[];
   details: readonly string[];
 };
@@ -86,10 +86,10 @@ export const APP_UPDATES: readonly AppUpdate[] = [
     title: "Painel lateral de tarefas",
     date: "2026-10-22",
     preview: "marketing-create-side-panel",
-    audience: "marketing-or-owner",
-    workspaces: ["marketing", "consultoria"],
+    audience: "all",
+    workspaces: ["marketing"],
     details: [
-      "No Marketing, e na conta de Reinan na Consultoria, criar e reabrir tarefas pelo Kanban, Lista ou Calendário usa o mesmo painel lateral. No calendário, clique no dia, digite o título e pressione Enter: o card aparece imediatamente enquanto é salvo e depois abre no painel. O fundo permanece claro e clicar fora retorna à visualização.",
+      "No Marketing, criar e reabrir tarefas pelo Kanban, Lista ou Calendário usa o mesmo painel lateral. No calendário, clique no dia, digite o título e pressione Enter: o card aparece imediatamente enquanto é salvo e depois abre no painel. O fundo permanece claro e clicar fora retorna à visualização.",
       "Responsável, prazo e cliente ficam logo no início; prioridade, formato, objetivo, status e colaboradores ficam em Mais campos. A atribuição, os colaboradores e a conversa seguem ligados à tarefa salva.",
       "Clique no nome de uma subtarefa para abrir seus detalhes em outro painel lateral. Texto e prints ocupam a posição escolhida na descrição; Anexar arquivo aceita documentos, vídeos e imagens separadas. Tudo fica em Arquivos, com download disponível.",
       "No calendário, tarefas e subtarefas têm cartões arredondados da mesma altura, inclusive com títulos de duas linhas. As cores dos clientes ficam mais vivas; cards sem cliente ficam vazios e tracejados até que um cliente seja salvo. Ao passar o mouse, o círculo de conclusão fica verde e aparece uma dica, sem deslocar o texto.",
@@ -100,8 +100,8 @@ export const APP_UPDATES: readonly AppUpdate[] = [
     title: "Prints no texto das tarefas",
     date: "2026-10-22",
     preview: "marketing-inline-task-images",
-    audience: "marketing-or-owner",
-    workspaces: ["marketing", "consultoria"],
+    audience: "all",
+    workspaces: ["marketing"],
     details: [
       "Cole, arraste ou selecione imagens no ponto desejado da descrição. Durante o salvamento, a prévia continua visível; ao reabrir a tarefa, os prints carregam sem aparecer quebrados e também ficam em Arquivos.",
       "Clique em um print da descrição para ampliar e baixar a imagem.",
@@ -113,7 +113,7 @@ export const APP_UPDATES: readonly AppUpdate[] = [
     date: "2026-10-22",
     preview: "meeting-agenda-tasks",
     audience: "owner",
-    workspaces: ["marketing", "consultoria"],
+    workspaces: ["marketing"],
     details: [
       "Ao gerar ou abrir uma tarefa pela pauta, o formulário mostra o cliente da reunião em um campo fixo e salva a tarefa com esse vínculo.",
       "As tarefas exibidas em cada item da pauta podem ser abertas para ver e editar seus detalhes completos, mantendo o fundo da reunião sem escurecimento adicional.",
@@ -328,8 +328,7 @@ export function getVisibleAppUpdates(isAdmin: boolean, workspace?: string, email
   return APP_UPDATES.filter(
     (update) =>
       update.workspaces.some((name) => name === workspace) &&
-      (update.audience === "all" || (update.audience === "admin" && isAdmin) || (update.audience === "owner" && canManageMarketingAccess(email)) ||
-        (update.audience === "marketing-or-owner" && hasMarketingTaskExperience(workspace, email))),
+      (update.audience === "all" || (update.audience === "admin" && isAdmin) || (update.audience === "owner" && canManageMarketingAccess(email))),
   ).slice(0, 5);
 }
 

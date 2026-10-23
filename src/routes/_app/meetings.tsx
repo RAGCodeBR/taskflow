@@ -1174,8 +1174,9 @@ function MeetingDialog({
   isTaskDone: (task: Task) => boolean;
   readOnly: boolean;
 }) {
-  const { user: meetingUser } = useAuth();
-  const enhancedMeetingTasks = meetingUser?.email?.trim().toLowerCase() === "reinangrupoahouse@gmail.com";
+  const { user: meetingUser, activeWorkspace: meetingWorkspace } = useAuth();
+  const enhancedMeetingTasks = meetingWorkspace?.slug === "marketing" &&
+    meetingUser?.email?.trim().toLowerCase() === "reinangrupoahouse@gmail.com";
   const queryClient = useQueryClient();
   const prepared = Boolean(occurrence.agenda_prepared_at);
   const { data: importedNotes = [] } = useQuery({

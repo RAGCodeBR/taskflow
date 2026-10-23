@@ -23,7 +23,7 @@ describe("application release catalogue", () => {
     expect(dates).toEqual([...dates].sort().reverse());
   });
 
-  it("shows the shared fixes to everyone and the enhanced editor to Marketing and the Consultoria owner", () => {
+  it("shows the shared fixes to everyone and the enhanced editor only in Marketing", () => {
     const marketing = getVisibleAppUpdates(false, "marketing");
     const consultoria = getVisibleAppUpdates(false, "consultoria");
     const ownerMarketing = getVisibleAppUpdates(true, "marketing", "reinangrupoahouse@gmail.com");
@@ -35,7 +35,7 @@ describe("application release catalogue", () => {
     expect(marketing.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(true);
     expect(consultoria.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(false);
     expect(ownerMarketing[1].id).toBe("painel-lateral-de-criacao-marketing-2026-10-22");
-    expect(ownerConsultoria[1].preview).toBe("marketing-create-side-panel");
+    expect(ownerConsultoria.some((update) => update.preview === "marketing-create-side-panel")).toBe(false);
   });
 
   it("removes older history entries from the release catalogue", () => {
