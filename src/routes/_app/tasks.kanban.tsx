@@ -1577,6 +1577,7 @@ function KanbanPage() {
         onOpenChange={setDialogOpen}
         task={editTask}
         defaultColumnId={defaultCol}
+        defaultWorkspaceId={viewedWorkspaceId}
       />
       <Dialog
         open={!!duplicateTaskTarget}

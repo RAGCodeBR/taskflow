@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { Mark, Node, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -22,11 +23,13 @@ import {
   Redo2,
   Copy,
   Check,
+  ImagePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { plainTextForClipboard } from "@/lib/rich-text-clipboard";
 import { htmlHasMeaningfulText, plainTextToEditorHtml, richTextPasteContent } from "@/lib/rich-text-paste";
+import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import { linkifyTextNodes } from "@/lib/text-links";
 import { linkifyEditorDocument } from "@/lib/editor-links";
 
@@ -80,7 +83,7 @@ const TaskImage = Node.create({
       mergeAttributes(attrs, {
         class: "my-3 block max-h-56 max-w-[80%] rounded-lg border bg-muted p-1 shadow-sm object-contain",
         ...(pendingId ? { "data-taskflow-pending-id": pendingId } : {}),
-        ...(attachmentId ? { "data-task-attachment-id": attachmentId } : {}),
+        ...(attachmentId ? { "data-task-attachment-id": attachmentId, title: "Abrir print e baixar", tabindex: "0" } : {}),
       }),
     ];
   },
@@ -106,11 +109,15 @@ function clipboardHtmlImageFiles(clipboardData: DataTransfer | null) {
   const sources = [...html.matchAll(/<img[^>]+src=["'](data:image\/[a-zA-Z0-9.+-]+;base64,[^"']+)["']/gi)]
     .map((match) => match[1]);
 
-  return sources.map((source, index) => {
+  return sources.flatMap((source, index) => {
     const [, mimeType = "image/png", encoded = ""] = source.match(/^data:([^;]+);base64,(.+)$/i) || [];
-    const binary = atob(encoded);
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-    return new File([bytes], `print-colado-${Date.now()}-${index}.${mimeType.split("/")[1] || "png"}`, { type: mimeType });
+    try {
+      const binary = atob(encoded);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      return [new File([bytes], `print-colado-${Date.now()}-${index}.${mimeType.split("/")[1] || "png"}`, { type: mimeType })];
+    } catch {
+      return [];
+    }
   });
 }
 
@@ -139,6 +146,10 @@ function attachmentIdFromImage(image: HTMLImageElement) {
   const source = image.getAttribute("src") || "";
   return source.match(/^taskflow-attachment:\/\/([^/?#]+)/)?.[1] || null;
 }
+
+const loadingPrintSource = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="150" viewBox="0 0 480 150"><rect width="480" height="150" rx="12" fill="#f1f5f9"/><rect x="20" y="20" width="440" height="110" rx="8" fill="#e2e8f0"/><text x="240" y="82" text-anchor="middle" font-family="Arial,sans-serif" font-size="15" fill="#64748b">Carregando print…</text></svg>',
+)}`;
 
 function stripStoredPrintImages(html: string) {
   // Prints colados são anexos da tarefa após o salvamento. Não os repetimos
@@ -190,6 +201,15 @@ interface Props {
   copyable?: boolean;
   /** Recebe imagens coladas quando o clipboard contiver somente um print. */
   onImagePaste?: (images: PastedEditorImage[]) => void;
+  /** Abre um print já salvo diretamente da descrição. */
+  onStoredImageClick?: (attachmentId: string) => void;
+  /** Permite escolher ou arrastar imagens para a posição atual do texto. */
+  imageTools?: boolean;
+  /** Bloqueia edições enquanto a tarefa e seus prints estão sendo salvos. */
+  disabled?: boolean;
+  /** Prévia local do print que acabou de ser salvo, mantida durante a troca pelo anexo. */
+  storedImagePreviews?: ReadonlyMap<string, string>;
+  storedImageTable?: "attachments" | "subtask_attachments";
 }
 
 function ToolbarBtn({
@@ -287,7 +307,7 @@ function CopyButton({ editor }: { editor: Editor }) {
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, onAddImage }: { editor: Editor; onAddImage?: () => void }) {
   return (
     <div
       className="flex flex-wrap items-center gap-0.5 border-b bg-muted/30 px-1 py-0.5"
@@ -342,6 +362,11 @@ function Toolbar({ editor }: { editor: Editor }) {
       >
         <LinkIcon className="h-3 w-3" />
       </ToolbarBtn>
+      {onAddImage ? (
+        <ToolbarBtn title="Inserir imagem na descrição" onClick={onAddImage}>
+          <ImagePlus className="h-3 w-3" />
+        </ToolbarBtn>
+      ) : null}
       <span className="mx-0.5 h-4 w-px bg-border" />
       {[
         { color: "#fef08a", label: "Amarelo" },
@@ -390,13 +415,36 @@ export function RichTextEditor({
   maxHeight = 320,
   copyable = false,
   onImagePaste,
+  onStoredImageClick,
+  imageTools = false,
+  disabled = false,
+  storedImagePreviews,
+  storedImageTable = "attachments",
 }: Props) {
   const onImagePasteRef = useRef(onImagePaste);
+  const onStoredImageClickRef = useRef(onStoredImageClick);
   const nativePasteHandledRef = useRef(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const storedImageUrlsRef = useRef(new Map<string, string>());
+  const storedImageLoadsRef = useRef(new Map<string, Promise<string | null>>());
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      storedImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      storedImageUrlsRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     onImagePasteRef.current = onImagePaste;
   }, [onImagePaste]);
+
+  useEffect(() => {
+    onStoredImageClickRef.current = onStoredImageClick;
+  }, [onStoredImageClick]);
 
   const editor = useEditor({
     extensions: [
@@ -431,9 +479,16 @@ export function RichTextEditor({
     },
   });
 
+  useEffect(() => {
+    editor?.setEditable(!disabled);
+  }, [editor, disabled]);
+
   const insertPastedImages = useCallback((files: File[]) => {
     if (!editor || !files.length || !onImagePasteRef.current) return false;
-    const images = files.map((file) => ({
+    const accepted = files.filter((file) => !isTaskAttachmentTooLarge(file));
+    if (accepted.length !== files.length) toast.error(`Cada imagem deve ter no máximo ${MAX_TASK_ATTACHMENT_LABEL}.`);
+    if (!accepted.length) return false;
+    const images = accepted.map((file) => ({
       id: crypto.randomUUID(),
       file,
       src: URL.createObjectURL(file),
@@ -457,9 +512,15 @@ export function RichTextEditor({
     ).run();
   }, [editor]);
 
-  useEffect(() => {
-    if (!editor || editor.isFocused) return;
+  useLayoutEffect(() => {
+    if (!editor) return;
     const current = editor.getHTML();
+    // Depois do upload, troque o preview temporário pelo identificador salvo
+    // mesmo quando o editor ainda estiver focado. Caso contrário, o print
+    // continua apontando para um blob e parece quebrado ao salvar.
+    const reconcilesSavedImages = current.includes("data-taskflow-pending-id")
+      && value.includes("data-task-attachment-id");
+    if (editor.isFocused && !reconcilesSavedImages) return;
     if (value !== current) {
       editor.commands.setContent(value || "", { emitUpdate: false });
     }
@@ -467,43 +528,74 @@ export function RichTextEditor({
     if (linkedContent) editor.commands.setContent(linkedContent, { emitUpdate: false });
   }, [value, editor]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!editor) return;
-
-    // Depois de salvar, a descrição mantém um identificador seguro do anexo
-    // (taskflow-attachment://...), não uma URL pública. No editor, trocamos
-    // apenas a imagem exibida por um blob local, sem alterar o HTML salvo.
     const container = editor.view.dom;
     const images = Array.from(container.querySelectorAll<HTMLImageElement>("img[data-task-attachment-id], img[src^='taskflow-attachment://']"));
     if (!images.length) return;
+    const urls = storedImageUrlsRef.current;
+    const loads = storedImageLoadsRef.current;
+    const missing = new Set<string>();
+    images.forEach((image) => {
+      const id = attachmentIdFromImage(image);
+      if (!id) return;
+      const preview = storedImagePreviews?.get(id) ?? urls.get(id);
+      // O identificador taskflow-attachment:// não é uma URL de imagem. Nunca
+      // deixe o navegador tentar desenhá-lo enquanto o Storage responde.
+      image.src = preview ?? loadingPrintSource;
+      if (!preview && !loads.has(id)) missing.add(id);
+    });
+    if (missing.size) {
+      const ids = [...missing];
+      const batch = (async () => {
+        const { data: attachments } = await supabase.from(storedImageTable)
+          .select("id, storage_path").in("id", ids);
+        const paths = new Map((attachments ?? []).map((attachment: { id: string; storage_path: string }) => [attachment.id, attachment.storage_path]));
+        return new Map(await Promise.all(ids.map(async (id) => {
+          const path = paths.get(id);
+          if (!path) return [id, null] as const;
+          const { data } = await supabase.storage.from("task-attachments").download(path);
+          if (!data || !mountedRef.current) return [id, null] as const;
+          const url = URL.createObjectURL(data);
+          urls.set(id, url);
+          return [id, url] as const;
+        })));
+      })();
+      ids.forEach((id) => {
+        const load = batch.then((results) => results.get(id) ?? null).catch(() => null);
+        loads.set(id, load);
+        void load.finally(() => { if (loads.get(id) === load) loads.delete(id); });
+      });
+    }
+    images.forEach((image) => {
+      const id = attachmentIdFromImage(image);
+      if (!id || storedImagePreviews?.has(id)) return;
+      const load = loads.get(id);
+      if (load) void load.then((url) => {
+        if (url && image.isConnected && mountedRef.current) image.src = url;
+      });
+    });
+  }, [editor, value, storedImagePreviews, storedImageTable]);
 
-    let active = true;
-    const urls: string[] = [];
-    void (async () => {
-      const ids = [...new Set(images.map(attachmentIdFromImage).filter(Boolean))] as string[];
-      const { data: attachments } = await supabase
-        .from("attachments")
-        .select("id, storage_path")
-        .in("id", ids);
-      if (!active || !attachments) return;
-
-      const pathById = new Map(attachments.map((attachment) => [attachment.id, attachment.storage_path]));
-      await Promise.all(images.map(async (image) => {
-        const path = pathById.get(attachmentIdFromImage(image) ?? "");
-        if (!path) return;
-        const { data } = await supabase.storage.from("task-attachments").download(path);
-        if (!active || !data) return;
-        const url = URL.createObjectURL(data);
-        urls.push(url);
-        image.src = url;
-      }));
-    })();
-
-    return () => {
-      active = false;
-      urls.forEach((url) => URL.revokeObjectURL(url));
+  useEffect(() => {
+    if (!editor || !imageTools || !onStoredImageClick) return;
+    const target = editor.view.dom;
+    const openImage = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && !["Enter", " "].includes(event.key)) return;
+      const image = event.target instanceof HTMLImageElement ? event.target : null;
+      const attachmentId = image && attachmentIdFromImage(image);
+      if (!attachmentId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      onStoredImageClickRef.current?.(attachmentId);
     };
-  }, [editor, value]);
+    target.addEventListener("click", openImage);
+    target.addEventListener("keydown", openImage);
+    return () => {
+      target.removeEventListener("click", openImage);
+      target.removeEventListener("keydown", openImage);
+    };
+  }, [editor, imageTools, onStoredImageClick]);
 
   useEffect(() => {
     if (!editor) return;
@@ -536,6 +628,32 @@ export function RichTextEditor({
     target.addEventListener("paste", handleNativePaste, true);
     return () => target.removeEventListener("paste", handleNativePaste, true);
   }, [editor, insertClipboardText, insertPastedImages]);
+
+  useEffect(() => {
+    if (!editor || !imageTools) return;
+    const target = editor.view.dom;
+    const handleDragOver = (event: DragEvent) => {
+      if (Array.from(event.dataTransfer?.items ?? []).some((item) => item.type.startsWith("image/"))) {
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+      }
+    };
+    const handleDrop = (event: DragEvent) => {
+      const files = Array.from(event.dataTransfer?.files ?? []).filter((file) => file.type.startsWith("image/"));
+      if (!files.length) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const position = editor.view.posAtCoords({ left: event.clientX, top: event.clientY });
+      if (position) editor.chain().focus().setTextSelection(position.pos).run();
+      insertPastedImages(files);
+    };
+    target.addEventListener("dragover", handleDragOver, true);
+    target.addEventListener("drop", handleDrop, true);
+    return () => {
+      target.removeEventListener("dragover", handleDragOver, true);
+      target.removeEventListener("drop", handleDrop, true);
+    };
+  }, [editor, imageTools, insertPastedImages]);
 
   useEffect(() => {
     if (!editor) return;
@@ -590,7 +708,7 @@ export function RichTextEditor({
 
   return (
     <div
-      className="tiptap-wrapper relative overflow-hidden rounded border bg-background"
+      className={cn("tiptap-wrapper relative overflow-hidden rounded border bg-background", disabled && "pointer-events-none")}
       style={{ cursor: "text" }}
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
@@ -603,7 +721,21 @@ export function RichTextEditor({
         event.preventDefault();
       }}
     >
-      <Toolbar editor={editor} />
+      {imageTools ? (
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          aria-label="Escolher imagens para a descrição"
+          onChange={(event) => {
+            insertPastedImages(Array.from(event.currentTarget.files ?? []).filter((file) => file.type.startsWith("image/")));
+            event.currentTarget.value = "";
+          }}
+        />
+      ) : null}
+      <Toolbar editor={editor} onAddImage={imageTools ? () => imageInputRef.current?.click() : undefined} />
       {placeholder && editor.isEmpty ? (
         <div className="pointer-events-none absolute px-2 py-2 text-xs text-muted-foreground/60">{placeholder}</div>
       ) : null}
@@ -692,7 +824,7 @@ export function RichTextView({
         .select("id, storage_path")
         .in("id", ids);
       if (!active || !attachments) return;
-      const pathById = new Map(attachments.map((attachment) => [attachment.id, attachment.storage_path]));
+      const pathById = new Map(attachments.map((attachment: { id: string; storage_path: string }) => [attachment.id, attachment.storage_path]));
       await Promise.all(images.map(async (image) => {
         const path = pathById.get(attachmentIdFromImage(image) ?? "");
         if (!path) return;

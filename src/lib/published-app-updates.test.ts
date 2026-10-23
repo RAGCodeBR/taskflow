@@ -16,7 +16,7 @@ describe("independent published release catalogue", () => {
     const installed = getVisibleAppUpdates(false, workspace).slice(1);
     expect(
       newerPublishedAppUpdate(publishedAppUpdates().releases, installed, false, workspace)?.id,
-    ).toBe(APP_UPDATES[0].id);
+    ).toBe(getVisibleAppUpdates(false, workspace)[0].id);
     expect(
       newerPublishedAppUpdate(
         publishedAppUpdates().releases,
@@ -32,7 +32,7 @@ describe("independent published release catalogue", () => {
       const installed = [{ ...APP_UPDATES[4], id: "versao-antiga", date: "2026-10-01" }];
       expect(
         newerPublishedAppUpdate(publishedAppUpdates().releases, installed, false, workspace)?.id,
-      ).toBe(APP_UPDATES[0].id);
+      ).toBe(getVisibleAppUpdates(false, workspace)[0].id);
     },
   );
   it("does not leak an admin-only or another workspace notice", () => {

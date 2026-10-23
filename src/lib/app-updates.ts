@@ -1,5 +1,10 @@
+import { canManageMarketingAccess, hasMarketingTaskExperience } from "./environment-access";
+
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "task-list-quick-actions"
+  | "marketing-create-side-panel"
+  | "marketing-inline-task-images"
   | "meeting-agenda-tasks"
   | "subtask-attachment-indicator"
   | "subtask-file-thumbnails"
@@ -55,7 +60,7 @@ export type AppUpdate = {
   title: string;
   date: string;
   preview: UpdatePreviewKind;
-  audience: "all" | "admin";
+  audience: "all" | "admin" | "owner" | "marketing-or-owner";
   workspaces: readonly UpdateWorkspace[];
   details: readonly string[];
 };
@@ -64,11 +69,50 @@ export type AppUpdate = {
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
   {
+    id: "lista-com-status-e-lixeira-2026-10-22",
+    title: "Lista de tarefas mais prática",
+    date: "2026-10-22",
+    preview: "task-list-quick-actions",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "No Marketing e na Consultoria, a Lista mostra o status com a cor da coluna e permite mudá-lo ali mesmo. A conclusão continua com o botão próprio e sua confirmação de data quando necessária.",
+      "A lixeira aparece em cada linha para mover a tarefa sem abrir o card, após confirmação. Busca, filtros e Nova tarefa ocupam menos espaço no topo da Lista.",
+      "Prints anexados às subtarefas são preservados ao salvar e reabrir os detalhes.",
+    ],
+  },
+  {
+    id: "painel-lateral-de-criacao-marketing-2026-10-22",
+    title: "Painel lateral de tarefas",
+    date: "2026-10-22",
+    preview: "marketing-create-side-panel",
+    audience: "marketing-or-owner",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "No Marketing, e na conta de Reinan na Consultoria, criar e reabrir tarefas pelo Kanban, Lista ou Calendário usa o mesmo painel lateral. No calendário, clique no dia, digite o título e pressione Enter: o card aparece imediatamente enquanto é salvo e depois abre no painel. O fundo permanece claro e clicar fora retorna à visualização.",
+      "Responsável, prazo e cliente ficam logo no início; prioridade, formato, objetivo, status e colaboradores ficam em Mais campos. A atribuição, os colaboradores e a conversa seguem ligados à tarefa salva.",
+      "Clique no nome de uma subtarefa para abrir seus detalhes em outro painel lateral. Texto e prints ocupam a posição escolhida na descrição; Anexar arquivo aceita documentos, vídeos e imagens separadas. Tudo fica em Arquivos, com download disponível.",
+      "No calendário, tarefas e subtarefas têm cartões arredondados da mesma altura, inclusive com títulos de duas linhas. As cores dos clientes ficam mais vivas; cards sem cliente ficam vazios e tracejados até que um cliente seja salvo. Ao passar o mouse, o círculo de conclusão fica verde e aparece uma dica, sem deslocar o texto.",
+    ],
+  },
+  {
+    id: "prints-na-descricao-das-tarefas-marketing-2026-10-22",
+    title: "Prints no texto das tarefas",
+    date: "2026-10-22",
+    preview: "marketing-inline-task-images",
+    audience: "marketing-or-owner",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Cole, arraste ou selecione imagens no ponto desejado da descrição. Durante o salvamento, a prévia continua visível; ao reabrir a tarefa, os prints carregam sem aparecer quebrados e também ficam em Arquivos.",
+      "Clique em um print da descrição para ampliar e baixar a imagem.",
+    ],
+  },
+  {
     id: "tarefas-da-pauta-vinculadas-e-acessiveis-2026-10-22",
     title: "Tarefas da pauta com acesso direto",
     date: "2026-10-22",
     preview: "meeting-agenda-tasks",
-    audience: "all",
+    audience: "owner",
     workspaces: ["marketing", "consultoria"],
     details: [
       "Ao gerar ou abrir uma tarefa pela pauta, o formulário mostra o cliente da reunião em um campo fixo e salva a tarefa com esse vínculo.",
@@ -280,11 +324,12 @@ export const APP_UPDATES: readonly AppUpdate[] = [
   },
 ];
 
-export function getVisibleAppUpdates(isAdmin: boolean, workspace?: string) {
+export function getVisibleAppUpdates(isAdmin: boolean, workspace?: string, email?: string | null) {
   return APP_UPDATES.filter(
     (update) =>
       update.workspaces.some((name) => name === workspace) &&
-      (update.audience === "all" || isAdmin),
+      (update.audience === "all" || (update.audience === "admin" && isAdmin) || (update.audience === "owner" && canManageMarketingAccess(email)) ||
+        (update.audience === "marketing-or-owner" && hasMarketingTaskExperience(workspace, email))),
   ).slice(0, 5);
 }
 

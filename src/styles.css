@@ -355,3 +355,88 @@
 .tiptap-wrapper :is(button, a[href]):not(:disabled):not([aria-disabled="true"]) * {
   cursor: pointer;
 }
+
+/* Painel de tarefas do Marketing: a hierarquia segue o fluxo de leitura do
+   painel lateral de referência, usando as cores e controles do TaskFlow. */
+.marketing-task-fields > div {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.2rem 0;
+}
+
+.marketing-task-fields > div > * {
+  min-width: 0;
+  margin-top: 0;
+}
+
+.marketing-task-fields > div > :not(label) {
+  grid-column: 2;
+}
+
+.marketing-task-fields > div > label {
+  grid-column: 1;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+}
+
+.marketing-task-fields > div > button,
+.marketing-task-fields > div > input {
+  justify-content: flex-start;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding-left: 0.25rem;
+}
+
+.marketing-task-fields > div > button:hover,
+.marketing-task-fields > div > input:hover {
+  background: hsl(var(--muted) / 0.55);
+}
+
+.marketing-task-fields .task-deadline-date {
+  min-width: 0;
+}
+
+.marketing-task-description .tiptap-wrapper {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.marketing-task-description .tiptap {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.marketing-task-tabs [role="tablist"] {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  border-bottom: 1px solid hsl(var(--border));
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.marketing-task-tabs [role="tab"] {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.marketing-task-tabs [role="tab"][data-state="active"] {
+  border-bottom: 2px solid hsl(var(--primary));
+  color: hsl(var(--primary));
+}
+
+@media (max-width: 480px) {
+  .marketing-task-fields > div {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    column-gap: 0.4rem;
+  }
+}

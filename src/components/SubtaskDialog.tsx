@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
-import { Loader2, X } from "lucide-react";
+import { Download, FileText, Loader2, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
-import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { enqueueOfflineOperation, isOffline, listOfflineOperations } from "@/lib/offline-sync";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
-import { allClipboardImageFiles, hasClipboardText } from "@/components/RichTextEditor";
+import { RichTextEditor, allClipboardImageFiles, hasClipboardText, type PastedEditorImage } from "@/components/RichTextEditor";
+import { attachImagesToDescription, pendingDescriptionImageIds, stripPendingDescriptionImages } from "@/lib/task-description-images";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,10 +48,10 @@ export interface EditableSubtaskAttachment {
   file_name: string;
   storage_path: string;
   mime_type: string | null;
-  size_bytes: number;
+  size_bytes: number | null;
 }
 
-type PendingPrint = { id: string; file: File; previewUrl: string };
+type PendingPrint = { id: string; file: File; previewUrl: string; inline: boolean };
 
 interface SubtaskDialogProps {
   open: boolean;
@@ -57,6 +59,10 @@ interface SubtaskDialogProps {
   taskId: string | null;
   /** Ambiente da tarefa dona. A lista de pessoas segue a tarefa, não quem abriu. */
   workspaceId?: string | null;
+  showAvatars?: boolean;
+  marketingLayout?: boolean;
+  parentTitle?: string;
+  attachments?: EditableSubtaskAttachment[];
   subtask?: EditableSubtask | null;
   position: number;
   defaults?: {
@@ -84,11 +90,39 @@ const formatCompletionDate = (value: string) =>
     minute: "2-digit",
   }).format(new Date(value));
 
+function SavedSubtaskImage({ attachment, userId }: { attachment: EditableSubtaskAttachment; userId?: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const isImage = Boolean(attachment.mime_type?.startsWith("image/") || /\.(?:png|jpe?g|gif|webp|avif|bmp)$/i.test(attachment.file_name));
+  useEffect(() => {
+    if (!isImage) return;
+    let active = true;
+    let localUrl: string | null = null;
+    void (async () => {
+      const queued = userId ? (await listOfflineOperations(userId)).find((operation) => operation.entity === "attachment" && operation.entityId === attachment.id) : null;
+      if (queued?.payload.blob instanceof Blob) {
+        localUrl = URL.createObjectURL(queued.payload.blob);
+        if (active) setSrc(localUrl);
+        else URL.revokeObjectURL(localUrl);
+        return;
+      }
+      if (!navigator.onLine) return;
+      const { data } = await supabase.storage.from("task-attachments").createSignedUrl(attachment.storage_path, 3600);
+      if (active && data?.signedUrl) setSrc(data.signedUrl);
+    })().catch(() => { if (active) setSrc(null); });
+    return () => { active = false; if (localUrl) URL.revokeObjectURL(localUrl); };
+  }, [attachment.id, attachment.storage_path, isImage, userId]);
+  return src ? <img src={src} alt={attachment.file_name} className="h-24 w-full rounded object-contain" /> : <span className="flex h-24 items-center justify-center text-muted-foreground"><FileText className="h-6 w-6" /></span>;
+}
+
 export function SubtaskDialog({
   open,
   onOpenChange,
   taskId,
   workspaceId,
+  showAvatars = false,
+  marketingLayout = false,
+  parentTitle,
+  attachments = [],
   subtask,
   position,
   defaults,
@@ -111,10 +145,24 @@ export function SubtaskDialog({
   const dragDepthRef = useRef(0);
   const savedSubtaskRef = useRef<EditableSubtask | null>(null);
   const pendingPrintsRef = useRef<PendingPrint[]>([]);
+  const uploadedPrintsRef = useRef<Record<string, string>>({});
+  const storedPrintPreviewsRef = useRef(new Map<string, string>());
   const initializedForRef = useRef<string | null>(null);
   const defaultTitle = defaults?.title ?? "";
   const defaultDueDate = defaults?.dueDate ?? "";
   const defaultAssigneeId = defaults?.assigneeId ?? "";
+
+  const downloadAttachment = async (attachment: EditableSubtaskAttachment) => {
+    const queued = user ? (await listOfflineOperations(user.id)).find((operation) => operation.entity === "attachment" && operation.entityId === attachment.id) : null;
+    const blob = queued?.payload.blob instanceof Blob ? queued.payload.blob : (await supabase.storage.from("task-attachments").download(attachment.storage_path)).data;
+    if (!blob) { toast.error("Não foi possível baixar este anexo."); return; }
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = attachment.file_name;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  };
 
   useEffect(() => {
     if (!open) {
@@ -125,7 +173,10 @@ export function SubtaskDialog({
     if (initializedForRef.current === key) return;
     initializedForRef.current = key;
     pendingPrintsRef.current.forEach((print) => URL.revokeObjectURL(print.previewUrl));
+    storedPrintPreviewsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    storedPrintPreviewsRef.current.clear();
     pendingPrintsRef.current = [];
+    uploadedPrintsRef.current = {};
     setPendingPrints([]);
     dragDepthRef.current = 0;
     setDraggingImages(false);
@@ -140,11 +191,12 @@ export function SubtaskDialog({
 
   useEffect(() => () => {
     pendingPrintsRef.current.forEach((print) => URL.revokeObjectURL(print.previewUrl));
+    storedPrintPreviewsRef.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
-  const removePrint = (id: string) => {
+  const removePrint = (id: string, revokePreview = true) => {
     const print = pendingPrintsRef.current.find((item) => item.id === id);
-    if (print) URL.revokeObjectURL(print.previewUrl);
+    if (print && revokePreview) URL.revokeObjectURL(print.previewUrl);
     pendingPrintsRef.current = pendingPrintsRef.current.filter((item) => item.id !== id);
     setPendingPrints(pendingPrintsRef.current);
   };
@@ -160,9 +212,30 @@ export function SubtaskDialog({
       id: crypto.randomUUID(),
       file,
       previewUrl: URL.createObjectURL(file),
+      inline: false,
     }));
     if (!added.length) return;
     pendingPrintsRef.current = [...pendingPrintsRef.current, ...added];
+    setPendingPrints(pendingPrintsRef.current);
+  };
+
+  const addEditorImages = (images: PastedEditorImage[]) => {
+    const added = images.map((image) => ({ id: image.id, file: image.file, previewUrl: image.src, inline: true }));
+    pendingPrintsRef.current = [...pendingPrintsRef.current, ...added];
+    setPendingPrints(pendingPrintsRef.current);
+  };
+
+  const addAttachments = (files: FileList | null) => {
+    if (!files) return;
+    const accepted = Array.from(files).filter((file) => {
+      if (!isTaskAttachmentTooLarge(file)) return true;
+      toast.error(`${file.name} ultrapassa ${MAX_TASK_ATTACHMENT_LABEL}.`);
+      return false;
+    });
+    if (!accepted.length) return;
+    pendingPrintsRef.current = [...pendingPrintsRef.current, ...accepted.map((file) => ({
+      id: crypto.randomUUID(), file, previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : "", inline: false,
+    }))];
     setPendingPrints(pendingPrintsRef.current);
   };
 
@@ -211,8 +284,11 @@ export function SubtaskDialog({
       dragDepthRef.current = 0;
       setDraggingImages(false);
       pendingPrintsRef.current.forEach((print) => URL.revokeObjectURL(print.previewUrl));
+      storedPrintPreviewsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      storedPrintPreviewsRef.current.clear();
       pendingPrintsRef.current = [];
       setPendingPrints([]);
+      uploadedPrintsRef.current = {};
     }
     onOpenChange(nextOpen);
   };
@@ -220,7 +296,7 @@ export function SubtaskDialog({
   const dueDateChanged =
     Boolean(subtask?.due_date) && dueDate !== toDateInputValue(subtask?.due_date);
 
-  const uploadPrint = async (subtaskId: string, print: PendingPrint) => {
+  const uploadPrint = async (subtaskId: string, print: PendingPrint): Promise<string> => {
     if (!user || !taskId) throw new Error("Não foi possível identificar a tarefa para enviar o print.");
     const path = `${taskId}/subtasks/${subtaskId}/arquivo-${crypto.randomUUID()}`;
     const attachment = {
@@ -247,7 +323,7 @@ export function SubtaskDialog({
         },
       });
       onAttachmentSaved?.(attachment);
-      return;
+      return attachment.id;
     }
     const { error: uploadError } = await supabase.storage
       .from("task-attachments")
@@ -262,6 +338,7 @@ export function SubtaskDialog({
       throw error;
     }
     onAttachmentSaved?.(data as EditableSubtaskAttachment);
+    return attachment.id;
   };
 
   const save = async () => {
@@ -282,7 +359,7 @@ export function SubtaskDialog({
       title: title.trim(),
       due_date: dueDateToIso(dueDate),
       assignee_id: assigneeId || null,
-      notes: notes.trim() || null,
+      notes: (marketingLayout ? stripPendingDescriptionImages(notes) : notes).trim() || null,
       done,
     };
     setSaving(true);
@@ -333,10 +410,33 @@ export function SubtaskDialog({
       }
       let failedPrints = 0;
       const hadPrints = pendingPrintsRef.current.length > 0;
+      let resolvedNotes = notes;
       for (const print of [...pendingPrintsRef.current]) {
         try {
-          await uploadPrint(saved.id, print);
-          removePrint(print.id);
+          if (marketingLayout && print.inline && !pendingDescriptionImageIds(resolvedNotes).has(print.id)) {
+            removePrint(print.id);
+            continue;
+          }
+          const attachmentId = uploadedPrintsRef.current[print.id] ?? await uploadPrint(saved.id, print);
+          uploadedPrintsRef.current[print.id] = attachmentId;
+          if (marketingLayout && print.inline) {
+            const nextNotes = attachImagesToDescription(resolvedNotes, new Map([[print.id, attachmentId]]));
+            const storedNotes = stripPendingDescriptionImages(nextNotes).trim() || null;
+            if (user && isOffline()) {
+              await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: saved.id, payload: { patch: { notes: storedNotes } } });
+            } else {
+              const { error } = await supabase.from("subtasks").update({ notes: storedNotes }).eq("id", saved.id);
+              if (error) throw error;
+            }
+            resolvedNotes = nextNotes;
+            storedPrintPreviewsRef.current.set(attachmentId, print.previewUrl);
+            setNotes(nextNotes);
+            saved = { ...saved, notes: storedNotes };
+            savedSubtaskRef.current = saved;
+            onSaved(saved);
+          }
+          removePrint(print.id, !(marketingLayout && print.inline));
+          delete uploadedPrintsRef.current[print.id];
         } catch {
           failedPrints += 1;
         }
@@ -347,7 +447,7 @@ export function SubtaskDialog({
         qc.invalidateQueries({ queryKey: ["subtasks"] }),
       ]);
       if (failedPrints) {
-        toast.error(`${failedPrints} imagem(ns) não foram enviadas. A subtarefa foi salva; tente salvar novamente.`);
+        toast.error(`${failedPrints} arquivo(s) não foram enviados. A subtarefa foi salva; tente salvar novamente.`);
         return;
       }
       toast.success(isOffline()
@@ -363,12 +463,15 @@ export function SubtaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl gap-5 p-6 sm:rounded-2xl">
-        <DialogHeader>
+      <DialogContent overlayClassName={marketingLayout ? "!bg-transparent" : undefined} className={marketingLayout
+        ? "!left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0"
+        : "max-w-2xl gap-5 p-6 sm:rounded-2xl"}>
+        <DialogHeader className={marketingLayout ? "sticky top-0 z-20 border-b bg-background px-5 py-4 text-left sm:px-7" : undefined}>
+          {marketingLayout && <button type="button" onClick={() => handleOpenChange(false)} className="w-fit text-xs text-muted-foreground hover:text-primary">{parentTitle || "Tarefa principal"} /</button>}
           <DialogTitle>{subtask ? "Editar subtarefa" : "Nova subtarefa"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className={marketingLayout ? "space-y-5 px-5 py-6 sm:px-7" : "space-y-4"}>
           <div className="space-y-2">
             <Label htmlFor="subtask-title">Título *</Label>
             <Input
@@ -381,7 +484,7 @@ export function SubtaskDialog({
             <FieldLinks value={title} />
           </div>
 
-          <div className="grid gap-4 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2">
+          <div className={marketingLayout ? "grid gap-4 border-y py-4 sm:grid-cols-2" : "grid gap-4 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2"}>
             <div className="space-y-2">
               <Label>Responsável</Label>
               <Select value={assigneeId || "none"} onValueChange={(value) => setAssigneeId(value === "none" ? "" : value)}>
@@ -392,7 +495,7 @@ export function SubtaskDialog({
                   <SelectItem value="none">Sem responsável</SelectItem>
                   {assignableProfiles.map((profile) => (
                     <SelectItem key={profile.id} value={profile.id}>
-                      {profile.full_name || profile.email}
+                      <span className="inline-flex items-center gap-2">{showAvatars && <Avatar className="h-5 w-5"><AvatarImage src={profile.avatar_url || undefined} alt={profile.full_name || profile.email || "Responsável"} /><AvatarFallback className="text-[9px]">{(profile.full_name || profile.email || "?").slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>}{profile.full_name || profile.email}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -437,7 +540,23 @@ export function SubtaskDialog({
 
           <div className="space-y-2">
             <Label htmlFor="subtask-notes">Descrição</Label>
-            <div
+            {marketingLayout ? <RichTextEditor
+              value={notes}
+              onChange={setNotes}
+              onImagePaste={addEditorImages}
+              onStoredImageClick={(attachmentId) => {
+                const attachment = attachments.find((item) => item.id === attachmentId);
+                if (attachment) void downloadAttachment(attachment);
+                else toast.error("O print ainda está carregando. Tente novamente em instantes.");
+              }}
+              storedImageTable="subtask_attachments"
+              storedImagePreviews={storedPrintPreviewsRef.current}
+              imageTools
+              disabled={saving}
+              minHeight={180}
+              maxHeight={440}
+              placeholder="Escreva e insira prints onde fizerem sentido."
+            /> : <div
               onDragEnter={handleImageDragEnter}
               onDragOver={handleImageDragOver}
               onDragLeave={handleImageDragLeave}
@@ -452,16 +571,16 @@ export function SubtaskDialog({
                 placeholder="Descreva a subtarefa... Cole ou arraste imagens aqui."
                 rows={6}
               />
-            </div>
-            <p className="text-xs text-muted-foreground">Cole com ⌘V / Ctrl+V ou arraste imagens para a descrição.</p>
-            <FieldLinks value={notes} />
-            {pendingPrints.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Imagens da subtarefa aguardando salvamento">
-                {pendingPrints.map((print) => (
+            </div>}
+            <p className="text-xs text-muted-foreground">{marketingLayout ? "Cole, arraste ou use o botão de imagem na posição desejada. O print também ficará em Arquivos." : "Cole com ⌘V / Ctrl+V ou arraste imagens para a descrição."}</p>
+            {!marketingLayout && <FieldLinks value={notes} />}
+            {pendingPrints.filter((print) => !marketingLayout || !print.inline || pendingDescriptionImageIds(notes).has(print.id)).length > 0 && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Arquivos da subtarefa aguardando salvamento">
+                {pendingPrints.filter((print) => !marketingLayout || !print.inline || pendingDescriptionImageIds(notes).has(print.id)).map((print) => (
                   <div key={print.id} className="relative rounded-lg border bg-muted/20 p-2">
-                    <img src={print.previewUrl} alt={print.file.name} className="h-28 w-full object-contain" />
+                    {print.previewUrl ? <img src={print.previewUrl} alt={print.file.name} className="h-28 w-full object-contain" /> : <span className="flex h-28 items-center justify-center text-muted-foreground"><FileText className="h-7 w-7" /></span>}
                     <p className="mt-1 truncate text-xs text-muted-foreground" title={print.file.name}>{print.file.name}</p>
-                    <button
+                    {(!marketingLayout || !print.inline) && <button
                       type="button"
                       aria-label={`Remover ${print.file.name}`}
                       className="absolute right-1 top-1 rounded-full bg-background p-1 shadow-sm"
@@ -469,18 +588,25 @@ export function SubtaskDialog({
                       disabled={saving}
                     >
                       <X className="h-3.5 w-3.5" />
-                    </button>
+                    </button>}
                   </div>
                 ))}
               </div>
             )}
             {pendingPrints.length > 0 && (
-              <p className="text-xs text-muted-foreground">As imagens aparecerão nos arquivos da subtarefa após salvar.</p>
+              <p className="text-xs text-muted-foreground">Os arquivos aparecerão na subtarefa após salvar.</p>
             )}
           </div>
+          {marketingLayout && <div className="space-y-2 border-t pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2"><Label>Arquivos da subtarefa</Label><label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-2 text-xs text-primary hover:bg-primary/5"><Paperclip className="h-4 w-4" />Anexar arquivo<input type="file" multiple className="sr-only" aria-label="Selecionar arquivos para a subtarefa" onChange={(event) => { addAttachments(event.target.files); event.target.value = ""; }} disabled={saving} /></label></div>
+            {attachments.length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{attachments.map((attachment) => <div key={attachment.id} className="min-w-0 rounded-lg border bg-muted/20 p-2">
+              <SavedSubtaskImage attachment={attachment} userId={user?.id} />
+              <div className="mt-1 flex items-center gap-1"><span className="min-w-0 flex-1 truncate text-xs" title={attachment.file_name}>{attachment.file_name}</span><button type="button" title={`Baixar ${attachment.file_name}`} aria-label={`Baixar ${attachment.file_name}`} className="rounded p-1 text-primary hover:bg-primary/10" onClick={() => void downloadAttachment(attachment)}><Download className="h-4 w-4" /></button></div>
+            </div>)}</div> : <p className="text-xs text-muted-foreground">Nenhum anexo salvo nesta subtarefa.</p>}
+          </div>}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className={marketingLayout ? "sticky bottom-0 border-t bg-background px-5 py-4 sm:px-7" : undefined}>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>

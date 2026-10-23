@@ -11,6 +11,7 @@ export function CalendarTaskGroup({
   children,
   onOpen,
   expanded = false,
+  marketingStyle = false,
 }: {
   task: Task;
   subtasks: Subtask[];
@@ -18,6 +19,7 @@ export function CalendarTaskGroup({
   children: ReactNode;
   onOpen: () => void;
   expanded?: boolean;
+  marketingStyle?: boolean;
 }) {
   return (
     <div className="min-w-0" data-calendar-task-group={task.id}>
@@ -35,6 +37,7 @@ export function CalendarTaskGroup({
               profiles={profiles}
               onOpen={onOpen}
               expanded={expanded}
+              marketingStyle={marketingStyle}
             />
           ))}
         </div>
@@ -50,6 +53,7 @@ export function CalendarSubtaskItem({
   onOpen,
   expanded = false,
   standalone = false,
+  marketingStyle = false,
 }: {
   task: Task;
   subtask: Subtask;
@@ -57,6 +61,7 @@ export function CalendarSubtaskItem({
   onOpen: () => void;
   expanded?: boolean;
   standalone?: boolean;
+  marketingStyle?: boolean;
 }) {
   const assignee = profiles.get(subtask.assignee_id ?? "");
   const name = assignee?.full_name || assignee?.email || "Sem responsável";
@@ -65,7 +70,7 @@ export function CalendarSubtaskItem({
     <button
       type="button"
       data-calendar-subtask={subtask.id}
-      className={`flex w-full min-w-0 items-center gap-1 rounded-md border px-1.5 py-1 text-left ${expanded ? "text-xs" : "text-[10px]"} transition hover:border-primary/35 hover:bg-primary/5 ${subtask.done ? "border-emerald-200/70 bg-emerald-50/60 text-muted-foreground dark:border-emerald-900 dark:bg-emerald-950/20" : "border-border bg-background text-foreground"} ${standalone ? "border-l-[3px] border-l-primary" : ""}`}
+      className={`flex w-full min-w-0 items-center gap-1 border text-left transition hover:border-primary/35 hover:bg-primary/5 ${marketingStyle ? `rounded-full px-2 text-xs shadow-sm hover:-translate-y-px hover:shadow-md ${expanded ? "min-h-9 py-1" : "h-9 py-0"}` : `rounded-md px-1.5 py-1 ${expanded ? "text-xs" : "text-[10px]"}`} ${subtask.done ? marketingStyle ? "border-emerald-300 bg-emerald-100 text-emerald-950" : "border-emerald-200/70 bg-emerald-50/60 text-muted-foreground dark:border-emerald-900 dark:bg-emerald-950/20" : "border-border bg-background text-foreground"} ${standalone ? "border-l-[3px] border-l-primary" : ""}`}
       title={`${subtask.title} · ${name} · ${subtask.done ? "Concluída" : "Pendente"} · Tarefa principal: ${task.title}`}
       onClick={onOpen}
     >
@@ -74,11 +79,11 @@ export function CalendarSubtaskItem({
         aria-label={subtask.done ? "Subtarefa concluída" : "Subtarefa pendente"}
       />
       <span className="min-w-0 flex-1">
-        <span className={`block truncate ${subtask.done ? "line-through" : ""}`}>
+        <span className={`block ${marketingStyle && !standalone ? "line-clamp-2 leading-[14px]" : marketingStyle ? "truncate leading-[14px]" : "truncate"} ${subtask.done ? "line-through" : ""}`}>
           {subtask.title}
         </span>
         {standalone && (
-          <span className="block truncate text-[9px] text-muted-foreground">
+          <span className={`block truncate text-[9px] text-muted-foreground ${marketingStyle ? "leading-[12px]" : ""}`}>
             Subtarefa de {task.title}
           </span>
         )}

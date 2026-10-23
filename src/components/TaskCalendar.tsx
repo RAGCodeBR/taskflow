@@ -17,6 +17,7 @@ import {
   type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
 import { useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import {
   addMonths,
@@ -33,7 +34,7 @@ import {
   subWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle2, ChevronLeft, ChevronRight, Plus, Pin } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Plus, Pin } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { usePersonalTaskPins } from "@/hooks/use-task-card-activity";
 import { pendingPersonalPriorities } from "@/lib/task-card-activity";
@@ -46,6 +47,7 @@ import { calendarTaskEntriesForDay, completedPersonalSubtaskEntriesForDay } from
 import { completedSubtasksForUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 import { useCalendarSubtasks } from "@/hooks/use-calendar-subtasks";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { taskEditError } from "@/lib/task-edit";
 import { calendarCompletionDecision } from "@/lib/calendar-task-completion";
 import { CompletionDateDialog } from "@/components/CompletionDateDialog";
@@ -55,6 +57,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { queueCalendarTaskReschedule } from "@/lib/calendar-task-reschedule";
 import { isOffline } from "@/lib/offline-sync";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import {
   useTasks,
   useClients,
@@ -67,6 +71,7 @@ import {
   type Profile,
 } from "@/hooks/use-data";
 import { useAuth } from "@/hooks/use-auth";
+import { hasMarketingTaskExperience } from "@/lib/environment-access";
 import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
 import { defaultsToOwnAssignee, defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
@@ -100,6 +105,10 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
   // O calendário acompanha o ambiente escolhido no filtro sem trocar o
   // ambiente ativo da sessão administrativa.
   const viewedWorkspaceId = filters.workspace;
+  const marketingCalendar = hasMarketingTaskExperience(
+    (workspaces.find((workspace) => workspace.id === (viewedWorkspaceId ?? activeWorkspace?.id)) ?? activeWorkspace)?.slug,
+    user?.email,
+  );
   const { enabled: savedShowSubtasks, setEnabled: setShowSubtasks } = useCalendarSubtasks(viewedWorkspaceId ?? activeWorkspace?.id);
   const showSubtasks = !clientCalendar && savedShowSubtasks;
   const { data: tasks = [] } = useTasks(viewedWorkspaceId);
@@ -127,6 +136,12 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
   const didApplyDefaultAssignee = useRef(false);
   const [open, setOpen] = useState(false);
   const [newTaskDay, setNewTaskDay] = useState<string | undefined>();
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [quickCreateDay, setQuickCreateDay] = useState<string | null>(null);
+  const [quickCreateTitle, setQuickCreateTitle] = useState("");
+  const [quickCreating, setQuickCreating] = useState(false);
+  const [pendingQuickTaskId, setPendingQuickTaskId] = useState<string | null>(null);
+  const quickCreatingRef = useRef(false);
   const { pins, setPinned, canPin } = usePersonalTaskPins();
   const [showPinnedOnly, setShowPinnedOnly] = useState(false);
   const pinnedIds = useMemo(() => new Set(pins.filter(pin => pin.is_pinned).map(pin => pin.task_id)), [pins]);
@@ -406,9 +421,121 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
     );
   };
   const createOnDay = (day: Date) => {
+    if (quickCreatingRef.current) return;
+    if (marketingCalendar) {
+      setQuickCreateDay(format(day, "yyyy-MM-dd"));
+      setQuickCreateTitle("");
+      return;
+    }
     setNewTaskDay(format(day, "yyyy-MM-dd"));
+    setNewTaskTitle("");
     setEdit(null);
     setOpen(true);
+  };
+
+  const createQuickTask = async () => {
+    const title = quickCreateTitle.trim();
+    const day = quickCreateDay;
+    if (!title || !day || !user || quickCreatingRef.current) return;
+    if (isOffline()) {
+      setNewTaskDay(day);
+      setNewTaskTitle(title);
+      setEdit(null);
+      setQuickCreateDay(null);
+      setQuickCreateTitle("");
+      setOpen(true);
+      return;
+    }
+    const workspaceId = viewedWorkspaceId || activeWorkspace?.id;
+    if (!workspaceId) {
+      toast.error("Selecione o ambiente antes de criar a tarefa.");
+      return;
+    }
+    quickCreatingRef.current = true;
+    setQuickCreating(true);
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const taskQueryKey = ["tasks", user.id, activeWorkspace?.id ?? null, viewedWorkspaceId ?? null] as const;
+    const optimisticTask: Task = {
+      id,
+      title,
+      description: null,
+      status: "todo",
+      status_id: statuses.find((status) => !status.is_completed)?.id ?? null,
+      priority: "medium",
+      due_date: new Date(`${day}T12:00:00`).toISOString(),
+      due_time: null,
+      assignee_id: user.id,
+      assigned_by: null,
+      assigned_at: null,
+      client_id: clientCalendar ? clientId ?? null : null,
+      column_id: null,
+      position: 0,
+      color: null,
+      completed_at: null,
+      created_by: user.id,
+      tag_id: null,
+      objective_id: null,
+      deleted_at: null,
+      deleted_by: null,
+      archived_at: null,
+      archived_reason: null,
+      created_at: now,
+      updated_at: now,
+      card_width: null,
+      workspace_id: workspaceId,
+      is_draft: false,
+    };
+    try {
+      await queryClient.cancelQueries({ queryKey: taskQueryKey });
+      queryClient.setQueryData<Task[]>(taskQueryKey, (current = []) => [optimisticTask, ...current]);
+      setPendingQuickTaskId(id);
+      setQuickCreateDay(null);
+      setQuickCreateTitle("");
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token || session.user.id !== user.id) throw new Error("Sua sessão expirou. Entre novamente para criar a tarefa.");
+      const url = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+      const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+      if (!url || !key) throw new Error("A conexão com o Supabase não está configurada.");
+      const client = createClient<Database>(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: { headers: { Authorization: `Bearer ${session.access_token}` } },
+      });
+      const { data: saved, error } = await client.from("tasks").insert({
+        id,
+        title,
+        due_date: optimisticTask.due_date,
+        workspace_id: workspaceId,
+        created_by: user.id,
+        assignee_id: user.id,
+        client_id: clientCalendar ? clientId ?? null : null,
+        status: "todo",
+        status_id: optimisticTask.status_id,
+        priority: "medium",
+        is_draft: false,
+      }).select("*").single();
+      if (error) throw error;
+      if (!saved) throw new Error("Não foi possível carregar a tarefa criada.");
+      queryClient.setQueryData<Task[]>(taskQueryKey, (current = []) =>
+        current.some((task) => task.id === id)
+          ? current.map((task) => task.id === id ? saved as Task : task)
+          : [saved as Task, ...current],
+      );
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      setEdit(saved as Task);
+      setOpen(true);
+    } catch (error) {
+      queryClient.setQueryData<Task[]>(taskQueryKey, (current = []) =>
+        current.filter((task) => task.id !== id),
+      );
+      setQuickCreateDay(day);
+      setQuickCreateTitle(title);
+      toast.error(error instanceof Error ? error.message : "Não foi possível criar a tarefa.");
+    } finally {
+      quickCreatingRef.current = false;
+      setQuickCreating(false);
+      setPendingQuickTaskId(null);
+    }
   };
 
   const completeTask = async (selectedTask: Task, completionDate: string) => {
@@ -592,6 +719,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
                   key={day.toISOString()}
                   day={day}
                   onCreate={canReschedule ? () => createOnDay(day) : undefined}
+                  clickToCreate={marketingCalendar}
                   disabled={!canReschedule || Boolean(reschedule) || savingDate}
                   className={`${calendarView === "week" ? "min-h-[26rem]" : "min-h-28"} border-b border-r p-2 ${inMonth ? "" : "bg-muted/20 text-muted-foreground"}`}
                 >
@@ -602,35 +730,56 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
                       {format(day, "d")}
                     </div>
                     <CalendarOccasionMarkers occasions={calendarOccasionsForDay(day, visibleDates, clientNames)} />
+                    {marketingCalendar && canReschedule && <button type="button" className="ml-auto grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-primary/10 hover:text-primary" title={`Criar tarefa em ${format(day, "dd/MM/yyyy")}`} aria-label={`Criar tarefa em ${format(day, "dd/MM/yyyy")}`} onClick={() => createOnDay(day)}><Plus className="h-3.5 w-3.5" /></button>}
                   </div>
+                  {marketingCalendar && quickCreateDay === format(day, "yyyy-MM-dd") && (
+                    <input
+                      autoFocus
+                      value={quickCreateTitle}
+                      disabled={quickCreating}
+                      onChange={(event) => setQuickCreateTitle(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") { event.preventDefault(); void createQuickTask(); }
+                        if (event.key === "Escape") { event.preventDefault(); setQuickCreateDay(null); setQuickCreateTitle(""); }
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                      placeholder={quickCreating ? "Criando…" : "Nome da tarefa ↵"}
+                      aria-label={`Nome da nova tarefa em ${format(day, "dd/MM/yyyy")}`}
+                      className="mb-1 w-full rounded border border-primary bg-background px-2 py-1 text-xs outline-none ring-2 ring-primary/20"
+                    />
+                  )}
                   <div className="space-y-1">
                     {entries.slice(0, 3).map((entry) => {
                       const task = entry.task;
+                      const savingQuickTask = task.id === pendingQuickTaskId;
                       const status = statusById.get(task.status_id ?? "");
                       const assignee = profileById.get(task.assignee_id ?? "") ?? null;
-                      const clientColor = clientById.get(task.client_id ?? "")?.color || "#475569";
+                      const clientColor = clientById.get(task.client_id ?? "")?.color || (marketingCalendar ? (task.client_id ? "#e2e8f0" : "#ffffff") : "#475569");
                       const onClick = () => {
+                        if (savingQuickTask) return;
                         setEdit(task);
                         setOpen(true);
                       };
                       return entry.kind === "subtask" ? (
-                        <CalendarSubtaskItem key={entry.subtask.id} task={task} subtask={entry.subtask} profiles={profileById} onOpen={onClick} standalone />
+                        <CalendarSubtaskItem key={entry.subtask.id} task={task} subtask={entry.subtask} profiles={profileById} onOpen={onClick} standalone marketingStyle={marketingCalendar} />
                       ) : (
-                        <CalendarTaskGroup key={task.id} task={task} subtasks={entry.subtasks} profiles={profileById} onOpen={onClick}>
+                        <CalendarTaskGroup key={task.id} task={task} subtasks={entry.subtasks} profiles={profileById} onOpen={onClick} marketingStyle={marketingCalendar}>
                         <DraggableCalendarTaskItem
                           titleOnly={clientCalendar}
-                          disabled={!canReschedule || Boolean(reschedule) || savingDate}
+                          disabled={!canReschedule || Boolean(reschedule) || savingDate || savingQuickTask}
                           task={task}
+                          saving={savingQuickTask}
+                          marketingStyle={marketingCalendar}
                           pinned={pinnedIds.has(task.id)}
                           onCreate={canReschedule ? () => createOnDay(day) : undefined}
-                          onTogglePin={canPin ? () => setPinned(task.id, !pinnedIds.has(task.id)) : undefined}
+                          onTogglePin={canPin && !savingQuickTask ? () => setPinned(task.id, !pinnedIds.has(task.id)) : undefined}
                           assignee={assignee}
                           statusName={status?.name ?? stageNameByTaskId.get(task.id) ?? "A fazer"}
                           completed={task.status === "done" || Boolean(status?.is_completed)}
                           statusColor={status?.color || "#64748b"}
                           backgroundColor={clientColor}
                           onClick={onClick}
-                          onComplete={canComplete && !completingTaskId && !reschedule ? () => startCompletion(task) : undefined}
+                          onComplete={canComplete && !savingQuickTask && !completingTaskId && !reschedule ? () => startCompletion(task) : undefined}
                         />
                         </CalendarTaskGroup>
                       );
@@ -661,6 +810,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
                 <CalendarTaskItem
                   titleOnly={clientCalendar}
                   task={draggedTask}
+                  marketingStyle={marketingCalendar}
                   pinned={pinnedIds.has(draggedTask.id)}
                   assignee={profileById.get(draggedTask.assignee_id ?? "") ?? null}
                   statusName={statusById.get(draggedTask.status_id ?? "")?.name ?? "A fazer"}
@@ -669,7 +819,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
                     Boolean(statusById.get(draggedTask.status_id ?? "")?.is_completed)
                   }
                   statusColor={statusById.get(draggedTask.status_id ?? "")?.color || "#64748b"}
-                  backgroundColor={clientById.get(draggedTask.client_id ?? "")?.color || "#475569"}
+                  backgroundColor={clientById.get(draggedTask.client_id ?? "")?.color || (marketingCalendar ? (draggedTask.client_id ? "#e2e8f0" : "#ffffff") : "#475569")}
                   onClick={() => undefined}
                 />
               ) : null}
@@ -766,21 +916,25 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
             {selectedDayEntries.map((entry) => {
               const task = entry.task;
+              const savingQuickTask = task.id === pendingQuickTaskId;
               const status = statusById.get(task.status_id ?? "");
               const assignee = profileById.get(task.assignee_id ?? "") ?? null;
-              const clientColor = clientById.get(task.client_id ?? "")?.color || "#475569";
+              const clientColor = clientById.get(task.client_id ?? "")?.color || (marketingCalendar ? (task.client_id ? "#e2e8f0" : "#ffffff") : "#475569");
               const onClick = () => {
+                if (savingQuickTask) return;
                 setDayListOpen(false);
                 setEdit(task);
                 setOpen(true);
               };
               return entry.kind === "subtask" ? (
-                <CalendarSubtaskItem key={entry.subtask.id} task={task} subtask={entry.subtask} profiles={profileById} onOpen={onClick} expanded standalone />
+                <CalendarSubtaskItem key={entry.subtask.id} task={task} subtask={entry.subtask} profiles={profileById} onOpen={onClick} expanded standalone marketingStyle={marketingCalendar} />
               ) : (
-                <CalendarTaskGroup key={task.id} task={task} subtasks={entry.subtasks} profiles={profileById} onOpen={onClick} expanded>
+                <CalendarTaskGroup key={task.id} task={task} subtasks={entry.subtasks} profiles={profileById} onOpen={onClick} expanded marketingStyle={marketingCalendar}>
                 <CalendarTaskItem
                   titleOnly={clientCalendar}
                   task={task}
+                  saving={savingQuickTask}
+                  marketingStyle={marketingCalendar}
                   pinned={pinnedIds.has(task.id)}
                   onCreate={canReschedule && selectedDay ? () => { setDayListOpen(false); createOnDay(selectedDay); } : undefined}
                   onTogglePin={canPin ? () => setPinned(task.id, !pinnedIds.has(task.id)) : undefined}
@@ -791,7 +945,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
                   backgroundColor={clientColor}
                   expanded
                   onClick={onClick}
-                  onComplete={canComplete && !completingTaskId && !reschedule ? () => {
+                  onComplete={canComplete && !savingQuickTask && !completingTaskId && !reschedule ? () => {
                     setDayListOpen(false);
                     startCompletion(task);
                   } : undefined}
@@ -807,7 +961,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
         onOpenChange={(nextOpen) => { if (!nextOpen && !completingTask.current) setCompletionTask(null); }}
         onConfirm={(date) => completionTask ? completeTask(completionTask, date) : undefined}
       />
-      <TaskDialog open={open} onOpenChange={setOpen} task={edit} defaults={{ dueDate: newTaskDay, clientId: clientCalendar ? clientId : undefined }} />
+      <TaskDialog open={open} onOpenChange={setOpen} task={edit} defaultWorkspaceId={viewedWorkspaceId} defaults={{ title: newTaskTitle, dueDate: newTaskDay, clientId: clientCalendar ? clientId : undefined }} />
     </div>
   );
 }
@@ -859,12 +1013,14 @@ const calendarKeyboardCoordinates: KeyboardCoordinateGetter = (
 function CalendarDay({
   day,
   onCreate,
+  clickToCreate,
   disabled,
   className,
   children,
 }: {
   day: Date;
   onCreate?: () => void;
+  clickToCreate?: boolean;
   disabled: boolean;
   className: string;
   children: ReactNode;
@@ -879,6 +1035,11 @@ function CalendarDay({
     <div
       ref={setNodeRef}
       data-calendar-date={date}
+      onClick={clickToCreate && onCreate ? (event) => {
+        if (!(event.target instanceof Element) || event.target.closest("button, a, input, select, textarea, [role='button']")) return;
+        onCreate();
+      } : undefined}
+      title={clickToCreate && onCreate ? "Clique no espaço vazio para criar uma tarefa" : undefined}
       className={`${className} ${isOver ? "bg-primary/10 ring-2 ring-inset ring-primary/60" : ""}`}
     >
       {children}
@@ -905,6 +1066,8 @@ function DraggableCalendarTaskItem({
 
 function CalendarTaskItem({
   task,
+  saving = false,
+  marketingStyle = false,
   titleOnly = false,
   pinned = false,
   assignee,
@@ -920,6 +1083,8 @@ function CalendarTaskItem({
   drag,
 }: {
   task: Task;
+  saving?: boolean;
+  marketingStyle?: boolean;
   titleOnly?: boolean;
   pinned?: boolean;
   assignee: Profile | null;
@@ -953,22 +1118,25 @@ function CalendarTaskItem({
       {...drag?.attributes}
       {...drag?.listeners}
       onClick={onClick}
-      className={`relative flex w-full min-w-0 items-center gap-1.5 rounded-md border text-left shadow-sm transition hover:-translate-y-px hover:shadow ${
-        expanded ? "px-2 py-2" : "px-1 py-1"
-      } ${onComplete && !completed && !titleOnly ? "pr-7" : ""} ${drag ? "cursor-grab active:cursor-grabbing touch-manipulation" : ""} ${drag?.isDragging ? "opacity-35" : ""} ${completed ? "border-emerald-500 bg-emerald-100 text-emerald-950 ring-1 ring-emerald-300/80" : "hover:brightness-105"}`}
+      aria-busy={saving}
+      className={`relative flex w-full min-w-0 items-center gap-1.5 border text-left transition ${
+        marketingStyle
+          ? `rounded-full pl-8 pr-2 shadow-sm saturate-125 hover:-translate-y-px hover:brightness-110 hover:saturate-150 hover:shadow-md group-hover/calendar-complete:-translate-y-px group-hover/calendar-complete:brightness-110 group-hover/calendar-complete:saturate-150 group-hover/calendar-complete:shadow-md ${expanded ? "min-h-9 py-1" : "h-9 py-0"}`
+          : `rounded-md shadow-sm hover:-translate-y-px hover:shadow ${expanded ? "px-2 py-2" : "px-1 py-1"}`
+      } ${!marketingStyle && onComplete && !completed && !titleOnly ? "pr-7" : ""} ${marketingStyle && !task.client_id && !completed ? "border-2 border-dashed" : ""} ${drag ? "cursor-grab active:cursor-grabbing touch-manipulation" : ""} ${drag?.isDragging ? "opacity-35" : ""} ${completed ? marketingStyle ? "border-emerald-500 bg-emerald-200 text-emerald-950 ring-1 ring-emerald-400/80" : "border-emerald-500 bg-emerald-100 text-emerald-950 ring-1 ring-emerald-300/80" : marketingStyle ? "" : "hover:brightness-105"}`}
       style={
         completed
           ? undefined
           : {
               backgroundColor,
-              borderColor: backgroundColor,
+              borderColor: marketingStyle && !task.client_id ? "#94a3b8" : backgroundColor,
               color: textColor,
             }
       }
-      title={`${task.is_draft ? "Em elaboração" : completed ? "Concluída" : statusName} · ${assigneeName} · ${task.title}`}
+      title={`${saving ? "Salvando" : task.is_draft ? "Em elaboração" : completed ? "Concluída" : statusName} · ${assigneeName} · ${task.title}`}
     >
       {!titleOnly && pinned && !completed && <CalendarTaskPin />}
-      {!titleOnly && <Avatar
+      {!titleOnly && !marketingStyle && <Avatar
         className={`${expanded ? "h-7 w-7" : "h-5 w-5"} shrink-0 border border-white/70 shadow-sm`}
       >
         <AvatarImage src={assignee?.avatar_url || undefined} alt={assigneeName} />
@@ -981,12 +1149,12 @@ function CalendarTaskItem({
       </Avatar>}
       {!titleOnly && completed ? (
         <CheckCircle2
-          className={`${expanded ? "h-4 w-4" : "h-3.5 w-3.5"} shrink-0 text-emerald-700`}
+          className={`${marketingStyle ? "absolute left-2 h-4 w-4" : expanded ? "h-4 w-4" : "h-3.5 w-3.5"} shrink-0 text-emerald-700`}
           aria-label="Tarefa concluída"
         />
       ) : null}
       <span
-        className={`min-w-0 flex-1 truncate font-semibold ${expanded ? "text-sm" : "text-[11px]"} ${completed ? "line-through decoration-2 decoration-emerald-700/80" : ""}`}
+        className={`min-w-0 flex-1 ${marketingStyle ? "line-clamp-2 text-xs font-semibold leading-[14px]" : "truncate font-semibold"} ${expanded && !marketingStyle ? "text-sm" : !marketingStyle ? "text-[11px]" : ""} ${completed ? "line-through decoration-2 decoration-emerald-700/80" : ""}`}
       >
         {!titleOnly && task.is_draft ? "Em elaboração · " : ""}
         {task.title}
@@ -1015,22 +1183,25 @@ function CalendarTaskItem({
     </ContextMenu>
   );
   if (!onComplete || completed || titleOnly) return card;
-  return (
-    <div className="group/calendar-complete relative min-w-0">
-      {card}
-      <button
+  const completeControl = (
+    <button
         type="button"
         aria-label={`Concluir tarefa ${task.title}`}
-        title="Concluir tarefa"
-        className="absolute right-1 top-1/2 z-10 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 opacity-0 shadow-sm transition-opacity hover:bg-emerald-100 focus:opacity-100 group-hover/calendar-complete:opacity-100 [@media(hover:none)]:opacity-100"
+        title={marketingStyle ? undefined : "Concluir tarefa"}
+        className={`${marketingStyle ? `left-1.5 h-5 w-5 border-transparent bg-transparent opacity-70 group-hover/calendar-complete:scale-110 group-hover/calendar-complete:border-emerald-600 group-hover/calendar-complete:bg-emerald-500 group-hover/calendar-complete:text-white group-hover/calendar-complete:opacity-100 group-hover/calendar-complete:shadow-md focus:border-emerald-600 focus:bg-emerald-500 focus:text-white ${textColor === "#ffffff" ? "text-white/80" : "text-slate-800/70"}` : "right-1 h-5 w-5 border-emerald-300 bg-emerald-50 text-emerald-700 opacity-0 shadow-sm hover:bg-emerald-100 group-hover/calendar-complete:opacity-100 [@media(hover:none)]:opacity-100"} absolute top-1/2 z-10 grid -translate-y-1/2 place-items-center rounded-full border transition-all focus:opacity-100`}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
           onComplete();
         }}
       >
-        <CheckCircle2 className="h-3.5 w-3.5" />
+        {marketingStyle ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <CheckCircle2 className="h-3.5 w-3.5" />}
       </button>
+  );
+  return (
+    <div className="group/calendar-complete relative min-w-0">
+      {card}
+      {marketingStyle ? <TooltipProvider delayDuration={150}><Tooltip><TooltipTrigger asChild>{completeControl}</TooltipTrigger><TooltipContent side="top" className="bg-zinc-900 text-white">Marcar a tarefa concluída</TooltipContent></Tooltip></TooltipProvider> : completeControl}
     </div>
   );
 }

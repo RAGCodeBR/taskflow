@@ -7,7 +7,7 @@ import {
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES).toHaveLength(19);
+    expect(APP_UPDATES).toHaveLength(22);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -23,25 +23,20 @@ describe("application release catalogue", () => {
     expect(dates).toEqual([...dates].sort().reverse());
   });
 
-  it.each(["marketing", "consultoria"])(
-    "uses the latest visible release as the version in %s",
-    (workspace) => {
-      const updates = getVisibleAppUpdates(false, workspace);
-      expect(updates).toHaveLength(5);
-      expect(updates.map((update) => update.id)).toEqual([
-        "tarefas-da-pauta-vinculadas-e-acessiveis-2026-10-22",
-        "anexos-visiveis-nas-subtarefas-recolhidas-2026-10-19",
-        "miniaturas-dos-arquivos-das-subtarefas-2026-10-19",
-        "imagens-arrastadas-para-subtarefas-2026-10-19",
-        "atualizacao-automatica-segura-2026-10-19",
-      ]);
-      expect(updates[0].preview).toBe("meeting-agenda-tasks");
-      expect(getVisibleAppUpdates(true, workspace)[0].id).toBe(
-        "tarefas-da-pauta-vinculadas-e-acessiveis-2026-10-22",
-      );
-      expect(updates.every((update) => update.audience === "all")).toBe(true);
-    },
-  );
+  it("shows the shared fixes to everyone and the enhanced editor to Marketing and the Consultoria owner", () => {
+    const marketing = getVisibleAppUpdates(false, "marketing");
+    const consultoria = getVisibleAppUpdates(false, "consultoria");
+    const ownerMarketing = getVisibleAppUpdates(true, "marketing", "reinangrupoahouse@gmail.com");
+    const ownerConsultoria = getVisibleAppUpdates(true, "consultoria", "reinangrupoahouse@gmail.com");
+    expect(marketing).toHaveLength(5);
+    expect(consultoria).toHaveLength(5);
+    expect(marketing[0].id).toBe("lista-com-status-e-lixeira-2026-10-22");
+    expect(consultoria[0].id).toBe(marketing[0].id);
+    expect(marketing.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(true);
+    expect(consultoria.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(false);
+    expect(ownerMarketing[1].id).toBe("painel-lateral-de-criacao-marketing-2026-10-22");
+    expect(ownerConsultoria[1].preview).toBe("marketing-create-side-panel");
+  });
 
   it("removes older history entries from the release catalogue", () => {
     expect(APP_UPDATES.some((update) => update.date < "2026-10-14")).toBe(false);

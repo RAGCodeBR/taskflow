@@ -55,9 +55,10 @@ function TasksLayout() {
     { to: "/tasks/list", label: "Lista", icon: ListIcon },
     { to: "/tasks/calendar", label: "Calendário", icon: CalIcon },
   ] as const;
+  const compactToolbar = pathname.startsWith("/tasks/list");
   return (
     <div className="flex flex-col">
-      <div className="sticky top-0 z-30 flex min-w-0 flex-wrap items-center gap-3 border-b bg-background/95 px-4 py-2.5 backdrop-blur sm:px-6">
+      <div className={`sticky top-0 z-30 flex min-w-0 flex-wrap items-center border-b bg-background/95 px-4 backdrop-blur sm:px-6 ${compactToolbar ? "gap-2 py-1.5" : "gap-3 py-2.5"}`}>
         <div className="relative w-full sm:w-80 lg:w-[28rem]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -66,7 +67,7 @@ function TasksLayout() {
             onChange={(event) => setTaskSearch(event.target.value)}
             placeholder="Buscar tarefa pelo título..."
             aria-label="Buscar tarefas pelo título"
-            className="pl-9 pr-9"
+            className={`${compactToolbar ? "h-9 " : ""}pl-9 pr-9`}
           />
           {taskSearch && (
             <Button

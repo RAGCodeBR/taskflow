@@ -38,6 +38,21 @@ describe("task edits by participants", () => {
     expect(taskEditPatch(task, { description: null })).toEqual({ description: null });
   });
 
+  it("saves image-only changes in a Marketing description", () => {
+    const withPrint = `<p>Texto original</p><img src="taskflow-attachment://print-1" data-task-attachment-id="print-1">`;
+    expect(taskEditPatch(task, { description: withPrint }, { preserveDescriptionImages: true }))
+      .toEqual({ description: withPrint });
+    expect(taskEditPatch({ ...task, description: withPrint }, { description: "<p>Texto original</p>" }, { preserveDescriptionImages: true }))
+      .toEqual({ description: "<p>Texto original</p>" });
+  });
+
+  it("keeps hidden inline prints when a Consultoria participant edits the visible text", () => {
+    const image = '<img src="taskflow-attachment://print-1" data-task-attachment-id="print-1">';
+    const original = { ...task, description: `<p>Antes</p>${image}` };
+    expect(taskEditPatch(original, { description: "<p>Depois</p>" }))
+      .toEqual({ description: `<p>Depois</p>${image}` });
+  });
+
   it("preserves completion time unless its date or completion status actually changes", () => {
     const completed = { ...task, status: "done", completed_at: "2026-10-12T13:00:00Z" } as Task;
     expect(

@@ -75,7 +75,6 @@ export async function deleteTaskWithOfflineSupport({
     deleted_at: new Date().toISOString(),
     deleted_by: userId,
   };
-  queryClient.setQueryData<Task[]>(["tasks"], (current = []) => current.filter((item) => item.id !== task.id));
   const baseValues = Object.fromEntries(Object.keys(patch).map((key) => [key, task[key as keyof Task]]));
   await enqueueOfflineOperation({
     userId,
@@ -86,6 +85,9 @@ export async function deleteTaskWithOfflineSupport({
     baseUpdatedAt: task.updated_at ?? null,
     baseValues,
   });
+  queryClient.setQueriesData<Task[]>({ queryKey: ["tasks"] }, (current) =>
+    Array.isArray(current) ? current.filter((item) => item.id !== task.id) : current,
+  );
   return { queued: wasOffline };
 }
 

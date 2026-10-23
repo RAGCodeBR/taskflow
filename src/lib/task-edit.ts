@@ -11,14 +11,20 @@ const descriptionText = (value: string | null | undefined) =>
     /<img\b[^>]*(?:data-taskflow-pending-id|data-task-attachment-id|src="taskflow-attachment:\/\/)[^>]*>/gi,
     "",
   );
+const storedImages = (value: string | null | undefined) =>
+  (value ?? "").match(/<img\b[^>]*(?:data-task-attachment-id|src=["']taskflow-attachment:\/\/)[^>]*>/gi) ?? [];
 
 /** A description edit must not resend the old deadline (or other untouched fields). */
-export function taskEditPatch(original: Task, form: Partial<Task>): Partial<Task> {
+export function taskEditPatch(
+  original: Task,
+  form: Partial<Task>,
+  options: { preserveDescriptionImages?: boolean } = {},
+): Partial<Task> {
   const patch: Partial<Task> = {};
   const originalStatus = original.completed_at ? "done" : (original.status ?? "todo");
   for (const key of Object.keys(form) as (keyof Task)[]) {
     let unchanged = form[key] === original[key];
-    if (key === "description")
+    if (key === "description" && !options.preserveDescriptionImages)
       unchanged = descriptionText(form.description) === descriptionText(original.description);
     if (key === "due_date" || key === "completed_at")
       unchanged = day(form[key]) === day(original[key]);
@@ -27,7 +33,14 @@ export function taskEditPatch(original: Task, form: Partial<Task>): Partial<Task
     if (key === "status") unchanged = form.status === originalStatus;
     // The form groups open statuses together; editing text must not select a different one.
     if (key === "status_id" && form.status === originalStatus) unchanged = true;
-    if (!unchanged) Object.assign(patch, { [key]: form[key] });
+    if (!unchanged) {
+      if (key === "description" && !options.preserveDescriptionImages &&
+        storedImages(original.description).length && !storedImages(form.description).length) {
+        // The classic Consultoria editor hides inline Marketing prints. Preserve
+        // their stored attachment references when its visible text is edited.
+        Object.assign(patch, { description: `${form.description ?? ""}${storedImages(original.description).join("")}` });
+      } else Object.assign(patch, { [key]: form[key] });
+    }
   }
   return patch;
 }

@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,6 +54,8 @@ import {
   ImageIcon,
   Pencil,
   LockKeyhole,
+  Check,
+  UsersRound,
 } from "lucide-react";
 import { format } from "date-fns";
 import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
@@ -64,6 +67,12 @@ import {
   syncTaskAttachmentToClient,
 } from "@/lib/sync-task-attachment-to-client";
 import { RichTextEditor, type PastedEditorImage } from "@/components/RichTextEditor";
+import {
+  attachImagesToDescription,
+  pendingDescriptionImageIds,
+  stripPendingDescriptionImages,
+  stripStoredDescriptionImages,
+} from "@/lib/task-description-images";
 import { FieldLinks, LinkedText } from "@/components/LinkedText";
 import { SubtaskDialog, type EditableSubtask, type EditableSubtaskAttachment } from "@/components/SubtaskDialog";
 import {
@@ -76,6 +85,7 @@ import { enqueueOfflineOperation, isNetworkFailure, isOffline, listOfflineOperat
 import { persistTaskEdit, taskEditError, taskEditPatch } from "@/lib/task-edit";
 import { taskCollaboratorChanges } from "@/lib/task-collaborator-changes";
 import { useRecordTaskCardOpen } from "@/hooks/use-task-card-activity";
+import { hasMarketingTaskExperience } from "@/lib/environment-access";
 import { TaskCardOpenings, TaskPinButton } from "@/components/TaskCardActivity";
 import { groupSubtaskAttachments } from "@/lib/subtask-attachment-groups";
 
@@ -84,6 +94,7 @@ interface Props {
   onOpenChange: (o: boolean) => void;
   task?: Task | null;
   defaultColumnId?: string | null;
+  defaultWorkspaceId?: string;
   recurringMeetingAgendaItemId?: string | null;
   fixedClientId?: string | null;
   fixedClientName?: string | null;
@@ -108,6 +119,20 @@ interface Subtask extends EditableSubtask {
   assignee_id: string | null;
   notes: string | null;
   completed_at: string | null;
+}
+interface PendingMarketingSubtask {
+  id: string;
+  title: string;
+  done: boolean;
+  dueDate: string;
+  assigneeId: string;
+  notes: string;
+}
+interface PendingSubtaskImage {
+  id: string;
+  file: File;
+  previewUrl: string;
+  inline: boolean;
 }
 interface SubtaskAttachment {
   id: string;
@@ -213,9 +238,6 @@ const LINK_MIME = "text/uri-list";
 const COMPLETED_STATUS_VALUE = "__completed__";
 const storageObjectName = () => `arquivo-${Date.now()}-${crypto.randomUUID()}`;
 const isImageAttachment = (file: File) => file.type.startsWith("image/");
-const stripDescriptionPrintImages = (html: string) =>
-  html.replace(/<img\b[^>]*(?:data-taskflow-pending-id|data-task-attachment-id|src="taskflow-attachment:\/\/)[^>]*>/gi, "");
-
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -225,12 +247,16 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
  */
 function AssigneeOption({
   profile,
+  showAvatar = false,
 }: {
-  profile: { full_name: string | null; email: string | null };
+  profile: { full_name: string | null; email: string | null; avatar_url?: string | null };
+  showAvatar?: boolean;
 }) {
+  const name = profile.full_name || profile.email || "Usuário sem nome";
   return (
-    <span className="min-w-0 truncate">
-      {profile.full_name || profile.email || "Usuário sem nome"}
+    <span className="inline-flex min-w-0 items-center gap-2">
+      {showAvatar && <Avatar className="h-5 w-5 shrink-0"><AvatarImage src={profile.avatar_url || undefined} alt={name} /><AvatarFallback className="text-[9px]">{name.slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>}
+      <span className="truncate">{name}</span>
     </span>
   );
 }
@@ -240,37 +266,39 @@ export function TaskDialog({
   onOpenChange,
   task,
   defaultColumnId,
+  defaultWorkspaceId,
   recurringMeetingAgendaItemId,
   fixedClientId,
   fixedClientName,
   overlayClassName,
   defaults,
 }: Props) {
-  const meetingClientLocked = Boolean(recurringMeetingAgendaItemId) || fixedClientId !== undefined;
+  const meetingClientLocked = fixedClientId !== undefined;
   const meetingClientId = meetingClientLocked ? fixedClientId ?? null : null;
   const qc = useQueryClient();
   const { user, profile, isAdmin, activeWorkspace, workspaces } = useAuth();
   const { data: cols } = useColumns();
   const { data: clients } = useClients();
   const { data: profiles } = useProfiles();
-  const [targetWorkspaceId, setTargetWorkspaceId] = useState<string>("");
+  const [targetWorkspaceId, setTargetWorkspaceId] = useState<string>(defaultWorkspaceId ?? "");
   // Ao lançar a tarefa em outro ambiente, só as pessoas de lá podem assumi-la.
   const { data: assignableProfiles = [] } = useAssignableProfiles(
-    targetWorkspaceId || activeWorkspace?.id,
+    targetWorkspaceId || defaultWorkspaceId || activeWorkspace?.id,
   );
   const { data: statuses = [] } = useTaskStatuses();
   const { data: marketingCategories = [] } = useTaskTags(
-    targetWorkspaceId || activeWorkspace?.id,
+    targetWorkspaceId || defaultWorkspaceId || activeWorkspace?.id,
   );
   const { data: marketingObjectives = [] } = useTaskObjectives();
   const targetWorkspace = useMemo(
     () =>
-      workspaces.find((workspace) => workspace.id === (targetWorkspaceId || activeWorkspace?.id)) ??
+      workspaces.find((workspace) => workspace.id === (task?.workspace_id || targetWorkspaceId || defaultWorkspaceId || activeWorkspace?.id)) ??
       activeWorkspace ??
       null,
-    [activeWorkspace, targetWorkspaceId, workspaces],
+    [activeWorkspace, defaultWorkspaceId, targetWorkspaceId, task?.workspace_id, workspaces],
   );
-  const isMarketingTask = targetWorkspace?.slug === "marketing";
+  const isMarketingTask = hasMarketingTaskExperience(targetWorkspace?.slug, user?.email);
+  const isMarketingPanel = isMarketingTask;
   // Conclusão é uma situação da tarefa, não uma coluna adicional. Há uma
   // coluna antiga chamada “Concluído” no quadro; sem este filtro ela aparece
   // junto da opção real de concluir e duplica o seletor do formulário.
@@ -321,6 +349,13 @@ export function TaskDialog({
   const conversationSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [pendingMarketingSubtasks, setPendingMarketingSubtasks] = useState<PendingMarketingSubtask[]>([]);
+  const [activePendingSubtaskId, setActivePendingSubtaskId] = useState<string | null>(null);
+  const [editingPendingSubtaskId, setEditingPendingSubtaskId] = useState<string | null>(null);
+  const [pendingSubtaskImages, setPendingSubtaskImages] = useState<Record<string, PendingSubtaskImage[]>>({});
+  const pendingSubtaskImagesRef = useRef<Record<string, PendingSubtaskImage[]>>({});
+  const pendingSubtaskNotesRef = useRef<Record<string, string>>({});
+  const uploadedSubtaskImagesRef = useRef<Record<string, string>>({});
   const [newSubtask, setNewSubtask] = useState("");
   const [newSubtaskDue, setNewSubtaskDue] = useState("");
   const [newSubtaskAssignee, setNewSubtaskAssignee] = useState<string>("");
@@ -344,7 +379,10 @@ export function TaskDialog({
   const [newComment, setNewComment] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [pendingDescriptionImages, setPendingDescriptionImages] = useState<PastedEditorImage[]>([]);
+  const uploadedDescriptionImageIdsRef = useRef(new Map<string, string>());
+  const storedDescriptionImagePreviewsRef = useRef(new Map<string, string>());
   const [descriptionImagesUploading, setDescriptionImagesUploading] = useState(false);
+  const [showMarketingExtra, setShowMarketingExtra] = useState(false);
   const [fileUploadProgress, setFileUploadProgress] = useState<{
     current: number;
     total: number;
@@ -417,11 +455,55 @@ export function TaskDialog({
     (task?.created_by === user?.id ? profile?.full_name || user?.email : null) ||
     "Usuário não identificado";
 
+  const updatePendingSubtaskImages = (next: Record<string, PendingSubtaskImage[]>) => {
+    pendingSubtaskImagesRef.current = next;
+    setPendingSubtaskImages(next);
+  };
+  const clearPendingSubtaskImages = () => {
+    Object.values(pendingSubtaskImagesRef.current).flat().forEach((image) => { if (image.previewUrl) URL.revokeObjectURL(image.previewUrl); });
+    updatePendingSubtaskImages({});
+    pendingSubtaskNotesRef.current = {};
+    uploadedSubtaskImagesRef.current = {};
+  };
+  const removePendingSubtaskImage = (subtaskId: string, imageId: string) => {
+    const current = pendingSubtaskImagesRef.current;
+    const image = current[subtaskId]?.find((item) => item.id === imageId);
+    if (image?.previewUrl) URL.revokeObjectURL(image.previewUrl);
+    updatePendingSubtaskImages({ ...current, [subtaskId]: (current[subtaskId] ?? []).filter((item) => item.id !== imageId) });
+  };
+  const addPendingSubtaskEditorImages = (subtaskId: string, images: PastedEditorImage[]) => {
+    const accepted = images.filter((image) => isImageAttachment(image.file) && !isTaskAttachmentTooLarge(image.file));
+    if (accepted.length !== images.length) toast.error(`Alguns prints ultrapassam o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
+    if (!accepted.length) return;
+    updatePendingSubtaskImages({
+      ...pendingSubtaskImagesRef.current,
+      [subtaskId]: [...(pendingSubtaskImagesRef.current[subtaskId] ?? []), ...accepted.map((image) => ({ id: image.id, file: image.file, previewUrl: image.src, inline: true }))],
+    });
+  };
+  const addPendingSubtaskFiles = (subtaskId: string, files: FileList | null) => {
+    if (!files) return;
+    const accepted = Array.from(files).filter((file) => {
+      if (!isTaskAttachmentTooLarge(file)) return true;
+      toast.error(`${file.name} ultrapassa ${MAX_TASK_ATTACHMENT_LABEL}.`);
+      return false;
+    });
+    if (!accepted.length) return;
+    updatePendingSubtaskImages({
+      ...pendingSubtaskImagesRef.current,
+      [subtaskId]: [...(pendingSubtaskImagesRef.current[subtaskId] ?? []), ...accepted.map((file) => ({ id: crypto.randomUUID(), file, previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : "", inline: false }))],
+    });
+  };
+
   useEffect(() => {
     if (!open) {
+      clearPendingSubtaskImages();
+      pendingDescriptionImages.forEach((image) => URL.revokeObjectURL(image.src));
+      storedDescriptionImagePreviewsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      storedDescriptionImagePreviewsRef.current.clear();
       initializedFormRef.current = null;
       return;
     }
+    if (task?.workspace_id && workspaces.length === 0) return;
     const formKey = task?.id ?? "new";
     if (initializedFormRef.current === formKey) return;
     initializedFormRef.current = formKey;
@@ -431,10 +513,16 @@ export function TaskDialog({
     setClientSearch("");
     setEditingSubtaskId(null);
     setSubtaskTitleDraft("");
+    setShowMarketingExtra(false);
+    setPendingMarketingSubtasks([]);
+    setActivePendingSubtaskId(null);
+    setEditingPendingSubtaskId(null);
+    clearPendingSubtaskImages();
+    uploadedDescriptionImageIdsRef.current.clear();
     if (task) {
       setIsDraft(Boolean(task.is_draft));
       setTitle(task.title);
-      setDescription(stripDescriptionPrintImages(task.description ?? ""));
+      setDescription(isMarketingTask ? task.description ?? "" : stripStoredDescriptionImages(task.description ?? ""));
       setStatus(task.status === "done" || task.completed_at ? "done" : (task.status ?? "todo"));
       setPriority(task.priority);
       setCategoryId(task.tag_id ?? "");
@@ -462,7 +550,7 @@ export function TaskDialog({
       setPriority(defaults?.priority ?? "medium");
       setCategoryId("");
       setColumnId(defaultColumnId ?? "");
-      setTargetWorkspaceId(activeWorkspace?.id ?? "");
+      setTargetWorkspaceId(defaultWorkspaceId || activeWorkspace?.id || "");
       setClientId(meetingClientLocked ? meetingClientId ?? "" : defaults?.clientId ?? "");
       setAssigneeId(defaults?.assigneeId ?? user?.id ?? "");
       setCollaboratorIds([]);
@@ -487,6 +575,8 @@ export function TaskDialog({
     defaultColumnId,
     user?.id,
     activeWorkspace?.id,
+    workspaces,
+    defaultWorkspaceId,
     defaults?.title,
     defaults?.clientId,
     meetingClientLocked,
@@ -720,9 +810,12 @@ export function TaskDialog({
     );
     return {
       title: title.trim() || "Sem título",
-      // Prints colados ficam no Storage como anexos. URLs blob do navegador não
-      // podem ser persistidas na descrição, então o texto salvo não recebe URLs temporárias.
-      description: stripDescriptionPrintImages(description) || null,
+      // No Marketing, imagens salvas conservam sua posição no texto pelo ID do
+      // anexo. Prévia blob nunca é persistida; nos demais ambientes os prints
+      // continuam aparecendo apenas em Arquivos.
+      description: (isMarketingTask
+        ? stripPendingDescriptionImages(description)
+        : stripStoredDescriptionImages(stripPendingDescriptionImages(description))) || null,
       status,
       status_id: matchingStatus?.id ?? null,
       priority,
@@ -823,6 +916,10 @@ export function TaskDialog({
   };
 
   const saveDraft = async (showConversation = false): Promise<boolean> => {
+    if (pendingMarketingSubtasks.some((subtask) => !subtask.title.trim() && (subtask.dueDate || subtask.assigneeId || subtask.done || subtask.notes.trim() || pendingSubtaskImages[subtask.id]?.length))) {
+      toast.error("Preencha ou remova a subtarefa sem título.");
+      return false;
+    }
     if (task && !collaboratorsReady) {
       toast.error("Aguarde carregar os colaboradores desta tarefa antes de salvar.");
       return false;
@@ -853,7 +950,9 @@ export function TaskDialog({
         if (error) throw error;
         await syncCollaborators(taskId, authenticated.client);
       }
+      if (!(await commitMarketingSubtasks(taskId))) return false;
       if (!(await commitPendingSubtask(taskId))) return false;
+      if (!(await persistPendingSubtaskImages(taskId))) return false;
       const printResult = await uploadDescriptionImages(taskId);
       if (!printResult.allUploaded) {
         toast.error("O rascunho foi salvo, mas um print não foi enviado. Tente novamente.");
@@ -905,6 +1004,91 @@ export function TaskDialog({
     return true;
   };
 
+  const commitMarketingSubtasks = async (taskId: string): Promise<boolean> => {
+    for (const [index, subtask] of pendingMarketingSubtasks.filter((item) => item.title.trim()).entries()) {
+      const row = {
+        id: subtask.id,
+        task_id: taskId,
+        title: subtask.title.trim(),
+        done: subtask.done,
+        completed_at: subtask.done ? new Date().toISOString() : null,
+        position: subtasks.length + index,
+        due_date: deadlineToIso(subtask.dueDate),
+        assignee_id: subtask.assigneeId || null,
+        notes: stripPendingDescriptionImages(subtask.notes).trim() || null,
+      };
+      const { error } = await supabase.from("subtasks").insert(row as any);
+      if (error) {
+        toast.error(`Não foi possível salvar “${subtask.title}”: ${error.message}`);
+        return false;
+      }
+      setSubtasks((current) => [...current, row as Subtask]);
+      pendingSubtaskNotesRef.current[subtask.id] = subtask.notes;
+      setPendingMarketingSubtasks((current) => current.filter((item) => item.id !== subtask.id));
+    }
+    if (pendingMarketingSubtasks.length) await qc.invalidateQueries({ queryKey: ["subtasks"] });
+    return true;
+  };
+
+  const persistPendingSubtaskImages = async (taskId: string, queueOffline = false): Promise<boolean> => {
+    if (!user) return false;
+    for (const [subtaskId, images] of Object.entries(pendingSubtaskImagesRef.current)) {
+      for (const image of [...images]) {
+        if (image.inline && !pendingDescriptionImageIds(pendingSubtaskNotesRef.current[subtaskId] ?? "").has(image.id)) {
+          removePendingSubtaskImage(subtaskId, image.id);
+          continue;
+        }
+        let attachmentId = uploadedSubtaskImagesRef.current[image.id];
+        if (!attachmentId) {
+          const path = `${taskId}/subtasks/${subtaskId}/${storageObjectName()}`;
+          const attachment = {
+            id: crypto.randomUUID(), subtask_id: subtaskId, task_id: taskId,
+            file_name: image.file.name, storage_path: path, mime_type: image.file.type,
+            size_bytes: image.file.size, uploaded_by: user.id, created_at: new Date().toISOString(),
+          };
+          if (queueOffline) {
+            await enqueueOfflineOperation({
+              userId: user.id, entity: "attachment", action: "create", entityId: attachment.id,
+              payload: { table: "subtask_attachments", bucket: "task-attachments", blob: image.file, attachment },
+            });
+          } else {
+            const { error: uploadError } = await supabase.storage.from("task-attachments").upload(path, image.file);
+            if (uploadError) { toast.error(`Não foi possível enviar “${image.file.name}”: ${uploadError.message}`); return false; }
+            const { error: rowError } = await (supabase.from("subtask_attachments") as any).insert(attachment);
+            if (rowError) {
+              await supabase.storage.from("task-attachments").remove([path]);
+              toast.error(`Não foi possível vincular “${image.file.name}”: ${rowError.message}`);
+              return false;
+            }
+          }
+          attachmentId = attachment.id;
+          uploadedSubtaskImagesRef.current[image.id] = attachmentId;
+          setSubAttachments((current) => ({ ...current, [subtaskId]: [...(current[subtaskId] ?? []), attachment as SubtaskAttachment] }));
+        }
+        if (!image.inline) {
+          removePendingSubtaskImage(subtaskId, image.id);
+          delete uploadedSubtaskImagesRef.current[image.id];
+          continue;
+        }
+        const nextNotes = attachImagesToDescription(pendingSubtaskNotesRef.current[subtaskId] ?? "", new Map([[image.id, attachmentId]]));
+        const persistedNotes = stripPendingDescriptionImages(nextNotes) || null;
+        if (queueOffline) {
+          await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: subtaskId, payload: { patch: { notes: persistedNotes } } });
+        } else {
+          const { error } = await supabase.from("subtasks").update({ notes: persistedNotes }).eq("id", subtaskId);
+          if (error) { toast.error(`Print enviado, mas a posição na descrição não foi salva: ${error.message}`); return false; }
+        }
+        pendingSubtaskNotesRef.current[subtaskId] = nextNotes;
+        setSubtasks((current) => current.map((item) => item.id === subtaskId ? { ...item, notes: persistedNotes } : item));
+        removePendingSubtaskImage(subtaskId, image.id);
+        delete uploadedSubtaskImagesRef.current[image.id];
+      }
+      if (!(pendingSubtaskImagesRef.current[subtaskId] ?? []).length) delete pendingSubtaskNotesRef.current[subtaskId];
+    }
+    if (Object.keys(pendingSubtaskImagesRef.current).length) await qc.invalidateQueries({ queryKey: ["subtask_attachments"] });
+    return true;
+  };
+
   const queueTaskLocally = async (existingTaskId: string | null, createTaskId?: string) => {
     if (!user) throw new Error("Sua sessão local não está disponível.");
     const payload = buildPayload();
@@ -918,7 +1102,7 @@ export function TaskDialog({
       await updateTaskWithOfflineSupport({
         userId: user.id,
         task: localTask,
-        patch: { ...taskEditPatch(localTask, payload), is_draft: false },
+        patch: { ...taskEditPatch(localTask, payload, { preserveDescriptionImages: isMarketingTask }), is_draft: false },
         queryClient: qc,
         forceQueue: true,
       });
@@ -973,23 +1157,46 @@ export function TaskDialog({
       setNewSubtaskAssignee("");
     }
 
+    for (const [index, subtask] of pendingMarketingSubtasks.filter((item) => item.title.trim()).entries()) {
+      const localSubtask = {
+        id: subtask.id,
+        task_id: taskId,
+        title: subtask.title.trim(),
+        done: subtask.done,
+        completed_at: subtask.done ? now : null,
+        position: subtasks.length + index,
+        due_date: deadlineToIso(subtask.dueDate),
+        assignee_id: subtask.assigneeId || null,
+        notes: stripPendingDescriptionImages(subtask.notes).trim() || null,
+      };
+      await createSubtaskWithOfflineSupport({ userId: user.id, subtask: localSubtask, queryClient: qc });
+      pendingSubtaskNotesRef.current[subtask.id] = subtask.notes;
+      setPendingMarketingSubtasks((current) => current.filter((item) => item.id !== subtask.id));
+    }
+
+    if (!(await persistPendingSubtaskImages(taskId, true))) throw new Error("Não foi possível guardar as imagens das subtarefas neste aparelho.");
+
     await uploadDescriptionImages(taskId);
     toast.success("Tarefa salva neste aparelho. Será sincronizada ao reconectar.");
     onOpenChange(false);
   };
 
   const save = async () => {
+    if (pendingMarketingSubtasks.some((subtask) => !subtask.title.trim() && (subtask.dueDate || subtask.assigneeId || subtask.done || subtask.notes.trim() || pendingSubtaskImages[subtask.id]?.length))) {
+      toast.error("Preencha ou remova a subtarefa sem título.");
+      return;
+    }
     if (task && !collaboratorsReady && !isOffline()) {
       toast.error("Aguarde carregar os colaboradores desta tarefa antes de salvar.");
       return;
     }
     if (!title.trim()) {
-      toast.error("Título é obrigatório");
+      toast.error("Informe o título da tarefa principal.");
       return;
     }
     if (
       status === "done" &&
-      (subtasks.some((subtask) => !subtask.done) || Boolean(newSubtask.trim()))
+      (subtasks.some((subtask) => !subtask.done) || pendingMarketingSubtasks.some((subtask) => subtask.title.trim() && !subtask.done) || Boolean(newSubtask.trim()))
     ) {
       toast.error("Conclua todas as subtarefas antes de concluir a tarefa.");
       return;
@@ -1060,7 +1267,7 @@ export function TaskDialog({
           toast.error("Informe a justificativa para alterar o prazo da tarefa.");
           return;
         }
-        const patch = original ? taskEditPatch(original, payload) : payload;
+        const patch = original ? taskEditPatch(original, payload, { preserveDescriptionImages: isMarketingTask }) : payload;
         await persistTaskEdit(
           authenticated.client, existingTaskId, { ...patch, is_draft: false }, qc,
         );
@@ -1078,6 +1285,7 @@ export function TaskDialog({
         await authenticated.client
           .from("task_history")
           .insert({ task_id: existingTaskId, user_id: authenticated.user.id, action: "updated" });
+        if (!(await commitMarketingSubtasks(existingTaskId))) return;
         if (!(await commitPendingSubtask(existingTaskId))) return;
       } else {
         const taskId = crypto.randomUUID();
@@ -1098,9 +1306,11 @@ export function TaskDialog({
         setCurrentTaskId(taskId);
         savedTaskId = taskId;
         await syncCollaborators(taskId, authenticated.client);
+        if (!(await commitMarketingSubtasks(taskId))) return;
         if (!(await commitPendingSubtask(taskId))) return;
       }
       if (savedTaskId) {
+        if (!(await persistPendingSubtaskImages(savedTaskId))) return;
         const printResult = await uploadDescriptionImages(savedTaskId);
         if (!printResult.allUploaded) {
           toast.error("A tarefa foi salva, mas um ou mais prints não foram enviados. Tente salvar novamente.");
@@ -1154,9 +1364,40 @@ export function TaskDialog({
   // Subtasks
   const addSubtask = async () => {
     if (!newSubtask.trim()) return;
+    if (isMarketingPanel) {
+      setPendingMarketingSubtasks((current) => [...current, {
+        id: crypto.randomUUID(),
+        title: newSubtask.trim(),
+        done: false,
+        dueDate: newSubtaskDue,
+        assigneeId: newSubtaskAssignee,
+        notes: "",
+      }]);
+      setNewSubtask("");
+      setNewSubtaskDue("");
+      setNewSubtaskAssignee("");
+      return;
+    }
     const tid = await ensureTask();
     if (!tid) return;
     await commitPendingSubtask(tid);
+  };
+
+  const addMarketingSubtaskRow = () => {
+    const id = crypto.randomUUID();
+    setEditingPendingSubtaskId(id);
+    setPendingMarketingSubtasks((current) => [...current, {
+      id, title: "", done: false, dueDate: "", assigneeId: "", notes: "",
+    }]);
+  };
+  const removeMarketingSubtaskRow = (id: string) => {
+    for (const image of pendingSubtaskImagesRef.current[id] ?? []) if (image.previewUrl) URL.revokeObjectURL(image.previewUrl);
+    const next = { ...pendingSubtaskImagesRef.current };
+    delete next[id];
+    updatePendingSubtaskImages(next);
+    if (activePendingSubtaskId === id) setActivePendingSubtaskId(null);
+    if (editingPendingSubtaskId === id) setEditingPendingSubtaskId(null);
+    setPendingMarketingSubtasks((current) => current.filter((item) => item.id !== id));
   };
 
   const openNewSubtaskDialog = async () => {
@@ -1169,6 +1410,7 @@ export function TaskDialog({
   const openSubtaskDialog = (subtask: Subtask) => {
     setSubtaskInDialog(subtask);
     setSubtaskDialogOpen(true);
+    if (!subAttachments[subtask.id]) void loadSubAttachments(subtask.id);
   };
 
   const handleSubtaskDialogSaved = (savedSubtask: EditableSubtask) => {
@@ -1516,15 +1758,46 @@ export function TaskDialog({
     if (!pendingDescriptionImages.length) return { allUploaded: true };
     setDescriptionImagesUploading(true);
     let allUploaded = true;
+    const visibleIds = pendingDescriptionImageIds(description);
+    const savedIds = uploadedDescriptionImageIdsRef.current;
     try {
       for (const image of pendingDescriptionImages) {
+        // A imagem pode ter sido removida do editor antes de salvar.
+        if (!visibleIds.has(image.id)) continue;
+        if (savedIds.has(image.id)) continue;
         const uploaded = await uploadFile(image.file, taskId);
         if (uploaded) {
-          setPendingDescriptionImages((current) => current.filter((candidate) => candidate.id !== image.id));
+          savedIds.set(image.id, uploaded.id);
+          storedDescriptionImagePreviewsRef.current.set(uploaded.id, image.src);
         } else {
           allUploaded = false;
         }
       }
+      if (!allUploaded) return { allUploaded: false };
+      if (isMarketingTask && savedIds.size) {
+        const nextDescription = attachImagesToDescription(description, savedIds);
+        const savedDescription = stripPendingDescriptionImages(nextDescription) || null;
+        if (isOffline()) {
+          const localTask = qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === taskId)
+            ?? (task?.id === taskId ? task : null);
+          if (!user || !localTask) throw new Error("Não foi possível guardar a posição dos prints neste aparelho.");
+          await updateTaskWithOfflineSupport({
+            userId: user.id,
+            task: localTask,
+            patch: { description: savedDescription },
+            queryClient: qc,
+            forceQueue: true,
+          });
+        } else {
+          const authenticated = await getAuthenticatedUser();
+          if (!authenticated) throw new Error("Entre novamente para salvar os prints na descrição.");
+          await persistTaskEdit(authenticated.client, taskId, { description: savedDescription }, qc);
+        }
+        setDescription(nextDescription);
+      }
+      const processedIds = new Set(pendingDescriptionImages.map((image) => image.id));
+      setPendingDescriptionImages((current) => current.filter((image) => !processedIds.has(image.id)));
+      savedIds.clear();
     } finally {
       setDescriptionImagesUploading(false);
     }
@@ -1685,27 +1958,75 @@ export function TaskDialog({
     }
   };
 
+  const activePendingSubtask = pendingMarketingSubtasks.find((item) => item.id === activePendingSubtaskId) ?? null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      if (!nextOpen && (saving || descriptionImagesUploading)) return;
+      onOpenChange(nextOpen);
+    }}>
       <DialogContent
-        overlayClassName={overlayClassName}
-        className="max-h-[calc(100dvh-1rem)] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl sm:max-h-[90vh]"
+        overlayClassName={isMarketingPanel ? "!bg-transparent" : overlayClassName}
+        className={isMarketingPanel
+          ? "marketing-task-dialog !left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0"
+          : "max-h-[calc(100dvh-1rem)] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl sm:max-h-[90vh]"}
       >
-        <DialogHeader className="border-b bg-muted/20 px-4 py-4 sm:px-6 sm:py-5">
-          <DialogTitle className="text-xl">
-            {isDraft ? "Tarefa em elaboração" : task ? "Editar tarefa" : "Nova tarefa"}
-          </DialogTitle>
-          {task && <div className="flex flex-wrap gap-1"><TaskPinButton task={task} /><TaskCardOpenings task={task} /></div>}
+        <DialogHeader className={isMarketingPanel
+          ? "marketing-task-header sticky top-0 z-20 flex-row items-center justify-between gap-3 space-y-0 border-b bg-background px-5 py-3 pr-12 text-left"
+          : "border-b bg-muted/20 px-4 py-4 sm:px-6 sm:py-5"}>
+          {isMarketingPanel ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={status === "done"
+                  ? "h-8 border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                  : "h-8 border-primary/30 text-primary hover:bg-primary/10"}
+                onClick={() => {
+                  if (status === "done") {
+                    setStatus("todo");
+                    setCompletionDate("");
+                  } else {
+                    setStatus("done");
+                    setCompletionDate((current) => current || format(new Date(), "yyyy-MM-dd"));
+                  }
+                }}
+              >
+                <Check className="mr-1.5 h-4 w-4" />
+                {status === "done" ? "Concluída" : "Marcar como concluída"}
+              </Button>
+              <DialogTitle className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">
+                {isDraft ? "Rascunho" : task ? "Detalhes da tarefa" : "Nova tarefa"}
+              </DialogTitle>
+              <button type="button" className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted" title="Gerenciar colaboradores" onClick={() => { setShowMarketingExtra(true); setCollaboratorPickerOpen(true); }}>
+                {collaboratorIds.length ? collaboratorIds.slice(0, 3).map((id) => {
+                  const person = assignableProfiles.find((candidate) => candidate.id === id);
+                  const name = person?.full_name || person?.email || "Colaborador";
+                  return <Avatar key={id} className="h-6 w-6"><AvatarImage src={person?.avatar_url || undefined} alt={name} /><AvatarFallback className="text-[9px]">{name.slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>;
+                }) : <UsersRound className="h-4 w-4" />}
+                {collaboratorIds.length}
+              </button>
+              {task && <div className="flex shrink-0 gap-1"><TaskPinButton task={task} /><TaskCardOpenings task={task} /></div>}
+            </>
+          ) : (
+            <>
+              <DialogTitle className="text-xl">
+                {isDraft ? "Tarefa em elaboração" : task ? "Editar tarefa" : "Nova tarefa"}
+              </DialogTitle>
+              {task && <div className="flex flex-wrap gap-1"><TaskPinButton task={task} /><TaskCardOpenings task={task} /></div>}
+            </>
+          )}
         </DialogHeader>
 
-        <div className="space-y-5 px-4 py-5 sm:px-6">
-          <div className="space-y-2">
-            <Label>Título *</Label>
+        <div className={isMarketingPanel ? "marketing-task-body space-y-0 px-5 pb-0 pt-5 sm:px-7" : "space-y-5 px-4 py-5 sm:px-6"}>
+          <div className={isMarketingPanel ? "marketing-task-title space-y-1 pb-5" : "space-y-2"}>
+            <Label className={isMarketingPanel ? "sr-only" : undefined}>Título *</Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="O que precisa ser feito?"
-              className="h-11 text-base"
+              className={isMarketingPanel ? "h-auto min-h-12 border-0 bg-transparent px-0 py-1 text-2xl font-semibold leading-tight shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0" : "h-11 text-base"}
             />
             <FieldLinks value={title} />
           </div>
@@ -1732,8 +2053,10 @@ export function TaskDialog({
             </div>
           ) : null}
 
-          <div className="grid grid-cols-1 gap-3 rounded-md border bg-muted/15 p-4 sm:grid-cols-2 md:grid-cols-3">
-            <div className="order-1 space-y-2">
+          <div className={isMarketingPanel
+            ? "marketing-task-fields grid grid-cols-1 gap-0 border-b pb-5"
+            : "grid grid-cols-1 gap-3 rounded-md border bg-muted/15 p-4 sm:grid-cols-2 md:grid-cols-3"}>
+            <div className={isMarketingPanel ? `${showMarketingExtra ? "order-6" : "hidden"} space-y-2` : "order-1 space-y-2"}>
               <Label className="text-xs">Prioridade</Label>
               <Select
                 value={priority ?? "none"}
@@ -1752,7 +2075,7 @@ export function TaskDialog({
               </Select>
             </div>
             {isMarketingTask ? (
-              <div className="order-2 space-y-2">
+              <div className={isMarketingPanel ? `${showMarketingExtra ? "order-7" : "hidden"} space-y-2` : "order-2 space-y-2"}>
                 <Label className="text-xs">Formato</Label>
                 <Select
                   value={categoryId || "__no_marketing_category__"}
@@ -1780,7 +2103,7 @@ export function TaskDialog({
               </div>
             ) : null}
             {isMarketingTask ? (
-              <div className="order-3 space-y-2">
+              <div className={isMarketingPanel ? `${showMarketingExtra ? "order-8" : "hidden"} space-y-2` : "order-3 space-y-2"}>
                 <Label className="text-xs">Objetivo da tarefa</Label>
                 <Select value={objectiveId || "__no_marketing_objective__"} onValueChange={(value) => setObjectiveId(value === "__no_marketing_objective__" ? "" : value)}>
                   <SelectTrigger><SelectValue placeholder="Selecione um objetivo" /></SelectTrigger>
@@ -1791,7 +2114,7 @@ export function TaskDialog({
                 </Select>
               </div>
             ) : null}
-            <div className="order-6 space-y-2">
+            <div className={isMarketingPanel ? "order-2 space-y-2" : "order-6 space-y-2"}>
               <Label className="text-xs">
                 Prazo {!task ? <span className="text-destructive">*</span> : null}
               </Label>
@@ -1852,7 +2175,7 @@ export function TaskDialog({
                 </div>
               )}
             </div>
-            <div className="order-5 space-y-2">
+            <div className={isMarketingPanel ? `${showMarketingExtra ? "order-9" : "hidden"} space-y-2` : "order-5 space-y-2"}>
               <Label className="text-xs">Colaboradores</Label>
               <Popover open={collaboratorPickerOpen} onOpenChange={setCollaboratorPickerOpen}>
                 <PopoverTrigger asChild>
@@ -1898,7 +2221,7 @@ export function TaskDialog({
                             checked={selected}
                             onCheckedChange={() => toggleCollaborator(profile.id)}
                           />
-                          <AssigneeOption profile={profile} />
+                          <AssigneeOption profile={profile} showAvatar={isMarketingTask} />
                         </label>
                       );
                     })}
@@ -1922,7 +2245,7 @@ export function TaskDialog({
                 </Button>
               )}
             </div>
-            <div className="order-2 space-y-2">
+            <div className={isMarketingPanel ? `${showMarketingExtra ? "order-10" : "hidden"} space-y-2` : "order-2 space-y-2"}>
               <Label className="text-xs">Status</Label>
               <Select
                 value={status === "done" ? COMPLETED_STATUS_VALUE : columnId || "none"}
@@ -2044,7 +2367,7 @@ export function TaskDialog({
                 </Popover>
               )}
             </div>
-            <div className="order-4 space-y-2">
+            <div className={isMarketingPanel ? "order-1 space-y-2" : "order-4 space-y-2"}>
               <Label className="text-xs">Responsável</Label>
               <Popover open={assigneePickerOpen} onOpenChange={setAssigneePickerOpen}>
                 <PopoverTrigger asChild>
@@ -2087,7 +2410,7 @@ export function TaskDialog({
                         }}
                         className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${assigneeId === candidate.id ? "bg-muted font-medium" : ""}`}
                       >
-                        <AssigneeOption profile={candidate} />
+                        <AssigneeOption profile={candidate} showAvatar={isMarketingTask} />
                       </button>
                     ))}
                     {filteredAssignees.length === 0 && (
@@ -2105,6 +2428,12 @@ export function TaskDialog({
                 </div>
               )}
             </div>
+            {isMarketingPanel ? (
+              <button type="button" className="order-5 mt-2 flex w-fit items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10" onClick={() => setShowMarketingExtra((current) => !current)} aria-expanded={showMarketingExtra}>
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showMarketingExtra ? "rotate-180" : ""}`} />
+                {showMarketingExtra ? "Ocultar campos" : "Mais campos"}
+              </button>
+            ) : null}
           </div>
 
           {(!task || isDraft) && (
@@ -2124,26 +2453,64 @@ export function TaskDialog({
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className={isMarketingPanel ? "marketing-task-description space-y-2 border-b py-6" : "space-y-2"}>
             <Label>Descrição</Label>
             <RichTextEditor
               value={description}
               onChange={setDescription}
               onImagePaste={addDescriptionImages}
-              placeholder="Descreva a tarefa... Cole um print com ⌘V / Ctrl+V."
-              minHeight={100}
+              onStoredImageClick={isMarketingTask ? (attachmentId) => {
+                const attachment = attachments.find((item) => item.id === attachmentId);
+                if (attachment) setPreviewAttachment(attachment);
+                else toast.error("O print ainda está carregando. Tente novamente em instantes.");
+              } : undefined}
+              storedImagePreviews={isMarketingTask ? storedDescriptionImagePreviewsRef.current : undefined}
+              imageTools={isMarketingTask}
+              disabled={isMarketingTask && (saving || descriptionImagesUploading)}
+              className={isMarketingTask ? "[&_img]:!max-w-full [&_img]:!max-h-72 [&_img]:!h-auto [&_img[data-task-attachment-id]]:cursor-zoom-in" : undefined}
+              placeholder={isMarketingTask
+                ? "Descreva a tarefa e insira os prints onde fizerem sentido."
+                : "Descreva a tarefa... Cole um print com ⌘V / Ctrl+V."}
+              minHeight={isMarketingPanel ? 200 : 100}
+              maxHeight={isMarketingPanel ? 480 : 320}
               copyable
             />
+            {isMarketingTask ? (
+              <p className="text-xs text-muted-foreground">
+                Cole, arraste ou use o botão de imagem no ponto desejado do texto. Clique no print salvo para ampliar e baixar; ele também fica em Arquivos.
+              </p>
+            ) : null}
           </div>
 
           {
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className={isMarketingPanel ? "marketing-task-tabs pt-5" : undefined}>
               <TabsList>
-                <TabsTrigger value="subtasks">Subtarefas ({subtasks.length})</TabsTrigger>
+                <TabsTrigger value="subtasks">Subtarefas ({subtasks.length + pendingMarketingSubtasks.length})</TabsTrigger>
                 <TabsTrigger value="comments">Conversa ({comments.length})</TabsTrigger>
                 <TabsTrigger value="files">Arquivos ({attachments.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="subtasks" className="space-y-2">
+                {pendingMarketingSubtasks.map((subtask, index) => (
+                  <div key={subtask.id} className="space-y-2 border-b px-1 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Checkbox checked={subtask.done} onCheckedChange={(checked) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, done: checked === true } : item))} aria-label={`Concluir ${subtask.title}`} />
+                      {editingPendingSubtaskId === subtask.id || !subtask.title.trim() ? <Input value={subtask.title} onFocus={() => setEditingPendingSubtaskId(subtask.id)} onBlur={() => setEditingPendingSubtaskId((current) => current === subtask.id ? null : current)} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: event.target.value } : item))} onKeyDown={(event) => {
+                        if (event.key === "Enter") { event.preventDefault(); if (subtask.title.trim()) addMarketingSubtaskRow(); }
+                        if (event.key === "Escape" && !subtask.title.trim()) { event.stopPropagation(); removeMarketingSubtaskRow(subtask.id); }
+                      }} autoFocus={editingPendingSubtaskId === subtask.id} placeholder="Nome da subtarefa" aria-label="Título da subtarefa" className="h-8 min-w-0 flex-1 border-0 px-1 shadow-none focus-visible:ring-1" /> : <button type="button" onClick={() => setActivePendingSubtaskId(subtask.id)} aria-label={`Abrir detalhes da subtarefa ${subtask.title}`} className="group flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><span className="truncate">{subtask.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" /></button>}
+                      {!subtask.title.trim() && <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title="Abrir detalhes da subtarefa" aria-label={`Abrir detalhes da subtarefa ${index + 1}`} onClick={() => setActivePendingSubtaskId(subtask.id)}><ChevronRight className="h-4 w-4" /></Button>}
+                      <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title="Remover subtarefa" onClick={() => removeMarketingSubtaskRow(subtask.id)}><X className="h-4 w-4" /></Button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pl-6">
+                      <Input type="date" value={subtask.dueDate} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, dueDate: event.target.value } : item))} title="Prazo da subtarefa (opcional)" aria-label="Prazo da subtarefa" className="h-8 w-40 text-xs" />
+                      <Select value={subtask.assigneeId || "none"} onValueChange={(value) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, assigneeId: value === "none" ? "" : value } : item))}>
+                        <SelectTrigger className="h-8 w-48 text-xs" aria-label="Responsável pela subtarefa"><SelectValue placeholder="Sem responsável" /></SelectTrigger>
+                        <SelectContent><SelectItem value="none">Sem responsável</SelectItem>{assignableProfiles.map((person) => <SelectItem key={person.id} value={person.id}><AssigneeOption profile={person} showAvatar /></SelectItem>)}</SelectContent>
+                      </Select>
+                      {(pendingSubtaskImages[subtask.id] ?? []).length > 0 && <button type="button" className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-primary hover:bg-primary/10" onClick={() => setActivePendingSubtaskId(subtask.id)}><Paperclip className="h-3.5 w-3.5" />{pendingSubtaskImages[subtask.id].length} arquivo(s)</button>}
+                    </div>
+                  </div>
+                ))}
                 {subtasks.map((s) => {
                   const dueStr = s.due_date ? format(new Date(s.due_date), "yyyy-MM-dd") : "";
                   const historyOpen = subDueOpen[s.id];
@@ -2152,10 +2519,10 @@ export function TaskDialog({
                   const files = subAttachments[s.id] ?? [];
                   const assignee = profiles?.find((p) => p.id === s.assignee_id);
                   return (
-                    <div key={s.id} className="space-y-1.5 rounded-md border bg-muted/30 px-3 py-2">
+                    <div key={s.id} className={isMarketingPanel ? "space-y-1.5 border-b px-1 py-2.5" : "space-y-1.5 rounded-md border bg-muted/30 px-3 py-2"}>
                       <div className="flex items-center gap-2">
                         <Checkbox checked={s.done} onCheckedChange={() => toggleSubtask(s)} />
-                        {editingSubtaskId === s.id ? (
+                        {isMarketingTask ? <button type="button" onClick={() => openSubtaskDialog(s)} aria-label={`Abrir detalhes da subtarefa ${s.title}`} className={`group flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${s.done ? "line-through text-muted-foreground" : ""}`}><span className="truncate">{s.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" /></button> : editingSubtaskId === s.id ? (
                           <Input
                             value={subtaskTitleDraft}
                             onChange={(event) => setSubtaskTitleDraft(event.target.value)}
@@ -2183,12 +2550,12 @@ export function TaskDialog({
                               }
                             }}
                             className={`min-w-0 flex-1 truncate text-left text-sm hover:text-primary ${s.done ? "line-through text-muted-foreground" : ""}`}
-                            title={`${s.title} — clique para editar`}
+                            title={`${s.title} — clique para abrir`}
                           >
                             <LinkedText text={s.title} />
                           </div>
                         )}
-                        {editingSubtaskId !== s.id && (
+                        {editingSubtaskId !== s.id && !isMarketingTask && (
                           <Button
                             type="button"
                             size="icon"
@@ -2200,24 +2567,22 @@ export function TaskDialog({
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        {assignee && (
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                            {assignee.full_name || assignee.email}
-                          </span>
-                        )}
-                        <Button
+                        {assignee && <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"><AssigneeOption profile={assignee} showAvatar={isMarketingTask} /></span>}
+                        {isMarketingTask && s.due_date && <span className="text-[10px] text-muted-foreground">{format(new Date(s.due_date), "dd/MM")}</span>}
+                        {isMarketingTask && files.length > 0 && <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"><Paperclip className="h-3 w-3" />{files.length}</span>}
+                        {!isMarketingTask && <Button
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
                           onClick={() => toggleSubExpanded(s.id)}
-                          title="Detalhes"
+                          title="Abrir detalhes"
                         >
                           {expanded ? (
                             <ChevronDown className="h-3.5 w-3.5" />
                           ) : (
                             <ChevronRight className="h-3.5 w-3.5" />
                           )}
-                        </Button>
+                        </Button>}
                         {canDeleteSubtask(s) && (
                           <Button
                             size="icon"
@@ -2229,7 +2594,7 @@ export function TaskDialog({
                           </Button>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 pl-6">
+                      {!isMarketingTask && <div className="flex flex-wrap items-center gap-2 pl-6">
                         <Label className="text-[10px] text-muted-foreground">Prazo</Label>
                         <Input
                           type="date"
@@ -2272,8 +2637,8 @@ export function TaskDialog({
                             {files.length} {files.length === 1 ? "arquivo" : "arquivos"}
                           </span>
                         )}
-                      </div>
-                      {historyOpen && (
+                      </div>}
+                      {!isMarketingTask && historyOpen && (
                         <div className="ml-6 space-y-1 border-l pl-2">
                           {history.length === 0 ? (
                             <p className="text-[11px] text-muted-foreground">
@@ -2302,7 +2667,7 @@ export function TaskDialog({
                           )}
                         </div>
                       )}
-                      {expanded && (
+                      {!isMarketingTask && expanded && (
                         <div className="ml-6 space-y-2 border-l pl-3">
                           <div className="space-y-1">
                             <Label className="text-[10px] text-muted-foreground">Responsável</Label>
@@ -2318,7 +2683,7 @@ export function TaskDialog({
                                   <SelectItem value="none">Ninguém</SelectItem>
                                   {assignableProfiles.map((p) => (
                                     <SelectItem key={p.id} value={p.id}>
-                                      <AssigneeOption profile={p} />
+                                      <AssigneeOption profile={p} showAvatar={isMarketingTask} />
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -2338,7 +2703,7 @@ export function TaskDialog({
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px] text-muted-foreground">Anotações</Label>
-                            <Textarea
+                            {isMarketingTask ? <button type="button" onClick={() => openSubtaskDialog(s)} className="w-full rounded border px-3 py-2 text-left text-xs text-muted-foreground hover:border-primary hover:text-primary">Abrir a descrição e os prints da subtarefa</button> : <Textarea
                               rows={2}
                               defaultValue={s.notes ?? ""}
                               onBlur={(e) => {
@@ -2347,8 +2712,8 @@ export function TaskDialog({
                               }}
                               placeholder="Notas desta subtarefa"
                               className="text-xs"
-                            />
-                            <FieldLinks value={s.notes} />
+                            />}
+                            {!isMarketingTask && <FieldLinks value={s.notes} />}
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px] text-muted-foreground">Arquivos</Label>
@@ -2406,7 +2771,11 @@ export function TaskDialog({
                     </div>
                   );
                 })}
-                <div className="flex flex-wrap gap-2">
+                {isMarketingPanel ? (
+                  <button type="button" onClick={addMarketingSubtaskRow} className="flex w-full items-center gap-2 border-b px-1 py-2.5 text-left text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground">
+                    <Plus className="h-4 w-4" /> Adicionar subtarefa
+                  </button>
+                ) : <div className="flex flex-wrap gap-2">
                   <Input
                     placeholder="Nova subtarefa"
                     value={newSubtask}
@@ -2433,12 +2802,12 @@ export function TaskDialog({
                         <SelectItem value="none">Sem responsável</SelectItem>
                         {assignableProfiles.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            <AssigneeOption profile={p} />
+                            <AssigneeOption profile={p} showAvatar={isMarketingTask} />
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button
+                    {(!isMarketingPanel || Boolean(currentTaskIdRef.current ?? currentTaskId)) && <Button
                       type="button"
                       variant="outline"
                       size="icon"
@@ -2448,16 +2817,16 @@ export function TaskDialog({
                     >
                       <Pencil className="h-4 w-4" />
                       <span className="sr-only">Abrir editor completo da subtarefa</span>
-                    </Button>
+                    </Button>}
                   </div>
                   <Button onClick={addSubtask} size="icon">
                     <Plus className="h-4 w-4" />
                   </Button>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
+                </div>}
+                {!isMarketingPanel && <p className="text-[11px] text-muted-foreground">
                   Defina responsável e prazo já ao criar. Use a seta para editar anotações e anexar
                   arquivos.
-                </p>
+                </p>}
               </TabsContent>
 
               <TabsContent value="comments" className="space-y-3">
@@ -2539,7 +2908,7 @@ export function TaskDialog({
             </Tabs>
           }
 
-          <div className="flex justify-between gap-2 pt-2">
+          <div className={isMarketingPanel ? "marketing-task-footer sticky bottom-0 z-10 -mx-5 flex justify-between gap-2 border-t bg-background px-5 py-3 sm:-mx-7 sm:px-7" : "flex justify-between gap-2 pt-2"}>
             <div>
               {currentTaskId && canDeleteTask && (
                 <Button
@@ -2552,7 +2921,7 @@ export function TaskDialog({
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" disabled={saving || descriptionImagesUploading} onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
               {(!task || isDraft) && (
@@ -2570,8 +2939,10 @@ export function TaskDialog({
                 onClick={save}
                 disabled={saving || descriptionImagesUploading || (!collaboratorsReady && !isOffline())}
               >
-                {saving || descriptionImagesUploading
-                  ? "Salvando…"
+                {descriptionImagesUploading
+                  ? "Enviando prints…"
+                  : saving
+                    ? "Salvando…"
                   : isDraft
                     ? "Finalizar tarefa"
                     : "Salvar"}
@@ -2592,6 +2963,10 @@ export function TaskDialog({
           onOpenChange={setSubtaskDialogOpen}
           taskId={currentTaskId}
           workspaceId={targetWorkspaceId || activeWorkspace?.id}
+          showAvatars={isMarketingTask}
+          marketingLayout={isMarketingTask}
+          parentTitle={title}
+          attachments={subtaskInDialog ? subAttachments[subtaskInDialog.id] ?? [] : []}
           subtask={subtaskInDialog}
           position={subtasks.length}
           defaults={{
@@ -2603,6 +2978,46 @@ export function TaskDialog({
           onAttachmentSaved={handleSubtaskAttachmentSaved}
           onAttachmentsComplete={(subtaskId) => void loadSubAttachments(subtaskId)}
         />
+        <Dialog open={Boolean(activePendingSubtask)} onOpenChange={(nextOpen) => { if (!nextOpen) setActivePendingSubtaskId(null); }}>
+          <DialogContent overlayClassName="!bg-transparent" className="!left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0">
+            {activePendingSubtask && <>
+              <DialogHeader className="sticky top-0 z-20 border-b bg-background px-5 py-4 pr-12 text-left sm:px-7">
+                <button type="button" onClick={() => setActivePendingSubtaskId(null)} className="flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-primary"><ChevronRight className="h-3.5 w-3.5 rotate-180" />{title.trim() || "Nova tarefa"}</button>
+                <DialogTitle className="pt-1 text-lg">Detalhes da subtarefa</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6 px-5 py-6 sm:px-7">
+                <Input value={activePendingSubtask.title} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === activePendingSubtask.id ? { ...item, title: event.target.value } : item))} placeholder="Nome da subtarefa" aria-label="Título da subtarefa" className="h-auto min-h-12 border-0 px-0 text-2xl font-semibold shadow-none focus-visible:ring-0" />
+                <div className="grid gap-4 border-y py-5 sm:grid-cols-[120px_1fr] sm:items-center">
+                  <Label htmlFor={`pending-subtask-assignee-${activePendingSubtask.id}`}>Responsável</Label>
+                  <Select value={activePendingSubtask.assigneeId || "none"} onValueChange={(value) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === activePendingSubtask.id ? { ...item, assigneeId: value === "none" ? "" : value } : item))}>
+                    <SelectTrigger id={`pending-subtask-assignee-${activePendingSubtask.id}`}><SelectValue placeholder="Sem responsável" /></SelectTrigger>
+                    <SelectContent><SelectItem value="none">Sem responsável</SelectItem>{assignableProfiles.map((person) => <SelectItem key={person.id} value={person.id}><AssigneeOption profile={person} showAvatar /></SelectItem>)}</SelectContent>
+                  </Select>
+                  <Label htmlFor={`pending-subtask-date-${activePendingSubtask.id}`}>Prazo</Label>
+                  <Input id={`pending-subtask-date-${activePendingSubtask.id}`} type="date" value={activePendingSubtask.dueDate} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === activePendingSubtask.id ? { ...item, dueDate: event.target.value } : item))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Descrição</Label>
+                  <RichTextEditor
+                    key={activePendingSubtask.id}
+                    value={activePendingSubtask.notes}
+                    onChange={(html) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === activePendingSubtask.id ? { ...item, notes: html } : item))}
+                    onImagePaste={(images) => addPendingSubtaskEditorImages(activePendingSubtask.id, images)}
+                    imageTools
+                    placeholder="Escreva e insira prints na posição desejada."
+                    minHeight={180}
+                    maxHeight={420}
+                  />
+                  <p className="text-xs text-muted-foreground">Cole, arraste ou use o botão de imagem no ponto desejado. Os prints também ficarão em Arquivos.</p>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2"><Label>Arquivos que serão salvos</Label><label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-2 text-xs text-primary hover:bg-primary/5"><Paperclip className="h-4 w-4" />Anexar arquivo<input type="file" multiple className="sr-only" aria-label="Selecionar arquivos para a subtarefa" onChange={(event) => { addPendingSubtaskFiles(activePendingSubtask.id, event.target.files); event.target.value = ""; }} /></label></div>
+                  {(pendingSubtaskImages[activePendingSubtask.id] ?? []).filter((image) => !image.inline || pendingDescriptionImageIds(activePendingSubtask.notes).has(image.id)).length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{pendingSubtaskImages[activePendingSubtask.id].filter((image) => !image.inline || pendingDescriptionImageIds(activePendingSubtask.notes).has(image.id)).map((image) => <div key={image.id} className="relative rounded-lg border bg-muted/20 p-2">{image.previewUrl ? <img src={image.previewUrl} alt={image.file.name} className="h-28 w-full rounded object-contain" /> : <span className="flex h-28 items-center justify-center text-muted-foreground"><FileText className="h-7 w-7" /></span>}<p className="mt-1 truncate text-xs text-muted-foreground" title={image.file.name}>{image.file.name}</p>{!image.inline && <button type="button" aria-label={`Remover ${image.file.name}`} className="absolute right-1 top-1 rounded-full bg-background p-1 shadow" onClick={() => removePendingSubtaskImage(activePendingSubtask.id, image.id)}><X className="h-3.5 w-3.5" /></button>}</div>)}</div> : <p className="text-xs text-muted-foreground">Nenhum arquivo nesta subtarefa.</p>}
+                </div>
+              </div>
+            </>}
+          </DialogContent>
+        </Dialog>
         <Dialog
           open={subDueReason.open}
           onOpenChange={(nextOpen) => {

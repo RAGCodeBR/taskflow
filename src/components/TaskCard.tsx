@@ -62,6 +62,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
 import { FieldLinks, LinkedText } from "@/components/LinkedText";
+import { hasMarketingTaskExperience } from "@/lib/environment-access";
 import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
 import { CommentAttachments } from "@/components/CommentAttachments";
 import { supabase } from "@/integrations/supabase/client";
@@ -1574,7 +1575,11 @@ export function TaskCard({
                       onPointerDown={stop}
                       onClick={(e) => {
                         stop(e);
-                        setDescEditing(true);
+                        // No Marketing, a descrição pode conter imagens entre
+                        // parágrafos. O formulário completo preserva essa ordem
+                        // e os anexos; a edição curta do card não faz upload.
+                        if (hasMarketingTaskExperience(activeWorkspace?.slug, user?.email) && onEdit) onEdit();
+                        else setDescEditing(true);
                       }}
                       className="cursor-pointer whitespace-pre-wrap rounded text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere] hover:bg-muted/40"
                       style={{

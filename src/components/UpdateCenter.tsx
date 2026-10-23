@@ -110,8 +110,8 @@ function ReleaseSection({
 export function UpdateCenter() {
   const { user, isAdmin, activeWorkspace } = useAuth();
   const updates = useMemo(
-    () => getVisibleAppUpdates(isAdmin, activeWorkspace?.slug),
-    [isAdmin, activeWorkspace?.slug],
+    () => getVisibleAppUpdates(isAdmin, activeWorkspace?.slug, user?.email),
+    [isAdmin, activeWorkspace?.slug, user?.email],
   );
   const latestUpdate = updates[0];
   const UPDATE_VERSION = latestUpdate?.id ?? "";
@@ -294,7 +294,7 @@ export function UpdateCenter() {
           if (active)
             setPublished({
               scope,
-              release: newerPublishedAppUpdate(releases, updates, isAdmin, activeWorkspace?.slug),
+              release: newerPublishedAppUpdate(releases, updates, isAdmin, activeWorkspace?.slug, user?.email),
               checked: true,
             });
         };
@@ -341,7 +341,7 @@ export function UpdateCenter() {
       watchedRegistrations.clear();
       if (checkForUpdateRef.current === checkForUpdate) checkForUpdateRef.current = null;
     };
-  }, [canSeeUpdates, scope, updates, isAdmin, activeWorkspace?.slug]);
+  }, [canSeeUpdates, scope, updates, isAdmin, activeWorkspace?.slug, user?.email]);
 
   useEffect(() => {
     if (!canSeeUpdates || !hasUpdate || !promptKey) {
@@ -441,6 +441,7 @@ export function UpdateCenter() {
         updates,
         isAdmin,
         activeWorkspace?.slug,
+        user?.email,
       );
       const targetVersion = latestPublished?.id ?? UPDATE_VERSION;
       if ("serviceWorker" in navigator) {
@@ -489,7 +490,7 @@ export function UpdateCenter() {
       setRefreshing(false);
       updateInstallationRunning = false;
     }
-  }, [storageKey, refreshing, checking, updates, isAdmin, activeWorkspace?.slug, hasNewVersion, pendingUpdateKey, user?.id, remoteRelease?.id, UPDATE_VERSION]);
+  }, [storageKey, refreshing, checking, updates, isAdmin, activeWorkspace?.slug, hasNewVersion, pendingUpdateKey, user?.id, user?.email, remoteRelease?.id, UPDATE_VERSION]);
 
   useEffect(() => {
     if (!canSeeUpdates || !hasNewVersion || open) return;

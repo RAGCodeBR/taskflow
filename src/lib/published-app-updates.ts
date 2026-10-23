@@ -1,4 +1,5 @@
 import { APP_UPDATES, type AppUpdate, type UpdateWorkspace } from "./app-updates";
+import { canManageMarketingAccess, hasMarketingTaskExperience } from "./environment-access";
 
 export type PublishedAppUpdate = Pick<
   AppUpdate,
@@ -38,7 +39,7 @@ export function readPublishedAppUpdates(value: unknown): PublishedAppUpdate[] {
         row.title.length > 0 &&
         typeof row.date === "string" &&
         /^\d{4}-\d{2}-\d{2}$/.test(row.date) &&
-        (row.audience === "all" || row.audience === "admin") &&
+        (row.audience === "all" || row.audience === "admin" || row.audience === "owner" || row.audience === "marketing-or-owner") &&
         Array.isArray(row.workspaces) &&
         row.workspaces.length > 0 &&
         row.workspaces.every(
@@ -56,11 +57,13 @@ export function newerPublishedAppUpdate(
   installed: readonly AppUpdate[],
   isAdmin: boolean,
   workspace?: string,
+  email?: string | null,
 ) {
   const latest = releases.find(
     (release) =>
       release.workspaces.includes(workspace as UpdateWorkspace) &&
-      (release.audience === "all" || isAdmin),
+      (release.audience === "all" || (release.audience === "admin" && isAdmin) || (release.audience === "owner" && canManageMarketingAccess(email)) ||
+        (release.audience === "marketing-or-owner" && hasMarketingTaskExperience(workspace, email))),
   );
   if (!latest || !installed.length || installed.some((release) => release.id === latest.id))
     return null;

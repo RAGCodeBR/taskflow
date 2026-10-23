@@ -24,6 +24,7 @@ import {
   RefreshCw,
   RotateCcw,
   CheckCircle2,
+  Check,
   ChevronDown,
   ChevronRight,
   Clock3,
@@ -65,6 +66,67 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
       data-update-preview-grid
     >
       {children}
+    </div>
+  );
+}
+
+function MarketingCreateSidePanelPreview() {
+  return (
+    <div aria-label="Prévia do calendário compacto e do painel lateral de tarefas no Marketing" className="mx-auto flex w-full max-w-sm flex-col items-end overflow-hidden rounded-xl border bg-muted/40 text-[10px] shadow-sm">
+      <div className="grid w-full grid-cols-2 gap-2 border-b bg-background p-2">
+        <div className="flex h-9 items-center gap-1 rounded-full border-2 border-dashed border-slate-400 bg-white px-2 text-slate-900 shadow-sm"><span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-emerald-500 text-emerald-700"><Check className="h-3 w-3" /></span><span className="line-clamp-2 leading-3">Sem cliente · só título</span></div>
+        <div className="flex h-9 items-center gap-1 rounded-full border border-[#e8dfa8] bg-[#e8dfa8] px-2 text-slate-900 shadow-sm saturate-125"><Check className="h-3.5 w-3.5 shrink-0" /><span className="line-clamp-2 leading-3">Cliente salvo · publicar</span></div>
+      </div>
+      <div className="w-4/5 border-l bg-background">
+        <div className="flex items-center justify-between border-b px-3 py-2">
+          <span className="rounded border border-primary/30 px-2 py-1 font-medium text-primary">✓ Marcar como concluída</span>
+          <span className="text-muted-foreground">Criar e editar</span>
+        </div>
+        <div className="space-y-3 p-3">
+          <p className="text-base font-semibold">Planejar campanha</p>
+          <div className="grid grid-cols-[70px_1fr] gap-y-2">
+            <span className="text-muted-foreground">Responsável</span><span>Equipe de Marketing</span>
+            <span className="text-muted-foreground">Prazo</span><span>24 out</span>
+            <span className="text-muted-foreground">Cliente</span><span>Cliente exemplo</span>
+          </div>
+          <p className="text-primary">⌄ Mais campos</p>
+          <div className="border-t pt-3"><strong>Descrição</strong><p className="mt-2 text-muted-foreground">O que precisa ser feito?</p></div>
+          <div className="border-t pt-3"><strong>Subtarefas</strong><div className="mt-2 flex items-center gap-2 border-b py-1"><span className="text-primary">○</span><span className="flex-1">Criar legenda</span><span className="rounded-full bg-primary/10 px-1.5 text-primary">CA</span><span>›</span></div><div className="mt-2 rounded-md border bg-primary/5 p-2"><p className="font-semibold">Criar legenda · detalhes ›</p><p className="mt-1 text-muted-foreground">Descrição, responsável e prazo</p><p className="mt-2 rounded bg-background p-1.5 text-primary">Print dentro da descrição</p></div><p className="mt-2 text-muted-foreground">Calendário: digite o título no dia e pressione Enter</p></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaskListQuickActionsPreview() {
+  return (
+    <div aria-label="Prévia da lista compacta com status editável e lixeira" className="mx-auto w-full max-w-sm overflow-hidden rounded-xl border bg-background text-[10px] shadow-sm">
+      <div className="flex items-center justify-between gap-2 border-b p-2"><span className="rounded-full border px-2 py-1 text-muted-foreground">⌕ Buscar tarefa...</span><span className="text-primary">+ Nova tarefa</span></div>
+      <div className="grid grid-cols-[1fr_95px_48px] items-center gap-2 bg-muted/40 px-3 py-1.5 font-semibold uppercase text-muted-foreground"><span>Tarefa</span><span>Status</span><span>Ações</span></div>
+      <div className="grid grid-cols-[1fr_95px_48px] items-center gap-2 border-t px-3 py-2" style={{ boxShadow: "inset 3px 0 #2563eb" }}><span className="truncate font-medium">Preparar campanha</span><span className="rounded-full border border-blue-500 bg-blue-50 px-2 py-1 font-semibold text-blue-700">Em andamento ⌄</span><span className="flex gap-1 text-muted-foreground"><Check className="h-3 w-3" /><Trash2 className="h-3 w-3" /></span></div>
+      <div className="grid grid-cols-[1fr_95px_48px] items-center gap-2 border-t px-3 py-2" style={{ boxShadow: "inset 3px 0 #7c3aed" }}><span className="truncate font-medium">Revisar postagem</span><span className="rounded-full border border-violet-500 bg-violet-50 px-2 py-1 font-semibold text-violet-700">Em revisão ⌄</span><span className="flex gap-1 text-muted-foreground"><Check className="h-3 w-3" /><Trash2 className="h-3 w-3" /></span></div>
+      <div className="flex items-center gap-2 border-t bg-slate-50 px-3 py-2 text-slate-600"><ImagePlus className="h-3.5 w-3.5 text-emerald-600" /><span>Print salvo na subtarefa</span><Check className="ml-auto h-3.5 w-3.5 text-emerald-600" /></div>
+    </div>
+  );
+}
+
+function MarketingInlineTaskImagesPreview() {
+  return (
+    <div aria-label="Prévia do print entre parágrafos com opção de ampliar e baixar no Marketing" className="mx-auto w-full max-w-sm rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <p className="font-semibold">Tarefa · Campanha exemplo</p>
+      <div className="mt-2 rounded-lg border bg-muted/20 p-2">
+        <p className="font-medium">Descrição</p>
+        <p className="mt-2">Revisar a arte antes da publicação.</p>
+        <div data-inline-task-image className="my-2 flex h-20 items-center justify-center rounded-md border bg-gradient-to-br from-sky-100 to-violet-100 text-primary dark:from-sky-950 dark:to-violet-950">
+          <ImagePlus className="mr-1.5 h-5 w-5" /> Print inserido aqui
+        </div>
+        <p className="flex items-center gap-1 text-primary"><Download className="h-3 w-3" /> Clique para ampliar e baixar</p>
+        <p>Confirmar a legenda com a equipe.</p>
+      </div>
+      <div className="mt-2 flex items-center gap-2 rounded-lg border px-2 py-1.5">
+        <Paperclip className="h-3.5 w-3.5" /> Arquivos <span className="rounded-full bg-muted px-1.5">1</span>
+        <span className="ml-auto text-muted-foreground">print-da-campanha.png</span>
+      </div>
     </div>
   );
 }
@@ -1519,6 +1581,9 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "task-list-quick-actions": TaskListQuickActionsPreview,
+  "marketing-create-side-panel": MarketingCreateSidePanelPreview,
+  "marketing-inline-task-images": MarketingInlineTaskImagesPreview,
   "meeting-agenda-tasks": MeetingAgendaTasksPreview,
   "subtask-attachment-indicator": SubtaskAttachmentIndicatorPreview,
   "subtask-file-thumbnails": SubtaskFileThumbnailsPreview,

@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowDown, ArrowUp, Check, CheckCircle2, ChevronDown, Copy, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, CheckCircle2, ChevronDown, Copy, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -27,13 +27,14 @@ import { usePersonalTaskPins } from "@/hooks/use-task-card-activity";
 import { CompletionDateDialog } from "@/components/CompletionDateDialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { priorityColors, priorityLabels, dueUrgencyState, dueUrgencyTextClass } from "@/lib/task-utils";
 import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
-import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
+import { deleteTaskWithOfflineSupport, updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { LinkedText } from "@/components/LinkedText";
 import { completedSubtaskFilterTask, completedSubtaskHistory, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 
@@ -79,6 +80,14 @@ function ListPage() {
   const [duplicateDueDate, setDuplicateDueDate] = useState("");
   const [duplicatingTask, setDuplicatingTask] = useState(false);
   const [completionTaskTarget, setCompletionTaskTarget] = useState<Task | null>(null);
+  const [changingTaskId, setChangingTaskId] = useState<string | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const openColumns = columns.filter((column) => {
+    const name = column.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+    return !/conclu|finaliz|done/.test(name) && !statuses.some((status) =>
+      status.is_completed && status.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR") === name,
+    );
+  });
 
   useEffect(() => {
     if (!user?.id) return;
@@ -270,20 +279,43 @@ function ListPage() {
     void completeTask(task.id, today);
   };
 
+  const changeColumn = async (task: Task, columnId: string) => {
+    if (!user || task.column_id === columnId || changingTaskId) return;
+    setChangingTaskId(task.id);
+    try {
+      const { queued } = await updateTaskWithOfflineSupport({
+        userId: user.id,
+        task,
+        patch: { column_id: columnId },
+        queryClient,
+      });
+      if (!queued) await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Status atualizado.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível mudar o status.");
+    } finally {
+      setChangingTaskId(null);
+    }
+  };
+
+  const deleteFromList = async (task: Task) => {
+    if (!user || deletingTaskId) return;
+    if (!window.confirm(`Mover “${task.title}” para a lixeira? Você poderá restaurá-la depois.`)) return;
+    setDeletingTaskId(task.id);
+    try {
+      await deleteTaskWithOfflineSupport({ userId: user.id, task, queryClient });
+      toast.success("Tarefa movida para a lixeira.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir a tarefa.");
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
+
   return (
-    <div className="space-y-4 p-4 sm:p-6">
-      <header className="flex items-center justify-end gap-3 flex-wrap">
-        <Button
-          onClick={() => {
-            setEdit(null);
-            setOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Nova tarefa
-        </Button>
-      </header>
-      <TaskFilters
+    <div className="space-y-3 p-4 sm:p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <TaskFilters
         filters={filters}
         onChange={setFilters}
         hideAssignee={isCollaborator && !teamVisibilityWorkspaceId}
@@ -295,13 +327,25 @@ function ListPage() {
             />
           ) : undefined,
         }}
-      />
+        />
+        <header className="flex items-center justify-end gap-3">
+        <Button
+          onClick={() => {
+            setEdit(null);
+            setOpen(true);
+          }}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Nova tarefa
+        </Button>
+        </header>
+      </div>
 
       <div className="overflow-hidden rounded-lg border bg-card">
         <table className="w-full table-fixed border-collapse text-xs">
           <thead className="border-b bg-muted/50 text-left text-[10px] uppercase tracking-wide text-muted-foreground">
             <tr>
-              <th className="w-[29%] border-r px-2 py-2">Tarefa</th>
+              <th className="w-[25%] border-r px-2 py-2">Tarefa</th>
               <th className="w-[11%] border-r px-2 py-2">Cliente</th>
               <th className="w-[13%] border-r px-2 py-2">Responsável</th>
               <th className="w-[12%] border-r px-2 py-2">Colaboradores</th>
@@ -325,7 +369,7 @@ function ListPage() {
                   )}
                 </button>
               </th>
-              <th className="w-[5%] px-1 py-2 text-center">Ações</th>
+              <th className="w-[9%] px-1 py-2 text-center">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -382,6 +426,7 @@ function ListPage() {
                   className={`cursor-pointer border-t transition-colors hover:bg-muted/30 ${
                     isCompleted ? "opacity-60 grayscale-[0.2]" : ""
                   }`}
+                  style={!isCompleted && displayStatus ? { boxShadow: `inset 3px 0 ${displayStatus.color}` } : undefined}
                   onClick={() => {
                     setEdit(t);
                     setOpen(true);
@@ -412,11 +457,20 @@ function ListPage() {
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="border-r px-2 py-2">
-                    {displayStatus ? (
-                      <Badge variant="outline" className="max-w-full truncate" style={{ borderColor: displayStatus.color, color: displayStatus.color }}>
-                        {displayStatus.name}
-                      </Badge>
-                    ) : <span className="text-muted-foreground">—</span>}
+                    {displayStatus && isCompleted ? (
+                      <Badge variant="outline" className="max-w-full truncate" style={{ borderColor: displayStatus.color, color: displayStatus.color }}>{displayStatus.name}</Badge>
+                    ) : (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button type="button" disabled={changingTaskId === t.id} onClick={(event) => event.stopPropagation()} className="flex max-w-full items-center gap-1 rounded-full border px-2 py-1 font-semibold transition hover:brightness-95 disabled:opacity-50" style={{ borderColor: displayStatus?.color ?? "#64748b", color: displayStatus?.color ?? "#64748b", backgroundColor: `color-mix(in srgb, ${displayStatus?.color ?? "#64748b"} 12%, transparent)` }} title="Alterar status sem abrir a tarefa">
+                            <span className="truncate">{displayStatus?.name ?? "Escolher status"}</span><ChevronDown className="h-3 w-3 shrink-0" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" onClick={(event) => event.stopPropagation()}>
+                          {openColumns.filter((column) => !column.client_id || column.client_id === t.client_id).map((column) => <DropdownMenuItem key={column.id} disabled={changingTaskId === t.id} onSelect={() => void changeColumn(t, column.id)} className="gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: column.color ?? "#64748b" }} />{column.name}{t.column_id === column.id ? <Check className="ml-auto h-3.5 w-3.5" /> : null}</DropdownMenuItem>)}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </td>
                   <td className="border-r px-2 py-2">
                     {t.priority ? (
@@ -464,6 +518,7 @@ function ListPage() {
                       >
                         <Check className="h-4 w-4" />
                       </Button>
+                      <Button size="icon" variant="ghost" title="Mover tarefa para a lixeira" aria-label={`Excluir ${t.title}`} disabled={deletingTaskId === t.id} className="text-muted-foreground hover:text-destructive" onClick={(event) => { event.stopPropagation(); void deleteFromList(t); }}><Trash2 className="h-4 w-4" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -520,7 +575,7 @@ function ListPage() {
           </tbody>
         </table>
       </div>
-      <TaskDialog open={open} onOpenChange={setOpen} task={edit} />
+      <TaskDialog open={open} onOpenChange={setOpen} task={edit} defaultWorkspaceId={viewedWorkspaceId} />
       <CompletionDateDialog
         open={!!completionTaskTarget}
         onOpenChange={(isOpen) => !isOpen && setCompletionTaskTarget(null)}

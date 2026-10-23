@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite dev",
-    "build": "node scripts/private-pilot-release.mjs capture && vite build && node scripts/private-pilot-release.mjs prepare",
+    "build": "vite build",
     "build:pages": "vite build --config vite.pages.config.ts && node scripts/prepare-gh-pages.mjs",
     "deploy:pages": "npm run build:pages && node scripts/deploy-gh-pages.mjs",
     "build:dev": "vite build --mode development",
