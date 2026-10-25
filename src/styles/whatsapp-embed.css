@@ -209,6 +209,8 @@ svg.lucide { stroke-width:1.75!important; }
 .cursor-context-menu button:active { transform:scale(.9); }
 /* Reply arrow beside the bubble */
 .flex.group > button:has(svg.lucide-corner-up-left) { border-radius:999px!important; }
+/* On my messages the receipt button sits left of the bubble; keep the reply arrow beside it, not under it. */
+.flex.group.justify-end:has(> .cursor-context-menu > button[aria-label^="Ver quem recebeu"]) > button:has(svg.lucide-corner-up-left) { margin-right:28px; }
 /* Quoted reply */
 .cursor-context-menu .line-clamp-2.text-xs { font-size:12.5px!important; }
 .cursor-context-menu [class*="border-l-"]:has(.line-clamp-2),.cursor-context-menu .cursor-pointer:has(.line-clamp-2) { margin:2px -4px 6px!important; padding:6px 10px!important; border-radius:10px!important; border-left-width:0!important; background:color-mix(in oklab,var(--foreground) 6%,transparent)!important; box-shadow:inset 3px 0 0 0 currentColor; }
@@ -278,6 +280,7 @@ button[aria-label="Enviar mensagem"]:disabled { opacity:.35; }
   [data-slot="dialog-content"]:has(#kanban-chat-description) { width:100vw!important; height:100dvh!important; border-radius:0!important; }
   .cursor-context-menu.rounded-2xl { max-width:86%!important; }
   .cursor-context-menu > button[aria-label^="Ver quem recebeu"] { display:none!important; }
+  .flex.group.justify-end > button:has(svg.lucide-corner-up-left) { margin-right:0!important; }
 }
 /* Card text column as a grid: name + time on one line, details below */
 [aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] > div.min-w-0 { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:8px; align-items:baseline; }

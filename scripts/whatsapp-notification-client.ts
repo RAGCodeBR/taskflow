@@ -16,7 +16,8 @@ export function embeddedNotifications(parentOrigin: string) {
       constructor(title,options={}){
         super();this.id='notification-'+(++sequence);this.onclick=null;this.onclose=null;
         notifications.set(this.id,this);
-        send({type:'taskflow-whatsapp-notification-show',id:this.id,title:String(title),body:String(options.body||''),tag:String(options.tag||'')});
+        send({type:'taskflow-whatsapp-notification-show',id:this.id,title:String(title),body:String(options.body||''),tag:String(options.tag||''),
+          requireInteraction:options.requireInteraction===true,renotify:options.renotify===true});
       }
       close(){send({type:'taskflow-whatsapp-notification-close',id:this.id});notifications.delete(this.id);}
     }

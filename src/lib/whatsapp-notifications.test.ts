@@ -22,8 +22,11 @@ describe('embedded notification permission',()=>{
     expect(window.Notification.permission).toBe('default');
     receive({source:parent,origin:'https://www.taskfloww.com.br',data:{type:'taskflow-whatsapp-notification-state',id,permission:'granted'}});
     expect(await permission).toBe('granted');
-    const notice=new window.Notification('Teste fictício',{body:'Sem enviar mensagem',tag:'fixture'});
+    const notice=new window.Notification('Teste fictício',{body:'Sem enviar mensagem',tag:'fixture',requireInteraction:true,renotify:true});
     const notificationId=sent.at(-1).data.id;
+    expect(sent.at(-1).data).toMatchObject({requireInteraction:true,renotify:true});
+    new window.Notification('Sem persistência',{body:'x',tag:'y'});
+    expect(sent.at(-1).data).toMatchObject({requireInteraction:false,renotify:false});
     let clicked=false;notice.onclick=()=>{clicked=true;};
     receive({source:parent,origin:'https://www.taskfloww.com.br',data:{type:'taskflow-whatsapp-notification-click',id:notificationId}});
     expect(clicked).toBe(true);
