@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultsToOwnAssignee, defaultsToOwnScope, teamTaskVisibilityWorkspace, teamSubtaskAssigneeTaskIds } from "./team-task-visibility";
+import { defaultsToOwnScope, teamTaskVisibilityWorkspace, teamSubtaskAssigneeTaskIds } from "./team-task-visibility";
 
 const access = {
   isCollaborator: true,
@@ -7,34 +7,23 @@ const access = {
   workspace: { id: "marketing-id", slug: "marketing", canViewAllTasks: true },
 };
 describe("workspace team task visibility", () => {
-  it("defaults Carol and Eloisa to their own assignee in Marketing, without changing team access", () => {
-    expect(defaultsToOwnAssignee("3a93e438-1f3f-42f9-aea4-d22d227e1ea1", "marketing-id")).toBe(true);
-    expect(defaultsToOwnAssignee("0463e2ec-c7fe-4ba3-8df1-1f1ee0093e79", "marketing-id")).toBe(true);
-    expect(defaultsToOwnAssignee("3a93e438-1f3f-42f9-aea4-d22d227e1ea1", null)).toBe(false);
-    expect(defaultsToOwnAssignee("0140bc01-2798-4616-9903-50bc191ce9ef", "marketing-id")).toBe(false);
-    expect(defaultsToOwnAssignee(null, "marketing-id")).toBe(false);
+  it("defaults every Marketing collaborator to their personal work queue", () => {
+    expect(defaultsToOwnScope("designer", "marketing-id")).toBe(true);
+    expect(defaultsToOwnScope("designer", null)).toBe(false);
+    expect(defaultsToOwnScope(null, "marketing-id")).toBe(false);
     expect(defaultsToOwnScope("0140bc01-2798-4616-9903-50bc191ce9ef")).toBe(true);
-    expect(defaultsToOwnScope("0463e2ec-c7fe-4ba3-8df1-1f1ee0093e79")).toBe(false);
   });
-  it("allows filtering a completed child's parent only inside the team grant", () => {
+  it("keeps completed children out of the assignee's active parent filters", () => {
     const subtasks = [
       { task_id: "team-parent", assignee_id: "luiz", done: true },
       { task_id: "foreign-parent", assignee_id: "luiz", done: true },
       { task_id: "open-parent", assignee_id: "luiz", done: false },
     ];
-    const tasks = [
-      { id: "team-parent", workspace_id: "marketing" },
-      { id: "foreign-parent", workspace_id: "consultoria" },
-    ];
-    expect([...teamSubtaskAssigneeTaskIds(subtasks, tasks, "marketing").get("luiz")!]).toEqual([
-      "open-parent",
-      "team-parent",
-    ]);
-    expect([...teamSubtaskAssigneeTaskIds(subtasks, tasks, null).get("luiz")!]).toEqual([
+    expect([...teamSubtaskAssigneeTaskIds(subtasks).get("luiz")!]).toEqual([
       "open-parent",
     ]);
   });
-  it("grants browsing only for the explicitly authorized Marketing workspace", () => {
+  it("grants team browsing to collaborators in Marketing", () => {
     expect(teamTaskVisibilityWorkspace(access)).toBe("marketing-id");
     expect(
       teamTaskVisibilityWorkspace({
@@ -43,19 +32,23 @@ describe("workspace team task visibility", () => {
       }),
     ).toBeNull();
   });
-  it("keeps ordinary collaborators, clients and old offline snapshots unchanged", () => {
+  it("gives Marketing administrators the same personal start view and team browsing", () => {
+    expect(teamTaskVisibilityWorkspace({ ...access, isCollaborator: false, isAdmin: true })).toBe("marketing-id");
+    expect(defaultsToOwnScope("marketing-admin", "marketing-id")).toBe(true);
+  });
+  it("does not grant team browsing outside Marketing or to clients", () => {
     expect(
       teamTaskVisibilityWorkspace({
         ...access,
         workspace: { ...access.workspace, canViewAllTasks: false },
       }),
-    ).toBeNull();
+    ).toBe("marketing-id");
     expect(
       teamTaskVisibilityWorkspace({
         ...access,
         workspace: { id: "marketing-id", slug: "marketing" },
       }),
-    ).toBeNull();
+    ).toBe("marketing-id");
     expect(teamTaskVisibilityWorkspace({ ...access, isClient: true })).toBeNull();
     expect(teamTaskVisibilityWorkspace({ ...access, isCollaborator: false })).toBeNull();
     expect(teamTaskVisibilityWorkspace({ ...access, workspace: null })).toBeNull();

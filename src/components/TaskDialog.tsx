@@ -36,7 +36,7 @@ import {
   type Task,
   type Subtask as CachedSubtask,
 } from "@/hooks/use-data";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Trash2,
@@ -84,6 +84,8 @@ import {
 import { enqueueOfflineOperation, isNetworkFailure, isOffline, listOfflineOperations } from "@/lib/offline-sync";
 import { persistTaskEdit, taskEditError, taskEditPatch } from "@/lib/task-edit";
 import { taskCollaboratorChanges } from "@/lib/task-collaborator-changes";
+import { canWriteCachedTaskConversation } from "@/lib/task-conversation-access";
+import { subtasksQueryKey } from "@/lib/task-query-keys";
 import { useRecordTaskCardOpen } from "@/hooks/use-task-card-activity";
 import { hasMarketingTaskExperience } from "@/lib/environment-access";
 import { TaskCardOpenings, TaskPinButton } from "@/components/TaskCardActivity";
@@ -112,6 +114,7 @@ interface Props {
 
 interface Subtask extends EditableSubtask {
   id: string;
+  task_id: string;
   title: string;
   done: boolean;
   position: number;
@@ -340,6 +343,19 @@ export function TaskDialog({
   const [completionDate, setCompletionDate] = useState<string>("");
   const [dueDateChangeReason, setDueDateChangeReason] = useState("");
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const conversationWriteAccess = useQuery({
+    queryKey: ["task-conversation-write-access", currentTaskId, user?.id],
+    enabled: open && targetWorkspace?.slug === "marketing" && !!currentTaskId,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("can_access_task_conversation", {
+        _task_id: currentTaskId,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
+    staleTime: 30_000,
+    refetchInterval: () => isOffline() ? false : 15_000,
+  });
   const currentTaskIdRef = useRef<string | null>(null);
   const editBaseRef = useRef<Task | null>(null);
   const initializedFormRef = useRef<string | null>(null);
@@ -349,6 +365,14 @@ export function TaskDialog({
   const conversationSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const canWriteMarketingConversationOffline = isOffline() && canWriteCachedTaskConversation({
+    taskId: currentTaskId,
+    userId: user?.id,
+    task,
+    collaboratorTaskId: collaboratorLoad?.taskId,
+    collaboratorIds,
+    subtasks,
+  });
   const [pendingMarketingSubtasks, setPendingMarketingSubtasks] = useState<PendingMarketingSubtask[]>([]);
   const [activePendingSubtaskId, setActivePendingSubtaskId] = useState<string | null>(null);
   const [editingPendingSubtaskId, setEditingPendingSubtaskId] = useState<string | null>(null);
@@ -1148,6 +1172,7 @@ export function TaskDialog({
       };
       await createSubtaskWithOfflineSupport({
         userId: user.id,
+        workspaceId: activeWorkspace?.id,
         subtask: localSubtask,
         queryClient: qc,
       });
@@ -1169,7 +1194,7 @@ export function TaskDialog({
         assignee_id: subtask.assigneeId || null,
         notes: stripPendingDescriptionImages(subtask.notes).trim() || null,
       };
-      await createSubtaskWithOfflineSupport({ userId: user.id, subtask: localSubtask, queryClient: qc });
+      await createSubtaskWithOfflineSupport({ userId: user.id, workspaceId: activeWorkspace?.id, subtask: localSubtask, queryClient: qc });
       pendingSubtaskNotesRef.current[subtask.id] = subtask.notes;
       setPendingMarketingSubtasks((current) => current.filter((item) => item.id !== subtask.id));
     }
@@ -1414,11 +1439,13 @@ export function TaskDialog({
   };
 
   const handleSubtaskDialogSaved = (savedSubtask: EditableSubtask) => {
+    const parentId = currentTaskIdRef.current ?? currentTaskId ?? task?.id;
+    if (!parentId) return;
     setSubtasks((current) => {
       const exists = current.some((subtask) => subtask.id === savedSubtask.id);
       return exists
-        ? current.map((subtask) => (subtask.id === savedSubtask.id ? savedSubtask : subtask))
-        : [...current, savedSubtask];
+        ? current.map((subtask) => (subtask.id === savedSubtask.id ? { ...subtask, ...savedSubtask } : subtask))
+        : [...current, { ...savedSubtask, task_id: parentId }];
     });
     setNewSubtask("");
     setNewSubtaskDue("");
@@ -1457,7 +1484,7 @@ export function TaskDialog({
         item.id === st.id ? { ...item, done: nextDone, completed_at: nextCompletedAt } : item,
       ),
     );
-    qc.setQueryData<CachedSubtask[]>(["subtasks"], (current) =>
+    qc.setQueryData<CachedSubtask[]>(subtasksQueryKey(user?.id, activeWorkspace?.id), (current) =>
       current?.map((item) =>
         item.id === st.id ? { ...item, done: nextDone, completed_at: nextCompletedAt } : item,
       ),
@@ -2834,7 +2861,10 @@ export function TaskDialog({
                   {currentTaskId ? (
                     <TaskConversationPanel
                       taskId={currentTaskId}
-                      readOnly={Boolean(task?.completed_at || task?.status === "done" || task?.conversation_closed_at)}
+                      readOnly={Boolean(task?.completed_at || task?.status === "done" || task?.conversation_closed_at || (targetWorkspace?.slug === "marketing" && !conversationWriteAccess.data && !canWriteMarketingConversationOffline))}
+                      readOnlyReason={targetWorkspace?.slug === "marketing" && !conversationWriteAccess.data && !canWriteMarketingConversationOffline && !task?.completed_at && task?.status !== "done" && !task?.conversation_closed_at
+                        ? "Conversa disponível para consulta. Para responder, participe da tarefa ou de uma subtarefa."
+                        : undefined}
                       className="h-[360px] overflow-hidden rounded-md border"
                       onActivity={() => void loadRelated(currentTaskId)}
                     />

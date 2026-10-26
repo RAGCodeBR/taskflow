@@ -7,7 +7,7 @@ import {
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES).toHaveLength(23);
+    expect(APP_UPDATES).toHaveLength(24);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -30,11 +30,11 @@ describe("application release catalogue", () => {
     const ownerConsultoria = getVisibleAppUpdates(true, "consultoria", "reinangrupoahouse@gmail.com");
     expect(marketing).toHaveLength(5);
     expect(consultoria).toHaveLength(5);
-    expect(marketing[0].id).toBe("lista-com-status-e-lixeira-2026-10-22");
-    expect(consultoria[0].id).toBe(marketing[0].id);
+    expect(marketing[0].id).toBe("producao-e-historico-da-equipe-marketing-2026-10-26");
+    expect(consultoria[0].id).toBe("lista-com-status-e-lixeira-2026-10-22");
     expect(marketing.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(true);
     expect(consultoria.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(false);
-    expect(ownerMarketing[1].id).toBe("painel-lateral-de-criacao-marketing-2026-10-22");
+    expect(ownerMarketing[2].id).toBe("painel-lateral-de-criacao-marketing-2026-10-22");
     expect(ownerConsultoria[0].id).toBe("painel-de-tarefas-consultoria-reinan-2026-10-22");
   });
 

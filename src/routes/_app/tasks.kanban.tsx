@@ -76,7 +76,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
-import { defaultsToOwnAssignee, defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
+import { defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import {
   useTasks,
   useColumns,
@@ -101,7 +101,7 @@ import { MarketingFormatSettings } from "@/components/MarketingFormatSettings";
 import { MarketingObjectiveSettings } from "@/components/MarketingObjectiveSettings";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { CompletedSubtaskCard } from "@/components/CompletedSubtaskCard";
-import { completedSubtaskFilterTask, completedSubtaskHistory, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
+import { completedSubtaskFilterTask, completedSubtaskHistory, completedSubtasksForUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { CardFieldsPopover } from "@/components/CardFieldsPopover";
 import { useBoardPreferences, useUpdateBoardPreferences } from "@/hooks/use-board-preferences";
@@ -181,6 +181,7 @@ type SortDirection = "asc" | "desc";
 function CompletedColumn({
   taskIds,
   count,
+  title = "Concluídas",
   children,
   orientation,
   minimal,
@@ -208,7 +209,7 @@ function CompletedColumn({
         className="mb-2 flex w-full items-center gap-1.5 rounded px-1 text-left hover:bg-muted/50"
       >
         <span className="h-3 w-3 rounded-full bg-emerald-500 dark:bg-emerald-400 dark:ring-2 dark:ring-emerald-200/40 dark:shadow-[0_0_12px_rgba(74,222,128,0.7)]" />
-        <h3 className="font-semibold">Concluídas</h3>
+        <h3 className="font-semibold">{title}</h3>
         <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-400/25 dark:text-emerald-100 dark:ring-1 dark:ring-emerald-200/45 dark:shadow-[0_0_10px_rgba(74,222,128,0.32)]">
           {count}
         </span>
@@ -381,10 +382,8 @@ function KanbanPage() {
   const qc = useQueryClient();
   const { user, isAdmin, isCollaborator, activeWorkspace, workspaces } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
-    defaultsToOwnScope(user?.id)
-      ? { scope: "mine" }
-      : defaultsToOwnAssignee(user?.id, teamVisibilityWorkspaceId)
-        ? { assignee: user!.id }
+    defaultsToOwnScope(user?.id, teamVisibilityWorkspaceId)
+        ? { scope: "mine" }
         : {},
   );
   // O filtro permite ao administrador inspecionar outro ambiente sem trocar o
@@ -446,8 +445,8 @@ function KanbanPage() {
   );
 
   const subtaskAssigneeTaskIdsByUser = useMemo(
-    () => teamSubtaskAssigneeTaskIds(allSubtasks, tasks, teamVisibilityWorkspaceId),
-    [allSubtasks, tasks, teamVisibilityWorkspaceId],
+    () => teamSubtaskAssigneeTaskIds(allSubtasks),
+    [allSubtasks],
   );
 
 
@@ -494,14 +493,14 @@ function KanbanPage() {
 
   useEffect(() => {
     if (!user?.id) return;
-    if (defaultsToOwnScope(user.id)) {
+    if (defaultsToOwnScope(user.id, teamVisibilityWorkspaceId)) {
       if (!didApplyDefaultAssignee.current) {
         setFilters((current) => ({ ...current, scope: current.scope ?? "mine" }));
         didApplyDefaultAssignee.current = true;
       }
       return;
     }
-    if (isCollaborator && !defaultsToOwnAssignee(user.id, teamVisibilityWorkspaceId)) {
+    if (isCollaborator) {
       if (!teamVisibilityWorkspaceId) {
         didApplyDefaultAssignee.current = false;
         setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
@@ -509,7 +508,6 @@ function KanbanPage() {
       return;
     }
     if (didApplyDefaultAssignee.current) return;
-    setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
     didApplyDefaultAssignee.current = true;
   }, [user?.id, isCollaborator, teamVisibilityWorkspaceId]);
 
@@ -529,6 +527,7 @@ function KanbanPage() {
     start: "",
     end: "",
   });
+  const [showAllCompleted, setShowAllCompleted] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [columnEditor, setColumnEditor] = useState<{
     open: boolean;
@@ -579,6 +578,7 @@ function KanbanPage() {
     const endToday = new Date();
     endToday.setHours(23, 59, 59, 999);
     const hasRange = !!(completedRange.start || completedRange.end);
+    const personalMarketingHistory = Boolean(teamVisibilityWorkspaceId && filters.scope === "mine");
     let all = taskView.filter((t) => {
       if (isTaskFromAnotherWorkspace(t, activeWorkspace?.id)) return false;
       if (t.status !== "done" && !t.completed_at) return false;
@@ -588,8 +588,8 @@ function KanbanPage() {
         const end = completedRange.end ? new Date(`${completedRange.end}T23:59:59`) : null;
         return (!start || ref >= start) && (!end || ref <= end);
       }
-      // Padrão: apenas as concluídas de hoje
-      return ref >= startToday && ref <= endToday;
+      // Personal Marketing history remains available after the delivery day.
+      return personalMarketingHistory || (teamVisibilityWorkspaceId && showAllCompleted) || (ref >= startToday && ref <= endToday);
     });
     all = applyTaskFilters(all, filters, {
       userId: user?.id ?? null,
@@ -653,6 +653,7 @@ function KanbanPage() {
     sort,
     tagNameForTask,
     completedRange,
+    showAllCompleted,
     statuses,
     user?.id,
     subtaskAssigneeTaskIds,
@@ -669,14 +670,20 @@ function KanbanPage() {
     const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
     const hasRange = !!(completedRange.start || completedRange.end);
-    return completedSubtaskHistory(tasks, allSubtasks, user.id, collaboratorTaskIds, viewedWorkspaceId)
+    const personalMarketingHistory = Boolean(teamVisibilityWorkspaceId && filters.scope === "mine");
+    const history = teamVisibilityWorkspaceId
+      ? personalMarketingHistory
+        ? completedSubtasksForUser(tasks, allSubtasks, user.id, teamVisibilityWorkspaceId)
+        : []
+      : completedSubtaskHistory(tasks, allSubtasks, user.id, collaboratorTaskIds, viewedWorkspaceId);
+    return history
       .filter(({ subtask, parent }) => {
         const completedAt = new Date(subtask.completed_at ?? parent.updated_at);
         if (hasRange) {
           const start = completedRange.start ? new Date(`${completedRange.start}T00:00:00`) : null;
           const end = completedRange.end ? new Date(`${completedRange.end}T23:59:59`) : null;
           if ((start && completedAt < start) || (end && completedAt > end)) return false;
-        } else if (completedAt < startToday || completedAt > endToday) {
+        } else if (!personalMarketingHistory && !(teamVisibilityWorkspaceId && showAllCompleted) && (completedAt < startToday || completedAt > endToday)) {
           return false;
         }
         return applyTaskFilters([completedSubtaskFilterTask(parent, subtask, user.id)], filters, {
@@ -684,7 +691,7 @@ function KanbanPage() {
           restrictToCurrentUserParticipation: isCollaborator,
         }).length > 0;
       });
-  }, [tasks, allSubtasks, user?.id, collaboratorTaskIds, viewedWorkspaceId, completedRange, filters, isCollaborator]);
+  }, [tasks, allSubtasks, user?.id, collaboratorTaskIds, viewedWorkspaceId, completedRange, showAllCompleted, filters, isCollaborator, teamVisibilityWorkspaceId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -1202,6 +1209,8 @@ function KanbanPage() {
     const completedLabel =
       completedRange.start || completedRange.end
         ? "Concluídas no período"
+        : teamVisibilityWorkspaceId && (showAllCompleted || filters.scope === "mine")
+          ? "Concluídas no histórico"
         : filters.date === "completed"
           ? "Concluídas"
           : filters.date === "this_month"
@@ -1342,6 +1351,10 @@ function KanbanPage() {
               key: "completed-range",
               label: `Concluídas: ${completedRange.start || "início"} até ${completedRange.end || "hoje"}`,
               clear: () => setCompletedRange({ start: "", end: "" }),
+            }] : teamVisibilityWorkspaceId && showAllCompleted ? [{
+              key: "completed-history",
+              label: "Todo o histórico de concluídas",
+              clear: () => setShowAllCompleted(false),
             }] : []}
             sections={{
               category: workspaces.length > 1 ? (
@@ -1402,6 +1415,17 @@ function KanbanPage() {
                 </Button>
               </>,
               completedPeriod: <>
+                {teamVisibilityWorkspaceId && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={showAllCompleted ? "secondary" : "outline"}
+                    className="h-8 rounded-full"
+                    onClick={() => setShowAllCompleted((current) => !current)}
+                  >
+                    Todo o histórico
+                  </Button>
+                )}
                 <Input
                   type="date"
                   value={completedRange.start}
@@ -1504,6 +1528,7 @@ function KanbanPage() {
 
               <CompletedColumn
                 count={completedTasks.length + completedParts.length}
+                title={teamVisibilityWorkspaceId && filters.scope === "mine" ? "Concluídas por mim" : "Concluídas"}
                 orientation={orientation}
                 minimal={minimalCards}
                 open={completedOpen}

@@ -5,6 +5,14 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates personal work, completed subtasks and team access without real actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "marketing-team-production" }));
+    expect(html).toContain("data-marketing-open-subtask");
+    expect(html).toContain("data-marketing-completed-subtask");
+    expect(html).toContain("data-marketing-team-task");
+    expect(html).toContain("Todo o histórico de concluídas");
+    expect(html).not.toContain("<button");
+  });
   it("shows an agenda task row and the meeting client as a fixed field without an action", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "meeting-agenda-tasks" }));
     expect(html).toContain("data-meeting-task-row");

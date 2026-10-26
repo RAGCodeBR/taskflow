@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyTaskFilters } from "./TaskFilters";
 import { completedSubtaskFilterTask, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
-import { defaultsToOwnAssignee, defaultsToOwnScope } from "@/lib/team-task-visibility";
+import { defaultsToOwnScope } from "@/lib/team-task-visibility";
 import type { Subtask, Task } from "@/hooks/use-data";
 
 const USER = "user-1";
@@ -31,10 +31,11 @@ describe("applyTaskFilters: tarefas da pessoa", () => {
       userId: carol,
       restrictToCurrentUserParticipation: true,
       teamVisibilityWorkspaceId: "marketing",
+      subtaskAssigneeTaskIds: new Set(["own-subtask-parent"]),
       subtaskAssigneeTaskIdsByUser: new Map([[carol, new Set(["own-subtask-parent"])]]),
     };
-    const initialFilters = defaultsToOwnAssignee(carol, opts.teamVisibilityWorkspaceId)
-      ? { assignee: carol }
+    const initialFilters = defaultsToOwnScope(carol, opts.teamVisibilityWorkspaceId)
+      ? { scope: "mine" as const }
       : {};
     expect(applyTaskFilters(tasks, initialFilters, opts).map((item) => item.id)).toEqual([
       "own", "own-subtask-parent",
@@ -50,7 +51,7 @@ describe("applyTaskFilters: tarefas da pessoa", () => {
       { ...task("other", OTHER), workspace_id: "marketing" },
     ];
     const opts = { userId: eloisa, restrictToCurrentUserParticipation: true, teamVisibilityWorkspaceId: "marketing" };
-    expect(applyTaskFilters(tasks, defaultsToOwnAssignee(eloisa, "marketing") ? { assignee: eloisa } : {}, opts).map((item) => item.id)).toEqual(["own"]);
+    expect(applyTaskFilters(tasks, defaultsToOwnScope(eloisa, "marketing") ? { scope: "mine" } : {}, opts).map((item) => item.id)).toEqual(["own"]);
     expect(applyTaskFilters(tasks, {}, opts).map((item) => item.id)).toEqual(["own", "other"]);
   });
   it("defaults Amanda to her personal scope without broadening or removing access", () => {
@@ -85,6 +86,29 @@ describe("applyTaskFilters: tarefas da pessoa", () => {
     expect(applyTaskFilters(tasks, { assignee: OTHER }, opts).map((item) => item.id)).toEqual([
       "team",
     ]);
+  });
+  it("keeps a collaborator-only Marketing task in Todas, outside Minha produção", () => {
+    const cards = [
+      { ...task("collaboration", OTHER), workspace_id: "marketing" },
+      { ...task("assigned", USER), workspace_id: "marketing" },
+    ];
+    const opts = {
+      userId: USER,
+      restrictToCurrentUserParticipation: true,
+      teamVisibilityWorkspaceId: "marketing",
+      collaboratorTaskIds: new Set(["collaboration"]),
+    };
+    expect(applyTaskFilters(cards, { scope: "mine" }, opts).map(({ id }) => id)).toEqual(["assigned"]);
+    expect(applyTaskFilters(cards, {}, opts).map(({ id }) => id)).toEqual(["collaboration", "assigned"]);
+  });
+  it("shows administrators their own Marketing production without hiding the team view", () => {
+    const cards = [
+      { ...task("admin-task", USER), workspace_id: "marketing" },
+      { ...task("teammate-task", OTHER), workspace_id: "marketing" },
+    ];
+    const opts = { userId: USER, teamVisibilityWorkspaceId: "marketing" };
+    expect(applyTaskFilters(cards, { scope: "mine" }, opts).map(({ id }) => id)).toEqual(["admin-task"]);
+    expect(applyTaskFilters(cards, {}, opts).map(({ id }) => id)).toEqual(["admin-task", "teammate-task"]);
   });
   it("lets a team viewer find the parent via another person's pending subtasks", () => {
     const parent = { ...task("parent", "someone-else"), workspace_id: "marketing" };
@@ -148,6 +172,26 @@ describe("applyTaskFilters: tarefas da pessoa", () => {
 
     expect(personal(false)).toEqual(["subtask-only", "collaborator", "direct"]);
     expect(personal(true)).toEqual(["collaborator", "direct"]);
+  });
+
+  it("separa a produção pessoal do acesso às tarefas da equipe no Marketing", () => {
+    const cards = [task("colleague"), task("subtask"), task("direct", USER)];
+    const options = {
+      userId: USER,
+      restrictToCurrentUserParticipation: true,
+      teamVisibilityWorkspaceId: "marketing",
+      collaboratorTaskIds: new Set(["colleague"]),
+      subtaskAssigneeTaskIds: new Set(["subtask"]),
+    };
+    const teamCards = cards.map((card) => ({ ...card, workspace_id: "marketing" }));
+    expect(applyTaskFilters(teamCards, { scope: "mine" }, options).map((card) => card.id))
+      .toEqual(["subtask", "direct"]);
+    expect(applyTaskFilters(teamCards, {}, options).map((card) => card.id))
+      .toEqual(["colleague", "subtask", "direct"]);
+    expect(applyTaskFilters(teamCards, { assignee: USER }, {
+      ...options,
+      subtaskAssigneeTaskIdsByUser: new Map([[USER, new Set(["subtask"])]]),
+    }).map((card) => card.id)).toEqual(["subtask", "direct"]);
   });
 
   it("inclui somente a subtarefa finalizada na visão pessoal de concluídas", () => {

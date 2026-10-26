@@ -73,7 +73,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { hasMarketingTaskExperience } from "@/lib/environment-access";
 import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
-import { defaultsToOwnAssignee, defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
+import { defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
@@ -93,11 +93,9 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
   const { user, isCollaborator, isClient, activeWorkspace, workspaces } = useAuth();
   const queryClient = useQueryClient();
   const [viewFilters, setFilters] = useState<TaskFilterValue>(() =>
-    clientCalendar ? {} : defaultsToOwnScope(user?.id)
+    clientCalendar ? {} : defaultsToOwnScope(user?.id, teamVisibilityWorkspaceId)
       ? { scope: "mine" }
-      : defaultsToOwnAssignee(user?.id, teamVisibilityWorkspaceId)
-        ? { assignee: user!.id }
-        : {},
+      : {},
   );
   const filters = useMemo<TaskFilterValue>(() => clientCalendar
     ? { ...viewFilters, client: clientId, clients: undefined }
@@ -239,14 +237,14 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
 
   useEffect(() => {
     if (!user?.id || clientCalendar) return;
-    if (defaultsToOwnScope(user.id)) {
+    if (defaultsToOwnScope(user.id, teamVisibilityWorkspaceId)) {
       if (!didApplyDefaultAssignee.current) {
         setFilters((current) => ({ ...current, scope: current.scope ?? "mine" }));
         didApplyDefaultAssignee.current = true;
       }
       return;
     }
-    if (isCollaborator && !defaultsToOwnAssignee(user.id, teamVisibilityWorkspaceId)) {
+    if (isCollaborator) {
       if (!teamVisibilityWorkspaceId) {
         didApplyDefaultAssignee.current = false;
         setFilters((current) => (current.assignee ? { ...current, assignee: undefined } : current));
@@ -254,7 +252,6 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
       return;
     }
     if (didApplyDefaultAssignee.current) return;
-    setFilters((current) => ({ ...current, assignee: current.assignee ?? user.id }));
     didApplyDefaultAssignee.current = true;
   }, [user?.id, isCollaborator, teamVisibilityWorkspaceId, clientCalendar]);
 
@@ -295,8 +292,8 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
   );
 
   const subtaskAssigneeTaskIdsByUser = useMemo(
-    () => teamSubtaskAssigneeTaskIds(subtasks, tasks, teamVisibilityWorkspaceId),
-    [subtasks, tasks, teamVisibilityWorkspaceId],
+    () => teamSubtaskAssigneeTaskIds(subtasks),
+    [subtasks],
   );
 
   const collaboratorTaskIds = useMemo(
@@ -378,7 +375,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
 
   const personalCompletedSubtasks = useMemo(() => {
     if (!user?.id || clientCalendar) return [];
-    return completedSubtasksForUser(tasks, subtasks, user.id, viewedWorkspaceId)
+    return completedSubtasksForUser(tasks, subtasks, user.id, teamVisibilityWorkspaceId ?? viewedWorkspaceId)
       .filter(({ subtask, parent }) => {
         const displayDate = subtask.due_date ?? subtask.completed_at ?? parent.due_date;
         if (!displayDate) return false;
@@ -395,7 +392,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
           restrictToCurrentUserParticipation: isCollaborator,
         }).length > 0;
       });
-  }, [tasks, subtasks, user?.id, viewedWorkspaceId, filters, isCollaborator, clientCalendar]);
+  }, [tasks, subtasks, user?.id, viewedWorkspaceId, teamVisibilityWorkspaceId, filters, isCollaborator, clientCalendar]);
 
   const pendingPinnedIds = new Set(pendingPersonalPriorities(taskView, pins).map(task => task.id));
   const dayEntries = (day: Date) => {

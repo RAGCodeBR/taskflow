@@ -70,6 +70,32 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function MarketingTeamProductionPreview() {
+  return (
+    <PreviewGrid label="Prévia da produção pessoal e da consulta à equipe no Marketing">
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="font-semibold">Minha produção</p>
+        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-amber-950" data-marketing-open-subtask>
+          <p className="font-medium">Ajustar arte da campanha</p>
+          <p className="mt-1">Subtarefa atribuída · pendente</p>
+        </div>
+        <div className="mt-2 rounded-lg border border-emerald-300 bg-emerald-50 p-2 text-emerald-950" data-marketing-completed-subtask>
+          <p className="font-medium">Legenda aprovada</p>
+          <p className="mt-1">Concluída por mim · histórico</p>
+        </div>
+      </div>
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="font-semibold">Todas · equipe de Marketing</p>
+        <div className="mt-2 rounded-lg border p-2" data-marketing-team-task>
+          <p className="font-medium">Campanha de exemplo</p>
+          <p className="mt-1 text-muted-foreground">Tarefa e conversa disponíveis para consulta</p>
+        </div>
+        <p className="mt-2 rounded-full border px-2 py-1 text-center">Todo o histórico de concluídas</p>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function MarketingCreateSidePanelPreview({ workspace = "Marketing" }: { workspace?: "Marketing" | "Consultoria" }) {
   return (
     <div aria-label={`Prévia do calendário compacto e do painel lateral de tarefas na ${workspace}`} className="mx-auto flex w-full max-w-sm flex-col items-end overflow-hidden rounded-xl border bg-muted/40 text-[10px] shadow-sm">
@@ -1581,9 +1607,10 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "marketing-team-production": MarketingTeamProductionPreview,
   "task-list-quick-actions": TaskListQuickActionsPreview,
   "consultoria-owner-task-panel": () => <MarketingCreateSidePanelPreview workspace="Consultoria" />,
-  "marketing-create-side-panel": MarketingCreateSidePanelPreview,
+  "marketing-create-side-panel": () => <MarketingCreateSidePanelPreview />,
   "marketing-inline-task-images": MarketingInlineTaskImagesPreview,
   "meeting-agenda-tasks": MeetingAgendaTasksPreview,
   "subtask-attachment-indicator": SubtaskAttachmentIndicatorPreview,

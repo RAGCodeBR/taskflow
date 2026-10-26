@@ -72,7 +72,10 @@ export function TaskFilters({
   hideAssignee?: boolean;
   extraActiveChips?: Array<{ key: string; label: string; clear: () => void }>;
 }) {
-  const { workspaces } = useAuth();
+  const { workspaces, activeWorkspace, isAdmin, isCollaborator } = useAuth();
+  const mineLabel = (isAdmin || isCollaborator) && activeWorkspace?.slug === "marketing"
+    ? "Minha produção"
+    : "Atribuídas a mim";
   const { data: clients } = useClients(filters.workspace);
   // The assignee filter must only expose users who can receive tasks.
   // This query is role-based in the database (admin and collaborator only),
@@ -144,7 +147,7 @@ export function TaskFilters({
     scope !== "all"
       ? {
           key: "scope",
-          label: scope === "mine" ? "Atribuídas a mim" : "Criadas por mim",
+          label: scope === "mine" ? mineLabel : "Criadas por mim",
           clear: () => onChange({ ...filters, scope: undefined }),
         }
       : null,
@@ -221,7 +224,7 @@ export function TaskFilters({
           onClick={() => onChange({ ...filters, scope: "mine", assignee: undefined })}
           icon={<UserCheck className="h-4 w-4" />}
         >
-          Atribuídas a mim
+          {mineLabel}
         </ScopeBtn>
         <ScopeBtn
           active={scope === "created"}
@@ -563,7 +566,8 @@ export function applyTaskFilters<
     if (f.scope === "mine") {
       if (!uid) return false;
       const participatesInTask =
-        t.assignee_id === uid || !!subIds?.has(t.id) || !!collaboratorIds?.has(t.id);
+        t.assignee_id === uid || !!subIds?.has(t.id) ||
+        (!hasTeamVisibility && !!collaboratorIds?.has(t.id));
       if (!participatesInTask) return false;
     }
     if (f.scope === "created" && (!uid || t.created_by !== uid)) return false;
@@ -584,10 +588,11 @@ export function applyTaskFilters<
       if (t.assignee_id !== null) return false;
     } else if (f.assignee) {
       const assigneeSubtasks = opts?.subtaskAssigneeTaskIdsByUser?.get(f.assignee);
-      // When filtering by the logged-in user, include direct assignments,
-      // collaborations and subtasks. Merely creating a task for another
-      // person does not make it part of that user's personal workload.
-      const isCurrentUserCollaborator = f.assignee === uid && collaboratorIds?.has(t.id);
+      // For Marketing team browsing, this is production assigned to that
+      // person: direct tasks and open subtasks. Outside that team view,
+      // existing collaborator participation still applies.
+      const isCurrentUserCollaborator =
+        !hasTeamVisibility && f.assignee === uid && collaboratorIds?.has(t.id);
       if (
         t.assignee_id !== f.assignee &&
         !assigneeSubtasks?.has(t.id) &&

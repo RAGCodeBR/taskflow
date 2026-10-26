@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Task } from "@/hooks/use-data";
+import { subtasksQueryKey } from "@/lib/task-query-keys";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -112,14 +113,16 @@ export async function createTaskWithOfflineSupport({
 
 export async function createSubtaskWithOfflineSupport({
   userId,
+  workspaceId,
   subtask,
   queryClient,
 }: {
   userId: string;
+  workspaceId?: string | null;
   subtask: Record<string, unknown>;
   queryClient: QueryClient;
 }) {
-  queryClient.setQueryData<Record<string, unknown>[]>(["subtasks"], (current = []) => [...current, subtask]);
+  queryClient.setQueryData<Record<string, unknown>[]>(subtasksQueryKey(userId, workspaceId), (current = []) => [...current, subtask]);
   await enqueueOfflineOperation({
     userId,
     entity: "subtask",

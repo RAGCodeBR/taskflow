@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "marketing-team-production"
   | "task-list-quick-actions"
   | "consultoria-owner-task-panel"
   | "marketing-create-side-panel"
@@ -69,6 +70,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "producao-e-historico-da-equipe-marketing-2026-10-26",
+    title: "Produção pessoal e histórico da equipe no Marketing",
+    date: "2026-10-26",
+    preview: "marketing-team-production",
+    audience: "all",
+    workspaces: ["marketing"],
+    details: [
+      "Minha produção mostra as tarefas diretamente atribuídas e as que ainda têm subtarefas suas em aberto. Concluir a última subtarefa retira o card dessa fila, sem concluir a tarefa principal de outra pessoa.",
+      "No Marketing, colaboradores e administradores têm Minha produção como visão inicial. Em Todas e na Lista, podem consultar as tarefas da equipe, inclusive concluídas. O histórico pessoal mantém suas subtarefas entregues; o Kanban oferece Todo o histórico para consultar concluídas antigas.",
+      "A conversa de tarefas da equipe pode ser consultada sem trocar colaboradores. Novas atribuições e alterações passam a ser atualizadas automaticamente no quadro, com uma nova consulta periódica caso a conexão em tempo real seja interrompida.",
+    ],
+  },
   {
     id: "painel-de-tarefas-consultoria-reinan-2026-10-22",
     title: "Novo painel de tarefas na Consultoria",

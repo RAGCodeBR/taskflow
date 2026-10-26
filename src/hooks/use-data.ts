@@ -2,7 +2,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { get, set } from "idb-keyval";
 import { offlineTaskCacheKey } from "@/lib/offline-user-storage";
-import { listOfflineOperations } from "@/lib/offline-sync";
+import { subtasksQueryKey } from "@/lib/task-query-keys";
+import { isOffline, listOfflineOperations } from "@/lib/offline-sync";
 import { overlayPendingTaskOperations } from "@/lib/offline-task-overlay";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -331,6 +332,7 @@ export function useClientInvoices() {
 
 export function useTasks(targetWorkspaceId?: string | null) {
   const { user, activeWorkspace } = useAuth();
+  const qc = useQueryClient();
   const userId = user?.id;
   const activeWorkspaceId = activeWorkspace?.id ?? null;
   const workspaceId = targetWorkspaceId ?? activeWorkspaceId;
@@ -338,6 +340,16 @@ export function useTasks(targetWorkspaceId?: string | null) {
     targetWorkspaceId && activeWorkspaceId && targetWorkspaceId !== activeWorkspaceId,
   );
   const offlineKey = userId ? offlineTaskCacheKey(userId) : null;
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`tasks-cache-${userId}-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
+        void qc.invalidateQueries({ queryKey: ["tasks", userId] });
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [qc, userId]);
   const query = useQuery({
     // RLS resolves tasks from both the authenticated person and the active
     // workspace. Keep both in the cache key so an account/environment change
@@ -346,6 +358,9 @@ export function useTasks(targetWorkspaceId?: string | null) {
     // Executa a função também no modo avião para que ela possa devolver o
     // espelho local, em vez de deixar a consulta pausada e o Kanban vazio.
     networkMode: "always",
+    // Realtime can miss an event while the browser sleeps or reconnects.
+    refetchInterval: () => isOffline() ? false : 30_000,
+    refetchOnWindowFocus: "always",
     queryFn: async () => {
       if (!offlineKey || !userId) return [] as Task[];
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -713,6 +728,7 @@ export interface Subtask {
   completed_at: string | null;
 }
 export function useSubtasks() {
+  const { user, activeWorkspace } = useAuth();
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -731,7 +747,9 @@ export function useSubtasks() {
   }, [qc]);
 
   return useQuery({
-    queryKey: ["subtasks"],
+    queryKey: subtasksQueryKey(user?.id, activeWorkspace?.id),
+    refetchInterval: () => isOffline() ? false : 30_000,
+    refetchOnWindowFocus: "always",
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subtasks")
