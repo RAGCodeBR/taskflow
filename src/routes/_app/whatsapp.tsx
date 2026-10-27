@@ -49,10 +49,23 @@ function WhatsAppLocalPage() {
   useEffect(() => {
     if (!allowed) return;
     let active = true;
-    const controller = new AbortController();
+    let inFlight = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+    const schedule = (delay: number) => {
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(() => void connect(), delay);
+    };
     async function connect() {
+      if (!active || inFlight) return;
+      inFlight = true;
+      clearTimeout(retryTimer);
+      controller = new AbortController();
+      const timeout = setTimeout(() => controller?.abort(), 12_000);
+      let connected = false;
       try {
         const { data } = await supabase.auth.getSession();
+        if (!active) return;
         if (!data.session?.access_token) throw new Error("Entre novamente no TaskFlow para abrir o WhatsApp.");
         const response = await fetch(`${BRIDGE}/__taskflow/auth`, {
           method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
@@ -61,25 +74,44 @@ function WhatsAppLocalPage() {
         if (!response.ok) throw new Error(response.status === 403
           ? "Este chat está reservado ao administrador autorizado."
           : "Não foi possível validar sua conexão. Tente novamente.");
+        connected = true;
         if (active) { setReady(true); setError(""); }
       } catch (failure) {
         if (active) {
           setReady(false);
-          setError(failure instanceof TypeError
+          setError(failure instanceof TypeError || (failure instanceof DOMException && failure.name === "AbortError")
             ? "O serviço do WhatsApp está indisponível. Tente novamente em instantes."
             : (failure as Error).message);
         }
+      } finally {
+        clearTimeout(timeout);
+        inFlight = false;
+        if (active) schedule(connected ? 5 * 60_000 : 30_000);
       }
     }
     const revoke = () => {
       void fetch(`${BRIDGE}/__taskflow/auth`, { method: "DELETE", credentials: "include", keepalive: true }).catch(() => {});
     };
+    const reconnect = () => { if (navigator.onLine) void connect(); };
+    const onVisibility = () => { if (document.visibilityState === "visible") reconnect(); };
     void connect();
-    const renew = setInterval(() => void connect(), 5 * 60_000);
+    window.addEventListener("online", reconnect);
+    window.addEventListener("focus", reconnect);
+    document.addEventListener("visibilitychange", onVisibility);
     const { data: listener } = supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
       if (event === "SIGNED_OUT") { setReady(false); revoke(); }
     });
-    return () => { active = false; controller.abort(); clearInterval(renew); listener.subscription.unsubscribe(); revoke(); };
+    return () => {
+      active = false;
+      controller?.abort();
+      clearTimeout(retryTimer);
+      window.removeEventListener("online", reconnect);
+      window.removeEventListener("focus", reconnect);
+      document.removeEventListener("visibilitychange", onVisibility);
+      listener.subscription.unsubscribe();
+      // The gateway cookie expires in 15 minutes. Revoking it here races with
+      // the next authorization when the user presses "Tentar novamente".
+    };
   }, [allowed, user?.id, attempt]);
 
   if (loading) return <div className="grid h-full place-items-center"><LoaderCircle className="animate-spin" /></div>;

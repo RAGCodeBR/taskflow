@@ -71,6 +71,10 @@ def main():
                 return
     env = dict(os.environ, PATH=config["path"])
     if role == "database":
+        # macOS may initialize locale helpers as threads before PostgreSQL forks.
+        # The C locale avoids a multithreaded postmaster during startup without
+        # changing the database cluster's stored locale or collation.
+        env["LC_ALL"] = "C"
         command = [str(pg / "postgres"), "-D", str(pgdata)]
         cwd = str(wa)
     elif role == "app":
