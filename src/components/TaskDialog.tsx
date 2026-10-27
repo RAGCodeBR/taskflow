@@ -302,6 +302,7 @@ export function TaskDialog({
   );
   const isMarketingTask = hasMarketingTaskExperience(targetWorkspace?.slug, user?.email);
   const isMarketingPanel = isMarketingTask;
+  const showMarketingClassification = targetWorkspace?.slug === "marketing";
   // Conclusão é uma situação da tarefa, não uma coluna adicional. Há uma
   // coluna antiga chamada “Concluído” no quadro; sem este filtro ela aparece
   // junto da opção real de concluir e duplica o seletor do formulário.
@@ -851,8 +852,8 @@ export function TaskDialog({
       completed_at: status === "done" ? completionDateToIso(completionDate) : null,
       // Marketing uses one category per task. Other environments keep their
       // current primary label untouched when a task is edited.
-      tag_id: isMarketingTask ? categoryId || null : task?.tag_id ?? null,
-      objective_id: isMarketingTask ? objectiveId || null : task?.objective_id ?? null,
+      tag_id: showMarketingClassification ? categoryId || null : task?.tag_id ?? null,
+      objective_id: showMarketingClassification ? objectiveId || null : task?.objective_id ?? null,
     };
   };
 
@@ -2101,7 +2102,7 @@ export function TaskDialog({
                 </SelectContent>
               </Select>
             </div>
-            {isMarketingTask ? (
+            {showMarketingClassification ? (
               <div className={isMarketingPanel ? `${showMarketingExtra ? "order-7" : "hidden"} space-y-2` : "order-2 space-y-2"}>
                 <Label className="text-xs">Formato</Label>
                 <Select
@@ -2129,7 +2130,7 @@ export function TaskDialog({
                 ) : null}
               </div>
             ) : null}
-            {isMarketingTask ? (
+            {showMarketingClassification ? (
               <div className={isMarketingPanel ? `${showMarketingExtra ? "order-8" : "hidden"} space-y-2` : "order-3 space-y-2"}>
                 <Label className="text-xs">Objetivo da tarefa</Label>
                 <Select value={objectiveId || "__no_marketing_objective__"} onValueChange={(value) => setObjectiveId(value === "__no_marketing_objective__" ? "" : value)}>
