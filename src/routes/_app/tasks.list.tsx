@@ -49,11 +49,11 @@ export const Route = createFileRoute("/_app/tasks/list")({
 function ListPage() {
   const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const search = Route.useSearch();
-  const { user, isCollaborator, workspaces } = useAuth();
+  const { user, isCollaborator, activeWorkspace, workspaces } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
     search.mine
       ? { scope: "mine" }
-      : defaultsToOwnScope(user?.id, teamVisibilityWorkspaceId)
+      : defaultsToOwnScope(user?.id, teamVisibilityWorkspaceId, activeWorkspace?.slug)
         ? { scope: "mine" }
         : {},
   );
@@ -89,7 +89,7 @@ function ListPage() {
 
   useEffect(() => {
     if (!user?.id) return;
-    if (defaultsToOwnScope(user.id, teamVisibilityWorkspaceId)) {
+    if (defaultsToOwnScope(user.id, teamVisibilityWorkspaceId, activeWorkspace?.slug)) {
       if (!didApplyDefaultAssignee.current) {
         setFilters((current) => ({ ...current, scope: current.scope ?? "mine" }));
         didApplyDefaultAssignee.current = true;
@@ -107,7 +107,7 @@ function ListPage() {
     }
     if (didApplyDefaultAssignee.current) return;
     didApplyDefaultAssignee.current = true;
-  }, [user?.id, isCollaborator, teamVisibilityWorkspaceId]);
+  }, [user?.id, isCollaborator, teamVisibilityWorkspaceId, activeWorkspace?.slug]);
 
   // Auto-open a task when arriving with ?task=<id>
   useEffect(() => {

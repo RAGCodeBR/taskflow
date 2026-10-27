@@ -10,6 +10,9 @@ describe("workspace team task visibility", () => {
   it("defaults every Marketing collaborator to their personal work queue", () => {
     expect(defaultsToOwnScope("designer", "marketing-id")).toBe(true);
     expect(defaultsToOwnScope("designer", null)).toBe(false);
+    expect(defaultsToOwnScope("consultor", null, "consultoria")).toBe(true);
+    expect(defaultsToOwnScope("consultor", null, "marketing")).toBe(false);
+    expect(defaultsToOwnScope(null, null, "consultoria")).toBe(false);
     expect(defaultsToOwnScope(null, "marketing-id")).toBe(false);
     expect(defaultsToOwnScope("0140bc01-2798-4616-9903-50bc191ce9ef")).toBe(true);
   });

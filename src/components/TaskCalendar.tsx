@@ -93,7 +93,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
   const { user, isCollaborator, isClient, activeWorkspace, workspaces } = useAuth();
   const queryClient = useQueryClient();
   const [viewFilters, setFilters] = useState<TaskFilterValue>(() =>
-    clientCalendar ? {} : defaultsToOwnScope(user?.id, teamVisibilityWorkspaceId)
+    clientCalendar ? {} : defaultsToOwnScope(user?.id, teamVisibilityWorkspaceId, activeWorkspace?.slug)
       ? { scope: "mine" }
       : {},
   );
@@ -237,7 +237,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
 
   useEffect(() => {
     if (!user?.id || clientCalendar) return;
-    if (defaultsToOwnScope(user.id, teamVisibilityWorkspaceId)) {
+    if (defaultsToOwnScope(user.id, teamVisibilityWorkspaceId, activeWorkspace?.slug)) {
       if (!didApplyDefaultAssignee.current) {
         setFilters((current) => ({ ...current, scope: current.scope ?? "mine" }));
         didApplyDefaultAssignee.current = true;
@@ -253,7 +253,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
     }
     if (didApplyDefaultAssignee.current) return;
     didApplyDefaultAssignee.current = true;
-  }, [user?.id, isCollaborator, teamVisibilityWorkspaceId, clientCalendar]);
+  }, [user?.id, isCollaborator, teamVisibilityWorkspaceId, activeWorkspace?.slug, clientCalendar]);
 
   const days = useMemo(() => {
     const start =

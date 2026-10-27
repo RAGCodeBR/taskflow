@@ -382,7 +382,7 @@ function KanbanPage() {
   const qc = useQueryClient();
   const { user, isAdmin, isCollaborator, activeWorkspace, workspaces } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
-    defaultsToOwnScope(user?.id, teamVisibilityWorkspaceId)
+    defaultsToOwnScope(user?.id, teamVisibilityWorkspaceId, activeWorkspace?.slug)
         ? { scope: "mine" }
         : {},
   );
@@ -493,7 +493,7 @@ function KanbanPage() {
 
   useEffect(() => {
     if (!user?.id) return;
-    if (defaultsToOwnScope(user.id, teamVisibilityWorkspaceId)) {
+    if (defaultsToOwnScope(user.id, teamVisibilityWorkspaceId, activeWorkspace?.slug)) {
       if (!didApplyDefaultAssignee.current) {
         setFilters((current) => ({ ...current, scope: current.scope ?? "mine" }));
         didApplyDefaultAssignee.current = true;
@@ -509,7 +509,7 @@ function KanbanPage() {
     }
     if (didApplyDefaultAssignee.current) return;
     didApplyDefaultAssignee.current = true;
-  }, [user?.id, isCollaborator, teamVisibilityWorkspaceId]);
+  }, [user?.id, isCollaborator, teamVisibilityWorkspaceId, activeWorkspace?.slug]);
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);

@@ -2,9 +2,13 @@ import { openSubtaskTaskIdsByUser } from "./task-participation";
 
 const AMANDA_USER_ID = "0140bc01-2798-4616-9903-50bc191ce9ef";
 
-/** The personal queue is the initial view; "Todas" remains available for Marketing teammates. */
-export function defaultsToOwnScope(userId?: string | null, teamWorkspaceId?: string | null) {
-  return Boolean(userId && teamWorkspaceId) || userId === AMANDA_USER_ID;
+/** Open the personal queue first in the task workspaces, while keeping "Todas" selectable. */
+export function defaultsToOwnScope(
+  userId?: string | null,
+  teamWorkspaceId?: string | null,
+  workspaceSlug?: string | null,
+) {
+  return Boolean(userId && (teamWorkspaceId || workspaceSlug === "consultoria")) || userId === AMANDA_USER_ID;
 }
 
 export function teamTaskVisibilityWorkspace(access: {
