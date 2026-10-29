@@ -19,6 +19,20 @@ function looksLikeCopiedHtmlDocument(text: string) {
   );
 }
 
+// Some clipboard sources expose a sequence of rendered spans as text/plain.
+// Treat only a complete, repeated span fragment as markup so ordinary text
+// containing examples like "<span>literal</span>" stays literal.
+function looksLikeSerializedSpans(text: string) {
+  const source = text.trim();
+  const openings = source.match(/<span\b[^>]*>/gi) ?? [];
+  const closings = source.match(/<\/span\s*>/gi) ?? [];
+  return openings.length >= 2
+    && openings.length === closings.length
+    && /^<span\b/i.test(source)
+    && /<\/span\s*>$/i.test(source)
+    && !/<(?:pre|code|img)\b/i.test(source);
+}
+
 function htmlFragment(source: string) {
   const marked = source.match(/<!--\s*StartFragment\s*-->([\s\S]*?)<!--\s*EndFragment\s*-->/i);
   const body = source.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
@@ -27,6 +41,9 @@ function htmlFragment(source: string) {
 
 /** Clipboard formats vary by browser and source application. Never feed plain text to the HTML parser. */
 export function richTextPasteContent(html: string, text: string): RichTextPasteContent {
+  if (!/<(?:pre|code)\b/i.test(html) && looksLikeSerializedSpans(text)) {
+    return { kind: "html", content: htmlFragment(text) };
+  }
   const source = html.trim() || (looksLikeCopiedHtmlDocument(text) ? text.trim() : "");
   if (source) return { kind: "html", content: htmlFragment(source) };
   return { kind: "text", content: text };

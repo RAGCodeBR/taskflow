@@ -23,6 +23,15 @@ describe("rich text paste content", () => {
     });
   });
 
+  it("renders repeated ChatGPT spans supplied as plain text instead of showing tags", () => {
+    const spans = "<span>Uma </span><span>imersão </span><span>teórica e prática</span>";
+    expect(richTextPasteContent("", spans)).toEqual({ kind: "html", content: spans });
+    expect(richTextPasteContent(`<div>${spans.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>`, spans))
+      .toEqual({ kind: "html", content: spans });
+    const code = `<pre><code>${spans.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</code></pre>`;
+    expect(richTextPasteContent(code, spans)).toEqual({ kind: "html", content: code });
+  });
+
   it("keeps ordinary text literal, including punctuation, tags and line breaks", () => {
     expect(richTextPasteContent("", "Linha 1\nLinha <b>literal</b> & ⭐")).toEqual({
       kind: "text",
@@ -31,6 +40,9 @@ describe("rich text paste content", () => {
     expect(plainTextToEditorHtml("Linha 1\n\nLinha <b>literal</b> & ⭐")).toBe(
       "<p>Linha 1</p><p><br></p><p>Linha &lt;b&gt;literal&lt;/b&gt; &amp; ⭐</p>",
     );
+    expect(richTextPasteContent("", "Exemplo: <span>literal</span>")).toEqual({
+      kind: "text", content: "Exemplo: <span>literal</span>",
+    });
   });
 
   it("preserves supported formatting from a regular rich clipboard fragment", () => {
