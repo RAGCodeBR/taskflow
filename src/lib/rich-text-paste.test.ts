@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   htmlHasMeaningfulText,
+  isSerializedSpansClipboard,
   plainTextToEditorHtml,
   richTextPasteContent,
 } from "./rich-text-paste";
@@ -26,9 +27,11 @@ describe("rich text paste content", () => {
   it("renders repeated ChatGPT spans supplied as plain text instead of showing tags", () => {
     const spans = "<span>Uma </span><span>imersão </span><span>teórica e prática</span>";
     expect(richTextPasteContent("", spans)).toEqual({ kind: "html", content: spans });
+    expect(isSerializedSpansClipboard("", spans)).toBe(true);
     expect(richTextPasteContent(`<div>${spans.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>`, spans))
       .toEqual({ kind: "html", content: spans });
     const code = `<pre><code>${spans.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</code></pre>`;
+    expect(isSerializedSpansClipboard(code, spans)).toBe(false);
     expect(richTextPasteContent(code, spans)).toEqual({ kind: "html", content: code });
   });
 

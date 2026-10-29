@@ -33,6 +33,10 @@ function looksLikeSerializedSpans(text: string) {
     && !/<(?:pre|code|img)\b/i.test(source);
 }
 
+export function isSerializedSpansClipboard(html: string, text: string) {
+  return !/<(?:pre|code)\b/i.test(html) && looksLikeSerializedSpans(text);
+}
+
 function htmlFragment(source: string) {
   const marked = source.match(/<!--\s*StartFragment\s*-->([\s\S]*?)<!--\s*EndFragment\s*-->/i);
   const body = source.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
@@ -41,7 +45,7 @@ function htmlFragment(source: string) {
 
 /** Clipboard formats vary by browser and source application. Never feed plain text to the HTML parser. */
 export function richTextPasteContent(html: string, text: string): RichTextPasteContent {
-  if (!/<(?:pre|code)\b/i.test(html) && looksLikeSerializedSpans(text)) {
+  if (isSerializedSpansClipboard(html, text)) {
     return { kind: "html", content: htmlFragment(text) };
   }
   const source = html.trim() || (looksLikeCopiedHtmlDocument(text) ? text.trim() : "");

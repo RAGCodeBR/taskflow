@@ -5,6 +5,7 @@ import { enqueueOfflineOperation, isOffline, listOfflineOperations } from "@/lib
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import { RichTextEditor, allClipboardImageFiles, hasClipboardText, type PastedEditorImage } from "@/components/RichTextEditor";
 import { attachImagesToDescription, pendingDescriptionImageIds, stripPendingDescriptionImages } from "@/lib/task-description-images";
+import { isSerializedSpansClipboard } from "@/lib/rich-text-paste";
 import {
   Dialog,
   DialogContent,
@@ -240,6 +241,16 @@ export function SubtaskDialog({
   };
 
   const handlePrintPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const html = event.clipboardData.getData("text/html");
+    const text = event.clipboardData.getData("text/plain");
+    if (isSerializedSpansClipboard(html, text)) {
+      event.preventDefault();
+      const cleanText = new DOMParser().parseFromString(text, "text/html").body.textContent ?? text;
+      const target = event.currentTarget;
+      target.setRangeText(cleanText, target.selectionStart, target.selectionEnd, "end");
+      setNotes(target.value);
+      return;
+    }
     if (hasClipboardText(event.clipboardData)) return;
     const files = allClipboardImageFiles(event.clipboardData);
     if (!files.length) return;
