@@ -25,6 +25,7 @@ work-*.sql
 # Vercel build output
 .vercel/
 .private-pilot-baseline/
+/chat/
 __pycache__/
 
 # Local environment and secrets
