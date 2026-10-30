@@ -47,6 +47,7 @@ import {
   X,
   Plus,
   Link2,
+  Pin,
   ChevronDown,
   ChevronRight,
   Clock3,
@@ -88,6 +89,7 @@ import { canWriteCachedTaskConversation } from "@/lib/task-conversation-access";
 import { subtasksQueryKey } from "@/lib/task-query-keys";
 import { useRecordTaskCardOpen } from "@/hooks/use-task-card-activity";
 import { hasMarketingTaskExperience } from "@/lib/environment-access";
+import { pastePlainDescription, pasteSingleLine } from "@/lib/paste-single-line";
 import { TaskCardOpenings, TaskPinButton } from "@/components/TaskCardActivity";
 import { groupSubtaskAttachments } from "@/lib/subtask-attachment-groups";
 
@@ -325,6 +327,7 @@ export function TaskDialog({
   const [objectiveId, setObjectiveId] = useState("");
   const [columnId, setColumnId] = useState<string>("");
   const [clientId, setClientId] = useState<string>("");
+  const [additionalClientIds, setAdditionalClientIds] = useState<string[]>([]);
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("");
@@ -555,6 +558,7 @@ export function TaskDialog({
       setColumnId(task.column_id ?? "");
       setTargetWorkspaceId(task.workspace_id ?? activeWorkspace?.id ?? "");
       setClientId(meetingClientLocked ? meetingClientId ?? "" : task.client_id ?? "");
+      setAdditionalClientIds(targetWorkspace?.slug === "marketing" ? [...new Set([...(task.additional_client_ids ?? []), task.secondary_client_id].filter((id): id is string => Boolean(id)))] : []);
       setAssigneeId(task.assignee_id ?? "");
       setDueDate(task.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : "");
       setDueTime(normalizeDueTime(task.due_time));
@@ -577,6 +581,7 @@ export function TaskDialog({
       setColumnId(defaultColumnId ?? "");
       setTargetWorkspaceId(defaultWorkspaceId || activeWorkspace?.id || "");
       setClientId(meetingClientLocked ? meetingClientId ?? "" : defaults?.clientId ?? "");
+      setAdditionalClientIds([]);
       setAssigneeId(defaults?.assigneeId ?? user?.id ?? "");
       setCollaboratorIds([]);
       setDueDate(defaults?.dueDate ?? "");
@@ -846,6 +851,7 @@ export function TaskDialog({
       priority,
       column_id: columnId || null,
       client_id: meetingClientLocked ? meetingClientId : clientId || null,
+      ...(targetWorkspace?.slug === "marketing" ? { secondary_client_id: additionalClientIds[0] ?? null, additional_client_ids: additionalClientIds } : {}),
       assignee_id: assigneeId || null,
       due_date: deadlineToIso(dueDate),
       due_time: dueDate ? dueTime || null : null,
@@ -2035,7 +2041,17 @@ export function TaskDialog({
                 }) : <UsersRound className="h-4 w-4" />}
                 {collaboratorIds.length}
               </button>
-              {task && <div className="flex shrink-0 gap-1"><TaskPinButton task={task} /><TaskCardOpenings task={task} /></div>}
+              <div className="flex shrink-0 gap-1">
+                {targetWorkspace?.slug === "marketing" && <Button type="button" variant="ghost" size="sm" className="gap-1.5" disabled={!task?.id} title={task?.id ? "Copiar link da tarefa" : "Salve a tarefa para copiar o link"} aria-label="Copiar link da tarefa" onClick={async () => {
+                  const linkTaskId = task?.id;
+                  if (!linkTaskId) return;
+                  try {
+                    await navigator.clipboard.writeText(`${window.location.origin}/tasks/list?task=${encodeURIComponent(linkTaskId)}`);
+                    toast.success("Link da tarefa copiado");
+                  } catch { toast.error("Não foi possível copiar o link."); }
+                }}><Link2 className="h-4 w-4" /><span className="hidden sm:inline">Copiar link</span></Button>}
+                {task ? <><TaskPinButton task={task} /><TaskCardOpenings task={task} /></> : <Button type="button" variant="ghost" size="sm" className="gap-1.5" disabled title="Salve a tarefa para fixá-la" aria-label="Fixar prioridade"><Pin className="h-3.5 w-3.5" /><span className="hidden sm:inline">Fixar prioridade</span></Button>}
+              </div>
             </>
           ) : (
             <>
@@ -2053,6 +2069,7 @@ export function TaskDialog({
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onPaste={(event) => pasteSingleLine(event, setTitle)}
               placeholder="O que precisa ser feito?"
               className={isMarketingPanel ? "h-auto min-h-12 border-0 bg-transparent px-0 py-1 text-2xl font-semibold leading-tight shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0" : "h-11 text-base"}
             />
@@ -2196,6 +2213,7 @@ export function TaskDialog({
                     id="due-date-change-reason"
                     value={dueDateChangeReason}
                     onChange={(event) => setDueDateChangeReason(event.target.value)}
+                    onPaste={(event) => pastePlainDescription(event, setDueDateChangeReason)}
                     placeholder="Explique o motivo da alteração"
                     className="min-h-16 text-xs"
                   />
@@ -2362,6 +2380,7 @@ export function TaskDialog({
                         type="button"
                         onClick={() => {
                           setClientId("");
+                          setAdditionalClientIds([]);
                           setClientPickerOpen(false);
                         }}
                         className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${!clientId ? "bg-muted font-medium" : ""}`}
@@ -2374,6 +2393,7 @@ export function TaskDialog({
                           type="button"
                           onClick={() => {
                             setClientId(client.id);
+                            setAdditionalClientIds((current) => current.filter((id) => id !== client.id));
                             setClientPickerOpen(false);
                           }}
                           className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${clientId === client.id ? "bg-muted font-medium" : ""}`}
@@ -2393,6 +2413,23 @@ export function TaskDialog({
                     </div>
                   </PopoverContent>
                 </Popover>
+              )}
+              {targetWorkspace?.slug === "marketing" && !meetingClientLocked && clientId && (
+                <div className="mt-2">
+                  <Label className="mb-1 block text-xs text-muted-foreground">Outros clientes (opcional)</Label>
+                  <Popover>
+                    <PopoverTrigger asChild><Button type="button" variant="outline" className="w-full justify-between font-normal">{additionalClientIds.length ? `${additionalClientIds.length} cliente${additionalClientIds.length > 1 ? "s" : ""} adicional${additionalClientIds.length > 1 ? "is" : ""}` : "Adicionar clientes"}<ChevronDown className="h-4 w-4" /></Button></PopoverTrigger>
+                    <PopoverContent align="start" className="max-h-64 w-[var(--radix-popover-trigger-width)] overflow-y-auto p-2">
+                      {(clients ?? []).filter((client) => client.is_active && client.id !== clientId && client.workspace_id === targetWorkspace?.id).map((client) => (
+                        <label key={client.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+                          <Checkbox checked={additionalClientIds.includes(client.id)} onCheckedChange={(checked) => setAdditionalClientIds((current) => checked ? [...current, client.id] : current.filter((id) => id !== client.id))} />
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: client.color ?? "#94a3b8" }} />{client.name}
+                        </label>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                  {additionalClientIds.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Um único card, com responsável, colaboradores, subtarefas e conversa compartilhados entre esses clientes.</p>}
+                </div>
               )}
             </div>
             <div className={isMarketingPanel ? "order-1 space-y-2" : "order-4 space-y-2"}>
@@ -2522,7 +2559,7 @@ export function TaskDialog({
                   <div key={subtask.id} className="space-y-2 border-b px-1 py-2.5">
                     <div className="flex items-center gap-2">
                       <Checkbox checked={subtask.done} onCheckedChange={(checked) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, done: checked === true } : item))} aria-label={`Concluir ${subtask.title}`} />
-                      {editingPendingSubtaskId === subtask.id || !subtask.title.trim() ? <Input value={subtask.title} onFocus={() => setEditingPendingSubtaskId(subtask.id)} onBlur={() => setEditingPendingSubtaskId((current) => current === subtask.id ? null : current)} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: event.target.value } : item))} onKeyDown={(event) => {
+                      {editingPendingSubtaskId === subtask.id || !subtask.title.trim() ? <Input value={subtask.title} onFocus={() => setEditingPendingSubtaskId(subtask.id)} onBlur={() => setEditingPendingSubtaskId((current) => current === subtask.id ? null : current)} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: event.target.value } : item))} onPaste={(event) => pasteSingleLine(event, (value) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: value } : item)))} onKeyDown={(event) => {
                         if (event.key === "Enter") { event.preventDefault(); if (subtask.title.trim()) addMarketingSubtaskRow(); }
                         if (event.key === "Escape" && !subtask.title.trim()) { event.stopPropagation(); removeMarketingSubtaskRow(subtask.id); }
                       }} autoFocus={editingPendingSubtaskId === subtask.id} placeholder="Nome da subtarefa" aria-label="Título da subtarefa" className="h-8 min-w-0 flex-1 border-0 px-1 shadow-none focus-visible:ring-1" /> : <button type="button" onClick={() => setActivePendingSubtaskId(subtask.id)} aria-label={`Abrir detalhes da subtarefa ${subtask.title}`} className="group flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><span className="truncate">{subtask.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" /></button>}
@@ -2734,6 +2771,7 @@ export function TaskDialog({
                             {isMarketingTask ? <button type="button" onClick={() => openSubtaskDialog(s)} className="w-full rounded border px-3 py-2 text-left text-xs text-muted-foreground hover:border-primary hover:text-primary">Abrir a descrição e os prints da subtarefa</button> : <Textarea
                               rows={2}
                               defaultValue={s.notes ?? ""}
+                              onPaste={(event) => pastePlainDescription(event, () => {})}
                               onBlur={(e) => {
                                 if ((e.target.value || "") !== (s.notes ?? ""))
                                   void updateSubtaskNotes(s, e.target.value);
@@ -2808,6 +2846,7 @@ export function TaskDialog({
                     placeholder="Nova subtarefa"
                     value={newSubtask}
                     onChange={(e) => setNewSubtask(e.target.value)}
+                    onPaste={(event) => pasteSingleLine(event, setNewSubtask)}
                     onKeyDown={(e) => e.key === "Enter" && addSubtask()}
                     className="min-w-[180px] flex-1"
                   />
@@ -3084,6 +3123,7 @@ export function TaskDialog({
                   onChange={(event) =>
                     setSubDueReason((current) => ({ ...current, reason: event.target.value }))
                   }
+                  onPaste={(event) => pastePlainDescription(event, (value) => setSubDueReason((current) => ({ ...current, reason: value })))}
                   placeholder="Explique o motivo da alteração"
                   rows={3}
                   autoFocus

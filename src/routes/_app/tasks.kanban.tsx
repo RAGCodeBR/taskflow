@@ -100,6 +100,7 @@ import { TagManagerDialog } from "@/components/TagManagerDialog";
 import { MarketingFormatSettings } from "@/components/MarketingFormatSettings";
 import { MarketingObjectiveSettings } from "@/components/MarketingObjectiveSettings";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
+import { TaskPeriodPicker } from "@/components/TaskPeriodPicker";
 import { CompletedSubtaskCard } from "@/components/CompletedSubtaskCard";
 import { completedSubtaskFilterTask, completedSubtaskHistory, completedSubtasksForUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
@@ -591,7 +592,7 @@ function KanbanPage() {
       // Personal Marketing history remains available after the delivery day.
       return personalMarketingHistory || (teamVisibilityWorkspaceId && showAllCompleted) || (ref >= startToday && ref <= endToday);
     });
-    all = applyTaskFilters(all, filters, {
+    all = applyTaskFilters(all, { ...filters, date: "all" }, {
       userId: user?.id ?? null,
       subtaskAssigneeTaskIds,
       collaboratorTaskIds,
@@ -686,7 +687,7 @@ function KanbanPage() {
         } else if (!personalMarketingHistory && !(teamVisibilityWorkspaceId && showAllCompleted) && (completedAt < startToday || completedAt > endToday)) {
           return false;
         }
-        return applyTaskFilters([completedSubtaskFilterTask(parent, subtask, user.id)], filters, {
+        return applyTaskFilters([completedSubtaskFilterTask(parent, subtask, user.id)], { ...filters, date: "all" }, {
           userId: user.id,
           restrictToCurrentUserParticipation: isCollaborator,
         }).length > 0;
@@ -1450,6 +1451,8 @@ function KanbanPage() {
           </div>
         </div>
       </header>
+
+      <div className="px-4 pb-2 sm:px-6"><TaskPeriodPicker value={filters.date} onChange={(date) => setFilters((current) => ({ ...current, date }))} /></div>
 
       <KanbanScrollArea orientation={orientation}>
         <DndContext

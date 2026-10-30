@@ -20,6 +20,17 @@ const task = (id: string, assignee_id: string | null = null) => ({
 });
 
 describe("applyTaskFilters: tarefas da pessoa", () => {
+  it("shows one Marketing task under any linked client without duplicating it", () => {
+    const tasks = [
+      { ...task("shared"), client_id: "client-a", secondary_client_id: "client-b", additional_client_ids: ["client-b", "client-d", "client-e"] },
+      { ...task("other"), client_id: "client-c" },
+    ];
+    expect(applyTaskFilters(tasks, { clients: ["client-a"] }).map((item) => item.id)).toEqual(["shared"]);
+    expect(applyTaskFilters(tasks, { clients: ["client-b"] }).map((item) => item.id)).toEqual(["shared"]);
+    expect(applyTaskFilters(tasks, { clients: ["client-d"] }).map((item) => item.id)).toEqual(["shared"]);
+    expect(applyTaskFilters(tasks, { clients: ["client-e"] }).map((item) => item.id)).toEqual(["shared"]);
+    expect(applyTaskFilters(tasks, { clients: ["client-a", "client-b"] }).map((item) => item.id)).toEqual(["shared"]);
+  });
   it("starts Carol on her own Marketing work, including subtasks, without removing team access", () => {
     const carol = "3a93e438-1f3f-42f9-aea4-d22d227e1ea1";
     const tasks = [

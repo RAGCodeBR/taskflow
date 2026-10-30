@@ -1,5 +1,8 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { rememberTaskView, type TaskView } from "@/lib/task-view-preference";
+import { taskClientIds } from "@/lib/task-clients";
 import { KanbanSquare, List as ListIcon, Calendar as CalIcon, Search, X } from "lucide-react";
 import { useClients, useTasks, useTaskStatuses, type Task } from "@/hooks/use-data";
 import { TaskDialog } from "@/components/TaskDialog";
@@ -11,6 +14,7 @@ export const Route = createFileRoute("/_app/tasks")({
 });
 
 function TasksLayout() {
+  const { user, activeWorkspace } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [taskSearch, setTaskSearch] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -94,6 +98,7 @@ function TasksLayout() {
                 <Link
                   key={v.to}
                   to={v.to}
+                  onClick={() => rememberTaskView(v.to.split("/").pop() as TaskView, user?.id, activeWorkspace?.id)}
                   className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-1 py-1.5 text-center text-xs leading-tight transition sm:flex-none sm:gap-2 sm:px-3 sm:text-sm ${
                     active
                       ? "bg-background text-foreground shadow-sm"
@@ -136,7 +141,7 @@ function TasksLayout() {
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{task.title}</span>
                       <span className="block text-xs text-muted-foreground">
-                        {clientNames.get(task.client_id ?? "") ?? "Sem cliente"}
+                        {taskClientIds(task).map((id) => clientNames.get(id) ?? "Cliente").join(" · ") || "Sem cliente"}
                       </span>
                     </span>
                     <span className="shrink-0 text-xs text-muted-foreground">

@@ -684,14 +684,17 @@ export function RichTextEditor({
           // Espera o evento nativo da mesma tecla; se ele já tratou o
           // conteúdo, não há segunda inserção.
           window.setTimeout(() => {
-            if (nativePasteHandledRef.current) return;
+            // A leitura da área de transferência é assíncrona. Se a pessoa
+            // mudou para o título ou para uma subtarefa, nunca recoloque o
+            // texto no editor anterior nem roube o foco desse novo campo.
+            if (nativePasteHandledRef.current || !editor.isFocused || !editor.view.dom.isConnected) return;
             const htmlIsOnlyImage = Boolean(html.trim()) && !htmlHasMeaningfulText(html);
             if (images.length && (!html.trim() || htmlIsOnlyImage)) {
               nativePasteHandledRef.current = insertPastedImages(images);
             } else if (html.trim() || text) {
               insertClipboardText(html, text);
             }
-          }, 0);
+          }, 50);
         } catch {
           // Se a permissão do navegador bloquear a leitura, a colagem nativa
           // continua sendo usada normalmente.

@@ -20,6 +20,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
 import { defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import { TaskFilters, applyTaskFilters, type TaskFilterValue } from "@/components/TaskFilters";
+import { TaskPeriodPicker } from "@/components/TaskPeriodPicker";
+import { taskClientIds } from "@/lib/task-clients";
 import { WorkspaceTaskFilter } from "@/components/WorkspaceTaskFilter";
 import { TaskDialog } from "@/components/TaskDialog";
 import { TaskPinButton } from "@/components/TaskCardActivity";
@@ -30,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { priorityColors, priorityLabels, dueUrgencyState, dueUrgencyTextClass } from "@/lib/task-utils";
 import { matchDateFilter, type DateFilter } from "@/lib/task-utils";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
@@ -49,7 +51,7 @@ export const Route = createFileRoute("/_app/tasks/list")({
 function ListPage() {
   const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const search = Route.useSearch();
-  const { user, isCollaborator, activeWorkspace, workspaces } = useAuth();
+  const { user, isCollaborator, activeWorkspace, workspaces, setActiveWorkspace, finishWorkspaceTransition } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
     search.mine
       ? { scope: "mine" }
@@ -59,6 +61,16 @@ function ListPage() {
   );
   const viewedWorkspaceId = filters.workspace;
   const { data: tasks = [] } = useTasks(viewedWorkspaceId);
+  const sharedTask = useQuery({
+    queryKey: ["shared-task-link", user?.id, activeWorkspace?.id, search.task],
+    enabled: !!user?.id && !!search.task,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tasks").select("*").eq("id", search.task!).is("deleted_at", null).maybeSingle();
+      if (error) throw error;
+      return data as Task | null;
+    },
+    retry: 1,
+  });
   const { data: clients = [] } = useClients(viewedWorkspaceId);
   const { data: columns = [] } = useColumns(viewedWorkspaceId);
   const { data: profiles = [] } = useProfiles();
@@ -68,6 +80,7 @@ function ListPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const didApplyDefaultAssignee = useRef(false);
+  const switchingSharedTaskRef = useRef<string | null>(null);
   const [open, setOpen] = useState(false);
   const { pins } = usePersonalTaskPins();
   const pinnedIds = useMemo(() => new Set(pins.filter(pin => pin.is_pinned).map(pin => pin.task_id)), [pins]);
@@ -109,20 +122,36 @@ function ListPage() {
     didApplyDefaultAssignee.current = true;
   }, [user?.id, isCollaborator, teamVisibilityWorkspaceId, activeWorkspace?.slug]);
 
-  // Auto-open a task when arriving with ?task=<id>
+  // A copied link resolves the exact task, even when the list has a personal
+  // filter or the recipient's active environment differs from the task's.
   useEffect(() => {
-    if (!search.task) return;
-    const t = tasks.find((x) => x.id === search.task);
-    if (t) {
-      setEdit(t);
-      setOpen(true);
-      navigate({
-        to: "/tasks/list",
-        search: (p: any) => ({ ...p, task: undefined }),
-        replace: true,
+    if (!search.task || !user?.id || !sharedTask.isSuccess) return;
+    const linked = sharedTask.data;
+    if (!linked) return;
+    if (linked.workspace_id && linked.workspace_id !== activeWorkspace?.id) {
+      if (!workspaces.some((workspace) => workspace.id === linked.workspace_id)) return;
+      if (switchingSharedTaskRef.current === linked.workspace_id) return;
+      switchingSharedTaskRef.current = linked.workspace_id;
+      void setActiveWorkspace(linked.workspace_id).catch(() => {
+        switchingSharedTaskRef.current = null;
+        toast.error("Não foi possível abrir o ambiente da tarefa.");
       });
+      return;
     }
-  }, [search.task, tasks, navigate]);
+    if (switchingSharedTaskRef.current) finishWorkspaceTransition();
+    switchingSharedTaskRef.current = null;
+    setEdit(linked);
+    setOpen(true);
+    void navigate({ to: "/tasks/list", search: (previous: any) => ({ ...previous, task: undefined }), replace: true });
+  }, [search.task, user?.id, sharedTask.isSuccess, sharedTask.data, activeWorkspace?.id, workspaces, setActiveWorkspace, finishWorkspaceTransition, navigate]);
+
+  useEffect(() => {
+    if (switchingSharedTaskRef.current && switchingSharedTaskRef.current === activeWorkspace?.id &&
+        (sharedTask.isError || (sharedTask.isSuccess && !sharedTask.data))) {
+      switchingSharedTaskRef.current = null;
+      finishWorkspaceTransition();
+    }
+  }, [activeWorkspace?.id, sharedTask.isError, sharedTask.isSuccess, sharedTask.data, finishWorkspaceTransition]);
 
   const subtaskAssigneeTaskIds = useMemo(
     () => openSubtaskTaskIdsForUser(subtasks, user?.id),
@@ -176,7 +205,7 @@ function ListPage() {
   };
 
   const list = useMemo(() => {
-    const r = applyTaskFilters(tasks, filters, {
+    const taskMatches = (items: Task[], activeFilters: TaskFilterValue) => applyTaskFilters(items, activeFilters, {
       userId: user?.id ?? null,
       subtaskAssigneeTaskIds,
       collaboratorTaskIds,
@@ -185,6 +214,19 @@ function ListPage() {
       restrictToCurrentUserParticipation: isCollaborator,
       teamVisibilityWorkspaceId,
     });
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    const completedToday = tasks.filter((task) => {
+      if (task.status !== "done" && !task.completed_at) return false;
+      const completedAt = new Date(task.completed_at ?? task.updated_at);
+      return completedAt >= todayStart && completedAt <= todayEnd;
+    });
+    const r = [
+      ...taskMatches(tasks.filter((task) => task.status !== "done" && !task.completed_at), filters),
+      ...taskMatches(completedToday, { ...filters, date: "all" }),
+    ];
     const getDueTimestamp = (task: Task) => {
       if (!task.due_date) return null;
       const dueDate = new Date(task.due_date);
@@ -224,8 +266,13 @@ function ListPage() {
         : []
       : completedSubtaskHistory(tasks, subtasks, user.id, collaboratorTaskIds, viewedWorkspaceId);
     return history
+      .filter(({ subtask, parent }) => {
+        const completedAt = new Date(subtask.completed_at ?? parent.updated_at);
+        const today = new Date();
+        return completedAt.toDateString() === today.toDateString();
+      })
       .filter(({ subtask, parent }) =>
-        applyTaskFilters([completedSubtaskFilterTask(parent, subtask, user.id)], filters, {
+        applyTaskFilters([completedSubtaskFilterTask(parent, subtask, user.id)], { ...filters, date: "all" }, {
           userId: user.id,
           restrictToCurrentUserParticipation: isCollaborator,
         }).length > 0,
@@ -316,6 +363,10 @@ function ListPage() {
 
   return (
     <div className="space-y-3 p-4 sm:p-4">
+      {search.task && sharedTask.isPending && <p role="status" className="text-sm text-muted-foreground">Abrindo tarefa compartilhada…</p>}
+      {search.task && sharedTask.isError && <div role="alert" className="flex items-center gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Não foi possível consultar esta tarefa agora.<Button type="button" size="sm" variant="outline" onClick={() => void sharedTask.refetch()}>Tentar novamente</Button></div>}
+      {search.task && sharedTask.isSuccess && !sharedTask.data && <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Esta tarefa não foi encontrada ou você não tem acesso a ela.</p>}
+      {search.task && sharedTask.isSuccess && sharedTask.data?.workspace_id && sharedTask.data.workspace_id !== activeWorkspace?.id && !workspaces.some((workspace) => workspace.id === sharedTask.data?.workspace_id) && <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Você não tem acesso ao ambiente desta tarefa.</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <TaskFilters
         filters={filters}
@@ -342,6 +393,8 @@ function ListPage() {
         </Button>
         </header>
       </div>
+
+      <TaskPeriodPicker value={filters.date} onChange={(date) => setFilters((current) => ({ ...current, date }))} />
 
       <div className="overflow-hidden rounded-lg border bg-card">
         <table className="w-full table-fixed border-collapse text-xs">
@@ -383,6 +436,7 @@ function ListPage() {
               </tr>
             ) : list.map((t, index) => {
               const client = clients.find((c) => c.id === t.client_id);
+              const additionalClients = activeWorkspace?.slug === "marketing" ? taskClientIds(t).filter((id) => id !== t.client_id).map((id) => clients.find((c) => c.id === id)).filter((client): client is NonNullable<typeof client> => Boolean(client)) : [];
               const assignee = profiles.find((p) => p.id === t.assignee_id);
               const isCompleted = t.status === "done" || !!t.completed_at;
               const previousTask = list[index - 1];
@@ -436,13 +490,13 @@ function ListPage() {
                 >
                   <td className="border-r px-2 py-2 font-medium"><div className="flex items-center gap-1"><TaskPinButton task={t} compact /><span className="block truncate"><LinkedText text={t.title} /></span></div>{t.is_draft && <span className="text-[10px] font-semibold text-amber-700">Em elaboração</span>}</td>
                   <td className="border-r px-2 py-2">
-                    {client ? (
+                    <div className="flex flex-wrap gap-1">{client ? (
                       <Badge variant="outline" style={{ borderColor: client.color ?? undefined }}>
                         {client.name}
                       </Badge>
                     ) : (
                       <span className="text-muted-foreground">—</span>
-                    )}
+                    )}{additionalClients.map((extraClient) => <Badge key={extraClient.id} variant="outline" style={{ borderColor: extraClient.color ?? undefined }}>{extraClient.name}</Badge>)}</div>
                   </td>
                   <td className="border-r px-2 py-2 text-muted-foreground">
                     {assignee?.full_name || assignee?.email || "—"}

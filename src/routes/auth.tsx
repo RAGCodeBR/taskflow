@@ -20,10 +20,14 @@ function AuthPage() {
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [loading, setLoading] = useState(false);
   const invitationFlow = new URLSearchParams(window.location.search).get("invite") === "1";
+  const sharedTaskId = new URLSearchParams(window.location.search).get("task");
 
   useEffect(() => {
-    if (user && !invitationFlow) navigate({ to: "/mural", replace: true });
-  }, [user, invitationFlow, navigate]);
+    if (user && !invitationFlow) {
+      if (sharedTaskId) navigate({ to: "/tasks/list", search: { task: sharedTaskId, mine: undefined }, replace: true });
+      else navigate({ to: "/mural", replace: true });
+    }
+  }, [user, invitationFlow, sharedTaskId, navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

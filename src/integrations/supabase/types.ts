@@ -1231,6 +1231,8 @@ export type Database = {
           archived_reason: string | null
           card_width: number | null
           client_id: string | null
+          secondary_client_id: string | null
+          additional_client_ids: string[]
           color: string | null
           column_id: string | null
           completed_at: string | null
@@ -1263,6 +1265,8 @@ export type Database = {
           archived_reason?: string | null
           card_width?: number | null
           client_id?: string | null
+          secondary_client_id?: string | null
+          additional_client_ids?: string[]
           color?: string | null
           column_id?: string | null
           completed_at?: string | null
@@ -1295,6 +1299,8 @@ export type Database = {
           archived_reason?: string | null
           card_width?: number | null
           client_id?: string | null
+          secondary_client_id?: string | null
+          additional_client_ids?: string[]
           color?: string | null
           column_id?: string | null
           completed_at?: string | null

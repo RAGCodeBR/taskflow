@@ -2,6 +2,8 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "task-period-and-view"
+  | "marketing-two-clients-and-task-link"
   | "task-card-readable-title"
   | "mural-activity-actor"
   | "marketing-team-production"
@@ -72,6 +74,31 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "tarefas-por-periodo-e-ultima-visao-2026-10-30",
+    title: "Tarefas por semana ou mês",
+    date: "2026-10-30",
+    preview: "task-period-and-view",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Lista e Kanban mostram atalhos para tarefas com prazo hoje, nesta semana ou neste mês. Na Lista, a seção Concluídas mostra apenas o que foi finalizado hoje.",
+      "A última visualização escolhida, Lista, Kanban ou Calendário, volta a abrir neste navegador ao entrar em Minhas Tarefas.",
+    ],
+  },
+  {
+    id: "marketing-dois-clientes-e-link-da-tarefa-2026-10-30",
+    title: "Uma tarefa em vários clientes no Marketing",
+    date: "2026-10-30",
+    preview: "marketing-two-clients-and-task-link",
+    audience: "all",
+    workspaces: ["marketing"],
+    details: [
+      "Vincule quantos clientes de Marketing forem necessários ao mesmo card. Responsável, colaboradores, subtarefas e conversa continuam compartilhados; os colaboradores recebem avisos dos comentários.",
+      "Copie o link no painel da tarefa para enviá-lo a quem já tem acesso ao Marketing e à tarefa. O destinatário abre o card direto, inclusive após fazer login ou trocar do ambiente Consultoria para Marketing.",
+      "No cabeçalho de uma tarefa nova, Copiar link e Fixar prioridade mostram que ficam disponíveis após salvar.",
+    ],
+  },
   {
     id: "titulos-legiveis-nos-cards-de-tarefas-2026-10-30",
     title: "Títulos mais legíveis nos cards de tarefas",

@@ -61,6 +61,7 @@ import {
 } from "@/lib/sync-task-attachment-to-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RichTextEditor, RichTextView } from "@/components/RichTextEditor";
+import { pastePlainDescription, pasteSingleLine } from "@/lib/paste-single-line";
 import { FieldLinks, LinkedText } from "@/components/LinkedText";
 import { hasMarketingTaskExperience } from "@/lib/environment-access";
 import { SubtaskDialog, type EditableSubtask } from "@/components/SubtaskDialog";
@@ -1173,7 +1174,7 @@ export function TaskCard({
           style={client?.color ? { background: client.color, color: clientText } : undefined}
         >
           <Users className="h-3 w-3 shrink-0" />
-          <span className="truncate">{client?.name || "Sem cliente"}</span>
+          <span className="truncate">{client?.name || "Sem cliente"}{isMarketingWorkspace ? [...new Set([...(task.additional_client_ids ?? []), task.secondary_client_id].filter(Boolean))].map((id) => ` · ${clients.find((item) => item.id === id)?.name ?? "Outro cliente"}`).join("") : ""}</span>
         </div>
         <div
           role="button"
@@ -1301,7 +1302,7 @@ export function TaskCard({
             style={{ background: client.color, color: clientText }}
           >
             <Users className="h-3 w-3" />
-            <span className="truncate">{client.name}</span>
+            <span className="truncate">{client.name}{isMarketingWorkspace ? [...new Set([...(task.additional_client_ids ?? []), task.secondary_client_id].filter(Boolean))].map((id) => ` · ${clients.find((item) => item.id === id)?.name ?? "Outro cliente"}`).join("") : ""}</span>
           </div>
         ) : null}
 
@@ -1462,6 +1463,7 @@ export function TaskCard({
                   value={titleDraft}
                   autoFocus
                   onChange={(e) => setTitleDraft(e.target.value)}
+                  onPaste={(event) => pasteSingleLine(event, setTitleDraft)}
                   onBlur={() => void saveTitle()}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -1702,6 +1704,7 @@ export function TaskCard({
                                           <Input
                                             value={subtaskDraft}
                                             onChange={(event) => setSubtaskDraft(event.target.value)}
+                                            onPaste={(event) => pasteSingleLine(event, setSubtaskDraft)}
                                             onBlur={() => void saveSubtaskTitle()}
                                             onKeyDown={(event) => {
                                               if (event.key === "Enter") {
@@ -1858,7 +1861,7 @@ export function TaskCard({
                                       el.style.height = "auto";
                                       el.style.height = `${el.scrollHeight}px`;
                                     }}
-                                    onBlur={() => void addSubtask()}
+                                    onPaste={(event) => pasteSingleLine(event, setNewSubtask)}
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter" && !e.shiftKey) {
                                         e.preventDefault();
@@ -2297,7 +2300,7 @@ export function TaskCard({
                           clients={clients}
                           value={task.client_id}
                           onChange={(clientId) => {
-                            void update({ client_id: clientId });
+                            void update({ client_id: clientId, ...(isMarketingWorkspace ? { additional_client_ids: clientId ? (task.additional_client_ids ?? []).filter((id) => id !== clientId) : [], secondary_client_id: clientId ? (task.additional_client_ids ?? []).find((id) => id !== clientId) ?? null : null } : {}) });
                             close();
                           }}
                         />
@@ -2377,6 +2380,7 @@ export function TaskCard({
               autoFocus
               value={dueChange.reason}
               onChange={(e) => setDueChange((c) => ({ ...c, reason: e.target.value }))}
+              onPaste={(event) => pastePlainDescription(event, (value) => setDueChange((current) => ({ ...current, reason: value })))}
               placeholder="Justificativa obrigatória"
               className="min-h-[80px] text-sm"
             />
@@ -2438,6 +2442,7 @@ export function TaskCard({
               autoFocus
               value={subDueReason.reason}
               onChange={(e) => setSubDueReason((c) => ({ ...c, reason: e.target.value }))}
+              onPaste={(event) => pastePlainDescription(event, (value) => setSubDueReason((current) => ({ ...current, reason: value })))}
               placeholder="Justificativa obrigatória — aparece no relatório do cliente"
               className="min-h-[80px] text-sm"
             />
@@ -2937,6 +2942,7 @@ function DescriptionEditor({ initial, onSave }: { initial: string; onSave: (v: s
       <Textarea
         value={v}
         onChange={(e) => setV(e.target.value)}
+        onPaste={(event) => pastePlainDescription(event, setV)}
         placeholder="Observações..."
         className="min-h-[120px] text-xs"
         autoFocus

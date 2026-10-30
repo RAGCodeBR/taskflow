@@ -24,6 +24,7 @@ import { useAssignableProfiles, useClients, useColumns } from "@/hooks/use-data"
 import { useAuth } from "@/hooks/use-auth";
 
 import { dateFilterLabels, matchDateFilter, type DateFilter } from "@/lib/task-utils";
+import { taskClientIds } from "@/lib/task-clients";
 
 export type TaskScope = "all" | "mine" | "created";
 const COMPLETED_STATUS_FILTER = "completed";
@@ -519,6 +520,8 @@ export function applyTaskFilters<
   T extends {
     id: string;
     client_id: string | null;
+    secondary_client_id?: string | null;
+    additional_client_ids?: string[] | null;
     assignee_id: string | null;
     priority: string | null;
     column_id: string | null;
@@ -583,7 +586,7 @@ export function applyTaskFilters<
       ].includes(f.date);
       if (!supportsSubtaskDueDates || !opts?.subtaskDateFilterTaskIds?.has(t.id)) return false;
     }
-    if (clientIds && (!t.client_id || !clientIds.includes(t.client_id))) return false;
+    if (clientIds && !clientIds.some((id) => taskClientIds(t).includes(id))) return false;
     if (f.assignee === UNASSIGNED_FILTER) {
       if (t.assignee_id !== null) return false;
     } else if (f.assignee) {

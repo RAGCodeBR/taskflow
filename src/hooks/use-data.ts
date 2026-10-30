@@ -32,6 +32,8 @@ export interface Task {
   assigned_by: string | null;
   assigned_at: string | null;
   client_id: string | null;
+  secondary_client_id?: string | null;
+  additional_client_ids?: string[];
   column_id: string | null;
   position: number;
   color: string | null;
@@ -83,6 +85,7 @@ export interface KanbanColumn {
 }
 export interface Client {
   id: string;
+  workspace_id?: string | null;
   name: string;
   color: string | null;
   description: string | null;

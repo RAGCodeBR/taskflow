@@ -15,6 +15,7 @@ import { useAssignableProfiles, type Client, type KanbanColumn, type Profile, ty
 import { supabase } from "@/integrations/supabase/client";
 import { deleteTaskWithOfflineSupport, updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { pastePlainDescription, pasteSingleLine } from "@/lib/paste-single-line";
 
 interface Attachment {
   id: string;
@@ -145,6 +146,7 @@ export function InlineTaskEditor({
       status: merged.status,
       due_date: deadlineToIso(merged.due_date),
       client_id: merged.client_id === "none" ? null : merged.client_id,
+      ...(task.secondary_client_id && (merged.client_id === "none" || merged.client_id === task.secondary_client_id) ? { secondary_client_id: null } : {}),
       assignee_id: merged.assignee_id === "none" ? null : merged.assignee_id,
       column_id: merged.column_id === "none" ? null : merged.column_id,
       tag_id: merged.tag_id === "none" ? null : merged.tag_id,
@@ -399,6 +401,7 @@ export function InlineTaskEditor({
             <Textarea
               value={form.title}
               onChange={(event) => setForm({ ...form, title: event.target.value })}
+              onPaste={(event) => pasteSingleLine(event, (value) => setForm((current) => ({ ...current, title: value })))}
               onKeyDown={handleSaveOnEnter}
               placeholder="Nome da tarefa"
               className="mt-1 min-h-[54px] resize-none overflow-hidden text-sm font-medium leading-snug [overflow-wrap:anywhere]"
@@ -412,6 +415,7 @@ export function InlineTaskEditor({
             <Textarea
               value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })}
+              onPaste={(event) => pastePlainDescription(event, (value) => setForm((current) => ({ ...current, description: value })))}
               onKeyDown={handleSaveOnEnter}
               placeholder="Observações da tarefa"
               className="mt-1 min-h-[88px] resize-y text-xs leading-relaxed [overflow-wrap:anywhere]"

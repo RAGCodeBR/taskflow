@@ -96,6 +96,35 @@ function TaskCardReadableTitlePreview() {
   );
 }
 
+function MarketingTwoClientsAndTaskLinkPreview() {
+  return (
+    <PreviewGrid label="Prévia da tarefa em vários clientes e do link compartilhável">
+      <div className="max-w-[300px] rounded-xl border bg-background p-3 text-[11px] shadow-sm">
+        <p className="font-semibold">Preparar campanha de lançamento</p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className="rounded-full border border-sky-300 px-2 py-0.5">Cliente Exemplo A</span>
+          <span className="rounded-full border border-amber-300 px-2 py-0.5">Cliente Exemplo B</span>
+          <span className="rounded-full border border-emerald-300 px-2 py-0.5">Cliente Exemplo C</span>
+        </div>
+        <p className="mt-3 flex items-center gap-1.5 text-primary"><Link2 className="h-3.5 w-3.5" />Copiar link da tarefa</p>
+        <p className="mt-2 text-muted-foreground">Uma tarefa, uma equipe e vários clientes.</p>
+      </div>
+    </PreviewGrid>
+  );
+}
+
+function TaskPeriodAndViewPreview() {
+  return <PreviewGrid label="Prévia dos períodos e da visualização de tarefas">
+    <div className="rounded-xl border bg-background p-3 text-[11px] shadow-sm">
+      <div className="flex gap-1 border-b pb-2"><span className="rounded bg-muted px-2 py-1">Kanban</span><span className="rounded bg-primary px-2 py-1 text-primary-foreground">Lista</span><span className="rounded bg-muted px-2 py-1">Calendário</span></div>
+      <p className="mt-3 text-muted-foreground">Prazo</p>
+      <div className="mt-1 flex flex-wrap gap-1"><span className="rounded-full border px-2 py-1">Todas</span><span className="rounded-full border px-2 py-1">Hoje</span><span className="rounded-full bg-primary/10 px-2 py-1 text-primary">Semana</span><span className="rounded-full border px-2 py-1">Mês</span></div>
+      <div className="mt-3 rounded border px-2 py-2">Preparar apresentação · quarta</div>
+      <p className="mt-3 border-t border-dashed pt-2 text-muted-foreground">Concluídas hoje</p>
+    </div>
+  </PreviewGrid>;
+}
+
 function MuralActivityActorPreview() {
   return (
     <PreviewGrid label="Prévia dos avisos de quem alterou o mural">
@@ -1657,6 +1686,8 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "task-period-and-view": TaskPeriodAndViewPreview,
+  "marketing-two-clients-and-task-link": MarketingTwoClientsAndTaskLinkPreview,
   "task-card-readable-title": TaskCardReadableTitlePreview,
   "mural-activity-actor": MuralActivityActorPreview,
   "marketing-team-production": MarketingTeamProductionPreview,

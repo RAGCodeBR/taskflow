@@ -325,7 +325,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
 
   const visible = useMemo(
     () =>
-      applyTaskFilters(clientCalendar ? taskView.filter(task => task.client_id && clients.some(client => client.id === task.client_id)) : taskView, filters, {
+      applyTaskFilters(clientCalendar ? taskView.filter(task => clients.some(client => client.id === task.client_id || client.id === task.secondary_client_id || task.additional_client_ids?.includes(client.id))) : taskView, filters, {
         userId: user?.id ?? null,
         subtaskAssigneeTaskIds,
         collaboratorTaskIds,

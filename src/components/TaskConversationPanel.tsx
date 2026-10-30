@@ -18,6 +18,7 @@ import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { pastePlainDescription } from "@/lib/paste-single-line";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAssignableProfiles, useProfiles } from "@/hooks/use-data";
@@ -1005,6 +1006,7 @@ export function TaskConversationPanel({
                       value={editDraft}
                       autoFocus
                       onChange={(event) => setEditDraft(event.target.value)}
+                      onPaste={(event) => pastePlainDescription(event, setEditDraft)}
                       onKeyDown={(event) => {
                         if (
                           event.key === "Enter" &&
@@ -1213,6 +1215,7 @@ export function TaskConversationPanel({
             placeholder="Escreva uma mensagem… Use @ para marcar alguém."
             value={message}
             onChange={(event) => setMessage(event.target.value)}
+            onPaste={(event) => pastePlainDescription(event, setMessage)}
             onKeyDown={(event) => {
               if (
                 event.key === "Enter" &&

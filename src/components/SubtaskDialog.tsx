@@ -6,6 +6,7 @@ import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attac
 import { RichTextEditor, allClipboardImageFiles, hasClipboardText, type PastedEditorImage } from "@/components/RichTextEditor";
 import { attachImagesToDescription, pendingDescriptionImageIds, stripPendingDescriptionImages } from "@/lib/task-description-images";
 import { isSerializedSpansClipboard } from "@/lib/rich-text-paste";
+import { pastePlainDescription, pasteSingleLine } from "@/lib/paste-single-line";
 import {
   Dialog,
   DialogContent,
@@ -489,6 +490,7 @@ export function SubtaskDialog({
               id="subtask-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
+              onPaste={(event) => pasteSingleLine(event, setTitle)}
               placeholder="Descreva a subtarefa"
               autoFocus
             />
@@ -530,6 +532,7 @@ export function SubtaskDialog({
                   id="subtask-due-date-reason"
                   value={dueDateReason}
                   onChange={(event) => setDueDateReason(event.target.value)}
+                  onPaste={(event) => pastePlainDescription(event, setDueDateReason)}
                   placeholder="Explique o motivo da alteração"
                   rows={3}
                 />

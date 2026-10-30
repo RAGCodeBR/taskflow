@@ -9,6 +9,9 @@ export const Route = createFileRoute("/_app")({
 function AppLayout() {
   const { user, loading, isClient, hasPermission } = useAuth();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const taskLinkId = useRouterState({ select: (state) =>
+    state.location.pathname === "/tasks/list" ? state.location.search.task : undefined,
+  });
   if (loading) {
     return (
       <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">
@@ -16,7 +19,7 @@ function AppLayout() {
       </div>
     );
   }
-  if (!user) return <Navigate to="/auth" />;
+  if (!user) return <Navigate to="/auth" search={typeof taskLinkId === "string" ? { task: taskLinkId } : {}} replace />;
   const clientRoutePermissions: Array<[string, string]> = [
     ["/dashboard", "dashboard"],
     ["/tasks", "tasks"],

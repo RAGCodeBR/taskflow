@@ -426,7 +426,7 @@ export function ClientsIndexPage() {
         return (!start || date >= start) && (!end || date <= end);
       };
       const reportTasks = tasks
-        .filter((task) => task.client_id === reportClient.id)
+        .filter((task) => task.client_id === reportClient.id || task.secondary_client_id === reportClient.id || task.additional_client_ids?.includes(reportClient.id))
         .filter((task) => reportScope === "all" || isCompleted(task))
         .filter(
           (task) =>
@@ -667,7 +667,7 @@ export function ClientsIndexPage() {
             </div>
           ) : (
             filteredClients.map((c) => {
-              const count = tasks.filter((t) => t.client_id === c.id).length;
+              const count = tasks.filter((t) => t.client_id === c.id || t.secondary_client_id === c.id || t.additional_client_ids?.includes(c.id)).length;
               const isActive = c.is_active !== false;
               const info = c.description || c.responsible || c.email;
               return (
