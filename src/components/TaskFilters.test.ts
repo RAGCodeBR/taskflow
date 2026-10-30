@@ -98,7 +98,7 @@ describe("applyTaskFilters: tarefas da pessoa", () => {
       "team",
     ]);
   });
-  it("keeps a collaborator-only Marketing task in Todas, outside Minha produção", () => {
+  it("includes a collaborator-only Marketing task in the recipient's personal view", () => {
     const cards = [
       { ...task("collaboration", OTHER), workspace_id: "marketing" },
       { ...task("assigned", USER), workspace_id: "marketing" },
@@ -109,7 +109,7 @@ describe("applyTaskFilters: tarefas da pessoa", () => {
       teamVisibilityWorkspaceId: "marketing",
       collaboratorTaskIds: new Set(["collaboration"]),
     };
-    expect(applyTaskFilters(cards, { scope: "mine" }, opts).map(({ id }) => id)).toEqual(["assigned"]);
+    expect(applyTaskFilters(cards, { scope: "mine" }, opts).map(({ id }) => id)).toEqual(["collaboration", "assigned"]);
     expect(applyTaskFilters(cards, {}, opts).map(({ id }) => id)).toEqual(["collaboration", "assigned"]);
   });
   it("shows administrators their own Marketing production without hiding the team view", () => {
@@ -185,7 +185,7 @@ describe("applyTaskFilters: tarefas da pessoa", () => {
     expect(personal(true)).toEqual(["collaborator", "direct"]);
   });
 
-  it("separa a produção pessoal do acesso às tarefas da equipe no Marketing", () => {
+  it("shows assigned, subtask and collaborator work in the personal Marketing view", () => {
     const cards = [task("colleague"), task("subtask"), task("direct", USER)];
     const options = {
       userId: USER,
@@ -196,7 +196,7 @@ describe("applyTaskFilters: tarefas da pessoa", () => {
     };
     const teamCards = cards.map((card) => ({ ...card, workspace_id: "marketing" }));
     expect(applyTaskFilters(teamCards, { scope: "mine" }, options).map((card) => card.id))
-      .toEqual(["subtask", "direct"]);
+      .toEqual(["colleague", "subtask", "direct"]);
     expect(applyTaskFilters(teamCards, {}, options).map((card) => card.id))
       .toEqual(["colleague", "subtask", "direct"]);
     expect(applyTaskFilters(teamCards, { assignee: USER }, {

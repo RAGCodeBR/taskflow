@@ -569,8 +569,7 @@ export function applyTaskFilters<
     if (f.scope === "mine") {
       if (!uid) return false;
       const participatesInTask =
-        t.assignee_id === uid || !!subIds?.has(t.id) ||
-        (!hasTeamVisibility && !!collaboratorIds?.has(t.id));
+        t.assignee_id === uid || !!subIds?.has(t.id) || !!collaboratorIds?.has(t.id);
       if (!participatesInTask) return false;
     }
     if (f.scope === "created" && (!uid || t.created_by !== uid)) return false;
