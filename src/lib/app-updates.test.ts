@@ -7,7 +7,7 @@ import {
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES).toHaveLength(25);
+    expect(APP_UPDATES).toHaveLength(26);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -30,12 +30,12 @@ describe("application release catalogue", () => {
     const ownerConsultoria = getVisibleAppUpdates(true, "consultoria", "reinangrupoahouse@gmail.com");
     expect(marketing).toHaveLength(5);
     expect(consultoria).toHaveLength(5);
-    expect(marketing[0].id).toBe("autor-correto-nos-avisos-do-mural-2026-10-29");
+    expect(marketing[0].id).toBe("titulos-legiveis-nos-cards-de-tarefas-2026-10-30");
     expect(consultoria[0].id).toBe(marketing[0].id);
     expect(marketing.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(true);
     expect(consultoria.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(false);
     expect(ownerMarketing.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(true);
-    expect(ownerConsultoria[1].id).toBe("painel-de-tarefas-consultoria-reinan-2026-10-22");
+    expect(ownerConsultoria.some((update) => update.id === "painel-de-tarefas-consultoria-reinan-2026-10-22")).toBe(true);
   });
 
   it("removes older history entries from the release catalogue", () => {

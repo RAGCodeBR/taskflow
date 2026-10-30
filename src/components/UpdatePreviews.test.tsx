@@ -5,6 +5,15 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows the title beside the pin while keeping participant avatars", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "task-card-readable-title" }));
+    expect(html).toContain("data-task-card-title-preview");
+    expect(html).toContain("data-task-card-title-and-pin");
+    expect(html).toContain("Preparar apresentação financeira para a próxima reunião");
+    expect(html).toContain("Participantes ilustrativos");
+    expect(html).toContain("Adicionar etiquetas");
+    expect(html).not.toContain("<button");
+  });
   it("illustrates who pinned and unpinned the mural, without interactive actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "mural-activity-actor" }));
     expect(html).toContain("data-mural-actor-notice");

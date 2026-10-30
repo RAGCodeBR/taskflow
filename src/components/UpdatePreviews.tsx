@@ -16,6 +16,7 @@ import {
   ListTodo,
   Link2,
   MousePointer2,
+  MoreHorizontal,
   Paperclip,
   Pin,
   Pencil,
@@ -67,6 +68,31 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
     >
       {children}
     </div>
+  );
+}
+
+function TaskCardReadableTitlePreview() {
+  return (
+    <PreviewGrid label="Prévia do título legível nos cards de tarefas">
+      <div className="max-w-[280px] overflow-hidden rounded-xl border bg-background text-[11px] shadow-sm" data-task-card-title-preview>
+        <div className="bg-primary px-3 py-1.5 font-semibold uppercase tracking-wide text-primary-foreground">Cliente Exemplo</div>
+        <div className="p-3">
+          <div className="flow-root" data-task-card-title-and-pin>
+            <Pin className="float-left mr-1 h-3.5 w-3.5" />
+            <div className="float-right ml-1 flex items-center gap-1" aria-label="Participantes ilustrativos">
+              <div className="flex -space-x-1">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-sky-100 text-sky-900">AL</span>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-amber-100 text-amber-900">BM</span>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-emerald-100 text-emerald-900">CS</span>
+              </div>
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </div>
+            <p className="text-sm font-semibold leading-snug [overflow-wrap:break-word]">Preparar apresentação financeira para a próxima reunião</p>
+          </div>
+          <span className="mt-2 inline-flex rounded-full border border-dashed px-2 py-0.5 text-muted-foreground">Adicionar etiquetas</span>
+        </div>
+      </div>
+    </PreviewGrid>
   );
 }
 
@@ -1631,6 +1657,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "task-card-readable-title": TaskCardReadableTitlePreview,
   "mural-activity-actor": MuralActivityActorPreview,
   "marketing-team-production": MarketingTeamProductionPreview,
   "task-list-quick-actions": TaskListQuickActionsPreview,

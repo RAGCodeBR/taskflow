@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "task-card-readable-title"
   | "mural-activity-actor"
   | "marketing-team-production"
   | "task-list-quick-actions"
@@ -71,6 +72,17 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "titulos-legiveis-nos-cards-de-tarefas-2026-10-30",
+    title: "Títulos mais legíveis nos cards de tarefas",
+    date: "2026-10-30",
+    preview: "task-card-readable-title",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Pin, título e fotos dos participantes ficam na mesma linha no topo do card. O título continua pelas linhas seguintes sem ficar comprimido pelos controles; editar, concluir e duplicar ficam no menu de três pontos.",
+    ],
+  },
   {
     id: "autor-correto-nos-avisos-do-mural-2026-10-29",
     title: "Quem alterou o mural aparece nos avisos",

@@ -198,6 +198,7 @@ export function TaskCard({
   } | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [titleEditing, setTitleEditing] = useState(false);
+  const [cardActionsOpen, setCardActionsOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
   const [descEditing, setDescEditing] = useState(false);
   const [descDraft, setDescDraft] = useState(withoutStoredPrints(task.description ?? ""));
@@ -1402,8 +1403,60 @@ export function TaskCard({
             ) : null}
 
             {/* Title row */}
-            <div className="mb-1 flex items-start justify-between gap-1" style={{ order: -1 }}>
-              <TaskPinButton task={task} compact />
+            <div className="mb-1 flow-root" style={{ order: -1 }}>
+              <span className="float-left mr-1">
+                <TaskPinButton task={task} compact />
+              </span>
+              <div className="float-right ml-1 flex items-start gap-1">
+              {taskPeople.length > 0 ? (
+                <div className="flex -space-x-1.5" title="Responsável e colaboradores">
+                  {taskPeople.slice(0, 4).map((person) => {
+                    const name = person.full_name || person.email || "Usuário";
+                    return (
+                      <Avatar
+                        key={person.id}
+                        className="h-6 w-6 border-2 border-card text-[8px]"
+                        title={name}
+                      >
+                        <AvatarImage src={person.avatar_url || undefined} alt={name} />
+                        <AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                    );
+                  })}
+                  {taskPeople.length > 4 ? (
+                    <span className="ml-1 self-center text-[10px] text-muted-foreground">
+                      +{taskPeople.length - 4}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              <Popover open={cardActionsOpen} onOpenChange={setCardActionsOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 shrink-0"
+                    onPointerDown={stop}
+                    onClick={stop}
+                    title="Ações da tarefa"
+                    aria-label="Ações da tarefa"
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-40 p-1" align="end" onPointerDown={stop} onClick={stop}>
+                  <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted" onClick={() => { setCardActionsOpen(false); onEdit?.(); }}>
+                    <Pencil className="h-3.5 w-3.5" /> Editar tarefa
+                  </button>
+                  <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted" onClick={() => { setCardActionsOpen(false); startCompletion(); }}>
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Concluir tarefa
+                  </button>
+                  {onDuplicate ? <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted" onClick={() => { setCardActionsOpen(false); onDuplicate(); }}>
+                    <Copy className="h-3.5 w-3.5" /> Duplicar tarefa
+                  </button> : null}
+                </PopoverContent>
+              </Popover>
+              </div>
               {titleEditing ? (
                 <Textarea
                   value={titleDraft}
@@ -1422,7 +1475,7 @@ export function TaskCard({
                   }}
                   onPointerDown={stop}
                   onClick={stop}
-                  className="min-h-[28px] resize-none border-none bg-transparent p-0 text-sm font-medium leading-snug shadow-none focus-visible:ring-0 md:text-sm"
+                  className="min-h-[28px] w-full clear-both resize-none border-none bg-transparent p-0 text-sm font-medium leading-snug shadow-none focus-visible:ring-0 md:text-sm"
                 />
               ) : (
                 <div
@@ -1440,38 +1493,12 @@ export function TaskCard({
                     stop(e);
                     setTitleEditing(true);
                   }}
-                  className="min-w-0 flex-1 text-left text-sm font-medium leading-snug [overflow-wrap:anywhere] hover:text-primary"
+                  className="text-left text-sm font-medium leading-snug [overflow-wrap:break-word] hover:text-primary"
                 >
                   {task.title ? <LinkedText text={task.title} /> : <span className="text-muted-foreground">Sem título</span>}
                   {task.is_draft && <span className="mt-1 block text-[10px] font-semibold text-amber-700">Em elaboração</span>}
                 </div>
               )}
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-6 w-6 shrink-0 text-success opacity-0 transition group-hover:opacity-100"
-                onPointerDown={stop}
-                onClick={(e) => {
-                  stop(e);
-                  startCompletion();
-                }}
-                title="Concluir tarefa"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-6 w-6 shrink-0 opacity-0 transition group-hover:opacity-100"
-                onPointerDown={stop}
-                onClick={(e) => {
-                  stop(e);
-                  onDuplicate?.();
-                }}
-                title="Duplicar tarefa"
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
               {false && (
                 <Popover>
                   <PopoverTrigger asChild>
@@ -1517,41 +1544,6 @@ export function TaskCard({
                   </PopoverContent>
                 </Popover>
               )}
-              {taskPeople.length > 0 ? (
-                <div className="flex -space-x-1.5" title="Responsável e colaboradores">
-                  {taskPeople.slice(0, 4).map((person) => {
-                    const name = person.full_name || person.email || "Usuário";
-                    return (
-                      <Avatar
-                        key={person.id}
-                        className="h-6 w-6 border-2 border-card text-[8px]"
-                        title={name}
-                      >
-                        <AvatarImage src={person.avatar_url || undefined} alt={name} />
-                        <AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                    );
-                  })}
-                  {taskPeople.length > 4 ? (
-                    <span className="ml-1 self-center text-[10px] text-muted-foreground">
-                      +{taskPeople.length - 4}
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-6 w-6 shrink-0 opacity-0 transition group-hover:opacity-100"
-                onPointerDown={stop}
-                onClick={(e) => {
-                  stop(e);
-                  onEdit?.();
-                }}
-                title="Editar tarefa"
-              >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </Button>
             </div>
 
             {/* Description — inline editable */}
