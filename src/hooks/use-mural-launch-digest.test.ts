@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ from: vi.fn(), notify: vi.fn() }));
 vi.mock("react", () => ({ useEffect: (run: () => void) => run() }));
@@ -7,8 +7,33 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from 
 vi.mock("@/lib/mural-activity-toast", () => ({ muralActivityToast: mocks.notify }));
 
 afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => { vi.resetModules(); mocks.notify.mockClear(); });
 
 describe("mural launch digest", () => {
+  it.each([
+    ["igor", "gabriel", true],
+    ["viewer", "gabriel", true],
+    ["igor", "viewer", false],
+    ["igor", null, false],
+  ])("uses the last actor when the creator is %s and the editor is %s", async (creator, editor, notified) => {
+    vi.stubGlobal("localStorage", { getItem: () => "1000", setItem: vi.fn() });
+    mocks.from.mockImplementation((table: string) => ({
+      select() {
+        const data = table === "profiles" ? [{ id: "gabriel", full_name: "Gabriel" }]
+          : table === "mural_posts" ? [{ id: "post", title: "Avisos", created_by: creator,
+              created_at: new Date(0).toISOString(), updated_at: new Date(2000).toISOString(),
+              last_activity_by: editor, last_activity_at: new Date(2000).toISOString() }]
+          : [];
+        const result = { data, error: null };
+        return { ...result, gt: () => Promise.resolve(result) };
+      },
+    }));
+    const { useMuralLaunchDigest } = await import("./use-mural-launch-digest");
+    useMuralLaunchDigest();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (notified) expect(mocks.notify.mock.calls[0]?.[0]).toBe('Gabriel atualizou "Avisos"');
+    else expect(mocks.notify).not.toHaveBeenCalled();
+  });
   it("resolves actor names with the permitted profile columns, without requesting email", async () => {
     vi.stubGlobal("localStorage", { getItem: () => "1000", setItem: vi.fn() });
     const selected: Record<string, string> = {};

@@ -70,6 +70,30 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function MuralActivityActorPreview() {
+  return (
+    <PreviewGrid label="Prévia dos avisos de quem alterou o mural">
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="font-semibold">Mural da equipe</p>
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-950">
+          <p className="flex items-center gap-1.5 font-semibold"><Pin className="h-3.5 w-3.5" />Avisos da semana</p>
+          <p className="mt-2 text-[9px] opacity-75">Publicado por outra pessoa</p>
+        </div>
+      </div>
+      <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+        <p className="font-semibold">Atividade em tempo real</p>
+        <div className="mt-3 rounded-lg border-2 border-primary/30 bg-background p-3 shadow-sm" data-mural-actor-notice>
+          <strong>Marina</strong> fixou &quot;Avisos da semana&quot;
+        </div>
+        <div className="mt-2 rounded-lg border-2 border-primary/30 bg-background p-3 shadow-sm">
+          <strong>Marina</strong> desfixou &quot;Avisos da semana&quot;
+        </div>
+        <p className="mt-2 text-muted-foreground">Nome de quem fez a alteração · sem aviso da sua própria ação</p>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function MarketingTeamProductionPreview() {
   return (
     <PreviewGrid label="Prévia da produção pessoal e da consulta à equipe no Marketing">
@@ -1607,6 +1631,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "mural-activity-actor": MuralActivityActorPreview,
   "marketing-team-production": MarketingTeamProductionPreview,
   "task-list-quick-actions": TaskListQuickActionsPreview,
   "consultoria-owner-task-panel": () => <MarketingCreateSidePanelPreview workspace="Consultoria" />,

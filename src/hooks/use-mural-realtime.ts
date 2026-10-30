@@ -3,9 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { muralActivityToast } from "@/lib/mural-activity-toast";
-
-// Reposicionar o card no quadro não é "atividade" que mereça aviso.
-const SILENT_FIELDS = new Set(["canvas_x", "canvas_y", "updated_at"]);
+import { muralPostUpdateActivity } from "@/lib/mural-post-activity";
 
 /**
  * Atividade do mural ao vivo, em QUALQUER tela — não só com o quadro aberto.
@@ -35,7 +33,8 @@ export function useMuralRealtime() {
     };
     const titleOf = (id: string | null | undefined) => {
       if (!id) return "um recado";
-      const list = (qc.getQueryData(["mural_posts"]) ?? []) as Array<{ id: string; title: string }>;
+      const list = qc.getQueriesData<Array<{ id: string; title: string }>>({ queryKey: ["mural_posts"] })
+        .flatMap(([, posts]) => posts ?? []);
       return list.find((item) => item.id === id)?.title || "um recado";
     };
 
@@ -47,12 +46,8 @@ export function useMuralRealtime() {
         (payload: any) => {
           void qc.invalidateQueries({ queryKey: ["mural_posts"] });
           if (payload.eventType !== "UPDATE") return;
-          const actor = payload.new?.created_by;
-          if (!actor || actor === userIdRef.current) return;
-          const changed = Object.keys(payload.new ?? {}).some(
-            (key) => !SILENT_FIELDS.has(key) && payload.new[key] !== payload.old?.[key],
-          );
-          if (changed) muralActivityToast(`${nameOf(actor)} atualizou "${payload.new.title}"`);
+          const activity = muralPostUpdateActivity(payload.old ?? {}, payload.new ?? {}, userIdRef.current);
+          if (activity) muralActivityToast(`${nameOf(activity.actorId)} ${activity.verb} "${activity.title}"`);
         },
       )
       .on(

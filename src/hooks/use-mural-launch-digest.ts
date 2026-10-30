@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { muralActivityToast } from "@/lib/mural-activity-toast";
+import { muralPostActivitySince } from "@/lib/mural-post-activity";
 
 // Uma vez por carregamento do sistema, não por navegação entre telas.
 let alreadyRan = false;
@@ -39,7 +40,7 @@ export function useMuralLaunchDigest() {
       // desta pessoa contém.
       const [postsRes, reactionsRes, attachmentsRes, profilesRes] = await Promise.all([
         (supabase.from("mural_posts") as any).select(
-          "id, title, created_by, created_at, updated_at",
+          "id, title, created_at, last_activity_by, last_activity_at",
         ),
         (supabase.from("mural_post_reactions") as any)
           .select("post_id, user_id, emoji, created_at")
@@ -53,9 +54,9 @@ export function useMuralLaunchDigest() {
       const posts = (postsRes.data ?? []) as Array<{
         id: string;
         title: string;
-        created_by: string | null;
         created_at: string | null;
-        updated_at: string | null;
+        last_activity_by: string | null;
+        last_activity_at: string | null;
       }>;
       const profiles = (profilesRes.data ?? []) as Array<{
         id: string;
@@ -94,12 +95,9 @@ export function useMuralLaunchDigest() {
         }
       });
       posts.forEach((post) => {
-        const editado =
-          post.updated_at &&
-          Date.parse(post.updated_at) > lastSeen &&
-          (!post.created_at || Date.parse(post.created_at) <= lastSeen);
-        if (editado && post.created_by && post.created_by !== user.id) {
-          novidades.push(`${nameOf(post.created_by)} atualizou "${post.title}"`);
+        const actor = muralPostActivitySince(post, lastSeen, user.id);
+        if (actor) {
+          novidades.push(`${nameOf(actor)} atualizou "${post.title}"`);
         }
       });
 

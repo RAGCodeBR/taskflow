@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "mural-activity-actor"
   | "marketing-team-production"
   | "task-list-quick-actions"
   | "consultoria-owner-task-panel"
@@ -70,6 +71,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "autor-correto-nos-avisos-do-mural-2026-10-29",
+    title: "Quem alterou o mural aparece nos avisos",
+    date: "2026-10-29",
+    preview: "mural-activity-actor",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Os avisos inferiores e o resumo ao reabrir o sistema identificam quem realmente alterou o post-it. Fixar e desfixar mostram a ação com o nome dessa pessoa, sem atribuir a alteração ao criador do recado.",
+      "Você não recebe esse aviso de atividade pela sua própria ação. Mover o post-it no quadro continua silencioso; fixar e desfixar continuam sem gerar uma notificação persistente.",
+    ],
+  },
   {
     id: "producao-e-historico-da-equipe-marketing-2026-10-26",
     title: "Produção pessoal e histórico da equipe no Marketing",

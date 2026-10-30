@@ -5,6 +5,14 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates who pinned and unpinned the mural, without interactive actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "mural-activity-actor" }));
+    expect(html).toContain("data-mural-actor-notice");
+    expect(html).toContain("Marina");
+    expect(html).toContain("desfixou");
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+  });
   it("illustrates personal work, completed subtasks and team access without real actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "marketing-team-production" }));
     expect(html).toContain("data-marketing-open-subtask");
