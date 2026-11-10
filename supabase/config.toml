@@ -5,3 +5,6 @@ project_id = "xlcurhbxexyunpkcswwo"
 # também exigir um JWT da plataforma pra chegar até esse código.
 [functions.instagram-insights-sync]
 verify_jwt = false
+
+[functions.taskflow-mcp]
+verify_jwt = false

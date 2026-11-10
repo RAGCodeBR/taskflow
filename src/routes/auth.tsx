@@ -24,6 +24,12 @@ function AuthPage() {
 
   useEffect(() => {
     if (user && !invitationFlow) {
+      const oauthReturn = sessionStorage.getItem("taskflow_oauth_return");
+      if (oauthReturn?.startsWith("/oauth/consent?")) {
+        sessionStorage.removeItem("taskflow_oauth_return");
+        window.location.assign(oauthReturn);
+        return;
+      }
       if (sharedTaskId) navigate({ to: "/tasks/list", search: { task: sharedTaskId, mine: undefined }, replace: true });
       else navigate({ to: "/mural", replace: true });
     }
