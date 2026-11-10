@@ -504,7 +504,7 @@ button[aria-label="Enviar mensagem"],button[aria-label="Enviando mensagem"] { ba
   .flex.group.justify-end > button:has(svg.lucide-corner-up-left) { margin-right:0!important; }
   .border-t:has(textarea) { padding:6px 8px!important; }
 }
-@media (max-width:767px) { .wa-dock-window { border:0!important; border-radius:0!important; box-shadow:none!important; outline:0!important; } }
+@media (max-width:639px) { .wa-dock-window { border:0!important; border-radius:0!important; box-shadow:none!important; outline:0!important; } }
 /* Minimized conversations: round heads with the unread count */
 .wa-dock-head > button:first-child > span:first-child { width:48px!important; height:48px!important; box-shadow:0 0 0 2px var(--wa-surface),0 6px 16px -4px rgb(11 20 26 / .35); }
 .wa-dock-head { animation:wa-head-in .28s var(--tf-ease) both; }
