@@ -31,6 +31,7 @@ import { Route as AppTrashRouteImport } from './routes/_app/trash'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppWhatsappRouteImport } from './routes/_app/whatsapp'
 import { Route as ApiWhatsappPilotRouteImport } from './routes/api.whatsapp-pilot'
+import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as AppClientReportClientIdRouteImport } from './routes/_app/client-report.$clientId'
 import { Route as AppClientsIndexRouteImport } from './routes/_app/clients.index'
 import { Route as AppClientsDirectoryRouteImport } from './routes/_app/clients.directory'
@@ -153,6 +154,11 @@ const ApiWhatsappPilotRoute = ApiWhatsappPilotRouteImport.update({
   path: '/api/whatsapp-pilot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppClientReportClientIdRoute = AppClientReportClientIdRouteImport.update({
   id: '/client-report/$clientId',
   path: '/client-report/$clientId',
@@ -237,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/users': typeof AppUsersRoute
   '/whatsapp': typeof AppWhatsappRoute
   '/api/whatsapp-pilot': typeof ApiWhatsappPilotRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/client-report/$clientId': typeof AppClientReportClientIdRoute
   '/clients/directory': typeof AppClientsDirectoryRoute
   '/clients/new': typeof AppClientsNewRoute
@@ -270,6 +277,7 @@ export interface FileRoutesByTo {
   '/users': typeof AppUsersRoute
   '/whatsapp': typeof AppWhatsappRoute
   '/api/whatsapp-pilot': typeof ApiWhatsappPilotRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/client-report/$clientId': typeof AppClientReportClientIdRoute
   '/clients/directory': typeof AppClientsDirectoryRoute
   '/clients/new': typeof AppClientsNewRoute
@@ -307,6 +315,7 @@ export interface FileRoutesById {
   '/_app/users': typeof AppUsersRoute
   '/_app/whatsapp': typeof AppWhatsappRoute
   '/api/whatsapp-pilot': typeof ApiWhatsappPilotRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/_app/client-report/$clientId': typeof AppClientReportClientIdRoute
   '/_app/clients/directory': typeof AppClientsDirectoryRoute
   '/_app/clients/new': typeof AppClientsNewRoute
@@ -344,6 +353,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/whatsapp'
     | '/api/whatsapp-pilot'
+    | '/oauth/consent'
     | '/client-report/$clientId'
     | '/clients/directory'
     | '/clients/new'
@@ -377,6 +387,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/whatsapp'
     | '/api/whatsapp-pilot'
+    | '/oauth/consent'
     | '/client-report/$clientId'
     | '/clients/directory'
     | '/clients/new'
@@ -413,6 +424,7 @@ export interface FileRouteTypes {
     | '/_app/users'
     | '/_app/whatsapp'
     | '/api/whatsapp-pilot'
+    | '/oauth/consent'
     | '/_app/client-report/$clientId'
     | '/_app/clients/directory'
     | '/_app/clients/new'
@@ -432,6 +444,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiWhatsappPilotRoute: typeof ApiWhatsappPilotRoute
+  OauthConsentRoute: typeof OauthConsentRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -588,6 +601,13 @@ declare module '@tanstack/react-router' {
       path: '/api/whatsapp-pilot'
       fullPath: '/api/whatsapp-pilot'
       preLoaderRoute: typeof ApiWhatsappPilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/oauth/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/client-report/$clientId': {
@@ -770,6 +790,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiWhatsappPilotRoute: ApiWhatsappPilotRoute,
+  OauthConsentRoute: OauthConsentRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
