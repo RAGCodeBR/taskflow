@@ -19,22 +19,101 @@ function looksLikeCopiedHtmlDocument(text: string) {
   );
 }
 
-// Some clipboard sources expose a sequence of rendered spans as text/plain.
-// Treat only a complete, repeated span fragment as markup so ordinary text
-// containing examples like "<span>literal</span>" stays literal.
-function looksLikeSerializedSpans(text: string) {
+// Some clipboard sources (ChatGPT, web editors, social media tools) expose
+// rendered markup as text/plain: "<span><span>Texto</span> </span>". It can be
+// mixed with ordinary lines and use other simple tags. Recognize text whose
+// tags are all simple text formatting, with at least two opening tags (or one
+// element wrapping the whole text), so a sentence that merely mentions one tag,
+// like "Exemplo: <span>literal</span>", stays literal. Code is never touched.
+const MARKUP_TAG = /<\/?([a-z][a-z0-9]*)\b[^<>]*>/gi;
+const TEXT_TAGS = new Set([
+  "span",
+  "p",
+  "br",
+  "div",
+  "strong",
+  "b",
+  "em",
+  "i",
+  "u",
+  "s",
+  "a",
+  "ul",
+  "ol",
+  "li",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "font",
+  "mark",
+  "small",
+  "sub",
+  "sup",
+]);
+const BLOCK_TAG = /<\/?(?:p|div|br|ul|ol|li|h[1-6])\b/i;
+
+function looksLikeSerializedMarkup(text: string) {
   const source = text.trim();
-  const openings = source.match(/<span\b[^>]*>/gi) ?? [];
-  const closings = source.match(/<\/span\s*>/gi) ?? [];
-  return openings.length >= 2
-    && openings.length === closings.length
-    && /^<span\b/i.test(source)
-    && /<\/span\s*>$/i.test(source)
-    && !/<(?:pre|code|img)\b/i.test(source);
+  if (!source || /<(?:pre|code|img|script|style)\b/i.test(source)) return false;
+  const tags = [...source.matchAll(MARKUP_TAG)];
+  if (!tags.length || !tags.every((tag) => TEXT_TAGS.has(tag[1].toLowerCase()))) return false;
+  const openings = tags.filter((tag) => !tag[0].startsWith("</")).length;
+  const closings = tags.length - openings;
+  if (!closings && !/<br\b/i.test(source)) return false;
+  return (
+    openings >= 2 ||
+    (/^<([a-z][a-z0-9]*)\b[^<>]*>/i.test(source) && /<\/[a-z][a-z0-9]*\s*>$/i.test(source))
+  );
 }
 
 export function isSerializedSpansClipboard(html: string, text: string) {
-  return !/<(?:pre|code)\b/i.test(html) && looksLikeSerializedSpans(text);
+  return !/<(?:pre|code)\b/i.test(html) && looksLikeSerializedMarkup(text);
+}
+
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+function decodeEntities(text: string) {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
+    if (code[0] === "#") {
+      const value =
+        code[1].toLowerCase() === "x" ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return Number.isFinite(value) && value > 0 && value <= 0x10ffff
+        ? String.fromCodePoint(value)
+        : entity;
+    }
+    return ENTITIES[code.toLowerCase()] ?? entity;
+  });
+}
+
+/** Clean text for plain fields (titles, comments, notes): tags removed, line breaks kept. */
+export function serializedMarkupToPlainText(text: string) {
+  return decodeEntities(
+    text
+      .replace(/\r\n?/g, "\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<li\b[^>]*>/gi, "• ")
+      .replace(/<\/(?:p|div|li|h[1-6])\s*>\n?/gi, "\n")
+      .replace(MARKUP_TAG, ""),
+  )
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** HTML for the rich editor: keeps bold, links and lists; plain line breaks become breaks. */
+function serializedMarkupToHtml(text: string) {
+  const source = text.trim().replace(/\r\n?/g, "\n");
+  // Block markup already describes the paragraphs; newlines between tags are layout only.
+  return BLOCK_TAG.test(source) ? source : source.split("\n").join("<br>");
 }
 
 function htmlFragment(source: string) {
@@ -46,7 +125,7 @@ function htmlFragment(source: string) {
 /** Clipboard formats vary by browser and source application. Never feed plain text to the HTML parser. */
 export function richTextPasteContent(html: string, text: string): RichTextPasteContent {
   if (isSerializedSpansClipboard(html, text)) {
-    return { kind: "html", content: htmlFragment(text) };
+    return { kind: "html", content: serializedMarkupToHtml(htmlFragment(text)) };
   }
   const source = html.trim() || (looksLikeCopiedHtmlDocument(text) ? text.trim() : "");
   if (source) return { kind: "html", content: htmlFragment(source) };

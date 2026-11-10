@@ -4,6 +4,7 @@ import {
   isSerializedSpansClipboard,
   plainTextToEditorHtml,
   richTextPasteContent,
+  serializedMarkupToPlainText,
 } from "./rich-text-paste";
 
 describe("rich text paste content", () => {
@@ -67,5 +68,41 @@ describe("rich text paste content", () => {
       ),
     ).toBe(false);
     expect(htmlHasMeaningfulText("<p>Legenda com texto</p><img src='x'>")).toBe(true);
+  });
+
+  // Reported in the Marketing task panel: nested spans, a trailing empty span and a line break.
+  const reported = "<span><span>Trabalhando muito porque meu desaparecimento europístico já tem data marcada.</span> </span>\n<span> </span>";
+
+  it("renders the reported nested spans with their line break in the rich editor", () => {
+    expect(isSerializedSpansClipboard("", reported)).toBe(true);
+    expect(richTextPasteContent("", reported)).toEqual({
+      kind: "html",
+      content: "<span><span>Trabalhando muito porque meu desaparecimento europístico já tem data marcada.</span> </span><br><span> </span>",
+    });
+    const escapedHtml = `<p>${reported.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</p>`;
+    expect(richTextPasteContent(escapedHtml, reported).content).not.toContain("&lt;span");
+  });
+
+  it("recognizes markup mixed with ordinary lines and other simple tags", () => {
+    const mixed = "Legenda do post\n<span>Primeira frase.</span> <span>Segunda frase.</span>";
+    expect(isSerializedSpansClipboard("", mixed)).toBe(true);
+    expect(richTextPasteContent("", mixed).content).toBe("Legenda do post<br><span>Primeira frase.</span> <span>Segunda frase.</span>");
+    const blocks = "<p><strong>Título</strong></p>\n<p>Texto &amp; mais</p>";
+    expect(richTextPasteContent("", blocks)).toEqual({ kind: "html", content: blocks });
+    expect(isSerializedSpansClipboard("", "<span>Uma linha só</span>")).toBe(true);
+  });
+
+  it("keeps code, unknown tags and single mentions literal", () => {
+    expect(isSerializedSpansClipboard("", "Exemplo: <span>literal</span>")).toBe(false);
+    expect(isSerializedSpansClipboard("", "<script>alert(1)</script><span>a</span>")).toBe(false);
+    expect(isSerializedSpansClipboard("", "<table><tr><td>a</td></tr></table>")).toBe(false);
+    expect(isSerializedSpansClipboard("", "Use a < b e c > d")).toBe(false);
+    expect(isSerializedSpansClipboard("<pre><code>x</code></pre>", reported)).toBe(false);
+  });
+
+  it("turns copied markup into clean text for plain fields, keeping paragraphs", () => {
+    expect(serializedMarkupToPlainText(reported)).toBe("Trabalhando muito porque meu desaparecimento europístico já tem data marcada.");
+    expect(serializedMarkupToPlainText("<p>Linha 1</p><p>Linha 2 &amp; 3</p><ul><li>Item</li></ul>")).toBe("Linha 1\nLinha 2 & 3\n• Item");
+    expect(serializedMarkupToPlainText("<span>a</span><br><span>b&nbsp;c</span>")).toBe("a\nb c");
   });
 });

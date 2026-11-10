@@ -53,6 +53,7 @@ import { useHasInvitedMeeting } from "@/hooks/use-meetings";
 import { ClientsNavGroup } from "@/components/ClientsNavGroup";
 import { canUseLocalWhatsApp } from "@/lib/whatsapp-local-access";
 import { WhatsAppNavGroup } from "@/components/WhatsAppNavGroup";
+import { installMarkupPasteGuard } from "@/lib/paste-markup-guard";
 
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -146,6 +147,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem("sidebar-open", String(sidebarOpen));
   }, [sidebarOpen]);
+  // Every text field: copied markup ("<span>…</span>") is pasted without the tags.
+  useEffect(() => installMarkupPasteGuard(), []);
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const quietWhatsAppPilot = pathname === "/whatsapp" && canUseLocalWhatsApp(user, isAdmin,

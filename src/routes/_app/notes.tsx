@@ -23,6 +23,7 @@ import { AttachmentPreviewDialog, type PreviewableAttachment } from "@/component
 import { formatNoteWithAI } from "@/lib/ai-format.functions";
 import { canPreviewAttachment } from "@/lib/attachment-preview";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { isSerializedSpansClipboard, plainTextToEditorHtml, richTextPasteContent } from "@/lib/rich-text-paste";
 
 export const Route = createFileRoute("/_app/notes")({
   component: NotesPage,
@@ -820,6 +821,15 @@ function NoteEditor({
     const cd = e.clipboardData;
     const html = cd.getData("text/html");
     const text = cd.getData("text/plain");
+    // Markup copied as text (e.g. "<span>…</span>" from ChatGPT) becomes formatting, not visible tags.
+    if (isSerializedSpansClipboard(html, text)) {
+      e.preventDefault();
+      const pasted = richTextPasteContent(html, text);
+      document.execCommand("insertHTML", false, pasted.kind === "html" ? pasted.content : plainTextToEditorHtml(pasted.content));
+      const ed = getActiveEditor();
+      if (ed) applyEditorChange(ed.innerHTML);
+      return;
+    }
     if (html && html.trim()) return; // browser default keeps formatting
     if (!text) return;
     const looksLikeMarkdown = /(^|\n)\s*(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```)|\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(/.test(text);

@@ -5,7 +5,7 @@ import { enqueueOfflineOperation, isOffline, listOfflineOperations } from "@/lib
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
 import { RichTextEditor, allClipboardImageFiles, hasClipboardText, type PastedEditorImage } from "@/components/RichTextEditor";
 import { attachImagesToDescription, pendingDescriptionImageIds, stripPendingDescriptionImages } from "@/lib/task-description-images";
-import { isSerializedSpansClipboard } from "@/lib/rich-text-paste";
+import { isSerializedSpansClipboard, serializedMarkupToPlainText } from "@/lib/rich-text-paste";
 import { pastePlainDescription, pasteSingleLine } from "@/lib/paste-single-line";
 import {
   Dialog,
@@ -246,7 +246,7 @@ export function SubtaskDialog({
     const text = event.clipboardData.getData("text/plain");
     if (isSerializedSpansClipboard(html, text)) {
       event.preventDefault();
-      const cleanText = new DOMParser().parseFromString(text, "text/html").body.textContent ?? text;
+      const cleanText = serializedMarkupToPlainText(text);
       const target = event.currentTarget;
       target.setRangeText(cleanText, target.selectionStart, target.selectionEnd, "end");
       setNotes(target.value);

@@ -96,6 +96,22 @@ function TaskCardReadableTitlePreview() {
   );
 }
 
+function CleanTextPastePreview() {
+  return (
+    <PreviewGrid label="Prévia do texto colado sem códigos">
+      <div className="rounded-xl border bg-background p-3 text-[11px] shadow-sm" data-clean-paste-before>
+        <p className="font-semibold text-muted-foreground">Antes</p>
+        <p className="mt-2 rounded-md border border-dashed px-2 py-2 font-mono text-[10px] text-muted-foreground">&lt;span&gt;&lt;span&gt;Legenda do post de lançamento.&lt;/span&gt; &lt;/span&gt;</p>
+      </div>
+      <div className="rounded-xl border bg-background p-3 text-[11px] shadow-sm" data-clean-paste-after>
+        <p className="font-semibold text-primary">Agora</p>
+        <p className="mt-2 rounded-md border px-2 py-2">Legenda do post de lançamento.</p>
+        <p className="mt-2 text-muted-foreground">Descrição, título, comentário e anotação</p>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function WhatsAppConversationWindowsPreview() {
   const bubble = (mine: boolean, text: string, time: string) => (
     <p className={`max-w-[85%] rounded-lg px-2 py-1 shadow-sm ${mine ? "self-end bg-[#d9fdd3] dark:bg-[#005c4b]" : "self-start bg-white dark:bg-[#202c33]"}`}>
@@ -1722,6 +1738,7 @@ function TaskCardActivityPreview() {
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
   "task-period-and-view": TaskPeriodAndViewPreview,
   "marketing-two-clients-and-task-link": MarketingTwoClientsAndTaskLinkPreview,
+  "clean-text-paste": CleanTextPastePreview,
   "whatsapp-conversation-windows": WhatsAppConversationWindowsPreview,
   "task-card-readable-title": TaskCardReadableTitlePreview,
   "mural-activity-actor": MuralActivityActorPreview,

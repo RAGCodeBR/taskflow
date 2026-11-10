@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "clean-text-paste"
   | "whatsapp-conversation-windows"
   | "task-period-and-view"
   | "marketing-two-clients-and-task-link"
@@ -75,6 +76,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "colagem-de-texto-sem-codigos-2026-11-10",
+    title: "Texto colado sem códigos <span>",
+    date: "2026-11-10",
+    preview: "clean-text-paste",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Textos copiados do ChatGPT e de outras ferramentas que chegavam com códigos como <span> agora entram limpos, mantendo as quebras de linha.",
+      "Vale para descrições de tarefas e subtarefas, títulos, comentários, conversas, anotações e os demais campos de texto. Textos comuns continuam exatamente como foram copiados.",
+    ],
+  },
   {
     id: "whatsapp-varias-conversas-2026-11-10",
     title: "Várias conversas abertas no WhatsApp",
