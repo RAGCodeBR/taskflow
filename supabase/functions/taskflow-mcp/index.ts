@@ -49,6 +49,13 @@ const TOOLS = [
     },
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
+  {
+    name: "taskflow_contatos",
+    title: "Contatos dos clientes",
+    description: "Telefone, e-mail e responsável dos clientes da consultoria (para mandar mensagem ou ligar). 'busca' filtra pelo nome.",
+    inputSchema: { type: "object", properties: { busca: { type: "string" } } },
+    annotations: { readOnlyHint: true },
+  },
 ];
 
 type Db = ReturnType<typeof createClient>;
@@ -71,6 +78,15 @@ async function callTool(db: Db, userId: string, name: string, args: Record<strin
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as { id: string; name: string; trade_name: string | null }[];
     return JSON.stringify({ clientes: rows.map((c) => ({ id: c.id, nome: c.name, fantasia: c.trade_name })) });
+  }
+  if (name === "taskflow_contatos") {
+    const q = strip(String(args.busca ?? ""));
+    let query = db.from("clients").select("id,name,trade_name,phone,email,responsible").eq("workspace_id", ws).neq("is_active", false).order("name").limit(200);
+    if (q) query = query.or(`name.ilike.%${q}%,trade_name.ilike.%${q}%,responsible.ilike.%${q}%`);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as { id: string; name: string; phone: string | null; email: string | null; responsible: string | null }[];
+    return JSON.stringify({ contatos: rows.map((c) => ({ id: c.id, cliente: c.name, responsavel: c.responsible, telefone: c.phone, email: c.email })) });
   }
   if (name === "taskflow_anexar_ata") {
     const clientId = String(args.cliente_id ?? "");
