@@ -7,7 +7,7 @@ import {
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES).toHaveLength(28);
+    expect(APP_UPDATES).toHaveLength(29);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -34,7 +34,8 @@ describe("application release catalogue", () => {
     expect(consultoria[0].id).toBe("tarefas-por-periodo-e-ultima-visao-2026-10-30");
     expect(APP_UPDATES.find((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")?.workspaces).toContain("marketing");
     expect(consultoria.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(false);
-    expect(ownerMarketing[0].id).toBe("tarefas-por-periodo-e-ultima-visao-2026-10-30");
+    expect(ownerMarketing[0].id).toBe("whatsapp-varias-conversas-2026-11-10");
+    expect(marketing.some((update) => update.id === "whatsapp-varias-conversas-2026-11-10")).toBe(false);
     expect(ownerConsultoria.some((update) => update.id === "painel-de-tarefas-consultoria-reinan-2026-10-22")).toBe(true);
   });
 

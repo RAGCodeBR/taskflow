@@ -57,23 +57,39 @@ main.styled-scrollbar:has(> div[class*="h-[calc"]) { display:flex!important; fle
 main.styled-scrollbar > div[class*="h-[calc"] { height:100%!important; min-height:0!important; flex:1!important; }
 /* ───────────────── TaskFlow chat theme v2 ─────────────────
    Tokens, then shell controls, Kanban, conversation window, wallpapers. */
+/* WhatsApp Business palette for the chat surfaces (light / dark). TaskFlow keeps its own
+   --primary etc. for the toolbar; conversations, cards and windows use these. */
+:root {
+  --wa-teal:#008069; --wa-accent:#00a884; --wa-green:#25d366;
+  --wa-panel:#f0f2f5; --wa-surface:#ffffff; --wa-field:#ffffff; --wa-wall:#efeae2;
+  --wa-out:#d9fdd3; --wa-in:#ffffff; --wa-ink:#111b21; --wa-ink-2:#667781; --wa-line:#e9edef;
+  --wa-hover:#f5f6f6; --wa-chip:#ffffff; --wa-quote-in:#f5f6f6; --wa-quote-out:#d1f4cc; --wa-doodle:#7d8f86;
+  --wa-bubble-shadow:0 1px .5px rgb(11 20 26 / .13); --wa-badge-ink:#ffffff;
+}
+.dark {
+  --wa-teal:#00a884; --wa-accent:#00a884; --wa-green:#00a884;
+  --wa-panel:#202c33; --wa-surface:#111b21; --wa-field:#2a3942; --wa-wall:#0b141a;
+  --wa-out:#005c4b; --wa-in:#202c33; --wa-ink:#e9edef; --wa-ink-2:#8696a0; --wa-line:#222d34;
+  --wa-hover:#2a3942; --wa-chip:#182229; --wa-quote-in:#1d282f; --wa-quote-out:#025144; --wa-doodle:#8696a0;
+  --wa-bubble-shadow:0 1px .5px rgb(0 0 0 / .3); --wa-badge-ink:#111b21;
+}
 :root {
   --tf-ease:cubic-bezier(.23,1,.32,1);
   --tf-hair:color-mix(in oklab,var(--foreground) 9%,transparent);
   --tf-shadow-sm:0 1px 2px rgb(15 23 42 / .05),0 0 0 1px rgb(15 23 42 / .04);
   --tf-shadow-md:0 10px 24px -10px rgb(15 23 42 / .22),0 0 0 1px rgb(15 23 42 / .05);
   --tf-shadow-lg:0 30px 80px -20px rgb(15 23 42 / .45);
-  --tf-unread:oklch(.63 .15 160);
-  --tf-out:oklch(.33 .1 264);
-  --tf-out-2:oklch(.4 .13 268);
+  --tf-unread:var(--wa-green);
+  --tf-out:var(--wa-teal);
+  --tf-out-2:var(--wa-accent);
 }
 .dark {
   --tf-hair:color-mix(in oklab,var(--foreground) 11%,transparent);
   --tf-shadow-sm:0 1px 2px rgb(0 0 0 / .4),0 0 0 1px rgb(255 255 255 / .04);
   --tf-shadow-md:0 12px 28px -10px rgb(0 0 0 / .7),0 0 0 1px rgb(255 255 255 / .06);
-  --tf-unread:oklch(.74 .14 160);
-  --tf-out:oklch(.42 .1 255);
-  --tf-out-2:oklch(.48 .12 262);
+  --tf-unread:var(--wa-green);
+  --tf-out:var(--wa-teal);
+  --tf-out-2:var(--wa-accent);
 }
 ::selection { background:color-mix(in oklab,var(--primary) 24%,transparent); }
 * { scrollbar-width:thin; scrollbar-color:color-mix(in oklab,var(--foreground) 16%,transparent) transparent; }
@@ -140,11 +156,11 @@ svg.lucide { stroke-width:1.75!important; }
 [aria-label="Quadro de atendimento"] article > div:first-child > span:has(> svg.lucide-grip-vertical) { display:none!important; }
 [aria-label="Quadro de atendimento"] article > div:first-child > span { font-size:0!important; gap:0!important; }
 [aria-label="Quadro de atendimento"] article > div:first-child > span svg { width:10px!important; height:10px!important; }
-[aria-label="Quadro de atendimento"] article [data-no-card-drag].flex { gap:1px!important; padding:2px; border-radius:9px; background:var(--card); box-shadow:var(--tf-shadow-md); opacity:0; transform:translateY(-2px) scale(.96); transition:opacity .15s ease,transform .18s var(--tf-ease); pointer-events:none; }
-[aria-label="Quadro de atendimento"] article:hover [data-no-card-drag].flex,[aria-label="Quadro de atendimento"] article:focus-within [data-no-card-drag].flex { opacity:1; transform:none; pointer-events:auto; }
+[aria-label="Quadro de atendimento"] article > div:first-child > [data-no-card-drag].flex { gap:1px!important; padding:2px; border-radius:9px; background:var(--card); box-shadow:var(--tf-shadow-md); opacity:0; transform:translateY(-2px) scale(.96); transition:opacity .15s ease,transform .18s var(--tf-ease); pointer-events:none; }
+[aria-label="Quadro de atendimento"] article:hover > div:first-child > [data-no-card-drag].flex,[aria-label="Quadro de atendimento"] article:focus-within > div:first-child > [data-no-card-drag].flex { opacity:1; transform:none; pointer-events:auto; }
 [aria-label="Quadro de atendimento"] article [data-no-card-drag] button { opacity:1!important; border-radius:9px; padding:7px!important; transition:background-color .15s ease,transform .16s var(--tf-ease); }
 [aria-label="Quadro de atendimento"] article [data-no-card-drag] button:active { transform:scale(.9); }
-@media (hover:none) { [aria-label="Quadro de atendimento"] article [data-no-card-drag].flex { opacity:1; transform:none; pointer-events:auto; box-shadow:none; background:transparent; } }
+@media (hover:none) { [aria-label="Quadro de atendimento"] article > div:first-child > [data-no-card-drag].flex { opacity:1; transform:none; pointer-events:auto; box-shadow:none; background:transparent; } }
 /* Identity block */
 [aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] { gap:11px!important; align-items:center!important; }
 [aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] > :first-child { width:42px!important; height:42px!important; flex:none; border-radius:999px; box-shadow:0 0 0 2px var(--card),0 0 0 4px color-mix(in oklab,var(--stage-c) 45%,transparent); }
@@ -167,7 +183,7 @@ svg.lucide { stroke-width:1.75!important; }
 
 /* ───────── Conversation window ───────── */
 /* Kanban dialog: slim title bar, opens with a short scale-in */
-[data-slot="dialog-content"]:has(#kanban-chat-description) { width:calc(100vw - 24px)!important; height:calc(100dvh - 24px)!important; border:0!important; border-radius:20px!important; box-shadow:var(--tf-shadow-lg)!important; animation:none!important; }
+[data-slot="dialog-content"]:has(#kanban-chat-description) { width:min(640px,100vw)!important; max-width:none!important; height:100dvh!important; top:0!important; right:0!important; left:auto!important; translate:none!important; border:0!important; border-radius:0!important; box-shadow:var(--tf-shadow-lg)!important; animation:none!important; }
 @keyframes tf-pop { from { opacity:0; scale:.97; } to { opacity:1; scale:1; } }
 [data-slot="dialog-overlay"] { background:rgb(15 23 42 / .35)!important; backdrop-filter:blur(3px); }
 [data-slot="dialog-content"]:has(#kanban-chat-description) > div:first-child { padding:8px 10px 8px 16px!important; background:var(--card)!important; border-color:var(--tf-hair)!important; }
@@ -292,7 +308,7 @@ button[aria-label="Enviar mensagem"]:disabled { opacity:.35; }
 @media (hover:none) { [aria-label="Quadro de atendimento"] article > select { position:static; margin:8px 0 0 53px!important; opacity:.75!important; box-shadow:none; } }
 
 /* Bigger card actions (pin, labels, contact) */
-[aria-label="Quadro de atendimento"] article [data-no-card-drag].flex { gap:2px!important; padding:3px; border-radius:12px; }
+[aria-label="Quadro de atendimento"] article > div:first-child > [data-no-card-drag].flex { gap:2px!important; padding:3px; border-radius:12px; }
 [aria-label="Quadro de atendimento"] article [data-no-card-drag] button svg { width:17px!important; height:17px!important; }
 [aria-label="Quadro de atendimento"] article [data-no-card-drag] button:hover { background:color-mix(in oklab,var(--foreground) 7%,transparent)!important; color:var(--foreground)!important; }
 [aria-label="Quadro de atendimento"] article > div:first-child > span:not(:has(> svg.lucide-grip-vertical)) { padding:4px!important; left:38px; top:36px; }
@@ -311,7 +327,7 @@ button[aria-label="Enviar mensagem"]:disabled { opacity:.35; }
    The stage select becomes a compact icon at the toolbar's left (--tb-w is measured by script). */
 [aria-label="Quadro de atendimento"] article { --card-bg:var(--card); background:var(--card-bg)!important; }
 [aria-label="Quadro de atendimento"] article > div:first-child > [data-no-card-drag] { top:9px; right:8px; }
-[aria-label="Quadro de atendimento"] article [data-no-card-drag].flex { padding:0 0 0 18px!important; gap:0!important; border-radius:0; box-shadow:none!important; background:linear-gradient(90deg,transparent,var(--card-bg) 16px)!important; }
+[aria-label="Quadro de atendimento"] article > div:first-child > [data-no-card-drag].flex { padding:0 0 0 18px!important; gap:0!important; border-radius:0; box-shadow:none!important; background:linear-gradient(90deg,transparent,var(--card-bg) 16px)!important; }
 [aria-label="Quadro de atendimento"] article [data-no-card-drag] button { padding:4px!important; border-radius:7px; }
 [aria-label="Quadro de atendimento"] article [data-no-card-drag] button svg { width:15px!important; height:15px!important; }
 [aria-label="Quadro de atendimento"] article > button[aria-label^="Abrir conversa"] time { transition:opacity .12s ease; }
@@ -406,3 +422,110 @@ html[data-tf-only-unread] [aria-label="Quadro de atendimento"] > section > div >
 [aria-label="Quadro de atendimento"] > section > header button[aria-label^="Arrastar coluna"]:hover { opacity:1!important; background:color-mix(in oklab,var(--foreground) 7%,transparent); }
 [aria-label="Quadro de atendimento"] > section > header button[aria-label^="Arrastar coluna"]:active { cursor:grabbing; }
 [aria-label="Quadro de atendimento"] > section[data-tf-col-drop] { box-shadow:inset 0 0 0 2px color-mix(in oklab,var(--stage-c) 60%,transparent),0 12px 28px -14px color-mix(in oklab,var(--stage-c) 60%,transparent)!important; }
+
+/* ═════════════ WhatsApp Business look (v3) ═════════════
+   Colors follow WhatsApp Web/Business; the doodle tile is an original drawing. */
+:root { --wa-doodle-img:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180' fill='none' stroke='%235b6b63' stroke-opacity='.16' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 18h24a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4H26l-7 6v-6h-5a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z'/%3E%3Cpath d='M88 32c-4-4-11-1-11 4 0 7 11 12 11 12s11-5 11-12c0-5-7-8-11-4z'/%3E%3Cpath d='M146 14l3 7 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z'/%3E%3Ccircle cx='42' cy='86' r='11'/%3E%3Cpath d='M36 89c3 4 9 4 12 0M37 82h.01M47 82h.01'/%3E%3Cpath d='M100 98V78l16-3v20'/%3E%3Ccircle cx='96' cy='98' r='4'/%3E%3Ccircle cx='112' cy='95' r='4'/%3E%3Cpath d='M166 74l-13 13a5 5 0 0 1-7-7l13-13a3 3 0 0 1 4 4l-12 12'/%3E%3Crect x='10' y='134' width='28' height='19' rx='3'/%3E%3Ccircle cx='24' cy='143' r='5'/%3E%3Cpath d='M18 134l2-4h8l2 4'/%3E%3Cpath d='M72 146l5 5 11-11M82 151l11-11'/%3E%3Cpath d='M136 132c0 13 11 24 24 24l3-6-7-4-3 3c-5-2-9-6-11-11l3-3-4-7z'/%3E%3Ccircle cx='118' cy='160' r='2'/%3E%3Ccircle cx='62' cy='56' r='1.6'/%3E%3Ccircle cx='160' cy='112' r='1.6'/%3E%3Cpath d='M120 40h14M127 33v14'/%3E%3C/svg%3E"); }
+.dark { --wa-doodle-img:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180' fill='none' stroke='%238696a0' stroke-opacity='.07' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 18h24a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4H26l-7 6v-6h-5a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z'/%3E%3Cpath d='M88 32c-4-4-11-1-11 4 0 7 11 12 11 12s11-5 11-12c0-5-7-8-11-4z'/%3E%3Cpath d='M146 14l3 7 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z'/%3E%3Ccircle cx='42' cy='86' r='11'/%3E%3Cpath d='M36 89c3 4 9 4 12 0M37 82h.01M47 82h.01'/%3E%3Cpath d='M100 98V78l16-3v20'/%3E%3Ccircle cx='96' cy='98' r='4'/%3E%3Ccircle cx='112' cy='95' r='4'/%3E%3Cpath d='M166 74l-13 13a5 5 0 0 1-7-7l13-13a3 3 0 0 1 4 4l-12 12'/%3E%3Crect x='10' y='134' width='28' height='19' rx='3'/%3E%3Ccircle cx='24' cy='143' r='5'/%3E%3Cpath d='M18 134l2-4h8l2 4'/%3E%3Cpath d='M72 146l5 5 11-11M82 151l11-11'/%3E%3Cpath d='M136 132c0 13 11 24 24 24l3-6-7-4-3 3c-5-2-9-6-11-11l3-3-4-7z'/%3E%3Ccircle cx='118' cy='160' r='2'/%3E%3Ccircle cx='62' cy='56' r='1.6'/%3E%3Ccircle cx='160' cy='112' r='1.6'/%3E%3Cpath d='M120 40h14M127 33v14'/%3E%3C/svg%3E"); }
+
+/* Conversation header */
+.backdrop-blur-sm.border-b:has(> div > h3),.backdrop-blur-sm.border-b:has(h3.truncate) { background:var(--wa-panel)!important; border-color:var(--wa-line)!important; backdrop-filter:none!important; padding:9px 12px!important; gap:10px!important; }
+.backdrop-blur-sm.border-b h3.truncate { font-size:15.5px!important; font-weight:500!important; letter-spacing:0; color:var(--wa-ink)!important; }
+.backdrop-blur-sm.border-b h3.truncate + p { color:var(--wa-ink-2)!important; font-size:12.5px!important; }
+.backdrop-blur-sm.border-b > button,.backdrop-blur-sm.border-b > div > button,.backdrop-blur-sm.border-b .tf-wall-picker > button { color:var(--wa-ink-2)!important; border:0!important; transition:background-color .15s ease,color .15s ease,transform .16s var(--tf-ease)!important; }
+.backdrop-blur-sm.border-b > button:hover,.backdrop-blur-sm.border-b > div > button:hover,.backdrop-blur-sm.border-b .tf-wall-picker > button:hover { background:color-mix(in oklab,var(--wa-ink) 8%,transparent)!important; color:var(--wa-ink)!important; }
+.backdrop-blur-sm.border-b > button:active { transform:scale(.92); }
+
+/* Message field: classic doodle wallpaper by default */
+.styled-scrollbar.overflow-y-auto { --wall-base:var(--wa-wall); }
+.styled-scrollbar.overflow-y-auto:not([data-wall]):has(.cursor-context-menu) { background:var(--wa-wall)!important; }
+[data-wall="classico"] { background:var(--wa-doodle-img) 0 0/180px 180px,var(--wa-wall)!important; }
+.styled-scrollbar .max-w-5xl { gap:2px!important; }
+.styled-scrollbar .max-w-5xl > [id^="msg-"]:has([data-tail]) { margin-top:8px; }
+.styled-scrollbar .max-w-5xl > div > .flex.justify-center span,.styled-scrollbar .max-w-5xl > .text-center span { background:var(--wa-chip)!important; color:var(--wa-ink-2)!important; box-shadow:var(--wa-bubble-shadow)!important; border:0!important; border-radius:8px!important; font-size:12px!important; font-weight:500!important; letter-spacing:0!important; padding:5px 12px!important; backdrop-filter:none!important; }
+
+/* Bubbles: WhatsApp shape, colors and tail on the first message of each run */
+.cursor-context-menu.rounded-2xl { border-radius:8px!important; padding:6px 9px 6px!important; box-shadow:var(--wa-bubble-shadow)!important; color:var(--wa-ink)!important; }
+.cursor-context-menu.rounded-bl-sm { background:var(--wa-in)!important; border-bottom-left-radius:8px!important; }
+.cursor-context-menu.rounded-br-sm { background:var(--wa-out)!important; color:var(--wa-ink)!important; border-bottom-right-radius:8px!important; }
+.cursor-context-menu.rounded-br-sm [class*="text-primary-foreground"],.cursor-context-menu [class*="text-[9px]"],.cursor-context-menu [class*="text-muted-foreground"] { color:var(--wa-ink-2)!important; }
+.cursor-context-menu .text-sm.break-words { font-size:14.2px!important; line-height:1.38; }
+.cursor-context-menu[data-tail="true"]::after { content:""; position:absolute; top:0; width:8px; height:13px; background:inherit; pointer-events:none; }
+.cursor-context-menu.rounded-br-sm[data-tail="true"] { border-top-right-radius:0!important; }
+.cursor-context-menu.rounded-br-sm[data-tail="true"]::after { right:-8px; background:var(--wa-out); clip-path:polygon(0 0,100% 0,0 100%); }
+.cursor-context-menu.rounded-bl-sm[data-tail="true"] { border-top-left-radius:0!important; }
+.cursor-context-menu.rounded-bl-sm[data-tail="true"]::after { left:-8px; background:var(--wa-in); clip-path:polygon(0 0,100% 0,100% 100%); }
+/* Groups: white bubble, colored sender name (as on WhatsApp) */
+.cursor-context-menu[data-participant-bubble="true"] { background:var(--wa-in)!important; }
+.dark .cursor-context-menu[data-participant-bubble="true"] { background:var(--wa-in)!important; }
+.cursor-context-menu[data-participant-bubble="true"] > span:first-child::before { display:none; }
+.cursor-context-menu[data-participant-bubble="true"] > span:first-child { font-size:12.8px!important; font-weight:500!important; }
+/* Quoted replies */
+.cursor-context-menu [class*="border-l-"]:has(.line-clamp-2),.cursor-context-menu .cursor-pointer:has(.line-clamp-2) { border-radius:7px!important; background:var(--wa-quote-in)!important; color:var(--wa-ink-2)!important; box-shadow:inset 4px 0 0 0 var(--wa-accent)!important; padding:6px 10px 6px 12px!important; }
+.cursor-context-menu.rounded-br-sm [class*="border-l-"]:has(.line-clamp-2),.cursor-context-menu.rounded-br-sm .cursor-pointer:has(.line-clamp-2) { background:var(--wa-quote-out)!important; }
+.cursor-context-menu .cursor-pointer:has(.line-clamp-2) .font-semibold { color:var(--wa-teal)!important; font-size:12.5px!important; }
+.cursor-context-menu.rounded-br-sm audio { color-scheme:light; }
+.dark .cursor-context-menu.rounded-br-sm audio { color-scheme:dark; }
+.cursor-context-menu.rounded-br-sm .tf-speed { color:var(--wa-ink); background:color-mix(in oklab,var(--wa-ink) 9%,transparent); }
+.cursor-context-menu.rounded-br-sm .tf-speed:hover { background:color-mix(in oklab,var(--wa-ink) 15%,transparent); }
+.cursor-context-menu > div.flex.items-center.justify-end > button:not([aria-label="Reagir à mensagem"]) { background:var(--wa-in)!important; border-radius:999px!important; }
+
+/* Composer */
+.border-t:has(textarea) { background:var(--wa-panel)!important; border-color:transparent!important; backdrop-filter:none; padding:8px 12px!important; }
+div:has(> textarea).rounded-2xl { background:var(--wa-field)!important; border:0!important; border-radius:10px!important; box-shadow:none!important; }
+div:has(> textarea).rounded-2xl:focus-within { box-shadow:0 0 0 2px color-mix(in oklab,var(--wa-accent) 45%,transparent)!important; }
+div:has(> textarea).rounded-2xl textarea { color:var(--wa-ink)!important; font-size:15px!important; }
+div:has(> textarea).rounded-2xl textarea::placeholder { color:var(--wa-ink-2)!important; }
+.border-t:has(textarea) .rounded-full.h-9.w-9:not([aria-label="Enviar mensagem"]):not([aria-label="Enviando mensagem"]) { color:var(--wa-ink-2)!important; }
+button[aria-label="Enviar mensagem"],button[aria-label="Enviando mensagem"] { background:var(--wa-accent)!important; color:#fff!important; border-radius:999px!important; }
+.dark button[aria-label="Enviar mensagem"] { color:#111b21!important; }
+.animate-bounce:has(> svg.lucide-arrow-down) { background:var(--wa-chip)!important; color:var(--wa-ink-2)!important; }
+
+/* Pinned bar and reminder strip */
+.tf-pinned-bar { background:var(--wa-panel)!important; border-color:var(--wa-line)!important; }
+.tf-pinned-bar > button:first-child { color:var(--wa-teal)!important; background:color-mix(in oklab,var(--wa-accent) 12%,transparent); }
+.tf-pinned-bar > button:nth-child(2) { border-left-color:var(--wa-accent); }
+
+/* ───────── Conversation windows over the Kanban ───────── */
+.wa-dock-window { container-type:inline-size; background:var(--wa-wall)!important; border:1px solid var(--wa-line)!important; border-radius:14px!important;
+  box-shadow:0 18px 50px -18px rgb(11 20 26 / .45),0 2px 8px -2px rgb(11 20 26 / .12)!important; transition:width .22s var(--tf-ease),box-shadow .2s ease,outline-color .2s ease!important; outline:2px solid transparent; outline-offset:-1px; }
+.wa-dock-window[data-active="true"] { outline-color:color-mix(in oklab,var(--wa-accent) 55%,transparent); box-shadow:0 24px 60px -18px rgb(11 20 26 / .55),0 2px 8px -2px rgb(11 20 26 / .14)!important; }
+.wa-dock-window:not([data-active="true"]) .backdrop-blur-sm.border-b h3.truncate { color:color-mix(in oklab,var(--wa-ink) 78%,transparent)!important; }
+.wa-dock-window .wa-dock-action { color:var(--wa-ink-2)!important; }
+.wa-dock-window .wa-dock-action:hover { background:color-mix(in oklab,var(--wa-ink) 8%,transparent)!important; color:var(--wa-ink)!important; }
+.wa-dock-window .wa-dock-action:active { transform:scale(.9); }
+.wa-dock-window .backdrop-blur-sm.border-b > button[aria-label="Fechar conversa e voltar ao Kanban"] { border:0!important; }
+.wa-dock-window .backdrop-blur-sm.border-b > button[aria-label="Fechar conversa e voltar ao Kanban"]:hover { background:color-mix(in oklab,#ea0038 12%,transparent)!important; color:#ea0038!important; }
+@container (max-width:520px) {
+  .tf-unread-toggle span { display:none; }
+  .tf-unread-toggle { padding:0 8px; }
+  .cursor-context-menu.rounded-2xl { max-width:86%!important; }
+  .cursor-context-menu > button[aria-label^="Ver quem recebeu"] { display:none!important; }
+  .flex.group.justify-end > button:has(svg.lucide-corner-up-left) { margin-right:0!important; }
+  .border-t:has(textarea) { padding:6px 8px!important; }
+}
+@media (max-width:767px) { .wa-dock-window { border:0!important; border-radius:0!important; box-shadow:none!important; outline:0!important; } }
+/* Minimized conversations: round heads with the unread count */
+.wa-dock-head > button:first-child > span:first-child { width:48px!important; height:48px!important; box-shadow:0 0 0 2px var(--wa-surface),0 6px 16px -4px rgb(11 20 26 / .35); }
+.wa-dock-head { animation:wa-head-in .28s var(--tf-ease) both; }
+@keyframes wa-head-in { from { opacity:0; transform:scale(.6); } }
+.wa-dock-badge { background:var(--wa-green)!important; color:var(--wa-badge-ink)!important; box-shadow:0 0 0 2px var(--wa-surface); animation:wa-badge .35s var(--tf-ease) both; }
+@keyframes wa-badge { from { transform:scale(.4); } 60% { transform:scale(1.15); } }
+.wa-dock-label { background:var(--wa-ink); color:var(--wa-surface); box-shadow:0 6px 16px -6px rgb(11 20 26 / .4); }
+.wa-dock-head-close { background:var(--wa-ink); color:var(--wa-surface); }
+.wa-dock-tray { scrollbar-width:none; }
+.wa-more-menu { border-radius:12px!important; }
+.wa-more-menu button:hover { background:var(--wa-hover)!important; }
+
+/* Kanban in WhatsApp Business tones */
+[aria-label="Quadro de atendimento"] article { --card:var(--wa-surface); }
+.dark [aria-label="Quadro de atendimento"] article { --card:var(--wa-panel); }
+[aria-label="Quadro de atendimento"] article p.font-medium { color:var(--wa-ink); font-weight:500!important; font-size:14px!important; }
+[aria-label="Quadro de atendimento"] article p.line-clamp-2 { color:var(--wa-ink-2)!important; }
+[aria-label="Quadro de atendimento"] article time { color:var(--wa-ink-2); }
+[aria-label="Quadro de atendimento"] article:has([aria-label$="mensagens não lidas"]) time { color:var(--wa-green); font-weight:600; opacity:1; }
+[role="group"][aria-label="Visualização das conversas"] button[aria-pressed="true"],[aria-label="Orientação do Kanban"] button[aria-pressed="true"] { color:var(--wa-teal)!important; }
+
+@media (prefers-reduced-motion:reduce) {
+  .wa-dock-window,.wa-dock-head,.wa-dock-badge { animation:none!important; transition:none!important; }
+}

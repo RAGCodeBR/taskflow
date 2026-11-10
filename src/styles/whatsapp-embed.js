@@ -55,7 +55,7 @@
     has(name){return !!name&&this.all().has(name)},
     set(name,on){const names=this.all();if(on)names.add(name);else names.delete(name);try{localStorage.setItem(this.key(),JSON.stringify([...names]))}catch{}schedule();},
   };
-  let openChat=null;
+  let openChats=new Set();
   const isUnread=card=>card.hasAttribute('data-tf-unread')||!!card.querySelector('[aria-label$="mensagens não lidas"]');
 
   // "Só não lidas" filter, next to the other Kanban filters.
@@ -220,17 +220,21 @@
     }
   };
   // Conversation wallpaper, chosen per browser.
-  const KEY='taskflow-chat-wallpaper',WALLS=[['liso','Liso'],['pontos','Pontos'],['grade','Grade'],['ondas','Ondas'],['marinho','Marinho'],['aurora','Aurora'],['papel','Papel'],['noite','Noite']];
-  const current=()=>{try{return localStorage.getItem(KEY)||'pontos'}catch{return 'pontos'}};
+  const KEY='taskflow-chat-wallpaper',WALLS=[['classico','Clássico'],['liso','Liso'],['pontos','Pontos'],['grade','Grade'],['ondas','Ondas'],['marinho','Marinho'],['aurora','Aurora'],['papel','Papel'],['noite','Noite']];
+  const current=()=>{try{return localStorage.getItem(KEY)||'classico'}catch{return 'classico'}};
   const walls=()=>{
     const wall=current(),titles=document.querySelectorAll('.backdrop-blur-sm.border-b h3.truncate');
-    const name=titles[0]?.textContent||null;
-    if(name!==openChat){openChat=name;if(name&&unread.has(name))unread.set(name,false);}
+    // Several conversation windows can be open on the Kanban; opening one clears its manual unread mark.
+    const names=new Set([...titles].map(title=>title.textContent||'').filter(Boolean));
+    for(const name of names)if(!openChats.has(name)&&unread.has(name))unread.set(name,false);
+    openChats=names;
     for(const title of titles){
       const header=title.closest('.border-b'),field=header?.parentElement?.querySelector(':scope>.styled-scrollbar.overflow-y-auto');
       if(field&&(field.dataset.wall||'liso')!==wall){if(wall==='liso')delete field.dataset.wall;else field.dataset.wall=wall;}
-      if(header&&!header.querySelector(':scope>.tf-unread-toggle'))header.append(unreadToggle());
-      if(header&&!header.querySelector(':scope>.tf-wall-picker'))header.append(picker());
+      // Keep window controls (minimize, expand, close) at the end of the header.
+      const controls=header?.querySelector(':scope>.wa-dock-action,:scope>button[aria-label="Fechar conversa e voltar ao Kanban"]')||null;
+      if(header&&!header.querySelector(':scope>.tf-unread-toggle'))header.insertBefore(unreadToggle(),controls);
+      if(header&&!header.querySelector(':scope>.tf-wall-picker'))header.insertBefore(picker(),controls);
       const toggle=header?.querySelector(':scope>.tf-unread-toggle'),on=unread.has(title.textContent);
       if(toggle&&toggle.getAttribute('aria-pressed')!==String(on)){toggle.setAttribute('aria-pressed',String(on));toggle.lastChild.textContent=on?'Não lida':'Marcar como não lida';}
     }
@@ -255,7 +259,7 @@
       for(const [id,name] of WALLS){
         const label=document.createElement('label'),swatch=document.createElement('button');
         swatch.type='button';swatch.setAttribute('aria-label','Fundo '+name);swatch.setAttribute('aria-pressed',String(current()===id));
-        if(id!=='liso')swatch.dataset.wall=id;else swatch.style.background='var(--background)';
+        if(id!=='liso')swatch.dataset.wall=id;else swatch.style.background='var(--wa-wall,var(--background))';
         swatch.onclick=()=>{try{localStorage.setItem(KEY,id)}catch{}menu.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===swatch)));walls();};
         const caption=document.createElement('span');caption.textContent=name;
         label.append(swatch,caption);menu.lastChild.append(label);

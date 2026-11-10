@@ -96,6 +96,40 @@ function TaskCardReadableTitlePreview() {
   );
 }
 
+function WhatsAppConversationWindowsPreview() {
+  const bubble = (mine: boolean, text: string, time: string) => (
+    <p className={`max-w-[85%] rounded-lg px-2 py-1 shadow-sm ${mine ? "self-end bg-[#d9fdd3] dark:bg-[#005c4b]" : "self-start bg-white dark:bg-[#202c33]"}`}>
+      {text} <span className="ml-1 text-[8px] text-[#667781] dark:text-[#8696a0]">{time}{mine ? " ✓✓" : ""}</span>
+    </p>
+  );
+  const window = (name: string, initials: string, color: string, active: boolean, messages: ReactNode) => (
+    <div className={`flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-[#efeae2] shadow-sm dark:bg-[#0b141a] ${active ? "ring-2 ring-[#00a884]/50" : ""}`} data-whatsapp-preview-window>
+      <div className="flex items-center gap-1.5 bg-[#f0f2f5] px-2 py-1.5 dark:bg-[#202c33]">
+        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-semibold text-white ${color}`}>{initials}</span>
+        <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+        <span className="text-[#667781]" aria-hidden="true">— ⤢ ✕</span>
+      </div>
+      <div className="flex flex-1 flex-col gap-1 p-2">{messages}</div>
+      <div className="flex items-center gap-1 bg-[#f0f2f5] px-2 py-1.5 dark:bg-[#202c33]">
+        <span className="flex-1 rounded-md bg-white px-2 py-0.5 text-[#667781] dark:bg-[#2a3942]">Mensagem</span>
+        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#00a884] text-[8px] text-white">➤</span>
+      </div>
+    </div>
+  );
+  return (
+    <PreviewGrid label="Prévia de várias conversas do WhatsApp abertas lado a lado">
+      <div className="flex min-h-40 gap-2 rounded-xl border bg-background p-2 text-[10px] shadow-sm" data-whatsapp-preview-dock>
+        {window("Cliente Exemplo A", "CA", "bg-sky-500", false, <>{bubble(false, "Recebeu os documentos?", "09:12")}{bubble(true, "Recebi, obrigado!", "09:14")}</>)}
+        {window("Cliente Exemplo B", "CB", "bg-emerald-500", true, <>{bubble(false, "Podemos falar amanhã?", "10:02")}{bubble(true, "Pode ser às 10h", "10:05")}</>)}
+        <div className="flex w-7 shrink-0 flex-col justify-end gap-1.5" aria-label="Conversas minimizadas ilustrativas">
+          <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-[8px] font-semibold text-white">CC<span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#25d366] px-0.5 text-[7px]">2</span></span>
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-[8px] font-semibold text-white">CD</span>
+        </div>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function MarketingTwoClientsAndTaskLinkPreview() {
   return (
     <PreviewGrid label="Prévia da tarefa em vários clientes e do link compartilhável">
@@ -1688,6 +1722,7 @@ function TaskCardActivityPreview() {
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
   "task-period-and-view": TaskPeriodAndViewPreview,
   "marketing-two-clients-and-task-link": MarketingTwoClientsAndTaskLinkPreview,
+  "whatsapp-conversation-windows": WhatsAppConversationWindowsPreview,
   "task-card-readable-title": TaskCardReadableTitlePreview,
   "mural-activity-actor": MuralActivityActorPreview,
   "marketing-team-production": MarketingTeamProductionPreview,

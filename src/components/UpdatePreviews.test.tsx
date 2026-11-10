@@ -5,6 +5,14 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates WhatsApp conversations side by side and minimized, with fictional data only", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "whatsapp-conversation-windows" }));
+    expect(html).toContain("data-whatsapp-preview-dock");
+    expect(html.match(/data-whatsapp-preview-window/g)).toHaveLength(2);
+    expect(html).toContain("Conversas minimizadas ilustrativas");
+    expect(html).toContain("Cliente Exemplo B");
+    expect(html).not.toContain("<button");
+  });
   it("shows the title beside the pin while keeping participant avatars", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "task-card-readable-title" }));
     expect(html).toContain("data-task-card-title-preview");

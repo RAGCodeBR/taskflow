@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "whatsapp-conversation-windows"
   | "task-period-and-view"
   | "marketing-two-clients-and-task-link"
   | "task-card-readable-title"
@@ -74,6 +75,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "whatsapp-varias-conversas-2026-11-10",
+    title: "Várias conversas abertas no WhatsApp",
+    date: "2026-11-10",
+    preview: "whatsapp-conversation-windows",
+    audience: "owner",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "No Kanban do WhatsApp, cada conversa abre em uma janela ao lado das outras, e o quadro continua disponível para abrir mais. Você responde em qualquer uma delas.",
+      "Minimize uma janela para guardá-la como uma bolinha com a foto e o número de mensagens não lidas. Amplie quando precisar de mais espaço. As conversas abertas voltam como estavam ao reabrir o chat neste navegador.",
+      "As conversas ganharam as cores do WhatsApp Business: fundo Clássico com desenhos, balões verdes com ponta, campo de mensagem e modo escuro no mesmo estilo. Os outros fundos continuam no seletor de fundo da conversa.",
+    ],
+  },
   {
     id: "tarefas-por-periodo-e-ultima-visao-2026-10-30",
     title: "Tarefas por semana ou mês",
