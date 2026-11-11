@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "styled-text-paste"
   | "shared-task-session"
   | "clean-text-paste"
   | "whatsapp-conversation-windows"
@@ -77,6 +78,18 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "colagem-de-texto-com-estilo-2026-11-11",
+    title: "Texto colado sem códigos, também no meio de outras linhas",
+    date: "2026-11-11",
+    preview: "styled-text-paste",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Quando o trecho copiado misturava linhas comuns com um texto que trazia código de formatação, como <span style=\"…\">, o código aparecia na descrição. Agora esse texto entra limpo junto com as outras linhas.",
+      "Vale para descrições de tarefas e subtarefas, títulos, comentários, anotações e os demais campos de texto. Textos digitados ou copiados sem código continuam como estão.",
+    ],
+  },
   {
     id: "sessao-ao-abrir-links-de-tarefas-2026-11-11",
     title: "Links de tarefas reconhecem sua sessão",

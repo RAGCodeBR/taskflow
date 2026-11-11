@@ -117,6 +117,30 @@ function TaskCardReadableTitlePreview() {
   );
 }
 
+function StyledTextPastePreview() {
+  return (
+    <PreviewGrid label="Prévia do texto com estilo colado entre outras linhas">
+      <div className="rounded-xl border bg-background p-3 text-[11px] shadow-sm" data-styled-paste-before>
+        <p className="font-semibold text-muted-foreground">Antes</p>
+        <div className="mt-2 space-y-1 rounded-md border border-dashed px-2 py-2">
+          <p>Ideia: vídeo curto de bastidores</p>
+          <p>Legenda:</p>
+          <p className="break-all font-mono text-[10px] text-muted-foreground">&lt;span style="color: rgb(55, 55, 55); font-size: 16px;"&gt;Um dia comum no estúdio.&lt;/span&gt;</p>
+        </div>
+      </div>
+      <div className="rounded-xl border bg-background p-3 text-[11px] shadow-sm" data-styled-paste-after>
+        <p className="font-semibold text-primary">Agora</p>
+        <div className="mt-2 space-y-1 rounded-md border px-2 py-2">
+          <p>Ideia: vídeo curto de bastidores</p>
+          <p>Legenda:</p>
+          <p>Um dia comum no estúdio.</p>
+        </div>
+        <p className="mt-2 text-muted-foreground">Descrição da subtarefa, comentários e anotações</p>
+      </div>
+    </PreviewGrid>
+  );
+}
+
 function CleanTextPastePreview() {
   return (
     <PreviewGrid label="Prévia do texto colado sem códigos">
@@ -1760,6 +1784,7 @@ const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
   "shared-task-session": SharedTaskSessionPreview,
   "task-period-and-view": TaskPeriodAndViewPreview,
   "marketing-two-clients-and-task-link": MarketingTwoClientsAndTaskLinkPreview,
+  "styled-text-paste": StyledTextPastePreview,
   "clean-text-paste": CleanTextPastePreview,
   "whatsapp-conversation-windows": WhatsAppConversationWindowsPreview,
   "task-card-readable-title": TaskCardReadableTitlePreview,

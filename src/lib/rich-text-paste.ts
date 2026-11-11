@@ -54,6 +54,7 @@ const TEXT_TAGS = new Set([
   "sup",
 ]);
 const BLOCK_TAG = /<\/?(?:p|div|br|ul|ol|li|h[1-6])\b/i;
+const STYLE_ATTRIBUTE = /^<[a-z][a-z0-9]*\b[^<>]*\sstyle\s*=\s*["']?\s*[a-z-]+\s*:/i;
 
 function looksLikeSerializedMarkup(text: string) {
   const source = text.trim();
@@ -63,7 +64,11 @@ function looksLikeSerializedMarkup(text: string) {
   const openings = tags.filter((tag) => !tag[0].startsWith("</")).length;
   const closings = tags.length - openings;
   if (!closings && !/<br\b/i.test(source)) return false;
+  // An element carrying the inline CSS of the page it came from (copied from a
+  // web editor) is never typed by hand, even when it is the only tag among lines.
+  const copiedStyle = tags.some((tag) => STYLE_ATTRIBUTE.test(tag[0]));
   return (
+    copiedStyle ||
     openings >= 2 ||
     (/^<([a-z][a-z0-9]*)\b[^<>]*>/i.test(source) && /<\/[a-z][a-z0-9]*\s*>$/i.test(source))
   );

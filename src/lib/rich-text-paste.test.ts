@@ -92,6 +92,25 @@ describe("rich text paste content", () => {
     expect(isSerializedSpansClipboard("", "<span>Uma linha só</span>")).toBe(true);
   });
 
+  // Reported again on 2026-11-11 in a subtask description: ordinary lines followed by
+  // a single span carrying the inline style of the page it was copied from.
+  const styledSpan =
+    '<span style="color: rgb(55, 55, 55); font-family: specialGothic, &quot;specialGothic Fallback&quot;, system-ui, sans-serif; font-size: 16px; display: inline !important; float: none;">Sobre o dia seguinte à formatura.</span>';
+  const styledMixed = `aqui pensei em um vídeo\n\na legenda\n${styledSpan}`;
+
+  it("recognizes a single styled span mixed with ordinary lines", () => {
+    expect(isSerializedSpansClipboard("", styledMixed)).toBe(true);
+    const pasted = richTextPasteContent("", styledMixed);
+    expect(pasted.kind).toBe("html");
+    expect(pasted.content).toBe(`aqui pensei em um vídeo<br><br>a legenda<br>${styledSpan}`);
+    const escapedHtml = `<p>${styledMixed.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</p>`;
+    expect(richTextPasteContent(escapedHtml, styledMixed).content).not.toContain("&lt;span");
+    expect(serializedMarkupToPlainText(styledMixed)).toBe(
+      "aqui pensei em um vídeo\n\na legenda\nSobre o dia seguinte à formatura.",
+    );
+    expect(isSerializedSpansClipboard("", `Texto antes ${styledSpan} texto depois`)).toBe(true);
+  });
+
   it("keeps code, unknown tags and single mentions literal", () => {
     expect(isSerializedSpansClipboard("", "Exemplo: <span>literal</span>")).toBe(false);
     expect(isSerializedSpansClipboard("", "<script>alert(1)</script><span>a</span>")).toBe(false);

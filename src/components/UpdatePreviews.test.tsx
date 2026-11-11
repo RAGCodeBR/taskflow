@@ -5,6 +5,14 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows styled markup among ordinary lines and the clean result, without actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "styled-text-paste" }));
+    expect(html).toContain("data-styled-paste-before");
+    expect(html).toContain("data-styled-paste-after");
+    expect(html).toContain("&lt;span style=");
+    expect(html).toContain("Um dia comum no estúdio.");
+    expect(html).not.toContain("<button");
+  });
   it("shows an existing browser session and the destination task without real actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "shared-task-session" }));
     expect(html).toContain("data-shared-task-session");
