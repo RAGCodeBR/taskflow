@@ -32,6 +32,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useAssignableProfiles } from "@/hooks/use-data";
 import { useQueryClient } from "@tanstack/react-query";
+import { formValuesChanged, richTextFormValue } from "@/lib/form-changes";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
 
 export interface EditableSubtask {
   id: string;
@@ -150,6 +153,7 @@ export function SubtaskDialog({
   const uploadedPrintsRef = useRef<Record<string, string>>({});
   const storedPrintPreviewsRef = useRef(new Map<string, string>());
   const initializedForRef = useRef<string | null>(null);
+  const initialFormValuesRef = useRef<Record<string, unknown> | null>(null);
   const defaultTitle = defaults?.title ?? "";
   const defaultDueDate = defaults?.dueDate ?? "";
   const defaultAssigneeId = defaults?.assigneeId ?? "";
@@ -183,6 +187,13 @@ export function SubtaskDialog({
     dragDepthRef.current = 0;
     setDraggingImages(false);
     savedSubtaskRef.current = subtask ?? null;
+    initialFormValuesRef.current = {
+      title: subtask?.title ?? defaultTitle,
+      dueDate: toDateInputValue(subtask?.due_date) || defaultDueDate,
+      assigneeId: subtask?.assignee_id ?? defaultAssigneeId,
+      notes: richTextFormValue(subtask?.notes),
+      done: subtask?.done ?? false,
+    };
     setTitle(subtask?.title ?? defaultTitle);
     setDueDate(toDateInputValue(subtask?.due_date) || defaultDueDate);
     setAssigneeId(subtask?.assignee_id ?? defaultAssigneeId);
@@ -292,6 +303,7 @@ export function SubtaskDialog({
 
   const handleOpenChange = (nextOpen: boolean, force = false) => {
     if (!nextOpen && saving && !force) return;
+    if (!nextOpen && !force) { exitGuard.requestClose(); return; }
     if (!nextOpen) {
       dragDepthRef.current = 0;
       setDraggingImages(false);
@@ -473,10 +485,18 @@ export function SubtaskDialog({
     }
   };
 
+  const hasUnsavedChanges = Boolean(initialFormValuesRef.current && formValuesChanged(initialFormValuesRef.current, {
+    title, dueDate, assigneeId, notes: richTextFormValue(notes), done,
+  })) || Boolean(dueDateReason.trim()) || pendingPrints.some((print) => !print.inline || pendingDescriptionImageIds(notes).has(print.id));
+  const exitGuard = useUnsavedChanges({
+    open, dirty: hasUnsavedChanges, busy: saving,
+    onClose: () => handleOpenChange(false, true), onSave: save,
+  });
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent overlayClassName={marketingLayout ? "!bg-transparent" : undefined} className={marketingLayout
-        ? "!left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0"
+        ? "[&>button]:z-30 !left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0"
         : "max-w-2xl gap-5 p-6 sm:rounded-2xl"}>
         <DialogHeader className={marketingLayout ? "sticky top-0 z-20 border-b bg-background px-5 py-4 text-left sm:px-7" : undefined}>
           {marketingLayout && <button type="button" onClick={() => handleOpenChange(false)} className="w-fit text-xs text-muted-foreground hover:text-primary">{parentTitle || "Tarefa principal"} /</button>}
@@ -630,6 +650,7 @@ export function SubtaskDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      <UnsavedChangesDialog open={exitGuard.confirming} onContinue={exitGuard.continueEditing} onDiscard={exitGuard.discard} onSave={exitGuard.saveAndLeave} />
     </Dialog>
   );
 }

@@ -92,6 +92,9 @@ import { hasMarketingTaskExperience } from "@/lib/environment-access";
 import { pastePlainDescription, pasteSingleLine } from "@/lib/paste-single-line";
 import { TaskCardOpenings, TaskPinButton } from "@/components/TaskCardActivity";
 import { groupSubtaskAttachments } from "@/lib/subtask-attachment-groups";
+import { formIdSet, formValuesChanged, richTextFormValue } from "@/lib/form-changes";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
 
 interface Props {
   open: boolean;
@@ -334,6 +337,7 @@ export function TaskDialog({
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>([]);
+  const collaboratorsEditedRef = useRef(false);
   const [collaboratorLoad, setCollaboratorLoad] = useState<{
     taskId: string;
     status: "loading" | "ready" | "error";
@@ -362,6 +366,7 @@ export function TaskDialog({
   });
   const currentTaskIdRef = useRef<string | null>(null);
   const editBaseRef = useRef<Task | null>(null);
+  const initialFormValuesRef = useRef<Record<string, unknown> | null>(null);
   const initializedFormRef = useRef<string | null>(null);
   const [isDraft, setIsDraft] = useState(false);
   useRecordTaskCardOpen(open, task?.id);
@@ -391,6 +396,8 @@ export function TaskDialog({
   const [subtaskInDialog, setSubtaskInDialog] = useState<Subtask | null>(null);
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [subtaskTitleDraft, setSubtaskTitleDraft] = useState("");
+  const [subtaskTitleDrafts, setSubtaskTitleDrafts] = useState<Record<string, string>>({});
+  const [subtaskNotesDrafts, setSubtaskNotesDrafts] = useState<Record<string, string>>({});
 
   const [subDueChanges, setSubDueChanges] = useState<Record<string, SubtaskDueChange[]>>({});
   const [subDueOpen, setSubDueOpen] = useState<Record<string, boolean>>({});
@@ -535,18 +542,38 @@ export function TaskDialog({
     const formKey = task?.id ?? "new";
     if (initializedFormRef.current === formKey) return;
     initializedFormRef.current = formKey;
+    collaboratorsEditedRef.current = false;
     editBaseRef.current = task ?? null;
     setActiveTab("subtasks");
     setClientPickerOpen(false);
     setClientSearch("");
     setEditingSubtaskId(null);
     setSubtaskTitleDraft("");
+    setSubtaskTitleDrafts({});
+    setSubtaskNotesDrafts({});
     setShowMarketingExtra(false);
     setPendingMarketingSubtasks([]);
     setActivePendingSubtaskId(null);
     setEditingPendingSubtaskId(null);
     clearPendingSubtaskImages();
     uploadedDescriptionImageIdsRef.current.clear();
+    const initialValues = {
+      title: task?.title ?? defaults?.title ?? "",
+      description: task ? isMarketingTask ? task.description ?? "" : stripStoredDescriptionImages(task.description ?? "") : defaults?.description ?? "",
+      status: task ? task.status === "done" || task.completed_at ? "done" : task.status ?? "todo" : "todo",
+      priority: task?.priority ?? defaults?.priority ?? "medium",
+      categoryId: task?.tag_id ?? "",
+      objectiveId: task?.objective_id ?? "",
+      columnId: task?.column_id ?? (task ? "" : defaultColumnId ?? ""),
+      targetWorkspaceId: task ? task.workspace_id ?? activeWorkspace?.id ?? "" : defaultWorkspaceId || activeWorkspace?.id || "",
+      clientId: meetingClientLocked ? meetingClientId ?? "" : task ? task.client_id ?? "" : defaults?.clientId ?? "",
+      additionalClientIds: targetWorkspace?.slug === "marketing" && task ? [...new Set([...(task.additional_client_ids ?? []), task.secondary_client_id].filter((id): id is string => Boolean(id)))] : [],
+      assigneeId: task ? task.assignee_id ?? "" : defaults?.assigneeId ?? user?.id ?? "",
+      dueDate: task?.due_date ? format(new Date(task.due_date), "yyyy-MM-dd") : task ? "" : defaults?.dueDate ?? "",
+      dueTime: task ? normalizeDueTime(task.due_time) : defaults?.dueTime ?? "",
+      completionDate: task?.completed_at ? format(new Date(task.completed_at), "yyyy-MM-dd") : "",
+    };
+    initialFormValuesRef.current = { ...initialValues, description: richTextFormValue(initialValues.description), additionalClientIds: formIdSet(initialValues.additionalClientIds) };
     if (task) {
       setIsDraft(Boolean(task.is_draft));
       setTitle(task.title);
@@ -578,6 +605,7 @@ export function TaskDialog({
       setStatus("todo");
       setPriority(defaults?.priority ?? "medium");
       setCategoryId("");
+      setObjectiveId("");
       setColumnId(defaultColumnId ?? "");
       setTargetWorkspaceId(defaultWorkspaceId || activeWorkspace?.id || "");
       setClientId(meetingClientLocked ? meetingClientId ?? "" : defaults?.clientId ?? "");
@@ -640,7 +668,7 @@ export function TaskDialog({
       const loadedIds = (data ?? []).map(
         (collaborator: { collaborator_id: string }) => collaborator.collaborator_id,
       );
-      setCollaboratorIds(loadedIds);
+      if (!collaboratorsEditedRef.current) setCollaboratorIds(loadedIds);
       setCollaboratorLoad({ taskId, status: "ready", loadedIds });
     })();
     return () => {
@@ -815,6 +843,7 @@ export function TaskDialog({
   };
 
   const toggleCollaborator = (collaboratorId: string) => {
+    collaboratorsEditedRef.current = true;
     setCollaboratorIds((current) =>
       current.includes(collaboratorId)
         ? current.filter((id) => id !== collaboratorId)
@@ -946,7 +975,23 @@ export function TaskDialog({
     return taskId;
   };
 
+  const saveInlineSubtaskDrafts = async () => {
+    for (const [id, title] of Object.entries(subtaskTitleDrafts)) {
+      const edited = subtasks.find((item) => item.id === id);
+      if (edited && title !== edited.title && !(await saveSubtaskTitle(edited, title))) return false;
+    }
+    for (const [id, notes] of Object.entries(subtaskNotesDrafts)) {
+      const edited = subtasks.find((item) => item.id === id);
+      if (edited && notes !== (edited.notes ?? "") && !(await updateSubtaskNotes(edited, notes))) return false;
+    }
+    return true;
+  };
+
   const saveDraft = async (showConversation = false): Promise<boolean> => {
+    if (!newSubtask.trim() && (newSubtaskDue || newSubtaskAssignee)) {
+      toast.error("Informe o título da nova subtarefa ou limpe seus campos antes de salvar.");
+      return false;
+    }
     if (pendingMarketingSubtasks.some((subtask) => !subtask.title.trim() && (subtask.dueDate || subtask.assigneeId || subtask.done || subtask.notes.trim() || pendingSubtaskImages[subtask.id]?.length))) {
       toast.error("Preencha ou remova a subtarefa sem título.");
       return false;
@@ -965,6 +1010,7 @@ export function TaskDialog({
     }
     setSaving(true);
     try {
+      if (!(await saveInlineSubtaskDrafts())) return false;
       const existingId = currentTaskIdRef.current ?? currentTaskId;
       const taskId = existingId ?? (await ensureTask());
       if (!taskId) return false;
@@ -1122,6 +1168,9 @@ export function TaskDialog({
 
   const queueTaskLocally = async (existingTaskId: string | null, createTaskId?: string) => {
     if (!user) throw new Error("Sua sessão local não está disponível.");
+    if (canManageCollaborators && collaboratorsEditedRef.current && (!collaboratorsReady || JSON.stringify(formIdSet(collaboratorIds)) !== JSON.stringify(formIdSet(collaboratorLoad?.loadedIds ?? [])))) {
+      throw new Error("Conecte-se à internet para salvar alterações nos colaboradores. Suas alterações continuam no formulário.");
+    }
     const payload = buildPayload();
     const now = new Date().toISOString();
     let taskId = existingTaskId;
@@ -1208,12 +1257,17 @@ export function TaskDialog({
 
     if (!(await persistPendingSubtaskImages(taskId, true))) throw new Error("Não foi possível guardar as imagens das subtarefas neste aparelho.");
 
-    await uploadDescriptionImages(taskId);
+    const printResult = await uploadDescriptionImages(taskId);
+    if (!printResult.allUploaded) throw new Error("Não foi possível guardar todos os prints neste aparelho. Tente salvar novamente antes de sair.");
     toast.success("Tarefa salva neste aparelho. Será sincronizada ao reconectar.");
     onOpenChange(false);
   };
 
   const save = async () => {
+    if (!newSubtask.trim() && (newSubtaskDue || newSubtaskAssignee)) {
+      toast.error("Informe o título da nova subtarefa ou limpe seus campos antes de salvar.");
+      return;
+    }
     if (pendingMarketingSubtasks.some((subtask) => !subtask.title.trim() && (subtask.dueDate || subtask.assigneeId || subtask.done || subtask.notes.trim() || pendingSubtaskImages[subtask.id]?.length))) {
       toast.error("Preencha ou remova a subtarefa sem título.");
       return;
@@ -1234,6 +1288,12 @@ export function TaskDialog({
       return;
     }
     const existingTaskId = currentTaskIdRef.current ?? currentTaskId;
+    try {
+      if (!(await saveInlineSubtaskDrafts())) return;
+    } catch (error) {
+      toast.error(taskEditError(error, "Não foi possível salvar as alterações das subtarefas."));
+      return;
+    }
     if (isOffline()) {
       if (!existingTaskId && !dueDate) {
         toast.error("Prazo é obrigatório para criar uma tarefa");
@@ -1440,7 +1500,7 @@ export function TaskDialog({
   };
 
   const openSubtaskDialog = (subtask: Subtask) => {
-    setSubtaskInDialog(subtask);
+    setSubtaskInDialog({ ...subtask, title: subtaskTitleDrafts[subtask.id] ?? subtask.title, notes: subtaskNotesDrafts[subtask.id] ?? subtask.notes });
     setSubtaskDialogOpen(true);
     if (!subAttachments[subtask.id]) void loadSubAttachments(subtask.id);
   };
@@ -1448,6 +1508,8 @@ export function TaskDialog({
   const handleSubtaskDialogSaved = (savedSubtask: EditableSubtask) => {
     const parentId = currentTaskIdRef.current ?? currentTaskId ?? task?.id;
     if (!parentId) return;
+    setSubtaskTitleDrafts((current) => { const next = { ...current }; delete next[savedSubtask.id]; return next; });
+    setSubtaskNotesDrafts((current) => { const next = { ...current }; delete next[savedSubtask.id]; return next; });
     setSubtasks((current) => {
       const exists = current.some((subtask) => subtask.id === savedSubtask.id);
       return exists
@@ -1520,17 +1582,17 @@ export function TaskDialog({
   };
   const startEditingSubtaskTitle = (subtask: Subtask) => {
     setEditingSubtaskId(subtask.id);
-    setSubtaskTitleDraft(subtask.title);
+    setSubtaskTitleDraft(subtaskTitleDrafts[subtask.id] ?? subtask.title);
   };
-  const saveSubtaskTitle = async (subtask: Subtask) => {
-    const nextTitle = subtaskTitleDraft.trim();
+  const saveSubtaskTitle = async (subtask: Subtask, value: string) => {
+    const nextTitle = value.trim();
     if (!nextTitle) {
       toast.error("O título da subtarefa não pode ficar vazio.");
-      return;
+      return false;
     }
     if (nextTitle === subtask.title) {
       setEditingSubtaskId((current) => (current === subtask.id ? null : current));
-      return;
+      return true;
     }
     if (user && isOffline()) {
       await enqueueOfflineOperation({
@@ -1545,7 +1607,7 @@ export function TaskDialog({
       );
       setEditingSubtaskId((current) => (current === subtask.id ? null : current));
       toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
-      return;
+      return true;
     }
 
     const { error } = await supabase
@@ -1554,13 +1616,14 @@ export function TaskDialog({
       .eq("id", subtask.id);
     if (error) {
       toast.error(error.message);
-      return;
+      return false;
     }
 
     setSubtasks((current) =>
       current.map((item) => (item.id === subtask.id ? { ...item, title: nextTitle } : item)),
     );
     setEditingSubtaskId((current) => (current === subtask.id ? null : current));
+    return true;
   };
   const applySubtaskDue = async (st: Subtask, next: string | null, reason?: string) => {
     const prev = st.due_date;
@@ -1641,11 +1704,20 @@ export function TaskDialog({
     setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, assignee_id: next } : s)));
   };
   const updateSubtaskNotes = async (st: Subtask, notes: string) => {
-    const { error } = await (supabase.from("subtasks") as any)
-      .update({ notes: notes || null })
-      .eq("id", st.id);
-    if (error) return toast.error(error.message);
-    setSubtasks(subtasks.map((s) => (s.id === st.id ? { ...s, notes: notes || null } : s)));
+    if (user && isOffline()) {
+      await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: st.id, payload: { patch: { notes: notes || null } } });
+    } else {
+      const { error } = await (supabase.from("subtasks") as any)
+        .update({ notes: notes || null })
+        .eq("id", st.id);
+      if (error) { toast.error(error.message); return false; }
+    }
+    setSubtasks((current) => current.map((s) => (s.id === st.id ? { ...s, notes: notes || null } : s)));
+    setSubtaskNotesDrafts((current) => {
+      if (current[st.id] !== notes) return current;
+      const next = { ...current }; delete next[st.id]; return next;
+    });
+    return true;
   };
   const loadSubAttachments = async (subtaskId: string) => {
     const { data } = await (supabase.from("subtask_attachments") as any)
@@ -1993,16 +2065,46 @@ export function TaskDialog({
   };
 
   const activePendingSubtask = pendingMarketingSubtasks.find((item) => item.id === activePendingSubtaskId) ?? null;
+  const hasUnsavedMarketingSubtasks = pendingMarketingSubtasks.some((subtask) =>
+    Boolean(subtask.title.trim() || subtask.dueDate || subtask.assigneeId || subtask.done ||
+      subtask.notes.trim() || pendingSubtaskImages[subtask.id]?.length),
+  );
+  const currentFormValues = {
+    title, description: richTextFormValue(description), status, priority, categoryId, objectiveId,
+    columnId, targetWorkspaceId, clientId, additionalClientIds: formIdSet(additionalClientIds),
+    assigneeId, dueDate, dueTime, completionDate,
+  };
+  const hasUnsavedFormFields = Boolean(initialFormValuesRef.current && formValuesChanged(initialFormValuesRef.current, currentFormValues));
+  const hasUnsavedCollaborators = collaboratorsEditedRef.current && (!collaboratorsReady || JSON.stringify(formIdSet(collaboratorIds)) !== JSON.stringify(formIdSet(collaboratorLoad?.loadedIds ?? [])));
+  const hasUnsavedSubtaskTitle = Object.entries(subtaskTitleDrafts).some(([id, title]) => title !== subtasks.find((item) => item.id === id)?.title);
+  const hasUnsavedSubtaskNotes = Object.entries(subtaskNotesDrafts).some(([id, notes]) => notes !== (subtasks.find((item) => item.id === id)?.notes ?? ""));
+  const hasUnsavedChanges = hasUnsavedFormFields || hasUnsavedCollaborators || hasUnsavedMarketingSubtasks ||
+    hasUnsavedSubtaskTitle || hasUnsavedSubtaskNotes || Boolean(newSubtask.trim() || newSubtaskDue || newSubtaskAssignee || dueDateChangeReason.trim()) ||
+    pendingDescriptionImages.length > 0 || Object.values(pendingSubtaskImages).some((images) => images.length > 0);
+  const exitGuard = useUnsavedChanges({
+    open, dirty: hasUnsavedChanges, busy: saving || descriptionImagesUploading,
+    onClose: () => onOpenChange(false),
+    onSave: save,
+  });
+  const pendingSubtaskExitGuard = useUnsavedChanges({
+    open: Boolean(activePendingSubtask),
+    dirty: Boolean(activePendingSubtask && (activePendingSubtask.title.trim() || activePendingSubtask.notes.trim() || activePendingSubtask.dueDate || activePendingSubtask.assigneeId || activePendingSubtask.done || pendingSubtaskImages[activePendingSubtask.id]?.length)),
+    busy: saving || descriptionImagesUploading,
+    onClose: () => setActivePendingSubtaskId(null),
+    onDiscard: () => { if (activePendingSubtask) removeMarketingSubtaskRow(activePendingSubtask.id); },
+    onSave: save,
+  });
+  const requestOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) exitGuard.requestClose();
+    else onOpenChange(true);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => {
-      if (!nextOpen && (saving || descriptionImagesUploading)) return;
-      onOpenChange(nextOpen);
-    }}>
+    <Dialog open={open} onOpenChange={requestOpenChange}>
       <DialogContent
         overlayClassName={isMarketingPanel ? "!bg-transparent" : overlayClassName}
         className={isMarketingPanel
-          ? "marketing-task-dialog !left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0"
+          ? "marketing-task-dialog [&>button]:z-30 !left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0"
           : "max-h-[calc(100dvh-1rem)] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl sm:max-h-[90vh]"}
       >
         <DialogHeader className={isMarketingPanel
@@ -2555,6 +2657,8 @@ export function TaskDialog({
                 <TabsTrigger value="files">Arquivos ({attachments.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="subtasks" className="space-y-2">
+                {hasUnsavedMarketingSubtasks && <p role="status" className="rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">As subtarefas novas ainda não foram salvas. Clique em Salvar na tarefa para guardá-las.</p>}
+                {!isMarketingTask && (hasUnsavedSubtaskTitle || hasUnsavedSubtaskNotes) && <p role="status" className="text-xs text-muted-foreground">Clique em Salvar na tarefa para guardar os títulos e as anotações alterados nas subtarefas.</p>}
                 {pendingMarketingSubtasks.map((subtask, index) => (
                   <div key={subtask.id} className="space-y-2 border-b px-1 py-2.5">
                     <div className="flex items-center gap-2">
@@ -2590,13 +2694,14 @@ export function TaskDialog({
                         {isMarketingTask ? <button type="button" onClick={() => openSubtaskDialog(s)} aria-label={`Abrir detalhes da subtarefa ${s.title}`} className={`group flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${s.done ? "line-through text-muted-foreground" : ""}`}><span className="truncate">{s.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" /></button> : editingSubtaskId === s.id ? (
                           <Input
                             value={subtaskTitleDraft}
-                            onChange={(event) => setSubtaskTitleDraft(event.target.value)}
-                            onBlur={() => void saveSubtaskTitle(s)}
+                            onChange={(event) => { setSubtaskTitleDraft(event.target.value); setSubtaskTitleDrafts((current) => ({ ...current, [s.id]: event.target.value })); }}
+                            onBlur={() => setEditingSubtaskId((current) => current === s.id ? null : current)}
                             onKeyDown={(event) => {
                               if (event.key === "Enter") event.currentTarget.blur();
                               if (event.key === "Escape") {
-                                setEditingSubtaskId(null);
-                                setSubtaskTitleDraft(s.title);
+                                event.preventDefault();
+                                event.stopPropagation();
+                                exitGuard.requestClose();
                               }
                             }}
                             autoFocus
@@ -2617,7 +2722,7 @@ export function TaskDialog({
                             className={`min-w-0 flex-1 truncate text-left text-sm hover:text-primary ${s.done ? "line-through text-muted-foreground" : ""}`}
                             title={`${s.title} — clique para abrir`}
                           >
-                            <LinkedText text={s.title} />
+                            <LinkedText text={subtaskTitleDrafts[s.id] ?? s.title} />
                           </div>
                         )}
                         {editingSubtaskId !== s.id && !isMarketingTask && (
@@ -2770,12 +2875,9 @@ export function TaskDialog({
                             <Label className="text-[10px] text-muted-foreground">Anotações</Label>
                             {isMarketingTask ? <button type="button" onClick={() => openSubtaskDialog(s)} className="w-full rounded border px-3 py-2 text-left text-xs text-muted-foreground hover:border-primary hover:text-primary">Abrir a descrição e os prints da subtarefa</button> : <Textarea
                               rows={2}
-                              defaultValue={s.notes ?? ""}
-                              onPaste={(event) => pastePlainDescription(event, () => {})}
-                              onBlur={(e) => {
-                                if ((e.target.value || "") !== (s.notes ?? ""))
-                                  void updateSubtaskNotes(s, e.target.value);
-                              }}
+                              value={subtaskNotesDrafts[s.id] ?? s.notes ?? ""}
+                              onChange={(event) => setSubtaskNotesDrafts((current) => ({ ...current, [s.id]: event.target.value }))}
+                              onPaste={(event) => pastePlainDescription(event, (value) => setSubtaskNotesDrafts((current) => ({ ...current, [s.id]: value })))}
                               placeholder="Notas desta subtarefa"
                               className="text-xs"
                             />}
@@ -2991,7 +3093,7 @@ export function TaskDialog({
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" disabled={saving || descriptionImagesUploading} onClick={() => onOpenChange(false)}>
+              <Button variant="outline" disabled={saving || descriptionImagesUploading} onClick={() => requestOpenChange(false)}>
                 Cancelar
               </Button>
               {(!task || isDraft) && (
@@ -3048,12 +3150,13 @@ export function TaskDialog({
           onAttachmentSaved={handleSubtaskAttachmentSaved}
           onAttachmentsComplete={(subtaskId) => void loadSubAttachments(subtaskId)}
         />
-        <Dialog open={Boolean(activePendingSubtask)} onOpenChange={(nextOpen) => { if (!nextOpen) setActivePendingSubtaskId(null); }}>
-          <DialogContent overlayClassName="!bg-transparent" className="!left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0">
+        <Dialog open={Boolean(activePendingSubtask)} onOpenChange={(nextOpen) => { if (!nextOpen) pendingSubtaskExitGuard.requestClose(); }}>
+          <DialogContent overlayClassName="!bg-transparent" className="[&>button]:z-30 !left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0">
             {activePendingSubtask && <>
               <DialogHeader className="sticky top-0 z-20 border-b bg-background px-5 py-4 pr-12 text-left sm:px-7">
-                <button type="button" onClick={() => setActivePendingSubtaskId(null)} className="flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-primary"><ChevronRight className="h-3.5 w-3.5 rotate-180" />{title.trim() || "Nova tarefa"}</button>
+                <button type="button" onClick={pendingSubtaskExitGuard.requestClose} className="flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-primary"><ChevronRight className="h-3.5 w-3.5 rotate-180" />{title.trim() || "Nova tarefa"}</button>
                 <DialogTitle className="pt-1 text-lg">Detalhes da subtarefa</DialogTitle>
+                <p className="text-xs text-muted-foreground">Esta subtarefa será salva ao clicar em Salvar na tarefa principal.</p>
               </DialogHeader>
               <div className="space-y-6 px-5 py-6 sm:px-7">
                 <Input value={activePendingSubtask.title} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === activePendingSubtask.id ? { ...item, title: event.target.value } : item))} placeholder="Nome da subtarefa" aria-label="Título da subtarefa" className="h-auto min-h-12 border-0 px-0 text-2xl font-semibold shadow-none focus-visible:ring-0" />
@@ -3088,6 +3191,8 @@ export function TaskDialog({
             </>}
           </DialogContent>
         </Dialog>
+        <UnsavedChangesDialog open={pendingSubtaskExitGuard.confirming} onContinue={pendingSubtaskExitGuard.continueEditing} onDiscard={pendingSubtaskExitGuard.discard} onSave={pendingSubtaskExitGuard.saveAndLeave} description="Esta subtarefa ainda não foi salva. Salvar e sair guarda a tarefa principal e suas subtarefas novas. Descartar remove apenas esta subtarefa nova." />
+        <UnsavedChangesDialog open={exitGuard.confirming} onContinue={exitGuard.continueEditing} onDiscard={exitGuard.discard} onSave={exitGuard.saveAndLeave} />
         <Dialog
           open={subDueReason.open}
           onOpenChange={(nextOpen) => {
