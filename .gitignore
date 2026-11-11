@@ -47,3 +47,6 @@ __pycache__/
 *.sw?
 
 .vercel
+
+# Supabase CLI local state
+supabase/.temp/
