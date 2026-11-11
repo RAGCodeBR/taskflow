@@ -71,6 +71,27 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function SharedTaskSessionPreview() {
+  return <PreviewGrid label="Prévia da abertura de links de tarefas com a sessão já existente">
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <p className="flex items-center gap-1.5 font-semibold"><Link2 className="h-3.5 w-3.5" />Link recebido</p>
+      <p className="mt-3 break-all rounded-lg border bg-muted/30 p-2">www.taskfloww.com.br/tasks/list?task=…</p>
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-900" data-shared-task-session>
+        <CheckCircle2 className="h-4 w-4 shrink-0" /><span>Sessão já aberta neste navegador</span>
+      </div>
+      <p className="mt-2 text-muted-foreground">Reconhece o endereço com ou sem www.</p>
+    </div>
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
+      <p className="font-semibold">Direto para a tarefa</p>
+      <div className="mt-3 rounded-lg border bg-primary/5 p-3" data-shared-task-destination>
+        <p className="font-semibold">Revisar campanha de exemplo</p>
+        <p className="mt-2 text-muted-foreground">Descrição · Subtarefas · Conversa · Arquivos</p>
+      </div>
+      <p className="mt-3 rounded-lg border p-2">Se precisar entrar, a tarefa continua como destino.</p>
+    </div>
+  </PreviewGrid>;
+}
+
 function TaskCardReadableTitlePreview() {
   return (
     <PreviewGrid label="Prévia do título legível nos cards de tarefas">
@@ -1736,6 +1757,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "shared-task-session": SharedTaskSessionPreview,
   "task-period-and-view": TaskPeriodAndViewPreview,
   "marketing-two-clients-and-task-link": MarketingTwoClientsAndTaskLinkPreview,
   "clean-text-paste": CleanTextPastePreview,

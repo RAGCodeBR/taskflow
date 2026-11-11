@@ -5,6 +5,14 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows an existing browser session and the destination task without real actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "shared-task-session" }));
+    expect(html).toContain("data-shared-task-session");
+    expect(html).toContain("data-shared-task-destination");
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("href=");
+  });
   it("contrasts pasted text with visible tags and the clean result, without actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "clean-text-paste" }));
     expect(html).toContain("data-clean-paste-before");

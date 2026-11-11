@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "shared-task-session"
   | "clean-text-paste"
   | "whatsapp-conversation-windows"
   | "task-period-and-view"
@@ -76,6 +77,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "sessao-ao-abrir-links-de-tarefas-2026-11-11",
+    title: "Links de tarefas reconhecem sua sessão",
+    date: "2026-11-11",
+    preview: "shared-task-session",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ao abrir um link de tarefa no mesmo navegador, o TaskFlow procura uma sessão já aberta no endereço com ou sem www e continua por esse endereço, preservando o destino da tarefa.",
+      "Quando for necessário entrar, o link continua guardado até o login. As mensagens de acesso foram traduzidas e o campo de entrada aceita senhas já cadastradas, mantendo a validação do servidor.",
+      "Um navegador diferente ou o navegador interno de outro aplicativo pode exigir login, pois possui uma sessão separada.",
+    ],
+  },
   {
     id: "colagem-de-texto-sem-codigos-2026-11-10",
     title: "Texto colado sem códigos <span>",

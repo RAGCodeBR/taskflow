@@ -19,7 +19,10 @@ function AppLayout() {
       </div>
     );
   }
-  if (!user) return <Navigate to="/auth" search={typeof taskLinkId === "string" ? { task: taskLinkId } : {}} replace />;
+  // The layout can render once more while the lazy auth route loads. Do not
+  // issue a second redirect then: its pathname no longer contains the task,
+  // which would replace /auth?task=... with /auth and lose the shared link.
+  if (!user) return pathname === "/auth" ? null : <Navigate to="/auth" search={typeof taskLinkId === "string" ? { task: taskLinkId } : {}} replace />;
   const clientRoutePermissions: Array<[string, string]> = [
     ["/dashboard", "dashboard"],
     ["/tasks", "tasks"],

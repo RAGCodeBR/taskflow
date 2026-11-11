@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,41 +9,56 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2 } from "lucide-react";
+import { useSharedTaskSession } from "@/hooks/use-shared-task-session";
+import { loginErrorMessage } from "@/lib/login-error";
 
 export const Route = createFileRoute("/auth")({ component: AuthPage });
 
 function AuthPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: restoringSession } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [loading, setLoading] = useState(false);
-  const invitationFlow = new URLSearchParams(window.location.search).get("invite") === "1";
-  const sharedTaskId = new URLSearchParams(window.location.search).get("task");
+  const redirectingRef = useRef(false);
+  const search = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const invitationFlow = search.get("invite") === "1";
+  const sharedTaskId = search.get("task");
+  let oauthReturn: string | null = null;
+  try { oauthReturn = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("taskflow_oauth_return") : null; } catch { /* Storage can be blocked. */ }
+  const checkingSharedSession = useSharedTaskSession({
+    taskId: sharedTaskId,
+    ready: !restoringSession,
+    signedIn: !!user,
+    skip: invitationFlow || !!oauthReturn || search.get("session_checked") === "1",
+  });
 
   useEffect(() => {
-    if (user && !invitationFlow) {
-      const oauthReturn = sessionStorage.getItem("taskflow_oauth_return");
+    if (!user) { redirectingRef.current = false; return; }
+    if (!restoringSession && !invitationFlow && !redirectingRef.current) {
+      // Auth events can repeat while a lazy route loads. Keep the first task or
+      // OAuth destination instead of replacing it with a second mural redirect.
+      redirectingRef.current = true;
       if (oauthReturn?.startsWith("/oauth/consent?")) {
-        sessionStorage.removeItem("taskflow_oauth_return");
+        try { sessionStorage.removeItem("taskflow_oauth_return"); } catch { /* Continue with consent. */ }
         window.location.assign(oauthReturn);
         return;
       }
       if (sharedTaskId) navigate({ to: "/tasks/list", search: { task: sharedTaskId, mine: undefined }, replace: true });
       else navigate({ to: "/mural", replace: true });
     }
-  }, [user, invitationFlow, sharedTaskId, navigate]);
+  }, [user, restoringSession, invitationFlow, sharedTaskId, oauthReturn, navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
       toast.success("Bem-vindo de volta!");
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(loginErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -119,7 +134,9 @@ function AuthPage() {
               ? "Crie sua senha para ativar o acesso convidado."
               : "Acesse seu painel de tarefas"}
           </p>
-          {invitationFlow ? (
+          {!invitationFlow && (restoringSession || checkingSharedSession || user) ? (
+            <p role="status" className="mt-6 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Verificando sua sessão…</p>
+          ) : invitationFlow ? (
             <form onSubmit={setInvitationPassword} className="mt-6 space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="password">Nova senha</Label>
@@ -159,6 +176,8 @@ function AuthPage() {
                     id="email"
                     type="email"
                     autoComplete="email"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -173,13 +192,13 @@ function AuthPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={8}
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Entrar
                 </Button>
               </form>
+              {sharedTaskId && <p className="mt-4 text-sm text-muted-foreground">Após entrar, você voltará à tarefa do link. Se abriu pelo WhatsApp, use o mesmo navegador em que já acessa o TaskFlow.</p>}
               <p className="mt-4 text-center text-sm text-muted-foreground">
                 Não possui acesso? Solicite um convite ao administrador.
               </p>
