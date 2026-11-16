@@ -2,9 +2,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import {
+  useAssignableProfiles,
   useClients,
   useColumns,
-  useProfiles,
   useTaskTags,
   useTaskStatuses,
 } from "@/hooks/use-data";
@@ -77,7 +77,9 @@ const DOCUMENT_BOTTOM_PADDING_PX = 105;
 export function ImportAtaContent({ meetingClientId, meetingDate, onApply }: ImportAtaContentProps) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const { data: profiles = [] } = useProfiles();
+  // Só quem pode receber tarefas neste ambiente: é a mesma lista que o
+  // servidor confere ao criar as tarefas.
+  const { data: profiles = [] } = useAssignableProfiles();
   const { data: clients = [] } = useClients();
   const { data: tags = [] } = useTaskTags();
   const { data: statuses = [] } = useTaskStatuses();

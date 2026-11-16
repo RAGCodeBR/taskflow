@@ -77,6 +77,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
 import { defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
+import { patchCachedTask, updateCachedLists } from "@/lib/query-cache";
 import {
   useTasks,
   useColumns,
@@ -964,9 +965,7 @@ function KanbanPage() {
         completed_at: new Date().toISOString(),
       };
       if (completedStatus?.id) patch.status_id = completedStatus.id;
-      qc.setQueryData<Task[]>(["tasks"], (curr = []) =>
-        curr.map((t) => (t.id === taskId ? ({ ...t, ...patch } as Task) : t)),
-      );
+      patchCachedTask<Task>(qc, taskId, patch);
       if (!user) return;
       try {
         const { queued } = await updateTaskWithOfflineSupport({ userId: user.id, task, patch, queryClient: qc });
@@ -988,9 +987,7 @@ function KanbanPage() {
       };
       if (fallbackStatus?.id) patch.status_id = fallbackStatus.id;
       else patch.status_id = null;
-      qc.setQueryData<Task[]>(["tasks"], (curr = []) =>
-        curr.map((t) => (t.id === taskId ? ({ ...t, ...patch } as Task) : t)),
-      );
+      patchCachedTask<Task>(qc, taskId, patch);
       if (!user) return;
       try {
         const { queued } = await updateTaskWithOfflineSupport({ userId: user.id, task, patch, queryClient: qc });
@@ -1022,9 +1019,7 @@ function KanbanPage() {
 
     // Optimistic local: update task.column_id if it changed
     if (sourceCol !== targetCol) {
-      qc.setQueryData<Task[]>(["tasks"], (curr = []) =>
-        curr.map((t) => (t.id === taskId ? ({ ...t, column_id: targetCol! } as Task) : t)),
-      );
+      patchCachedTask<Task>(qc, taskId, { column_id: targetCol! });
     }
     // Optimistic per-user ordering for the target column
     qc.setQueryData<{ task_id: string; position: number }[]>(["user_task_order"], (curr = []) => {
@@ -1091,11 +1086,11 @@ function KanbanPage() {
     if (isOffline()) {
       if (columnEditor.id) {
         await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: columnEditor.id, payload: { table: "kanban_columns", patch: { name, color } } });
-        qc.setQueryData<KanbanColumn[]>(["columns"], (current = []) => current.map((column) => column.id === columnEditor.id ? { ...column, name, color } : column));
+        updateCachedLists<KanbanColumn>(qc, ["columns"], (current) => current.map((column) => column.id === columnEditor.id ? { ...column, name, color } : column));
       } else {
         const column: KanbanColumn = { id: crypto.randomUUID(), name, color, position: columns.length, client_id: null };
         await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: column.id, payload: { table: "kanban_columns", record: { ...column, created_by: user.id } } });
-        qc.setQueryData<KanbanColumn[]>(["columns"], (current = []) => [...current, column]);
+        updateCachedLists<KanbanColumn>(qc, ["columns"], (current) => [...current, column]);
       }
       setColumnEditor({ open: false, id: null, name: "", color: "#1e3a8a" });
       toast.success("Coluna salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");

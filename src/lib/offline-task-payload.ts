@@ -25,6 +25,15 @@ const TASK_CREATE_COLUMNS = [
   "workspace_id",
   "conversation_closed_at",
   "interruptions",
+  // Campos acrescentados depois da fila offline. Sem eles, uma tarefa criada
+  // sem internet chegava ao servidor sem formato, objetivo, outros clientes,
+  // vínculo com a pauta da reunião ou marcação de rascunho.
+  "is_draft",
+  "objective_id",
+  "secondary_client_id",
+  "additional_client_ids",
+  "recurring_meeting_agenda_item_id",
+  "recurring_meeting_agenda_template_id",
 ] as const;
 
 /** Envia somente colunas que existem atualmente em public.tasks. */

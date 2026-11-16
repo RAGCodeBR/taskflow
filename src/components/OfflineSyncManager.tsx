@@ -8,6 +8,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { taskCreatePayloadForSync } from "@/lib/offline-task-payload";
 import { syncCalendarTaskReschedule } from "@/lib/calendar-task-reschedule";
 import { syncTaskCardActivity } from "@/lib/task-card-activity";
+import { isRejectedTaskRemoval, rejectionMessage } from "@/lib/task-delete-permission";
 import {
   addOfflineConflict,
   isOffline,
@@ -324,6 +325,7 @@ export function OfflineSyncManager() {
     let visibleSynced = 0;
     let conflicts = 0;
     let failed = 0;
+    const rejectedRemovals: string[] = [];
     try {
       const operations = await listOfflineOperations(user.id);
       if (operations.length === 0) return;
@@ -353,6 +355,15 @@ export function OfflineSyncManager() {
           if (operation.entity !== "task_open" && operation.entity !== "task_pin") visibleSynced += 1;
           if (hasConflict) conflicts += 1;
         } catch (error) {
+          if (isRejectedTaskRemoval(operation, error)) {
+            // O banco recusou a exclusão por regra (por exemplo, só o criador
+            // pode excluir). Repetir nunca mudaria a resposta e manteria a
+            // tarefa escondida neste aparelho: a operação sai da fila e a
+            // tarefa volta à tela na releitura abaixo.
+            await removeOfflineOperation(user.id, operation.id);
+            rejectedRemovals.push(rejectionMessage(error));
+            continue;
+          }
           if (referenceClient) blockedReferenceClients.add(referenceClient);
           // Uma operação inválida ou temporariamente recusada não pode prender
           // toda a fila. Ela permanece guardada para nova tentativa, enquanto
@@ -364,6 +375,14 @@ export function OfflineSyncManager() {
           failed += 1;
           console.warn("[offline sync] operação pendente após falha:", operation.entity, operation.action, error);
         }
+      }
+      if (rejectedRemovals.length > 0) {
+        await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        toast.error(
+          rejectedRemovals.length === 1
+            ? `A tarefa não foi excluída e voltou para a lista. ${rejectedRemovals[0]}`
+            : `${rejectedRemovals.length} tarefas não foram excluídas e voltaram para a lista. ${rejectedRemovals[0]}`,
+        );
       }
       if (failed > 0) {
         console.warn(`[offline sync] ${failed} operação(ões) permaneceram na fila para nova tentativa.`);

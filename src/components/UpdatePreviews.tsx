@@ -71,6 +71,27 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function CompleteTaskListsPreview() {
+  const tasks = ["Revisar post de lançamento", "Enviar relatório mensal", "Aprovar arte da campanha"];
+  return <PreviewGrid label="Prévia das listas de tarefas carregadas por completo">
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-complete-lists-before>
+      <p className="font-semibold text-muted-foreground">Antes</p>
+      <div className="mt-2 space-y-1.5">
+        <p className="rounded-md border px-2 py-1.5">{tasks[0]}</p>
+        <p className="rounded-md border border-dashed px-2 py-1.5 text-muted-foreground/60" data-complete-lists-missing>Tarefa sumiu por alguns instantes</p>
+        <p className="rounded-md border px-2 py-1.5">{tasks[2]}</p>
+      </div>
+    </div>
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-complete-lists-after>
+      <p className="flex items-center gap-1.5 font-semibold text-primary"><CheckCircle2 className="h-3.5 w-3.5" />Agora</p>
+      <div className="mt-2 space-y-1.5">
+        {tasks.map((task) => <p key={task} className="rounded-md border px-2 py-1.5">{task}</p>)}
+      </div>
+      <p className="mt-2 flex items-center gap-1.5 text-muted-foreground" data-complete-lists-delete-rule><Trash2 className="h-3 w-3" />Excluir: quem criou ou administrador</p>
+    </div>
+  </PreviewGrid>;
+}
+
 function SharedTaskSessionPreview() {
   return <PreviewGrid label="Prévia da abertura de links de tarefas com a sessão já existente">
     <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm">
@@ -1757,6 +1778,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "complete-task-lists": CompleteTaskListsPreview,
   "shared-task-session": SharedTaskSessionPreview,
   "task-period-and-view": TaskPeriodAndViewPreview,
   "marketing-two-clients-and-task-link": MarketingTwoClientsAndTaskLinkPreview,

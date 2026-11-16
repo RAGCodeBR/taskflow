@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "complete-task-lists"
   | "shared-task-session"
   | "clean-text-paste"
   | "whatsapp-conversation-windows"
@@ -77,6 +78,21 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "tarefas-completas-e-acessos-2026-11-16",
+    title: "Tarefas não somem mais da lista",
+    date: "2026-11-16",
+    preview: "complete-task-lists",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Em ambientes com muitas tarefas, parte delas podia sumir por alguns instantes e voltar depois ou ao atualizar a página. Agora tarefas, subtarefas, colaboradores, conversas e alterações de prazo são carregados por completo.",
+      "Mover um card, editar uma coluna, um post do Mural, um cliente ou uma etiqueta aparece na tela na hora, sem esperar a resposta do servidor.",
+      "Na Lista, o botão de excluir aparece só para quem criou a tarefa ou para administradores. Se uma exclusão feita sem internet for recusada pelo servidor, a tarefa volta para a lista com o motivo.",
+      "Tarefas criadas sem internet mantêm formato, objetivo, outros clientes e o vínculo com a pauta da reunião ao sincronizar.",
+      "Páginas abertas por um link ou endereço direto respeitam as mesmas permissões do menu. As tarefas criadas por Importar Ata ficam no ambiente em uso e só podem ser atribuídas a pessoas desse ambiente.",
+    ],
+  },
   {
     id: "sessao-ao-abrir-links-de-tarefas-2026-11-11",
     title: "Links de tarefas reconhecem sua sessão",

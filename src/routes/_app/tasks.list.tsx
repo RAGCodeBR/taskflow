@@ -37,6 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task";
 import { deleteTaskWithOfflineSupport, updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
+import { canDeleteTask } from "@/lib/task-delete-permission";
 import { LinkedText } from "@/components/LinkedText";
 import { completedSubtaskFilterTask, completedSubtaskHistory, completedSubtasksForUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 
@@ -51,7 +52,7 @@ export const Route = createFileRoute("/_app/tasks/list")({
 function ListPage() {
   const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const search = Route.useSearch();
-  const { user, isCollaborator, activeWorkspace, workspaces, setActiveWorkspace, finishWorkspaceTransition } = useAuth();
+  const { user, isAdmin, isCollaborator, activeWorkspace, workspaces, setActiveWorkspace, finishWorkspaceTransition } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
     search.mine
       ? { scope: "mine" }
@@ -349,6 +350,10 @@ function ListPage() {
 
   const deleteFromList = async (task: Task) => {
     if (!user || deletingTaskId) return;
+    if (!canDeleteTask(task, { userId: user.id, isAdmin })) {
+      toast.error("Apenas quem criou a tarefa ou um administrador pode excluí-la.");
+      return;
+    }
     if (!window.confirm(`Mover “${task.title}” para a lixeira? Você poderá restaurá-la depois.`)) return;
     setDeletingTaskId(task.id);
     try {
@@ -574,7 +579,9 @@ function ListPage() {
                       >
                         <Check className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" title="Mover tarefa para a lixeira" aria-label={`Excluir ${t.title}`} disabled={deletingTaskId === t.id} className="text-muted-foreground hover:text-destructive" onClick={(event) => { event.stopPropagation(); void deleteFromList(t); }}><Trash2 className="h-4 w-4" /></Button>
+                      {canDeleteTask(t, { userId: user?.id, isAdmin }) && (
+                        <Button size="icon" variant="ghost" title="Mover tarefa para a lixeira" aria-label={`Excluir ${t.title}`} disabled={deletingTaskId === t.id} className="text-muted-foreground hover:text-destructive" onClick={(event) => { event.stopPropagation(); void deleteFromList(t); }}><Trash2 className="h-4 w-4" /></Button>
+                      )}
                     </div>
                   </td>
                 </tr>

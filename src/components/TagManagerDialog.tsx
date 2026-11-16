@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { updateCachedLists } from "@/lib/query-cache";
 
 interface Props {
   open: boolean;
@@ -37,7 +38,7 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
     if (isOffline()) {
       const tag = { id: crypto.randomUUID(), name: name.trim(), color, position: tags.length };
       await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: tag.id, payload: { table: "task_tags", record: { ...tag, created_by: user.id } } });
-      qc.setQueryData<TaskTag[]>(["task_tags"], (current = []) => [...current, tag]);
+      updateCachedLists<TaskTag>(qc, ["task_tags"], (current) => [...current, tag]);
       setName("");
       toast.success("Tag salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
       return;
@@ -54,7 +55,7 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
   const update = async (tag: TaskTag, patch: Partial<TaskTag>) => {
     if (user && isOffline()) {
       await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: tag.id, payload: { table: "task_tags", patch } });
-      qc.setQueryData<TaskTag[]>(["task_tags"], (current = []) => current.map((item) => item.id === tag.id ? { ...item, ...patch } : item));
+      updateCachedLists<TaskTag>(qc, ["task_tags"], (current) => current.map((item) => item.id === tag.id ? { ...item, ...patch } : item));
       return;
     }
     const { error } = await supabase.from("task_tags").update(patch).eq("id", tag.id);
@@ -66,7 +67,7 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
     if (!confirm(`Excluir tag "${tag.name}"?`)) return;
     if (user && isOffline()) {
       await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: tag.id, payload: { table: "task_tags" } });
-      qc.setQueryData<TaskTag[]>(["task_tags"], (current = []) => current.filter((item) => item.id !== tag.id));
+      updateCachedLists<TaskTag>(qc, ["task_tags"], (current) => current.filter((item) => item.id !== tag.id));
       toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
       return;
     }
@@ -84,7 +85,12 @@ export function TagManagerDialog({ open, onOpenChange }: Props) {
     const newIndex = tags.findIndex((t) => t.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
     const reordered = arrayMove(tags, oldIndex, newIndex);
-    qc.setQueryData(["task_tags"], reordered.map((t, i) => ({ ...t, position: i })));
+    // Só a lista deste ambiente contém essas etiquetas; as demais ficam como estão.
+    updateCachedLists<TaskTag>(qc, ["task_tags"], (current) =>
+      current.some((tag) => tag.id === reordered[0]?.id)
+        ? reordered.map((t, i) => ({ ...t, position: i }))
+        : current,
+    );
     if (user && isOffline()) {
       await Promise.all(reordered.map((tag, position) => enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: tag.id, payload: { table: "task_tags", patch: { position } } })));
       return;

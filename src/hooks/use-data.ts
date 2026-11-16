@@ -5,6 +5,7 @@ import { offlineTaskCacheKey } from "@/lib/offline-user-storage";
 import { subtasksQueryKey } from "@/lib/task-query-keys";
 import { isOffline, listOfflineOperations } from "@/lib/offline-sync";
 import { overlayPendingTaskOperations } from "@/lib/offline-task-overlay";
+import { fetchAllRows } from "@/lib/fetch-all-rows";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -387,17 +388,25 @@ export function useTasks(targetWorkspaceId?: string | null) {
       // A visualização administrativa de outro ambiente não altera o ambiente
       // ativo. Ela usa uma RPC que só libera leitura para administradores
       // associados ao ambiente escolhido.
-      const result = isAdminPreview
-        ? await (taskClient.rpc("list_workspace_tasks_for_admin_preview", {
-            target_workspace_id: workspaceId,
-          }) as any)
-        : await taskClient
-            .from("tasks")
-            .select("*")
-            .is("deleted_at", null)
+      // A API corta cada resposta em um lote (1000 linhas). Sem ler todas as
+      // páginas, um ambiente com muitas tarefas perdia cards de forma
+      // intermitente. O id no fim da ordenação impede empates entre páginas.
+      const { data, error } = await fetchAllRows<Task>(
+        (from, to) =>
+          (isAdminPreview
+            ? (taskClient.rpc as any)(
+                "list_workspace_tasks_for_admin_preview",
+                { target_workspace_id: workspaceId },
+                { count: "exact" },
+              )
+            : taskClient.from("tasks").select("*", { count: "exact" }).is("deleted_at", null)
+          )
             .order("position", { ascending: true })
-            .order("created_at", { ascending: false });
-      const { data, error } = result;
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+            .range(from, to),
+        { rowKey: (task) => task.id },
+      );
       if (error) {
         const cached = await get<Task[]>(offlineKey);
         if (cached) return cached;
@@ -445,13 +454,18 @@ export function useDeletedTasks() {
     queryKey: ["tasks", "deleted"],
     queryFn: async () => {
       // Trash page uses the opposite filter so records can be restored later.
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
+      const { data, error } = await fetchAllRows<Task>(
+        (from, to) =>
+          (supabase.from("tasks") as any)
+            .select("*", { count: "exact" })
+            .not("deleted_at", "is", null)
+            .order("deleted_at", { ascending: false })
+            .order("id", { ascending: true })
+            .range(from, to),
+        { rowKey: (task) => task.id },
+      );
       if (error) throw error;
-      return (data ?? []) as Task[];
+      return data ?? [];
     },
   });
 }
@@ -634,11 +648,19 @@ export function useTaskCollaborators() {
     refetchInterval: 15_000,
     refetchOnWindowFocus: "always",
     queryFn: async () => {
-      const { data, error } = await (supabase.from("task_collaborators") as any).select(
-        "task_id, collaborator_id, added_by, created_at",
+      // Lista inteira, em páginas: é ela que decide o que entra em
+      // "Atribuídas a mim". Um corte aqui escondia tarefas da própria pessoa.
+      const { data, error } = await fetchAllRows<TaskCollaborator>(
+        (from, to) =>
+          (supabase.from("task_collaborators") as any)
+            .select("task_id, collaborator_id, added_by, created_at", { count: "exact" })
+            .order("task_id", { ascending: true })
+            .order("collaborator_id", { ascending: true })
+            .range(from, to),
+        { rowKey: (item) => `${item.task_id}:${item.collaborator_id}` },
       );
       if (error) throw error;
-      return (data ?? []) as TaskCollaborator[];
+      return data ?? [];
     },
   });
 
@@ -713,9 +735,17 @@ export function useTaskTagLinks() {
   return useQuery({
     queryKey: ["task_tag_links"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("task_tag_links").select("task_id, tag_id");
+      const { data, error } = await fetchAllRows<TaskTagLink>(
+        (from, to) =>
+          (supabase.from("task_tag_links") as any)
+            .select("task_id, tag_id", { count: "exact" })
+            .order("task_id", { ascending: true })
+            .order("tag_id", { ascending: true })
+            .range(from, to),
+        { rowKey: (link) => `${link.task_id}:${link.tag_id}` },
+      );
       if (error) throw error;
-      return (data ?? []) as TaskTagLink[];
+      return data ?? [];
     },
   });
 }
@@ -754,12 +784,22 @@ export function useSubtasks() {
     refetchInterval: () => isOffline() ? false : 30_000,
     refetchOnWindowFocus: "always",
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("subtasks")
-        .select("id, task_id, title, done, position, assignee_id, due_date, completed_at")
-        .order("position");
+      // A posição só ordena dentro de cada tarefa, então quase todas as
+      // linhas empatam. Sem o id como desempate, cada releitura devolvia um
+      // lote diferente e as tarefas ligadas às subtarefas apareciam e sumiam.
+      const { data, error } = await fetchAllRows<Subtask>(
+        (from, to) =>
+          (supabase.from("subtasks") as any)
+            .select("id, task_id, title, done, position, assignee_id, due_date, completed_at", {
+              count: "exact",
+            })
+            .order("position", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
+        { rowKey: (subtask) => subtask.id },
+      );
       if (error) throw error;
-      return (data ?? []) as Subtask[];
+      return data ?? [];
     },
   });
 }

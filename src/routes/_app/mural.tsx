@@ -50,6 +50,7 @@ import { toast } from "sonner";
 import { muralUnreadKey } from "@/hooks/use-mural-unread";
 import { isMuralPostCurrent } from "@/lib/mural-post-visibility";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { updateCachedLists } from "@/lib/query-cache";
 
 export const Route = createFileRoute("/_app/mural")({
   component: MuralPage,
@@ -357,7 +358,7 @@ function MuralPage() {
             ? { table: "mural_posts", patch: payload }
             : { table: "mural_posts", record: localPost },
         });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+        updateCachedLists<MuralPost>(qc, ["mural_posts"], (current) =>
           editingPost
             ? current.map((post) => (post.id === localPost.id ? localPost : post))
             : [...current, localPost],
@@ -406,7 +407,7 @@ function MuralPage() {
           entityId: post.id,
           payload: { table: "mural_posts", patch: { checklist } },
         });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+        updateCachedLists<MuralPost>(qc, ["mural_posts"], (current) =>
           current.map((item) => (item.id === post.id ? { ...item, checklist } : item)),
         );
         return;
@@ -430,7 +431,7 @@ function MuralPage() {
           entityId: id,
           payload: { table: "mural_posts" },
         });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+        updateCachedLists<MuralPost>(qc, ["mural_posts"], (current) =>
           current.filter((post) => post.id !== id),
         );
         return;
@@ -458,7 +459,7 @@ function MuralPage() {
           entityId: id,
           payload: { table: "mural_posts", patch },
         });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+        updateCachedLists<MuralPost>(qc, ["mural_posts"], (current) =>
           current.map((post) => (post.id === id ? { ...post, ...patch } : post)),
         );
         return;
@@ -491,7 +492,7 @@ function MuralPage() {
           entityId: id,
           payload: { table: "mural_posts", patch },
         });
-        qc.setQueryData<MuralPost[]>(["mural_posts"], (current = []) =>
+        updateCachedLists<MuralPost>(qc, ["mural_posts"], (current) =>
           current.map((post) => (post.id === id ? { ...post, ...patch } : post)),
         );
         return;
@@ -517,7 +518,7 @@ function MuralPage() {
           entityId: existing?.id ?? crypto.randomUUID(),
           payload: { reaction },
         });
-        qc.setQueryData<any[]>(["mural_post_reactions"], (current = []) =>
+        updateCachedLists<any>(qc, ["mural_post_reactions"], (current) =>
           existing
             ? current.filter((item) => item.id !== existing.id)
             : [...current, { id: crypto.randomUUID(), ...reaction }],

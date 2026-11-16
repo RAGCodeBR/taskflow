@@ -5,6 +5,17 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("contrasts a task that disappeared with the complete list, without real actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "complete-task-lists" }));
+    expect(html).toContain("data-complete-lists-before");
+    expect(html).toContain("data-complete-lists-missing");
+    expect(html).toContain("data-complete-lists-after");
+    expect(html).toContain("data-complete-lists-delete-rule");
+    expect(html.match(/Enviar relatório mensal/g)).toHaveLength(1);
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("href=");
+  });
   it("shows an existing browser session and the destination task without real actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "shared-task-session" }));
     expect(html).toContain("data-shared-task-session");

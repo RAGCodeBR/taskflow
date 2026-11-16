@@ -39,6 +39,7 @@ import { useClients, useProfiles, useSubtasks, type Client } from "@/hooks/use-d
 import { useWorkspaceTasks } from "@/hooks/use-workspace-tasks";
 import { toast } from "sonner";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { updateCachedLists } from "@/lib/query-cache";
 
 type ReportPeriod =
   "all" | "current_month" | "last_3_months" | "last_6_months" | "last_12_months" | "custom";
@@ -330,11 +331,11 @@ export function ClientsIndexPage() {
     if (user && isOffline()) {
       if (edit) {
         await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: edit.id, payload: { table: "clients", patch: clientData } });
-        qc.setQueryData<Client[]>(["clients"], (current = []) => current.map((client) => client.id === edit.id ? { ...client, ...clientData } : client));
+        updateCachedLists<Client>(qc, ["clients"], (current) => current.map((client) => client.id === edit.id ? { ...client, ...clientData } : client));
       } else {
         const client: Client = { id: crypto.randomUUID(), ...clientData, avatar_path: null, is_active: true };
         await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "create", entityId: client.id, payload: { table: "clients", record: { ...client, created_by: user.id } } });
-        qc.setQueryData<Client[]>(["clients"], (current = []) => [...current, client]);
+        updateCachedLists<Client>(qc, ["clients"], (current) => [...current, client]);
       }
       setOpen(false);
       toast.success("Cliente salvo neste aparelho. SerÃ¡ sincronizado ao reconectar.");
@@ -354,7 +355,7 @@ export function ClientsIndexPage() {
     if (!confirm(`Excluir cliente "${c.name}"?`)) return;
     if (user && isOffline()) {
       await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "delete", entityId: c.id, payload: { table: "clients" } });
-      qc.setQueryData<Client[]>(["clients"], (current = []) => current.filter((client) => client.id !== c.id));
+      updateCachedLists<Client>(qc, ["clients"], (current) => current.filter((client) => client.id !== c.id));
       toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
       return;
     }
@@ -370,7 +371,7 @@ export function ClientsIndexPage() {
     if (!confirm(description)) return;
     if (user && isOffline()) {
       await enqueueOfflineOperation({ userId: user.id, entity: "record", action: "update", entityId: client.id, payload: { table: "clients", patch: { is_active: isActive } } });
-      qc.setQueryData<Client[]>(["clients"], (current = []) => current.map((item) => item.id === client.id ? { ...item, is_active: isActive } : item));
+      updateCachedLists<Client>(qc, ["clients"], (current) => current.map((item) => item.id === client.id ? { ...item, is_active: isActive } : item));
       toast.success("AlteraÃ§Ã£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
       return;
     }

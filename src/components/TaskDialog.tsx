@@ -95,6 +95,7 @@ import { groupSubtaskAttachments } from "@/lib/subtask-attachment-groups";
 import { formIdSet, formValuesChanged, richTextFormValue } from "@/lib/form-changes";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
+import { findCachedTask } from "@/lib/query-cache";
 
 interface Props {
   open: boolean;
@@ -1177,7 +1178,7 @@ export function TaskDialog({
 
     if (taskId) {
       const localTask =
-        editBaseRef.current ?? task ?? qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === taskId);
+        editBaseRef.current ?? task ?? findCachedTask<Task>(qc, taskId);
       if (!localTask) throw new Error("Não foi possível localizar a tarefa neste aparelho.");
       await updateTaskWithOfflineSupport({
         userId: user.id,
@@ -1440,7 +1441,7 @@ export function TaskDialog({
     if (!confirm("Mover esta tarefa para a lixeira? Você pode restaurá-la depois.")) return;
     if (!user) return toast.error("Sua sessão local não está disponível.");
     const localTask =
-      task ?? qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === currentTaskId);
+      task ?? findCachedTask<Task>(qc, currentTaskId);
     if (!localTask) return toast.error("Não foi possível localizar a tarefa neste aparelho.");
     try {
       await deleteTaskWithOfflineSupport({ userId: user.id, task: localTask, queryClient: qc });
@@ -1884,7 +1885,7 @@ export function TaskDialog({
         const nextDescription = attachImagesToDescription(description, savedIds);
         const savedDescription = stripPendingDescriptionImages(nextDescription) || null;
         if (isOffline()) {
-          const localTask = qc.getQueryData<Task[]>(["tasks"])?.find((item) => item.id === taskId)
+          const localTask = findCachedTask<Task>(qc, taskId)
             ?? (task?.id === taskId ? task : null);
           if (!user || !localTask) throw new Error("Não foi possível guardar a posição dos prints neste aparelho.");
           await updateTaskWithOfflineSupport({

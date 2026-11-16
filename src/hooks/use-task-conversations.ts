@@ -6,6 +6,7 @@ import { useProfiles, useSubtasks, useTaskCollaborators } from "@/hooks/use-data
 import { activityToast } from "@/lib/activity-toast";
 import { isConversationRoom, unreadMessageCount } from "@/lib/task-conversations";
 import { isOffline } from "@/lib/offline-sync";
+import { fetchAllRows } from "@/lib/fetch-all-rows";
 import { saveConversationRead } from "@/lib/save-conversation-read";
 import { toast } from "sonner";
 
@@ -68,11 +69,22 @@ export function useTaskConversations() {
     queryKey: messagesKey,
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data, error } = await (supabase.from("comments") as any)
-        .select("id, task_id, author_id, body, created_at, reply_to_id, edited_at")
-        .order("created_at", { ascending: true });
+      // Em páginas: a API corta cada resposta em 1000 linhas e, como a ordem
+      // é da mais antiga para a mais nova, o corte escondia justamente as
+      // mensagens recentes.
+      const { data, error } = await fetchAllRows<Message>(
+        (from, to) =>
+          (supabase.from("comments") as any)
+            .select("id, task_id, author_id, body, created_at, reply_to_id, edited_at", {
+              count: "exact",
+            })
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
+        { rowKey: (message) => message.id },
+      );
       if (error) throw error;
-      return (data ?? []) as Message[];
+      return data ?? [];
     },
   });
 

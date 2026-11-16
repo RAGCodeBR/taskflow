@@ -73,6 +73,7 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { isTaskCompleted } from "@/lib/task-utils";
+import { fetchAllRows } from "@/lib/fetch-all-rows";
 import { reportSubtaskActivities, reportSubtasksInPeriod } from "@/lib/report-subtasks";
 
 export const Route = createFileRoute("/_app/reports")({
@@ -752,10 +753,21 @@ function ReportsPage() {
   const { data: dueDateChanges = [] } = useQuery({
     queryKey: ["task_due_date_changes_report"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("task_due_date_changes")
-        .select("id, task_id, old_due_date, new_due_date, reason, created_at")
-        .order("created_at", { ascending: false });
+      const { data, error } = await fetchAllRows<{
+        id: string;
+        task_id: string;
+        old_due_date: string | null;
+        new_due_date: string | null;
+        reason: string | null;
+        created_at: string;
+      }>((from, to) =>
+        supabase
+          .from("task_due_date_changes")
+          .select("id, task_id, old_due_date, new_due_date, reason, created_at", { count: "exact" })
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
       if (error) throw error;
       return data ?? [];
     },
@@ -763,10 +775,21 @@ function ReportsPage() {
   const { data: subtaskDueDateChanges = [] } = useQuery({
     queryKey: ["subtask_due_date_changes_report"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("subtask_due_date_changes")
-        .select("subtask_id, old_due_date, new_due_date, reason, created_at")
-        .order("created_at", { ascending: false });
+      const { data, error } = await fetchAllRows<{
+        id: string;
+        subtask_id: string;
+        old_due_date: string | null;
+        new_due_date: string | null;
+        reason: string | null;
+        created_at: string;
+      }>((from, to) =>
+        supabase
+          .from("subtask_due_date_changes")
+          .select("id, subtask_id, old_due_date, new_due_date, reason, created_at", { count: "exact" })
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
       if (error) throw error;
       return data ?? [];
     },

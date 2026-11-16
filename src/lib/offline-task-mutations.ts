@@ -6,6 +6,7 @@ import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { persistTaskEdit } from "@/lib/task-edit";
+import { addCachedTask } from "@/lib/query-cache";
 
 type TaskPatch = Partial<Task>;
 
@@ -101,7 +102,7 @@ export async function createTaskWithOfflineSupport({
   task: Task;
   queryClient: QueryClient;
 }) {
-  queryClient.setQueryData<Task[]>(["tasks"], (current = []) => [...current, task]);
+  addCachedTask<Task>(queryClient, task);
   await enqueueOfflineOperation({
     userId,
     entity: "task",

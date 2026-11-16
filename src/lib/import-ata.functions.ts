@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateGeminiContent } from "@/lib/gemini.server";
+import { requireServerPermission } from "@/lib/server-permissions";
 
 const InputSchema = z
   .object({
@@ -78,7 +79,10 @@ function matchByName<T extends { id: string; name: string }>(
 export const parseAtaWithGemini = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => InputSchema.parse(data))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    // A leitura da ata também acontece dentro de "Nova reunião", por isso a
+    // permissão de Reuniões vale tanto quanto a de Importar Ata.
+    await requireServerPermission(context.supabase, context.userId, ["import_ata", "meetings"]);
     const memberList = data.members.map((m) => m.name).join(", ") || "(nenhum)";
     const today = new Date().toISOString().slice(0, 10);
 
@@ -170,20 +174,37 @@ SAÍDA: Apenas JSON válido, sem markdown, sem \`\`\`. Formato:
   });
 
 /**
- * Creates extracted tasks through the trusted server client. The browser stays
- * authenticated, while the database write is not affected by browser RLS.
+ * Cria as tarefas extraídas com a sessão da própria pessoa, nunca com a chave
+ * de serviço. Assim valem as mesmas regras de quem cria uma tarefa pela tela:
+ * o banco define o ambiente, recusa quem não pertence a ele e descarta coluna,
+ * status ou cliente de outro ambiente. A chave de serviço pulava tudo isso e
+ * deixava a tarefa sem ambiente.
  */
 export const createTasksFromAta = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => CreateTasksSchema.parse(data))
   .handler(async ({ data, context }) => {
-    const userId = context?.userId;
-    if (!userId) throw new Error("Sessão expirada. Entre novamente para criar tarefas.");
+    await requireServerPermission(context.supabase, context.userId, ["import_ata"]);
+    const userId = context.userId as string;
+    const supabase = context.supabase;
+
+    const assigneeIds = Array.from(
+      new Set(data.tasks.map((task) => task.assignee_id).filter((id): id is string => !!id)),
+    );
+    if (assigneeIds.length) {
+      // Mesma lista que alimenta o seletor de responsáveis do ambiente ativo.
+      const { data: assignable, error: assigneesError } = await supabase.rpc("list_task_assignees");
+      if (assigneesError) {
+        throw new Error("Não foi possível validar os responsáveis. Tente novamente.");
+      }
+      const allowed = new Set(((assignable ?? []) as Array<{ id: string }>).map((row) => row.id));
+      if (assigneeIds.some((id) => !allowed.has(id))) {
+        throw new Error("Um dos responsáveis escolhidos não faz parte deste ambiente.");
+      }
+    }
+
     const payload = data.tasks.map(({ tag_id, ...task }) => ({ ...task, created_by: userId }));
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // The server client bypasses task RLS; the database trigger preserves this
-    // authenticated user ID when there is no browser auth context.
-    const { data: created, error: createError } = await supabaseAdmin
+    const { data: created, error: createError } = await supabase
       .from("tasks")
       .insert(payload)
       .select("id");
@@ -193,7 +214,7 @@ export const createTasksFromAta = createServerFn({ method: "POST" })
       .map((task, index) => ({ task_id: created?.[index]?.id, tag_id: task.tag_id }))
       .filter((link): link is { task_id: string; tag_id: string } => !!link.task_id && !!link.tag_id);
     if (tagLinks.length) {
-      const { error: linksError } = await supabaseAdmin.from("task_tag_links").insert(tagLinks);
+      const { error: linksError } = await supabase.from("task_tag_links").insert(tagLinks);
       if (linksError) throw new Error(linksError.message);
     }
 
