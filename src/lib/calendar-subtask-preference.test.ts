@@ -9,9 +9,11 @@ afterEach(() => vi.unstubAllGlobals());
 describe("calendar subtask preferences", () => {
   const luiz = "b64c44c4-4bf1-41f0-92cb-9a06d0905f03";
   const isabella = "7b0fccc4-3008-4983-b435-37af85edcd85";
-  it("starts enabled for exactly the two requested accounts", () => {
+  const matheus = "d60d502a-3b98-4220-aaad-d492f1a387c2";
+  it("starts enabled for exactly the three requested accounts", () => {
     expect(calendarSubtasksDefault(luiz)).toBe(true);
     expect(calendarSubtasksDefault(isabella)).toBe(true);
+    expect(calendarSubtasksDefault(matheus)).toBe(true);
     expect(calendarSubtasksDefault("another-user")).toBe(false);
     expect(calendarSubtasksDefault(null)).toBe(false);
   });
