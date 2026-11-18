@@ -47,11 +47,23 @@ describe("fetchAllRows", () => {
     expect(fetchPage).toHaveBeenCalledTimes(1);
   });
 
-  it("sem total do servidor, encerra na primeira página incompleta", async () => {
+  it("sem total do servidor, confirma o fim com uma página vazia", async () => {
     const fetchPage = server(rowsOf(1500), 1000, false);
     const result = await fetchAllRows(fetchPage, { rowKey: (row) => row.id });
     expect(result.data).toHaveLength(1500);
-    expect(fetchPage).toHaveBeenCalledTimes(2);
+    expect(fetchPage).toHaveBeenCalledTimes(3);
+  });
+
+  it("sem contagem, respeita um limite do servidor menor que o lote pedido", async () => {
+    const fetchPage = server(rowsOf(1200), 500, false);
+    expect((await fetchAllRows(fetchPage)).data).toHaveLength(1200);
+    expect(fetchPage).toHaveBeenNthCalledWith(3, 1000, 1999);
+    expect(fetchPage).toHaveBeenCalledTimes(4);
+  });
+
+  it("não entrega uma lista truncada ao atingir a trava de segurança", async () => {
+    await expect(fetchAllRows(async () => ({ data: [{ id: "a" }], error: null }), { pageSize: 1 }))
+      .rejects.toThrow("Nenhum resultado parcial");
   });
 
   it("não duplica uma linha que aparece em duas páginas", async () => {

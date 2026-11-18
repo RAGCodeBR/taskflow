@@ -5,6 +5,14 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates shared card reads while preserving complete lists and permissions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "task-read-performance" }));
+    expect(html).toContain("data-task-read-batches");
+    expect(html).toContain("data-task-read-complete");
+    expect(html).toContain("Permissões preservadas");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("href=");
+  });
   it("contrasts a task that disappeared with the complete list, without real actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "complete-task-lists" }));
     expect(html).toContain("data-complete-lists-before");

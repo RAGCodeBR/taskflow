@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { isOffline } from "@/lib/offline-sync";
 
 interface Notification {
   id: string;
@@ -42,7 +43,7 @@ export function NotificationBell() {
   };
 
   const load = async () => {
-    if (!user) return;
+    if (!user || isOffline()) return;
     // Mural e Conversas têm indicadores próprios na navegação. Filtrar no banco
     // evita que esses avisos ocupem espaço no sino.
     const { data } = await (supabase.from("notifications") as any)
@@ -62,7 +63,10 @@ export function NotificationBell() {
   useEffect(() => {
     if (!user) return;
     load();
-    const poll = window.setInterval(() => void load(), 15_000);
+    const poll = window.setInterval(() => { if (!document.hidden) void load(); }, 60_000);
+    const onVisible = () => { if (!document.hidden) void load(); };
+    window.addEventListener("online", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
     const channel = supabase
       .channel(`notifications-${user.id}-${Math.random().toString(36).slice(2)}`)
       .on(
@@ -84,6 +88,8 @@ export function NotificationBell() {
       .subscribe();
     return () => {
       window.clearInterval(poll);
+      window.removeEventListener("online", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

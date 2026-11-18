@@ -85,6 +85,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { useTaskCardRelated } from "@/hooks/use-task-card-related";
 import { TaskPinButton } from "@/components/TaskCardActivity";
 
 interface Attachment {
@@ -376,47 +377,12 @@ export function TaskCard({
     };
   }, [task.id]);
 
-  const [subsRefreshTick, setSubsRefreshTick] = useState(0);
+  const related = useTaskCardRelated(task.id);
   useEffect(() => {
-    const cache = qc.getQueryCache();
-    const unsub = cache.subscribe((event: any) => {
-      if (event?.type !== "updated") return;
-      const key = event.query?.queryKey?.[0];
-      if (key === "subtasks" || key === "tasks") {
-        setSubsRefreshTick((n) => n + 1);
-      }
-    });
-    return () => unsub();
-  }, [qc]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const [{ data: links }, { data: subs }, { data: notes }] = await Promise.all([
-        supabase.from("task_tag_links").select("tag_id").eq("task_id", task.id),
-        supabase
-          .from("subtasks")
-          .select(
-            "id, task_id, title, done, position, comment_id, due_date, completed_at, assignee_id, notes",
-          )
-          .eq("task_id", task.id)
-          .order("position"),
-        supabase
-          .from("comments")
-          .select("id, task_id, title, body, created_at, position")
-          .eq("task_id", task.id)
-          .order("position", { ascending: true })
-          .order("created_at", { ascending: true }),
-      ]);
-      if (cancelled) return;
-      setTagIds(((links ?? []) as { tag_id: string }[]).map((l) => l.tag_id));
-      setSubtasks((subs ?? []) as Subtask[]);
-      setComments((notes ?? []) as CardComment[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [task.id, subsRefreshTick]);
+    setTagIds(related.data?.tagIds ?? []);
+    setSubtasks(related.data?.subtasks ?? []);
+    setComments(related.data?.comments ?? []);
+  }, [related.data]);
 
   const isMarketingWorkspace = activeWorkspace?.slug === "marketing";
   const selectedTags = useMemo(

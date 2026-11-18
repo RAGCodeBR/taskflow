@@ -5,11 +5,11 @@
  * corta o restante sem avisar. Uma consulta sem paginação parece funcionar
  * até a tabela crescer; a partir daí, registros somem e voltam conforme a
  * ordem em que o banco monta o lote. Este utilitário pede as páginas
- * seguintes até completar o total informado pelo próprio servidor.
+ * seguintes até completar o total ou receber uma página vazia.
  *
  * Quem chama deve:
- *  - pedir `{ count: "exact" }` no select/rpc, para que o limite configurado
- *    no servidor (qualquer que seja) não encerre a leitura antes da hora;
+ *  - a contagem é opcional: sem total, continue até uma página vazia. Uma
+ *    página curta pode ser apenas um limite menor configurado no servidor;
  *  - ordenar por uma chave sem empates (termine com o id), senão páginas
  *    consecutivas podem repetir ou pular linhas.
  */
@@ -33,6 +33,7 @@ export async function fetchAllRows<Row, Failure = unknown>(
   const seen = new Set<string>();
   let offset = 0;
 
+  let complete = false;
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const { data, error, count } = await fetchPage(offset, offset + pageSize - 1);
     // Uma página que falha invalida a leitura inteira: devolver só o começo
@@ -51,13 +52,11 @@ export async function fetchAllRows<Row, Failure = unknown>(
     }
 
     offset += received.length;
-    if (received.length === 0) break;
+    if (received.length === 0) { complete = true; break; }
     if (typeof count === "number") {
-      if (offset >= count) break;
-    } else if (received.length < pageSize) {
-      break;
+      if (offset >= count) { complete = true; break; }
     }
   }
-
+  if (!complete) throw new Error("A lista excedeu o limite de leitura. Nenhum resultado parcial foi aplicado.");
   return { data: rows, error: null };
 }

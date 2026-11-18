@@ -75,9 +75,7 @@ export function useTaskConversations() {
       const { data, error } = await fetchAllRows<Message>(
         (from, to) =>
           (supabase.from("comments") as any)
-            .select("id, task_id, author_id, body, created_at, reply_to_id, edited_at", {
-              count: "exact",
-            })
+            .select("id, task_id, author_id, body, created_at, reply_to_id, edited_at")
             .order("created_at", { ascending: true })
             .order("id", { ascending: true })
             .range(from, to),

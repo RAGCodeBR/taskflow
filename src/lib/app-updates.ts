@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "task-read-performance"
   | "complete-task-lists"
   | "shared-task-session"
   | "clean-text-paste"
@@ -78,6 +79,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "carregamento-de-tarefas-mais-leve-2026-11-18",
+    title: "Carregamento de tarefas mais leve",
+    date: "2026-11-18",
+    preview: "task-read-performance",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Tarefas e subtarefas continuam sendo carregadas por completo, com menos consultas repetidas e sem contar toda a lista a cada página.",
+      "Os cards compartilham a leitura de subtarefas, etiquetas e comentários. As mudanças continuam chegando em tempo real, com atualização de segurança ao voltar para a aba ou reconectar.",
+      "As verificações de acesso das subtarefas e dos colaboradores são calculadas em conjunto. As permissões de leitura, edição e exclusão permanecem as mesmas.",
+    ],
+  },
   {
     id: "tarefas-completas-e-acessos-2026-11-16",
     title: "Tarefas não somem mais da lista",

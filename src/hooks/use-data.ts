@@ -9,6 +9,7 @@ import { fetchAllRows } from "@/lib/fetch-all-rows";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useTaskReadUpdates } from "@/hooks/use-task-read-updates";
 import { useAuth } from "@/hooks/use-auth";
 
 /**
@@ -344,16 +345,7 @@ export function useTasks(targetWorkspaceId?: string | null) {
     targetWorkspaceId && activeWorkspaceId && targetWorkspaceId !== activeWorkspaceId,
   );
   const offlineKey = userId ? offlineTaskCacheKey(userId) : null;
-  useEffect(() => {
-    if (!userId) return;
-    const channel = supabase
-      .channel(`tasks-cache-${userId}-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
-        void qc.invalidateQueries({ queryKey: ["tasks", userId] });
-      })
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [qc, userId]);
+  useTaskReadUpdates();
   const query = useQuery({
     // RLS resolves tasks from both the authenticated person and the active
     // workspace. Keep both in the cache key so an account/environment change
@@ -363,7 +355,8 @@ export function useTasks(targetWorkspaceId?: string | null) {
     // espelho local, em vez de deixar a consulta pausada e o Kanban vazio.
     networkMode: "always",
     // Realtime can miss an event while the browser sleeps or reconnects.
-    refetchInterval: () => isOffline() ? false : 30_000,
+    staleTime: 30_000,
+    refetchInterval: () => isOffline() ? false : 60_000,
     refetchOnWindowFocus: "always",
     queryFn: async () => {
       if (!offlineKey || !userId) return [] as Task[];
@@ -397,9 +390,8 @@ export function useTasks(targetWorkspaceId?: string | null) {
             ? (taskClient.rpc as any)(
                 "list_workspace_tasks_for_admin_preview",
                 { target_workspace_id: workspaceId },
-                { count: "exact" },
               )
-            : taskClient.from("tasks").select("*", { count: "exact" }).is("deleted_at", null)
+            : taskClient.from("tasks").select("*").is("deleted_at", null)
           )
             .order("position", { ascending: true })
             .order("created_at", { ascending: false })
@@ -457,7 +449,7 @@ export function useDeletedTasks() {
       const { data, error } = await fetchAllRows<Task>(
         (from, to) =>
           (supabase.from("tasks") as any)
-            .select("*", { count: "exact" })
+            .select("*")
             .not("deleted_at", "is", null)
             .order("deleted_at", { ascending: false })
             .order("id", { ascending: true })
@@ -634,6 +626,7 @@ export function useAssignableProfiles(targetWorkspaceId?: string | null) {
 }
 
 export function useTaskCollaborators() {
+  useTaskReadUpdates();
   const { user, activeWorkspace } = useAuth();
   const qc = useQueryClient();
   const previousOwnTasks = useRef<{ scope: string; ids: string } | null>(null);
@@ -645,7 +638,8 @@ export function useTaskCollaborators() {
     enabled: !!user?.id,
     // Outra pessoa pode adicionar/remover um participante enquanto esta aba
     // permanece aberta. Atualize sem exigir recarga manual.
-    refetchInterval: 15_000,
+    staleTime: 30_000,
+    refetchInterval: () => isOffline() ? false : 60_000,
     refetchOnWindowFocus: "always",
     queryFn: async () => {
       // Lista inteira, em páginas: é ela que decide o que entra em
@@ -653,7 +647,7 @@ export function useTaskCollaborators() {
       const { data, error } = await fetchAllRows<TaskCollaborator>(
         (from, to) =>
           (supabase.from("task_collaborators") as any)
-            .select("task_id, collaborator_id, added_by, created_at", { count: "exact" })
+            .select("task_id, collaborator_id, added_by, created_at")
             .order("task_id", { ascending: true })
             .order("collaborator_id", { ascending: true })
             .range(from, to),
@@ -738,7 +732,7 @@ export function useTaskTagLinks() {
       const { data, error } = await fetchAllRows<TaskTagLink>(
         (from, to) =>
           (supabase.from("task_tag_links") as any)
-            .select("task_id, tag_id", { count: "exact" })
+            .select("task_id, tag_id")
             .order("task_id", { ascending: true })
             .order("tag_id", { ascending: true })
             .range(from, to),
@@ -764,24 +758,11 @@ export function useSubtasks() {
   const { user, activeWorkspace } = useAuth();
   const qc = useQueryClient();
 
-  useEffect(() => {
-    // Realtime updates keep task/subtask counters fresh across browser tabs and team members.
-    const channel = supabase
-      .channel(`subtasks-cache-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "subtasks" }, () => {
-        void qc.invalidateQueries({ queryKey: ["subtasks"] });
-        void qc.invalidateQueries({ queryKey: ["tasks"] });
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [qc]);
-
+  useTaskReadUpdates();
   return useQuery({
     queryKey: subtasksQueryKey(user?.id, activeWorkspace?.id),
-    refetchInterval: () => isOffline() ? false : 30_000,
+    staleTime: 30_000,
+    refetchInterval: () => isOffline() ? false : 60_000,
     refetchOnWindowFocus: "always",
     queryFn: async () => {
       // A posição só ordena dentro de cada tarefa, então quase todas as
@@ -790,9 +771,7 @@ export function useSubtasks() {
       const { data, error } = await fetchAllRows<Subtask>(
         (from, to) =>
           (supabase.from("subtasks") as any)
-            .select("id, task_id, title, done, position, assignee_id, due_date, completed_at", {
-              count: "exact",
-            })
+            .select("id, task_id, title, done, position, assignee_id, due_date, completed_at")
             .order("position", { ascending: true })
             .order("id", { ascending: true })
             .range(from, to),

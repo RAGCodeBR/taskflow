@@ -71,6 +71,21 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function TaskReadPerformancePreview() {
+  return <PreviewGrid label="Prévia do carregamento de tarefas com menos releituras">
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-task-read-batches>
+      <p className="flex items-center gap-1.5 font-semibold"><KanbanSquare className="h-3.5 w-3.5" />Cards carregados em conjunto</p>
+      <div className="mt-3 grid gap-2">{["Revisar campanha de exemplo", "Preparar apresentação"].map((title) => <div key={title} className="rounded-lg border bg-primary/5 p-3"><p className="font-medium">{title}</p><p className="mt-2 text-muted-foreground">Subtarefas · Etiquetas · Comentários</p></div>)}</div>
+      <p className="mt-3 text-muted-foreground">Menos consultas repetidas ao abrir o quadro.</p>
+    </div>
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-task-read-complete>
+      <p className="flex items-center gap-1.5 font-semibold"><RefreshCw className="h-3.5 w-3.5" />Lista completa e atualizada</p>
+      <div className="mt-3 space-y-2">{["Tarefas e subtarefas", "Responsáveis e colaboradores", "Permissões preservadas"].map((label) => <p key={label} className="flex items-center gap-2 rounded-lg border p-3"><CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />{label}</p>)}</div>
+      <p className="mt-3 text-muted-foreground">Atualização em tempo real e ao reconectar.</p>
+    </div>
+  </PreviewGrid>;
+}
+
 function CompleteTaskListsPreview() {
   const tasks = ["Revisar post de lançamento", "Enviar relatório mensal", "Aprovar arte da campanha"];
   return <PreviewGrid label="Prévia das listas de tarefas carregadas por completo">
@@ -1778,6 +1793,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "task-read-performance": TaskReadPerformancePreview,
   "complete-task-lists": CompleteTaskListsPreview,
   "shared-task-session": SharedTaskSessionPreview,
   "task-period-and-view": TaskPeriodAndViewPreview,

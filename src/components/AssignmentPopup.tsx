@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bell, ExternalLink, Calendar, AlertCircle } from "lucide-react";
@@ -12,6 +12,7 @@ import { priorityLabels, priorityColors } from "@/lib/task-utils";
 import { RichTextView } from "@/components/RichTextEditor";
 import { LinkedText } from "@/components/LinkedText";
 import { toast } from "sonner";
+import { isOffline } from "@/lib/offline-sync";
 
 interface AssignmentNotification {
   id: string;
@@ -38,6 +39,7 @@ export function AssignmentPopup() {
   const [queue, setQueue] = useState<AssignmentNotification[]>([]);
   const [preview, setPreview] = useState<TaskPreview | null>(null);
   const [markingRead, setMarkingRead] = useState(false);
+  const receivedAssignments = useRef(new Set<string>());
 
   const storageKey = user ? `assign-popup-seen:${user.id}` : null;
 
@@ -69,15 +71,20 @@ export function AssignmentPopup() {
   const enqueueFromRow = (row: AssignmentNotification) => {
     const seen = getSeen();
     if (seen.has(row.id)) return;
+    if (receivedAssignments.current.has(row.id)) return;
+    receivedAssignments.current.add(row.id);
     refreshAssignedWork();
     setQueue((prev) => (prev.some((n) => n.id === row.id) ? prev : [...prev, row]));
   };
 
   useEffect(() => {
     if (!user) return;
+    receivedAssignments.current = new Set();
+    setQueue([]);
     let cancelled = false;
 
     const loadFreshAssignments = async () => {
+      if (isOffline()) return;
       const { data } = await supabase
         .from("notifications")
         .select("id, task_id, title, body, created_at, type")
@@ -89,10 +96,11 @@ export function AssignmentPopup() {
       if (cancelled || !data) return;
       const seen = getSeen();
       const fresh = (data as any[])
-        .filter((n) => !seen.has(n.id))
+        .filter((n) => !seen.has(n.id) && !receivedAssignments.current.has(n.id))
         .map((n) => ({ id: n.id, task_id: n.task_id, type: n.type, title: n.title, body: n.body, created_at: n.created_at }))
         .reverse();
       if (fresh.length > 0) {
+        fresh.forEach((n) => receivedAssignments.current.add(n.id));
         refreshAssignedWork();
         setQueue((prev) => {
           const existing = new Set(prev.map((n) => n.id));
@@ -102,7 +110,10 @@ export function AssignmentPopup() {
     };
 
     void loadFreshAssignments();
-    const poll = window.setInterval(() => void loadFreshAssignments(), 12_000);
+    const poll = window.setInterval(() => { if (!document.hidden) void loadFreshAssignments(); }, 60_000);
+    const onVisible = () => { if (!document.hidden) void loadFreshAssignments(); };
+    window.addEventListener("online", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
 
     const channel = supabase
       .channel(`assign-popup-${user.id}-${Math.random().toString(36).slice(2)}`)
@@ -120,7 +131,7 @@ export function AssignmentPopup() {
       )
       .subscribe();
 
-    return () => { cancelled = true; window.clearInterval(poll); supabase.removeChannel(channel); };
+    return () => { cancelled = true; window.clearInterval(poll); window.removeEventListener("online", onVisible); document.removeEventListener("visibilitychange", onVisible); supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
