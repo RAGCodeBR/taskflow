@@ -5,6 +5,14 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates confirmed saves and grouped subtask creation without real actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "task-save-performance" }));
+    expect(html).toContain("data-task-save-confirmed");
+    expect(html).toContain("data-task-save-batch");
+    expect(html).toContain("Tarefa atualizada");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("href=");
+  });
   it("illustrates shared card reads while preserving complete lists and permissions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "task-read-performance" }));
     expect(html).toContain("data-task-read-batches");

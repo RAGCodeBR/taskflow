@@ -84,7 +84,7 @@ import {
 } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isNetworkFailure, isOffline, listOfflineOperations } from "@/lib/offline-sync";
 import { persistTaskEdit, taskEditError, taskEditPatch } from "@/lib/task-edit";
-import { taskCollaboratorChanges } from "@/lib/task-collaborator-changes";
+import { persistTaskCollaborators, refreshTaskListsAfterSave } from "@/lib/task-save";
 import { canWriteCachedTaskConversation } from "@/lib/task-conversation-access";
 import { subtasksQueryKey } from "@/lib/task-query-keys";
 import { useRecordTaskCardOpen } from "@/hooks/use-task-card-activity";
@@ -339,6 +339,7 @@ export function TaskDialog({
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>([]);
   const collaboratorsEditedRef = useRef(false);
+  const syncedNewTaskCollaboratorsRef = useRef<{ taskId: string; ids: string[] } | null>(null);
   const [collaboratorLoad, setCollaboratorLoad] = useState<{
     taskId: string;
     status: "loading" | "ready" | "error";
@@ -544,6 +545,7 @@ export function TaskDialog({
     if (initializedFormRef.current === formKey) return;
     initializedFormRef.current = formKey;
     collaboratorsEditedRef.current = false;
+    syncedNewTaskCollaboratorsRef.current = null;
     editBaseRef.current = task ?? null;
     setActiveTab("subtasks");
     setClientPickerOpen(false);
@@ -807,40 +809,11 @@ export function TaskDialog({
     if (task && (!collaboratorsReady || task.id !== taskId)) {
       throw new Error("Aguarde carregar os colaboradores desta tarefa antes de salvar.");
     }
-    const { data, error: loadError } = await (client.from("task_collaborators") as any)
-      .select("collaborator_id")
-      .eq("task_id", taskId);
-    if (loadError) throw loadError;
-
-    const existingIds = (data ?? []).map(
-      (collaborator: { collaborator_id: string }) => collaborator.collaborator_id,
-    );
-    const { removedIds, addedIds } = taskCollaboratorChanges(
-      task ? collaboratorLoad?.loadedIds ?? [] : existingIds,
-      existingIds,
-      collaboratorIds,
-    );
-
-    if (removedIds.length > 0) {
-      const { error: deleteError } = await (client.from("task_collaborators") as any)
-        .delete()
-        .eq("task_id", taskId)
-        .in("collaborator_id", removedIds);
-      if (deleteError) throw deleteError;
-    }
-    if (addedIds.length > 0) {
-      const { error: insertError } = await (client.from("task_collaborators") as any).insert(
-        addedIds.map((collaboratorId) => ({
-          task_id: taskId,
-          collaborator_id: collaboratorId,
-          added_by: user?.id ?? null,
-        })),
-      );
-      if (insertError) throw insertError;
-    }
-    if (removedIds.length > 0 || addedIds.length > 0) {
-      await qc.invalidateQueries({ queryKey: ["task_collaborators"] });
-    }
+    const loadedIds = task ? collaboratorLoad?.loadedIds ?? []
+      : syncedNewTaskCollaboratorsRef.current?.taskId === taskId ? syncedNewTaskCollaboratorsRef.current.ids : [];
+    const changed = await persistTaskCollaborators(client, taskId, user?.id ?? null, loadedIds, collaboratorIds);
+    if (!task) syncedNewTaskCollaboratorsRef.current = { taskId, ids: [...collaboratorIds] };
+    if (changed) void qc.invalidateQueries({ queryKey: ["task_collaborators"] }).catch(() => {});
   };
 
   const toggleCollaborator = (collaboratorId: string) => {
@@ -1083,28 +1056,32 @@ export function TaskDialog({
   };
 
   const commitMarketingSubtasks = async (taskId: string): Promise<boolean> => {
-    for (const [index, subtask] of pendingMarketingSubtasks.filter((item) => item.title.trim()).entries()) {
-      const row = {
+    const pending = pendingMarketingSubtasks.filter((item) => item.title.trim());
+    if (!pending.length) return true;
+    const completedAt = new Date().toISOString();
+    const rows = pending.map((subtask, index) => ({
         id: subtask.id,
         task_id: taskId,
         title: subtask.title.trim(),
         done: subtask.done,
-        completed_at: subtask.done ? new Date().toISOString() : null,
+        completed_at: subtask.done ? completedAt : null,
         position: subtasks.length + index,
         due_date: deadlineToIso(subtask.dueDate),
         assignee_id: subtask.assigneeId || null,
         notes: stripPendingDescriptionImages(subtask.notes).trim() || null,
-      };
-      const { error } = await supabase.from("subtasks").insert(row as any);
-      if (error) {
-        toast.error(`Não foi possível salvar “${subtask.title}”: ${error.message}`);
-        return false;
-      }
-      setSubtasks((current) => [...current, row as Subtask]);
-      pendingSubtaskNotesRef.current[subtask.id] = subtask.notes;
-      setPendingMarketingSubtasks((current) => current.filter((item) => item.id !== subtask.id));
+    }));
+    const { error } = await supabase.from("subtasks").insert(rows as any);
+    if (error) {
+      toast.error(`Não foi possível salvar as subtarefas: ${error.message}`);
+      return false;
     }
-    if (pendingMarketingSubtasks.length) await qc.invalidateQueries({ queryKey: ["subtasks"] });
+    setSubtasks((current) => [...current, ...rows as Subtask[]]);
+    const savedIds = new Set(rows.map((row) => row.id));
+    for (const subtask of pending) {
+      pendingSubtaskNotesRef.current[subtask.id] = subtask.notes;
+    }
+    setPendingMarketingSubtasks((current) => current.filter((item) => !savedIds.has(item.id)));
+    void qc.invalidateQueries({ queryKey: ["subtasks"] }).catch(() => {});
     return true;
   };
 
@@ -1411,12 +1388,8 @@ export function TaskDialog({
         }
       }
       toast.success(currentTaskId || task ? "Tarefa atualizada" : "Tarefa criada");
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["tasks"] }),
-        qc.invalidateQueries({ queryKey: ["subtasks"] }),
-        qc.invalidateQueries({ queryKey: ["task_collaborators"] }),
-      ]);
       onOpenChange(false);
+      refreshTaskListsAfterSave(qc);
     } catch (error) {
       if (isNetworkFailure(error)) {
         try {

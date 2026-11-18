@@ -71,6 +71,22 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function TaskSavePerformancePreview() {
+  return <PreviewGrid label="Prévia do salvamento de tarefas com menos espera">
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-task-save-confirmed>
+      <p className="font-semibold">Revisar campanha de exemplo</p>
+      <div className="mt-3 rounded-lg border p-3"><p className="text-muted-foreground">Descrição</p><p className="mt-1">Briefing revisado pela equipe.</p></div>
+      <p className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-900"><CheckCircle2 className="h-4 w-4 shrink-0" />Tarefa atualizada</p>
+      <p className="mt-2 text-muted-foreground">A janela fecha após confirmar o salvamento.</p>
+    </div>
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-task-save-batch>
+      <p className="flex items-center gap-1.5 font-semibold"><ListTodo className="h-3.5 w-3.5" />Subtarefas novas no Marketing</p>
+      <div className="mt-3 space-y-2">{["Conteúdo", "Legenda", "Arte"].map((label) => <p key={label} className="rounded-lg border bg-primary/5 p-2.5">{label}</p>)}</div>
+      <p className="mt-3 text-muted-foreground">Enviadas juntas, mantendo responsáveis e prazos.</p>
+    </div>
+  </PreviewGrid>;
+}
+
 function TaskReadPerformancePreview() {
   return <PreviewGrid label="Prévia do carregamento de tarefas com menos releituras">
     <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-task-read-batches>
@@ -1793,6 +1809,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "task-save-performance": TaskSavePerformancePreview,
   "task-read-performance": TaskReadPerformancePreview,
   "complete-task-lists": CompleteTaskListsPreview,
   "shared-task-session": SharedTaskSessionPreview,

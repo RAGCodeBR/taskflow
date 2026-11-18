@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "task-save-performance"
   | "task-read-performance"
   | "complete-task-lists"
   | "shared-task-session"
@@ -79,6 +80,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "salvar-tarefas-com-menos-espera-2026-11-18",
+    title: "Salvar tarefas com menos espera",
+    date: "2026-11-18",
+    preview: "task-save-performance",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: [
+      "Ao salvar, a janela fecha depois que as gravações e os arquivos são confirmados. A atualização das listas acontece em segundo plano, sem prolongar a espera no formulário.",
+      "Colaboradores não alterados dispensam uma consulta adicional. Alterações nessa seleção continuam sendo conferidas com os vínculos atuais para preservar inclusões feitas por outras pessoas.",
+      "No Marketing, as subtarefas novas são enviadas juntas. Se houver falha de gravação ou upload, o formulário continua aberto para corrigir ou tentar novamente.",
+    ],
+  },
   {
     id: "carregamento-de-tarefas-mais-leve-2026-11-18",
     title: "Carregamento de tarefas mais leve",
