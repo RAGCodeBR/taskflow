@@ -1144,7 +1144,11 @@ export function TaskDialog({
     return true;
   };
 
-  const queueTaskLocally = async (existingTaskId: string | null, createTaskId?: string) => {
+  const queueTaskLocally = async (
+    existingTaskId: string | null,
+    createTaskId?: string,
+    options: { stayOnTask?: boolean } = {},
+  ) => {
     if (!user) throw new Error("Sua sessão local não está disponível.");
     if (canManageCollaborators && collaboratorsEditedRef.current && (!collaboratorsReady || JSON.stringify(formIdSet(collaboratorIds)) !== JSON.stringify(formIdSet(collaboratorLoad?.loadedIds ?? [])))) {
       throw new Error("Conecte-se à internet para salvar alterações nos colaboradores. Suas alterações continuam no formulário.");
@@ -1238,10 +1242,35 @@ export function TaskDialog({
     const printResult = await uploadDescriptionImages(taskId);
     if (!printResult.allUploaded) throw new Error("Não foi possível guardar todos os prints neste aparelho. Tente salvar novamente antes de sair.");
     toast.success("Tarefa salva neste aparelho. Será sincronizada ao reconectar.");
+    if (options.stayOnTask) {
+      rebaseAfterSave(taskId, { ...(editBaseRef.current ?? task ?? {}), ...payload, id: taskId, is_draft: false } as Task);
+      return;
+    }
     onOpenChange(false);
   };
 
-  const save = async () => {
+  /**
+   * Depois de salvar sem fechar a tarefa, o que acabou de ser salvo passa a ser
+   * a nova base de comparação. Sem isso, o próximo salvamento trataria o prazo
+   * como alterado de novo (pedindo outra justificativa e gravando histórico
+   * repetido) e refaria a diferença de colaboradores a partir da lista antiga.
+   */
+  const rebaseAfterSave = (taskId: string, savedTask: Task | null) => {
+    if (savedTask) editBaseRef.current = savedTask;
+    initialFormValuesRef.current = currentFormValues;
+    setDueDateChangeReason("");
+    setIsDraft(false);
+    collaboratorsEditedRef.current = false;
+    if (task) setCollaboratorLoad({ taskId, status: "ready", loadedIds: [...collaboratorIds] });
+    setActivePendingSubtaskId(null);
+  };
+
+  /**
+   * Salva a tarefa. Com `stayOnTask`, a tarefa continua aberta depois de
+   * salvar ("Salvar e sair" dos detalhes de uma subtarefa nova volta para a
+   * tarefa). Sem a opção, o editor fecha, como no botão Salvar.
+   */
+  const save = async (options: { stayOnTask?: boolean } = {}) => {
     if (!newSubtask.trim() && (newSubtaskDue || newSubtaskAssignee)) {
       toast.error("Informe o título da nova subtarefa ou limpe seus campos antes de salvar.");
       return;
@@ -1279,7 +1308,7 @@ export function TaskDialog({
       }
       setSaving(true);
       try {
-        await queueTaskLocally(existingTaskId);
+        await queueTaskLocally(existingTaskId, undefined, options);
       } catch (error) {
         toast.error(
           error instanceof Error
@@ -1307,7 +1336,7 @@ export function TaskDialog({
       }
       setSaving(true);
       try {
-        await queueTaskLocally(existingTaskId);
+        await queueTaskLocally(existingTaskId, undefined, options);
       } catch (localError) {
         toast.error(
           localError instanceof Error
@@ -1325,6 +1354,7 @@ export function TaskDialog({
     try {
       const payload = buildPayload();
       let savedTaskId = existingTaskId;
+      let savedTaskRow: Task | null = null;
       if (existingTaskId) {
         const original = editBaseRef.current;
         const previousDueDate = original?.due_date ?? null;
@@ -1338,7 +1368,7 @@ export function TaskDialog({
           return;
         }
         const patch = original ? taskEditPatch(original, payload, { preserveDescriptionImages: isMarketingTask }) : payload;
-        await persistTaskEdit(
+        savedTaskRow = await persistTaskEdit(
           authenticated.client, existingTaskId, { ...patch, is_draft: false }, qc,
         );
         if (dueDateChanged && previousDueDate) {
@@ -1388,12 +1418,20 @@ export function TaskDialog({
         }
       }
       toast.success(currentTaskId || task ? "Tarefa atualizada" : "Tarefa criada");
-      onOpenChange(false);
+      if (options.stayOnTask && savedTaskId) {
+        if (!savedTaskRow) {
+          const { data } = await authenticated.client.from("tasks").select("*").eq("id", savedTaskId).maybeSingle();
+          savedTaskRow = (data as Task | null) ?? null;
+        }
+        rebaseAfterSave(savedTaskId, savedTaskRow);
+      } else {
+        onOpenChange(false);
+      }
       refreshTaskListsAfterSave(qc);
     } catch (error) {
       if (isNetworkFailure(error)) {
         try {
-          await queueTaskLocally(existingTaskId, attemptedCreateTaskId);
+          await queueTaskLocally(existingTaskId, attemptedCreateTaskId, options);
         } catch (localError) {
           toast.error(
             localError instanceof Error
@@ -2058,7 +2096,7 @@ export function TaskDialog({
   const exitGuard = useUnsavedChanges({
     open, dirty: hasUnsavedChanges, busy: saving || descriptionImagesUploading,
     onClose: () => onOpenChange(false),
-    onSave: save,
+    onSave: () => save(),
   });
   const pendingSubtaskExitGuard = useUnsavedChanges({
     open: Boolean(activePendingSubtask),
@@ -2066,7 +2104,8 @@ export function TaskDialog({
     busy: saving || descriptionImagesUploading,
     onClose: () => setActivePendingSubtaskId(null),
     onDiscard: () => { if (activePendingSubtask) removeMarketingSubtaskRow(activePendingSubtask.id); },
-    onSave: save,
+    // Salvar e sair dos detalhes da subtarefa volta para a tarefa, não para a lista.
+    onSave: () => save({ stayOnTask: true }),
   });
   const requestOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) exitGuard.requestClose();
@@ -2638,7 +2677,8 @@ export function TaskDialog({
                     <div className="flex items-center gap-2">
                       <Checkbox checked={subtask.done} onCheckedChange={(checked) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, done: checked === true } : item))} aria-label={`Concluir ${subtask.title}`} />
                       {editingPendingSubtaskId === subtask.id || !subtask.title.trim() ? <Input value={subtask.title} onFocus={() => setEditingPendingSubtaskId(subtask.id)} onBlur={() => setEditingPendingSubtaskId((current) => current === subtask.id ? null : current)} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: event.target.value } : item))} onPaste={(event) => pasteSingleLine(event, (value) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: value } : item)))} onKeyDown={(event) => {
-                        if (event.key === "Enter") { event.preventDefault(); if (subtask.title.trim()) addMarketingSubtaskRow(); }
+                        // Enter só confirma o nome. Outra subtarefa nasce apenas pelo botão "Adicionar subtarefa".
+                        if (event.key === "Enter") { event.preventDefault(); if (subtask.title.trim()) event.currentTarget.blur(); }
                         if (event.key === "Escape" && !subtask.title.trim()) { event.stopPropagation(); removeMarketingSubtaskRow(subtask.id); }
                       }} autoFocus={editingPendingSubtaskId === subtask.id} placeholder="Nome da subtarefa" aria-label="Título da subtarefa" className="h-8 min-w-0 flex-1 border-0 px-1 shadow-none focus-visible:ring-1" /> : <button type="button" onClick={() => setActivePendingSubtaskId(subtask.id)} aria-label={`Abrir detalhes da subtarefa ${subtask.title}`} className="group flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><span className="truncate">{subtask.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" /></button>}
                       {!subtask.title.trim() && <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title="Abrir detalhes da subtarefa" aria-label={`Abrir detalhes da subtarefa ${index + 1}`} onClick={() => setActivePendingSubtaskId(subtask.id)}><ChevronRight className="h-4 w-4" /></Button>}
@@ -3082,7 +3122,7 @@ export function TaskDialog({
                 </Button>
               )}
               <Button
-                onClick={save}
+                onClick={() => void save()}
                 disabled={saving || descriptionImagesUploading || (!collaboratorsReady && !isOffline())}
               >
                 {descriptionImagesUploading
@@ -3165,7 +3205,7 @@ export function TaskDialog({
             </>}
           </DialogContent>
         </Dialog>
-        <UnsavedChangesDialog open={pendingSubtaskExitGuard.confirming} onContinue={pendingSubtaskExitGuard.continueEditing} onDiscard={pendingSubtaskExitGuard.discard} onSave={pendingSubtaskExitGuard.saveAndLeave} description="Esta subtarefa ainda não foi salva. Salvar e sair guarda a tarefa principal e suas subtarefas novas. Descartar remove apenas esta subtarefa nova." />
+        <UnsavedChangesDialog open={pendingSubtaskExitGuard.confirming} onContinue={pendingSubtaskExitGuard.continueEditing} onDiscard={pendingSubtaskExitGuard.discard} onSave={pendingSubtaskExitGuard.saveAndLeave} description="Esta subtarefa ainda não foi salva. Salvar e sair guarda a tarefa principal e suas subtarefas novas e volta para a tarefa. Descartar remove apenas esta subtarefa nova." />
         <UnsavedChangesDialog open={exitGuard.confirming} onContinue={exitGuard.continueEditing} onDiscard={exitGuard.discard} onSave={exitGuard.saveAndLeave} />
         <Dialog
           open={subDueReason.open}

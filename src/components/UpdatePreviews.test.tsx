@@ -5,6 +5,17 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows Salvar e sair returning to the open task, without real actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "subtask-save-returns-to-task" }));
+    expect(html).toContain("data-subtask-save-prompt");
+    expect(html).toContain("data-subtask-save-and-leave");
+    expect(html).toContain("data-subtask-back-to-task");
+    expect(html).toContain("data-subtask-enter-confirms");
+    expect(html).toContain("Tarefa atualizada");
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("href=");
+  });
   it("illustrates confirmed saves and grouped subtask creation without real actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "task-save-performance" }));
     expect(html).toContain("data-task-save-confirmed");

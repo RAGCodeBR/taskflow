@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "subtask-save-returns-to-task"
   | "task-save-performance"
   | "task-read-performance"
   | "complete-task-lists"
@@ -80,6 +81,20 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "subtarefa-salvar-e-voltar-para-a-tarefa-2026-11-19",
+    title: "Subtarefas novas: salvar e voltar para a tarefa",
+    date: "2026-11-19",
+    preview: "subtask-save-returns-to-task",
+    audience: "all",
+    workspaces: ["marketing"],
+    details: [
+      "Nos detalhes de uma subtarefa nova, Salvar e sair agora guarda a tarefa e a subtarefa e volta para a tarefa, em vez de fechar tudo e voltar para Minhas Tarefas.",
+      "A tarefa continua aberta para novas edições. Um novo salvamento não pede outra vez a justificativa de um prazo que já foi salvo.",
+      "Ao digitar o nome de uma subtarefa nova, Enter apenas confirma o nome. Outra subtarefa só é criada pelo botão Adicionar subtarefa.",
+      "O botão Salvar da tarefa continua fechando a janela depois de salvar, como antes.",
+    ],
+  },
   {
     id: "salvar-tarefas-com-menos-espera-2026-11-18",
     title: "Salvar tarefas com menos espera",

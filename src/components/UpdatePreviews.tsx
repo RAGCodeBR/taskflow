@@ -71,6 +71,28 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function SubtaskSaveReturnsToTaskPreview() {
+  return <PreviewGrid label="Prévia de Salvar e sair voltando para a tarefa">
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-subtask-save-prompt>
+      <p className="font-semibold">Salvar alterações antes de sair?</p>
+      <p className="mt-1 text-muted-foreground">Esta subtarefa ainda não foi salva.</p>
+      <div className="mt-3 space-y-1.5 text-center">
+        <p className="rounded-full bg-primary px-3 py-1.5 font-medium text-primary-foreground ring-2 ring-primary/30" data-subtask-save-and-leave>Salvar e sair</p>
+        <p className="rounded-full border px-3 py-1.5">Continuar editando</p>
+        <p className="px-3 py-1 text-destructive">Descartar alterações</p>
+      </div>
+    </div>
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-subtask-back-to-task>
+      <p className="font-semibold">Campanha de exemplo</p>
+      <p className="mt-1 text-muted-foreground">A tarefa continua aberta.</p>
+      <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-emerald-900"><CheckCircle2 className="h-3.5 w-3.5" />Tarefa atualizada</p>
+      <p className="mt-3 font-medium">Subtarefas (1)</p>
+      <p className="mt-1 rounded-md border px-2 py-1.5">Revisar legenda do post</p>
+      <p className="mt-2 text-muted-foreground" data-subtask-enter-confirms>Enter confirma o nome · nova subtarefa só por + Adicionar subtarefa</p>
+    </div>
+  </PreviewGrid>;
+}
+
 function TaskSavePerformancePreview() {
   return <PreviewGrid label="Prévia do salvamento de tarefas com menos espera">
     <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-task-save-confirmed>
@@ -1809,6 +1831,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "subtask-save-returns-to-task": SubtaskSaveReturnsToTaskPreview,
   "task-save-performance": TaskSavePerformancePreview,
   "task-read-performance": TaskReadPerformancePreview,
   "complete-task-lists": CompleteTaskListsPreview,

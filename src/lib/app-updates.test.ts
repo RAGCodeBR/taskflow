@@ -7,7 +7,7 @@ import {
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES).toHaveLength(34);
+    expect(APP_UPDATES).toHaveLength(35);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -30,8 +30,10 @@ describe("application release catalogue", () => {
     const ownerConsultoria = getVisibleAppUpdates(true, "consultoria", "reinangrupoahouse@gmail.com");
     expect(marketing).toHaveLength(5);
     expect(consultoria).toHaveLength(5);
-    expect(marketing[0].id).toBe("salvar-tarefas-com-menos-espera-2026-11-18");
-    expect(consultoria[0].id).toBe(marketing[0].id);
+    expect(marketing[0].id).toBe("subtarefa-salvar-e-voltar-para-a-tarefa-2026-11-19");
+    // A volta para a tarefa fica no painel de subtarefas do Marketing.
+    expect(consultoria[0].id).toBe("salvar-tarefas-com-menos-espera-2026-11-18");
+    expect(consultoria.some((update) => update.id === marketing[0].id)).toBe(false);
     expect(APP_UPDATES.find((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")?.workspaces).toContain("marketing");
     expect(consultoria.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(false);
     expect(ownerMarketing[0].id).toBe(marketing[0].id);
