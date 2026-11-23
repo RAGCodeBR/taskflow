@@ -71,6 +71,23 @@ function PreviewGrid({ children, label }: { children: ReactNode; label?: string 
   );
 }
 
+function SubtaskEnterNextRowPreview() {
+  return <PreviewGrid label="Prévia do Enter criando a próxima subtarefa">
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-subtask-enter-typing>
+      <p className="font-semibold">Subtarefas</p>
+      <p className="mt-2 rounded-md border px-2 py-1.5">Revisar legenda do post</p>
+      <p className="mt-1.5 flex items-center justify-between rounded-md border border-primary px-2 py-1.5 ring-1 ring-primary/30">Aprovar arte<span className="rounded border bg-muted px-1.5 font-mono text-[9px] text-muted-foreground">Enter</span></p>
+    </div>
+    <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-subtask-enter-next-row>
+      <p className="font-semibold">Subtarefas</p>
+      <p className="mt-2 rounded-md border px-2 py-1.5">Revisar legenda do post</p>
+      <p className="mt-1.5 rounded-md border px-2 py-1.5">Aprovar arte</p>
+      <p className="mt-1.5 rounded-md border border-dashed border-primary px-2 py-1.5 text-muted-foreground">Nome da subtarefa</p>
+      <p className="mt-2 text-muted-foreground">Enter ou OK já abre a próxima linha.</p>
+    </div>
+  </PreviewGrid>;
+}
+
 function SubtaskSaveReturnsToTaskPreview() {
   return <PreviewGrid label="Prévia de Salvar e sair voltando para a tarefa">
     <div className="rounded-xl border bg-background p-3 text-[10px] shadow-sm" data-subtask-save-prompt>
@@ -1831,6 +1848,7 @@ function TaskCardActivityPreview() {
 }
 
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "subtask-enter-next-row": SubtaskEnterNextRowPreview,
   "subtask-save-returns-to-task": SubtaskSaveReturnsToTaskPreview,
   "task-save-performance": TaskSavePerformancePreview,
   "task-read-performance": TaskReadPerformancePreview,

@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "subtask-enter-next-row"
   | "subtask-save-returns-to-task"
   | "task-save-performance"
   | "task-read-performance"
@@ -81,6 +82,19 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "enter-cria-a-proxima-subtarefa-2026-11-23",
+    title: "Enter volta a criar a próxima subtarefa",
+    date: "2026-11-23",
+    preview: "subtask-enter-next-row",
+    audience: "all",
+    workspaces: ["marketing"],
+    details: [
+      "Ao digitar o nome de uma subtarefa nova, Enter (ou OK no teclado do celular) confirma o nome e já abre a próxima subtarefa, como era antes.",
+      "Com o nome em branco, Enter não cria outra linha. Esc remove a linha vazia.",
+      "O botão Adicionar subtarefa continua funcionando normalmente.",
+    ],
+  },
   {
     id: "subtarefa-salvar-e-voltar-para-a-tarefa-2026-11-19",
     title: "Subtarefas novas: salvar e voltar para a tarefa",

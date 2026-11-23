@@ -5,6 +5,15 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("shows Enter opening the next new subtask, without real actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "subtask-enter-next-row" }));
+    expect(html).toContain("data-subtask-enter-typing");
+    expect(html).toContain("data-subtask-enter-next-row");
+    expect(html).toContain("Nome da subtarefa");
+    expect(html).toContain("data-update-preview-grid");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("href=");
+  });
   it("shows Salvar e sair returning to the open task, without real actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "subtask-save-returns-to-task" }));
     expect(html).toContain("data-subtask-save-prompt");
