@@ -15,3 +15,16 @@ export function hasMarketingTaskExperience(workspaceSlug?: string | null, email?
   return workspaceSlug === "marketing" ||
     (workspaceSlug === "consultoria" && canManageMarketingAccess(email));
 }
+
+/** New tasks open in the interface of the current environment, even when sent elsewhere. */
+export function usesSidePanelForTaskEditor({
+  activeWorkspace, targetWorkspace, editing, email,
+}: {
+  activeWorkspace?: string | null;
+  targetWorkspace?: string | null;
+  editing: boolean;
+  email?: string | null;
+}) {
+  const workspace = editing ? targetWorkspace : activeWorkspace ?? targetWorkspace;
+  return hasMarketingTaskExperience(workspace, email);
+}

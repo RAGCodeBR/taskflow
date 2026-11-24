@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { taskCreatePayloadForSync } from "@/lib/offline-task-payload";
 import { syncCalendarTaskReschedule } from "@/lib/calendar-task-reschedule";
+import { syncTaskAttachmentToClient } from "@/lib/sync-task-attachment-to-client";
 import { syncTaskCardActivity } from "@/lib/task-card-activity";
 import { isRejectedTaskRemoval, rejectionMessage } from "@/lib/task-delete-permission";
 import {
@@ -135,7 +136,7 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
       return false;
     }
     if (operation.action === "update") {
-      const { error } = await (client.from("subtasks") as any).update(operation.payload.patch).eq("id", operation.entityId);
+      const { error } = await (client.from("subtasks") as any).update(operation.payload.patch).eq("id", operation.entityId).select("id").single();
       if (error) throw error;
       return false;
     }
@@ -271,6 +272,16 @@ async function syncOperation(client: SyncClient, operation: OfflineOperation) {
     const { error: insertError } = await (client.from(String(operation.payload.table) as any) as any)
       .upsert(attachment, { onConflict: "id", ignoreDuplicates: true });
     if (insertError) throw insertError;
+    if (operation.payload.table === "attachments" && operation.payload.syncClientFile) {
+      await syncTaskAttachmentToClient({
+        client,
+        file: { name: String(attachment.file_name), type: blob.type, size: blob.size },
+        taskId: String(attachment.task_id),
+        sourceAttachmentId: String(attachment.id),
+        sourceStoragePath: String(attachment.storage_path),
+        uploadedBy: operation.userId,
+      });
+    }
     return false;
   }
 

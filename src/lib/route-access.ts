@@ -6,8 +6,7 @@
  * (`AppShell`) ao endereço digitado, a um favorito ou a um link recebido.
  *
  * Fora desta tabela, de propósito:
- *  - `/meetings` e `/whatsapp`: têm regras próprias na página (convidados de
- *    reunião e piloto);
+ *  - `/meetings`: a página também permite acesso a convidados da reunião;
  *  - `/ambientes`: é a troca de ambiente, disponível a quem tem mais de um;
  *  - `/requests`: ainda não existe uma permissão para Solicitações.
  * Usuários do tipo cliente seguem a regra própria do portal, em `_app.tsx`.

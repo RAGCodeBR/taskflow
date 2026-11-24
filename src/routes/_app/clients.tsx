@@ -245,7 +245,7 @@ export function ClientsIndexPage() {
         3600,
       );
 
-      const urlByPath = new Map((data ?? []).map((item) => [item.path, item.signedUrl] as const));
+      const urlByPath = new Map((data ?? []).map((item: { path: string | null; signedUrl: string | null }) => [item.path, item.signedUrl] as const));
       const candidates = clientsToLoad
         .map((client) => [client.id, urlByPath.get(client.avatar_path!)] as const)
         .filter((entry): entry is readonly [string, string] => Boolean(entry[1]));

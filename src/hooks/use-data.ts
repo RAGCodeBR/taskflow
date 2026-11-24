@@ -1,10 +1,10 @@
-﻿import { useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+﻿import { useEffect, useMemo, useRef } from "react";
+import { useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { get, set } from "idb-keyval";
 import { offlineTaskCacheKey } from "@/lib/offline-user-storage";
 import { subtasksQueryKey } from "@/lib/task-query-keys";
-import { isOffline, listOfflineOperations } from "@/lib/offline-sync";
-import { overlayPendingTaskOperations } from "@/lib/offline-task-overlay";
+import { isNetworkFailure, isOffline, listOfflineOperations } from "@/lib/offline-sync";
+import { overlayPendingSubtasks, overlayPendingTaskOperations } from "@/lib/offline-task-overlay";
 import { fetchAllRows } from "@/lib/fetch-all-rows";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,6 +55,7 @@ export interface Task {
   recurring_meeting_agenda_item_id?: string | null;
   recurring_meeting_occurrence_id?: string | null;
   recurring_meeting_agenda_template_id?: string | null;
+  origin_workspace_id?: string | null;
   /** Ambiente dono da tarefa. Diverge do ativo quando ela chega por participação. */
   workspace_id?: string | null;
 }
@@ -344,7 +345,9 @@ export function useTasks(targetWorkspaceId?: string | null) {
   const isAdminPreview = Boolean(
     targetWorkspaceId && activeWorkspaceId && targetWorkspaceId !== activeWorkspaceId,
   );
-  const offlineKey = userId ? offlineTaskCacheKey(userId) : null;
+  const offlineKey = userId && activeWorkspaceId && workspaceId
+    ? offlineTaskCacheKey(userId, activeWorkspaceId, workspaceId)
+    : null;
   useTaskReadUpdates();
   const query = useQuery({
     // RLS resolves tasks from both the authenticated person and the active
@@ -353,21 +356,24 @@ export function useTasks(targetWorkspaceId?: string | null) {
     queryKey: ["tasks", userId ?? null, activeWorkspaceId, targetWorkspaceId ?? null],
     // Executa a função também no modo avião para que ela possa devolver o
     // espelho local, em vez de deixar a consulta pausada e o Kanban vazio.
+    enabled: !!offlineKey,
     networkMode: "always",
     // Realtime can miss an event while the browser sleeps or reconnects.
     staleTime: 30_000,
     refetchInterval: () => isOffline() ? false : 60_000,
     refetchOnWindowFocus: "always",
     queryFn: async () => {
-      if (!offlineKey || !userId) return [] as Task[];
+      if (!offlineKey || !userId || !workspaceId) return [] as Task[];
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        return (await get<Task[]>(offlineKey)) ?? [];
+        return (await get<Task[]>(offlineKey)) ??
+          qc.getQueryData<Task[]>(["tasks", userId, activeWorkspaceId, targetWorkspaceId ?? null]) ?? [];
       }
       // Read through the current verified session. Without an explicit bearer
       // token, a stale browser auth state can make RLS return an empty task list.
       const {
         data: { session },
       } = await supabase.auth.getSession();
+      if (session?.user.id !== userId) throw new Error("Aguarde a reconexão da sua sessão.");
       const url = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
       const publishableKey =
         import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -400,8 +406,10 @@ export function useTasks(targetWorkspaceId?: string | null) {
         { rowKey: (task) => task.id },
       );
       if (error) {
-        const cached = await get<Task[]>(offlineKey);
-        if (cached) return cached;
+        if (isNetworkFailure(error)) {
+          const cached = await get<Task[]>(offlineKey);
+          if (cached) return cached;
+        }
         throw error;
       }
       const serverTasks = ((data ?? []) as Task[]).filter((task) => !task.archived_at);
@@ -409,8 +417,7 @@ export function useTasks(targetWorkspaceId?: string | null) {
       // evita que um card local suma durante essa pequena janela ou numa falha
       // temporaria de envio.
       const pendingOperations = await listOfflineOperations(userId);
-      const tasks = overlayPendingTaskOperations(serverTasks, pendingOperations);
-      await set(offlineKey, tasks);
+      const tasks = overlayPendingTaskOperations(serverTasks, pendingOperations, workspaceId, !isAdminPreview);
       return tasks;
     },
   });
@@ -420,6 +427,30 @@ export function useTasks(targetWorkspaceId?: string | null) {
     if (offlineKey && query.data) void set(offlineKey, query.data);
   }, [offlineKey, query.data]);
   return query;
+}
+
+/** Pending cards are local to the board/list. Reports, offline storage and
+ * other consumers see confirmed records or writes saved in the offline queue. */
+export function useBoardTasks(targetWorkspaceId?: string | null) {
+  const query = useTasks(targetWorkspaceId);
+  const { user, activeWorkspace } = useAuth();
+  const userId = user?.id;
+  const activeWorkspaceId = activeWorkspace?.id ?? null;
+  const workspaceId = targetWorkspaceId ?? activeWorkspaceId;
+  const isAdminPreview = workspaceId !== activeWorkspaceId;
+  const pending = useMutationState({
+    filters: { mutationKey: ["create-task", userId, activeWorkspaceId], status: "pending", exact: true },
+    select: (mutation) => (mutation.state.variables as { preview: Task }).preview,
+  });
+  const visibleTasks = useMemo(() => {
+    if (!pending.length) return query.data;
+    const rows = query.data ?? [];
+    const additions = pending.filter((task) => task.created_by === userId &&
+      (task.workspace_id === workspaceId || (!isAdminPreview && task.origin_workspace_id === workspaceId)) &&
+      !rows.some((row) => row.id === task.id));
+    return additions.length ? [...rows, ...additions] : query.data;
+  }, [query.data, pending, userId, workspaceId, isAdminPreview]);
+  return { data: visibleTasks, pendingTaskIds: useMemo(() => new Set(pending.map((task) => task.id)), [pending]) };
 }
 
 export function useArchivedClientTasks(clientId: string, includeLegacyClientTasks = false) {
@@ -488,17 +519,16 @@ export interface UserColumnOrder {
   position: number;
 }
 export function useUserColumnOrder() {
+  const { user } = useAuth();
+  const uid = user?.id;
   return useQuery({
-    queryKey: ["user_column_order"],
+    queryKey: ["user_column_order", uid],
+    enabled: !!uid,
     queryFn: async () => {
-      // Per-user layout preferences are optional; anonymous/non-loaded users get the default order.
-      const { data: u } = await supabase.auth.getUser();
-      const uid = u.user?.id;
-      if (!uid) return [] as UserColumnOrder[];
       const { data, error } = await supabase
         .from("user_column_order")
         .select("column_id, position")
-        .eq("user_id", uid);
+        .eq("user_id", uid!);
       if (error) throw error;
       return (data ?? []) as UserColumnOrder[];
     },
@@ -510,16 +540,16 @@ export interface UserTaskOrder {
   position: number;
 }
 export function useUserTaskOrder() {
+  const { user } = useAuth();
+  const uid = user?.id;
   return useQuery({
-    queryKey: ["user_task_order"],
+    queryKey: ["user_task_order", uid],
+    enabled: !!uid,
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      const uid = u.user?.id;
-      if (!uid) return [] as UserTaskOrder[];
       const { data, error } = await supabase
         .from("user_task_order")
         .select("task_id, position")
-        .eq("user_id", uid);
+        .eq("user_id", uid!);
       if (error) throw error;
       return (data ?? []) as UserTaskOrder[];
     },
@@ -597,8 +627,10 @@ export function useUserRoles() {
 }
 
 export function useAssignableProfiles(targetWorkspaceId?: string | null) {
+  const { user, activeWorkspace } = useAuth();
   return useQuery({
-    queryKey: ["assignable-profiles", targetWorkspaceId ?? null],
+    enabled: !!user?.id && !!activeWorkspace?.id,
+    queryKey: ["assignable-profiles", user?.id, targetWorkspaceId ?? activeWorkspace?.id],
     queryFn: async () => {
       // A versão de list_task_assignees que aceita ambiente só passa a existir
       // com a migration 20260903122000. Enquanto ela não for aplicada, chamar
@@ -610,6 +642,7 @@ export function useAssignableProfiles(targetWorkspaceId?: string | null) {
           target_workspace_id: targetWorkspaceId,
         }) as any);
         if (!scoped.error) rows = (scoped.data ?? []) as Profile[];
+        else if (scoped.error.code !== "PGRST202" || targetWorkspaceId !== activeWorkspace?.id) throw scoped.error;
       }
       if (rows === null) {
         const { data, error } = await (supabase.rpc("list_task_assignees") as any);
@@ -745,6 +778,7 @@ export function useTaskTagLinks() {
 }
 
 export interface Subtask {
+  notes?: string | null;
   id: string;
   task_id: string;
   title: string;
@@ -761,6 +795,7 @@ export function useSubtasks() {
   useTaskReadUpdates();
   return useQuery({
     queryKey: subtasksQueryKey(user?.id, activeWorkspace?.id),
+    enabled: !!user?.id && !!activeWorkspace?.id,
     staleTime: 30_000,
     refetchInterval: () => isOffline() ? false : 60_000,
     refetchOnWindowFocus: "always",
@@ -778,7 +813,11 @@ export function useSubtasks() {
         { rowKey: (subtask) => subtask.id },
       );
       if (error) throw error;
-      return data ?? [];
+      const operations = await listOfflineOperations(user!.id);
+      if (!operations.some((op) => op.entity === "subtask")) return data ?? [];
+      const scope = activeWorkspace!.id;
+      const parents = qc.getQueryData<Task[]>(["tasks", user!.id, scope, null]) ?? [];
+      return overlayPendingSubtasks(data ?? [], operations, new Set(parents.map((task) => task.id)), scope);
     },
   });
 }

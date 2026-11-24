@@ -1,4 +1,4 @@
-import { del } from "idb-keyval";
+import { del, keys } from "idb-keyval";
 import { clearOfflineSyncData } from "@/lib/offline-sync";
 
 export const OFFLINE_QUERY_CACHE_VERSION = "offline-cache-v2";
@@ -7,8 +7,8 @@ export function offlineQueryCacheKey(userId: string) {
   return `taskflow-query-cache:${OFFLINE_QUERY_CACHE_VERSION}:${userId}`;
 }
 
-export function offlineTaskCacheKey(userId: string) {
-  return `taskflow-offline-tasks-v1:${userId}`;
+export function offlineTaskCacheKey(userId: string, activeWorkspace: string, targetWorkspace = activeWorkspace) {
+  return `taskflow-offline-tasks-v2:${userId}:${activeWorkspace}:${targetWorkspace}`;
 }
 
 export function offlineAccessKey(userId: string) {
@@ -23,7 +23,10 @@ export async function clearOfflineUserData(userId: string) {
   if (typeof localStorage !== "undefined") localStorage.removeItem(offlineAccessKey(userId));
   await Promise.all([
     del(offlineQueryCacheKey(userId)),
-    del(offlineTaskCacheKey(userId)),
+    del(`taskflow-offline-tasks-v1:${userId}`),
+    keys().then((entries) => Promise.all(entries
+      .filter((key) => typeof key === "string" && key.startsWith(`taskflow-offline-tasks-v2:${userId}:`))
+      .map((key) => del(key)))),
     clearOfflineSyncData(userId),
   ]);
 }

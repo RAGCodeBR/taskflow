@@ -224,9 +224,9 @@ export function AttachmentPreviewDialog({
           );
           return {
             name: sheetName,
-            rows: sourceRows
-              .slice(0, MAX_SPREADSHEET_ROWS)
-              .map((row) => row.slice(0, MAX_SPREADSHEET_COLUMNS)),
+            rows: sourceRows.slice(0, MAX_SPREADSHEET_ROWS).map((row) =>
+              row.slice(0, MAX_SPREADSHEET_COLUMNS).map((cell) => typeof cell === "function" ? null : cell),
+            ),
             totalRows: sourceRows.length,
             totalColumns,
           };

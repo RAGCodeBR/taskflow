@@ -33,8 +33,9 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     overlayClassName?: string;
+    placement?: "center" | "right";
   }
->(({ className, overlayClassName, children, ...props }, ref) => (
+>(({ className, overlayClassName, placement = "center", children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay className={overlayClassName}>
       {/* Keep content under RemoveScroll so nested portalled controls remain scrollable. */}
@@ -43,7 +44,10 @@ const DialogContent = React.forwardRef<
         // min-w-0 no grid e nos filhos: sem isso, conteudo sem quebra (titulo truncado,
         // URL longa) infla o min-content do grid item e estoura a largura do dialog.
         className={cn(
-          "fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] min-w-0 max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-2xl border bg-background p-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:w-full sm:rounded-3xl sm:p-6 [&>*]:min-w-0",
+          "fixed z-50 grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] min-w-0 max-w-lg gap-4 overflow-y-auto rounded-2xl border bg-background p-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:w-full sm:rounded-3xl sm:p-6 [&>*]:min-w-0",
+          placement === "right"
+            ? "right-0 top-0 data-[state=open]:slide-in-from-right-full data-[state=closed]:slide-out-to-right-full motion-reduce:animate-none"
+            : "left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           className,
         )}
         {...props}

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  MessageSquare,
   ArrowRight,
   AlertTriangle,
   Archive,
@@ -1863,6 +1864,11 @@ const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
   "marketing-team-production": MarketingTeamProductionPreview,
   "task-list-quick-actions": TaskListQuickActionsPreview,
   "consultoria-owner-task-panel": () => <MarketingCreateSidePanelPreview workspace="Consultoria" />,
+  "maintenance": () => (
+    <div role="img" aria-label="Correção de bugs e erros" className="flex items-center justify-center gap-2 rounded-lg border bg-card p-3 text-sm font-medium">
+      <CheckCircle2 aria-hidden="true" className="h-6 w-6 text-primary" />
+    </div>
+  ),
   "marketing-create-side-panel": () => <MarketingCreateSidePanelPreview />,
   "marketing-inline-task-images": MarketingInlineTaskImagesPreview,
   "meeting-agenda-tasks": MeetingAgendaTasksPreview,

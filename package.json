@@ -12,7 +12,7 @@
     "build:pages": "vite build --config vite.pages.config.ts && node scripts/prepare-gh-pages.mjs",
     "deploy:pages": "npm run build:pages && node scripts/deploy-gh-pages.mjs",
     "build:dev": "vite build --mode development",
-    "preview": "vite preview",
+    "preview": "nitro preview",
     "docs:codigo": "node scripts/generate-code-explanations.mjs",
     "lint": "eslint .",
     "test": "vitest run",

@@ -449,7 +449,7 @@ export function MeetingMinutesPanel({
                           transcript.file_name ||
                           `Transcrição ${index + 1}.${transcript.file_path?.endsWith(".txt") ? "txt" : "pdf"}`,
                         storage_path: transcript.file_path!,
-                        mime_type: transcript.file_path.endsWith(".txt")
+                        mime_type: transcript.file_path?.endsWith(".txt")
                           ? "text/plain"
                           : "application/pdf",
                       })

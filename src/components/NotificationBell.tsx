@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -33,25 +33,23 @@ const NAVIGATION_NOTIFICATION_TYPES = new Set([
 export function NotificationBell() {
   const { user, activeWorkspace } = useAuth();
   const navigate = useNavigate();
-  const qc = useQueryClient();
+  const generation = useRef(0);
   const [items, setItems] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
-
-  const refreshAssignedWork = () => {
-    qc.invalidateQueries({ queryKey: ["tasks"] });
-    qc.invalidateQueries({ queryKey: ["subtasks"] });
-  };
 
   const load = async () => {
     if (!user || isOffline()) return;
     // Mural e Conversas têm indicadores próprios na navegação. Filtrar no banco
     // evita que esses avisos ocupem espaço no sino.
-    const { data } = await (supabase.from("notifications") as any)
-      .select("*, recurring_meeting_occurrences(workspace_id)")
+    const version = ++generation.current;
+    const { data, error } = await (supabase.from("notifications") as any)
+      .select("*, tasks(id), recurring_meeting_occurrences(workspace_id)")
       .eq("user_id", user.id)
+      .or("task_id.is.null,tasks.not.is.null")
       .not("type", "in", `(${[...NAVIGATION_NOTIFICATION_TYPES].join(",")})`)
       .order("created_at", { ascending: false })
       .limit(30);
+    if (error || !data || version !== generation.current) return;
     const next = ((data ?? []) as Notification[]).filter(
       (notification) =>
         notification.type !== "recurring_meeting_reminder" ||
@@ -64,7 +62,12 @@ export function NotificationBell() {
     if (!user) return;
     load();
     const poll = window.setInterval(() => { if (!document.hidden) void load(); }, 60_000);
-    const onVisible = () => { if (!document.hidden) void load(); };
+    let timer: ReturnType<typeof setTimeout>;
+    const onVisible = () => {
+      if (document.hidden) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => void load(), 150);
+    };
     window.addEventListener("online", onVisible);
     document.addEventListener("visibilitychange", onVisible);
     const channel = supabase
@@ -75,18 +78,13 @@ export function NotificationBell() {
         (payload: any) => {
           const type = payload.new?.type ?? payload.old?.type;
           if (NAVIGATION_NOTIFICATION_TYPES.has(type)) return;
-          if (
-            payload.eventType === "INSERT" &&
-            (type === "assignment" ||
-              type === "subtask_assignment" ||
-              type === "collaborator_assignment")
-          )
-            refreshAssignedWork();
-          void load();
+          onVisible();
         },
       )
       .subscribe();
     return () => {
+      ++generation.current;
+      clearTimeout(timer);
       window.clearInterval(poll);
       window.removeEventListener("online", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
@@ -98,7 +96,8 @@ export function NotificationBell() {
   const unread = items.filter((n) => !n.is_read).length;
 
   const markRead = async (id: string) => {
-    await (supabase.from("notifications") as any).update({ is_read: true }).eq("id", id);
+    const { error } = await (supabase.from("notifications") as any).update({ is_read: true }).eq("id", id);
+    if (error) { toast.error("Falha ao marcar o aviso como lido."); return; }
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
   };
 
@@ -106,15 +105,17 @@ export function NotificationBell() {
     if (!user) return;
     const unreadIds = items.filter((notification) => !notification.is_read).map(({ id }) => id);
     if (unreadIds.length === 0) return;
-    await (supabase.from("notifications") as any)
+    const { error } = await (supabase.from("notifications") as any)
       .update({ is_read: true })
       .eq("user_id", user.id)
       .in("id", unreadIds);
-    setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    if (error) { toast.error("Falha ao marcar os avisos como lidos."); return; }
+    setItems((prev) => prev.map((n) => unreadIds.includes(n.id) ? { ...n, is_read: true } : n));
   };
 
   const remove = async (id: string) => {
-    await (supabase.from("notifications") as any).delete().eq("id", id);
+    const { error } = await (supabase.from("notifications") as any).delete().eq("id", id);
+    if (error) { toast.error("Falha ao excluir o aviso."); return; }
     setItems((prev) => prev.filter((n) => n.id !== id));
   };
 

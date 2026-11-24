@@ -102,7 +102,6 @@ export async function createTaskWithOfflineSupport({
   task: Task;
   queryClient: QueryClient;
 }) {
-  addCachedTask<Task>(queryClient, task);
   await enqueueOfflineOperation({
     userId,
     entity: "task",
@@ -110,6 +109,7 @@ export async function createTaskWithOfflineSupport({
     entityId: task.id,
     payload: { task },
   });
+  addCachedTask<Task>(queryClient, task);
 }
 
 export async function createSubtaskWithOfflineSupport({
@@ -123,12 +123,14 @@ export async function createSubtaskWithOfflineSupport({
   subtask: Record<string, unknown>;
   queryClient: QueryClient;
 }) {
-  queryClient.setQueryData<Record<string, unknown>[]>(subtasksQueryKey(userId, workspaceId), (current = []) => [...current, subtask]);
   await enqueueOfflineOperation({
     userId,
     entity: "subtask",
     action: "create",
     entityId: String(subtask.id),
-    payload: { subtask },
+    payload: { subtask, workspaceId },
   });
+  queryClient.setQueryData<Record<string, unknown>[]>(subtasksQueryKey(userId, workspaceId), (current = []) =>
+    current.some((item) => item.id === subtask.id) ? current : [...current, subtask],
+  );
 }

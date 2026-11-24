@@ -45,7 +45,6 @@ describe("decideRouteAccess", () => {
   it("deixa com a própria página as rotas que têm regra especial", () => {
     const access = collaborator(["tasks"]);
     expect(decideRouteAccess("/meetings", access).allowed).toBe(true);
-    expect(decideRouteAccess("/whatsapp", access).allowed).toBe(true);
     expect(decideRouteAccess("/ambientes", access).allowed).toBe(true);
     expect(decideRouteAccess("/requests", access).allowed).toBe(true);
   });

@@ -14,20 +14,22 @@ export const taskAttachmentIdFromClientFilePath = (storagePath: string) =>
  */
 export async function syncTaskAttachmentToClient({
   file,
+  client = supabase,
   taskId,
   sourceAttachmentId,
   sourceStoragePath,
   uploadedBy,
   contentType = file.type || "application/octet-stream",
 }: {
-  file: File;
+  file: Pick<File, "name" | "size" | "type">;
+  client?: Pick<typeof supabase, "from">;
   taskId: string;
   sourceAttachmentId: string;
   sourceStoragePath: string;
   uploadedBy: string;
   contentType?: string;
 }): Promise<SyncedClientFile | null> {
-  const { data: task, error: taskError } = await supabase
+  const { data: task, error: taskError } = await client
     .from("tasks")
     .select("client_id")
     .eq("id", taskId)
@@ -35,7 +37,7 @@ export async function syncTaskAttachmentToClient({
   if (taskError) throw taskError;
   if (!task.client_id) return null;
 
-  const { data, error: insertError } = await supabase
+  const { data, error: insertError } = await client
     .from("client_files")
     .insert({
       client_id: task.client_id,
@@ -50,6 +52,13 @@ export async function syncTaskAttachmentToClient({
     .select("id")
     .single();
 
+  // A retry can follow a successful insert whose acknowledgement was lost.
+  if (insertError?.code === "23505") {
+    const existing = await client.from("client_files").select("id, storage_path")
+      .eq("source_attachment_id", sourceAttachmentId).single();
+    if (!existing.error && existing.data?.storage_path === sourceStoragePath)
+      return { id: existing.data.id, storagePath: existing.data.storage_path };
+  }
   if (insertError) throw insertError;
 
   return { id: data.id, storagePath: sourceStoragePath };

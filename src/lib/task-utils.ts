@@ -45,7 +45,7 @@ export interface TaskLike {
 }
 
 /** A task is complete as soon as either persisted completion marker is present. */
-export function isTaskCompleted(task: Pick<TaskLike, "status" | "completed_at">): boolean {
+export function isTaskCompleted(task: Partial<Pick<TaskLike, "status" | "completed_at">>): boolean {
   return task.status === "done" || Boolean(task.completed_at);
 }
 

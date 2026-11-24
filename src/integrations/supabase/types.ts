@@ -1439,6 +1439,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_task_collaborator_changes: {
+        Args: { p_task_id: string; p_add: string[]; p_remove: string[] }
+        Returns: boolean
+      }
       list_workspace_client_important_dates_for_admin_preview: {
         Args: { target_workspace_id: string }
         Returns: Database["public"]["Tables"]["client_important_dates"]["Row"][]

@@ -60,7 +60,7 @@ export function patchCachedTask<Task extends { id: string }>(
  * Inclui uma tarefa recém-criada nas listas do quadro. Lixeira e arquivadas
  * ficam de fora, assim como a pré-visualização de outro ambiente.
  */
-export function addCachedTask<Task extends { id: string; workspace_id?: string | null }>(
+export function addCachedTask<Task extends { id: string; workspace_id?: string | null; origin_workspace_id?: string | null; created_by?: string | null }>(
   queryClient: QueryClient,
   task: Task,
 ) {
@@ -72,11 +72,13 @@ export function addCachedTask<Task extends { id: string; workspace_id?: string |
       skip: (queryKey) => {
         if (isSideTaskList(queryKey)) return true;
         // ["tasks", usuário, ambiente ativo, ambiente pré-visualizado]
-        const previewWorkspace = queryKey[3];
+        if (task.created_by && queryKey[1] !== task.created_by) return true;
+        if ((!queryKey[3] || queryKey[3] === queryKey[2]) && task.origin_workspace_id === queryKey[2]) return false;
+        const workspace = queryKey[3] ?? queryKey[2];
         return (
-          typeof previewWorkspace === "string" &&
+          typeof workspace === "string" &&
           !!task.workspace_id &&
-          previewWorkspace !== task.workspace_id
+          workspace !== task.workspace_id
         );
       },
     },

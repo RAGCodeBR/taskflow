@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { refreshTaskListsAfterSave } from "@/lib/task-save";
 import { Bell, ExternalLink, Calendar, AlertCircle } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -33,13 +34,13 @@ interface TaskPreview {
 const ASSIGN_TYPES = new Set(["assignment", "subtask_assignment", "collaborator_assignment"]);
 
 export function AssignmentPopup() {
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [queue, setQueue] = useState<AssignmentNotification[]>([]);
   const [preview, setPreview] = useState<TaskPreview | null>(null);
   const [markingRead, setMarkingRead] = useState(false);
-  const receivedAssignments = useRef(new Set<string>());
+  const reload = useRef<() => void>(() => {});
 
   const storageKey = user ? `assign-popup-seen:${user.id}` : null;
 
@@ -55,11 +56,6 @@ export function AssignmentPopup() {
     }
   };
 
-  const refreshAssignedWork = () => {
-    void qc.invalidateQueries({ queryKey: ["tasks"] });
-    void qc.invalidateQueries({ queryKey: ["subtasks"] });
-  };
-
   const markSeen = (ids: string[]) => {
     if (!storageKey || typeof window === "undefined" || ids.length === 0) return;
     const seen = getSeen();
@@ -68,72 +64,69 @@ export function AssignmentPopup() {
     try { localStorage.setItem(storageKey, JSON.stringify(arr)); } catch { /* noop */ }
   };
 
-  const enqueueFromRow = (row: AssignmentNotification) => {
-    const seen = getSeen();
-    if (seen.has(row.id)) return;
-    if (receivedAssignments.current.has(row.id)) return;
-    receivedAssignments.current.add(row.id);
-    refreshAssignedWork();
-    setQueue((prev) => (prev.some((n) => n.id === row.id) ? prev : [...prev, row]));
-  };
-
   useEffect(() => {
-    if (!user) return;
-    receivedAssignments.current = new Set();
-    setQueue([]);
+    if (!user || !activeWorkspace) return;
+    const uid = user.id;
     let cancelled = false;
-
-    const loadFreshAssignments = async () => {
-      if (isOffline()) return;
-      const { data } = await supabase
-        .from("notifications")
-        .select("id, task_id, title, body, created_at, type")
-        .eq("user_id", user.id)
-        .eq("is_read", false)
-        .in("type", ["assignment", "subtask_assignment", "collaborator_assignment"])
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (cancelled || !data) return;
-      const seen = getSeen();
-      const fresh = (data as any[])
-        .filter((n) => !seen.has(n.id) && !receivedAssignments.current.has(n.id))
-        .map((n) => ({ id: n.id, task_id: n.task_id, type: n.type, title: n.title, body: n.body, created_at: n.created_at }))
-        .reverse();
-      if (fresh.length > 0) {
-        fresh.forEach((n) => receivedAssignments.current.add(n.id));
-        refreshAssignedWork();
-        setQueue((prev) => {
-          const existing = new Set(prev.map((n) => n.id));
-          return [...prev, ...fresh.filter((n) => !existing.has(n.id))];
-        });
+    let running = false;
+    let again = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async () => {
+      if (cancelled || isOffline()) return;
+      if (running) { again = true; return; }
+      running = true;
+      try {
+        const next: AssignmentNotification[] = [];
+        // Dismissing a popup leaves its bell notification unread. Page past
+        // dismissed entries so they cannot hide subsequent assignments.
+        for (let offset = 0; next.length < 20; offset += 50) {
+          const { data, error } = await supabase.from("notifications")
+            .select("id, task_id, title, body, created_at, type, tasks!inner(id)")
+            .eq("user_id", uid).eq("is_read", false)
+            .is("tasks.deleted_at", null).is("tasks.archived_at", null).eq("tasks.is_draft", false)
+            .in("type", [...ASSIGN_TYPES])
+            .order("created_at").order("id").range(offset, offset + 49);
+          if (cancelled || error || !data) return;
+          const seen = getSeen();
+          next.push(...data.filter((n: AssignmentNotification) => !seen.has(n.id)));
+          if (data.length < 50) break;
+        }
+        const seen = getSeen();
+        setQueue(next.filter((n) => !seen.has(n.id)).slice(0, 20));
+      } finally {
+        running = false;
+        if (again && !cancelled) { again = false; schedule(); }
       }
     };
-
-    void loadFreshAssignments();
-    const poll = window.setInterval(() => { if (!document.hidden) void loadFreshAssignments(); }, 60_000);
-    const onVisible = () => { if (!document.hidden) void loadFreshAssignments(); };
+    function schedule() {
+      clearTimeout(timer);
+      timer = setTimeout(() => void load(), 150);
+    }
+    reload.current = schedule;
+    const onVisible = () => { if (!document.hidden) schedule(); };
+    void load();
+    const poll = window.setInterval(onVisible, 60_000);
     window.addEventListener("online", onVisible);
     document.addEventListener("visibilitychange", onVisible);
-
-    const channel = supabase
-      .channel(`assign-popup-${user.id}-${Math.random().toString(36).slice(2)}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-        (payload: any) => {
-          const n = payload.new;
-          if (!n || !ASSIGN_TYPES.has(n.type)) return;
-          enqueueFromRow({
-            id: n.id, task_id: n.task_id ?? null, type: n.type,
-            title: n.title, body: n.body ?? null, created_at: n.created_at,
-          });
-        },
-      )
-      .subscribe();
-
-    return () => { cancelled = true; window.clearInterval(poll); window.removeEventListener("online", onVisible); document.removeEventListener("visibilitychange", onVisible); supabase.removeChannel(channel); };
+    const channel = supabase.channel(`assign-popup-${uid}-${activeWorkspace.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${uid}` },
+        (payload: { eventType: string; new: { type?: string } }) => {
+          if (payload.eventType !== "DELETE" && !ASSIGN_TYPES.has(payload.new.type ?? "")) return;
+          if (payload.eventType === "INSERT") refreshTaskListsAfterSave(qc);
+          schedule();
+        })
+      .subscribe((status: string) => { if (status === "SUBSCRIBED") schedule(); });
+    return () => {
+      cancelled = true;
+      reload.current = () => {};
+      clearTimeout(timer);
+      window.clearInterval(poll);
+      window.removeEventListener("online", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      void supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, activeWorkspace?.id, qc]);
 
   const current = queue[0] ?? null;
 
@@ -155,36 +148,32 @@ export function AssignmentPopup() {
   const dismiss = () => {
     if (!current) return;
     markSeen([current.id]);
-    setQueue((prev) => prev.slice(1));
+    setQueue((prev) => prev.filter(({ id }) => id !== current.id));
+    reload.current();
   };
 
   const markAssignmentNotificationsRead = async () => {
     if (!user || !current || markingRead) return;
     setMarkingRead(true);
-    const markAll = queue.length > 1;
-    let request = supabase
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("user_id", user.id)
-      .eq("is_read", false);
-    request = markAll
-      ? request.in("type", [...ASSIGN_TYPES])
-      : request.eq("id", current.id);
-    const { error } = await request;
+    const ids = queue.map(({ id }) => id);
+    const { error } = await supabase.from("notifications").update({ is_read: true })
+      .eq("user_id", user.id).in("id", ids);
     setMarkingRead(false);
     if (error) {
       toast.error("Não foi possível marcar os avisos como lidos.");
       return;
     }
-    markSeen(markAll ? queue.map(({ id }) => id) : [current.id]);
-    setQueue((previous) => (markAll ? [] : previous.filter(({ id }) => id !== current.id)));
+    markSeen(ids);
+    setQueue((previous) => previous.filter(({ id }) => !ids.includes(id)));
+    reload.current();
   };
 
   const openTask = () => {
     if (!current) return;
     const target = current;
     markSeen([target.id]);
-    setQueue((prev) => prev.slice(1));
+    setQueue((prev) => prev.filter(({ id }) => id !== current.id));
+    reload.current();
     if (target.task_id) {
       navigate({ to: "/tasks/list", search: { task: target.task_id, mine: true } as any });
     } else {

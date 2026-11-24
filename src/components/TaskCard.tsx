@@ -85,18 +85,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
+import { readCardAttachments, type CardAttachment as Attachment } from "@/lib/task-card-reads";
 import { useTaskCardRelated } from "@/hooks/use-task-card-related";
 import { TaskPinButton } from "@/components/TaskCardActivity";
-
-interface Attachment {
-  id: string;
-  task_id: string;
-  file_name: string;
-  storage_path: string;
-  mime_type: string | null;
-  size_bytes: number | null;
-  created_at: string;
-}
 
 interface Subtask {
   id: string;
@@ -291,32 +282,32 @@ export function TaskCard({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from("attachments")
-        .select("*")
-        .eq("task_id", task.id)
-        .order("created_at", { ascending: true });
+      if (!user?.id) return;
+      const list = await readCardAttachments(`${user.id}:${activeWorkspace?.id ?? ""}`, task.id);
       if (cancelled) return;
-      const list = (data ?? []) as Attachment[];
       setAttachments(list);
-
+      const images = list.filter((file) => file.mime_type?.startsWith("image/"));
+      if (!images.length) return;
+      const { data } = await supabase.storage.from("task-attachments")
+        .createSignedUrls(images.map((file) => file.storage_path), 3600);
+      if (cancelled || !data) return;
+      const urls = new Map<string, string>();
+      for (const item of data) {
+        if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
+      }
       const next: Record<string, string> = {};
-      await Promise.all(
-        list
-          .filter((a) => a.mime_type !== LINK_MIME && (a.mime_type?.startsWith("image/") ?? false))
-          .map(async (a) => {
-            const { data: signed } = await supabase.storage
-              .from("task-attachments")
-              .createSignedUrl(a.storage_path, 3600);
-            if (signed) next[a.id] = signed.signedUrl;
-          }),
-      );
-      if (!cancelled) setThumbs(next);
-    })();
+      for (const file of images) {
+        const url = urls.get(file.storage_path);
+        if (url) next[file.id] = url;
+      }
+      setThumbs((current) => ({ ...current, ...next }));
+    })().catch((error) => {
+      if (!cancelled) console.warn("Falha ao carregar os anexos do card", error);
+    });
     return () => {
       cancelled = true;
     };
-  }, [task.id]);
+  }, [task.id, user?.id, activeWorkspace?.id]);
 
   // Um anexo sobe via upload direto no Storage, sem passar pelo cache do
   // react-query — a sessão que fez o upload já atualiza o próprio estado local.

@@ -7,7 +7,7 @@ import {
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES).toHaveLength(36);
+    expect(APP_UPDATES).toHaveLength(37);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -23,20 +23,24 @@ describe("application release catalogue", () => {
     expect(dates).toEqual([...dates].sort().reverse());
   });
 
-  it("shows the new editor to Marketing users and Reinan in Consultoria", () => {
+  it("shows only the maintenance notice for this release in both workspaces", () => {
     const marketing = getVisibleAppUpdates(false, "marketing");
     const consultoria = getVisibleAppUpdates(false, "consultoria");
     const ownerMarketing = getVisibleAppUpdates(true, "marketing", "reinangrupoahouse@gmail.com");
     const ownerConsultoria = getVisibleAppUpdates(true, "consultoria", "reinangrupoahouse@gmail.com");
     expect(marketing).toHaveLength(5);
     expect(consultoria).toHaveLength(5);
-    expect(marketing[0].id).toBe("enter-cria-a-proxima-subtarefa-2026-11-23");
-    // O Enter das subtarefas novas fica no painel de subtarefas do Marketing.
-    expect(consultoria[0].id).toBe("salvar-tarefas-com-menos-espera-2026-11-18");
-    expect(consultoria.some((update) => update.id === marketing[0].id)).toBe(false);
+    expect(marketing[0].id).toBe("manutencao-2026-11-24");
+    for (const feed of [marketing, consultoria, ownerMarketing, ownerConsultoria]) {
+      expect(feed.filter((update) => update.date === "2026-11-24")).toEqual([marketing[0]]);
+    }
+    expect(consultoria[0].title).toBe("Correção de bugs e erros");
+    expect(consultoria[1].id).toBe("salvar-tarefas-com-menos-espera-2026-11-18");
+    expect(consultoria.some((update) => update.id === marketing[1].id)).toBe(false);
     expect(APP_UPDATES.find((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")?.workspaces).toContain("marketing");
     expect(consultoria.some((update) => update.id === "painel-lateral-de-criacao-marketing-2026-10-22")).toBe(false);
     expect(ownerMarketing[0].id).toBe(marketing[0].id);
+    expect(ownerConsultoria[0].id).toBe(ownerMarketing[0].id);
     // This older private release is now outside the five most recent updates.
     expect(ownerMarketing).toHaveLength(5);
     expect(marketing.some((update) => update.id === "whatsapp-varias-conversas-2026-11-10")).toBe(false);

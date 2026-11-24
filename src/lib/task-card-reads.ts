@@ -10,9 +10,9 @@ export interface CardCommentRow { id: string; task_id: string; title: string | n
 export interface CardRelatedData { tagIds: string[]; subtasks: CardSubtask[]; comments: CardCommentRow[] }
 
 /** Group simultaneously mounted cards; 30 cards need 3 reads instead of 90. */
-export function createCardReadBatcher(read: (ids: string[]) => Promise<Map<string, CardRelatedData>>, delay = 25) {
-  const queues = new Map<string, Map<string, Array<{ resolve: (data: CardRelatedData) => void; reject: (error: unknown) => void }>>>();
-  return (scope: string, id: string): Promise<CardRelatedData> => new Promise((resolve, reject) => {
+export function createCardReadBatcher<T>(read: (ids: string[]) => Promise<Map<string, T>>, empty: () => T, delay = 25) {
+  const queues = new Map<string, Map<string, Array<{ resolve: (data: T) => void; reject: (error: unknown) => void }>>>();
+  return (scope: string, id: string): Promise<T> => new Promise((resolve, reject) => {
     let pending = queues.get(scope);
     if (!pending) {
       pending = new Map(); queues.set(scope, pending);
@@ -24,7 +24,7 @@ export function createCardReadBatcher(read: (ids: string[]) => Promise<Map<strin
           const batch = entries.slice(start, start + 100);
           void read(batch.map(([key]) => key)).then((rows) => {
             for (const [key, listeners] of batch) {
-              const result = rows.get(key) ?? { tagIds: [], subtasks: [], comments: [] };
+              const result = rows.get(key) ?? empty();
               listeners.forEach((listener) => listener.resolve(result));
             }
           }).catch((error) => batch.forEach(([, listeners]) => listeners.forEach((listener) => listener.reject(error))));
@@ -48,4 +48,30 @@ export const readCardRelated = createCardReadBatcher(async (ids) => {
   subtasks.data?.forEach((row) => groups.get(row.task_id)?.subtasks.push(row));
   comments.data?.forEach((row) => groups.get(row.task_id)?.comments.push(row));
   return groups;
-});
+}, (): CardRelatedData => ({ tagIds: [], subtasks: [], comments: [] }));
+
+export interface CardAttachment {
+  id: string;
+  task_id: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+}
+
+export const readCardAttachments = createCardReadBatcher(async (ids) => {
+  const { data, error } = await fetchAllRows<CardAttachment>((from, to) =>
+    supabase.from("attachments").select("id,task_id,file_name,storage_path,mime_type,size_bytes,created_at")
+      .in("task_id", ids).order("created_at").order("id").range(from, to),
+    { rowKey: (file) => file.id },
+  );
+  if (error) throw error;
+  const groups = new Map<string, CardAttachment[]>();
+  for (const file of data ?? []) {
+    const files = groups.get(file.task_id);
+    if (files) files.push(file);
+    else groups.set(file.task_id, [file]);
+  }
+  return groups;
+}, (): CardAttachment[] => []);

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Outlet, createRootRouteWithContext, HeadContent, Scripts, useRouterState } from "@tanstack/react-router";
+import { Outlet, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
@@ -74,14 +74,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold">Algo deu errado</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{error instanceof Error ? error.message : "Tente recarregar a página."}</p>
       </div>
     </div>
   ),
 });
 
 function RootShell({ children }: { children: ReactNode }) {
-  const activation = useRouterState({ select: state => state.location.pathname === "/api/whatsapp-pilot" });
   return (
     <html lang="pt-BR">
       <head>
@@ -102,9 +101,9 @@ function RootShell({ children }: { children: ReactNode }) {
               `,
             }}
           />
-        ) : !activation ? (
+        ) : (
           <script src="/registerSW.js" />
-        ) : null}
+        )}
       </body>
     </html>
   );

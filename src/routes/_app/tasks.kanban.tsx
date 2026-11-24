@@ -79,7 +79,7 @@ import { useTeamTaskVisibility } from "@/hooks/use-team-task-visibility";
 import { defaultsToOwnScope, teamSubtaskAssigneeTaskIds } from "@/lib/team-task-visibility";
 import { patchCachedTask, updateCachedLists } from "@/lib/query-cache";
 import {
-  useTasks,
+  useBoardTasks,
   useColumns,
   useClients,
   useProfiles,
@@ -392,7 +392,7 @@ function KanbanPage() {
   // ambiente ativo exibido no topo. Os dados auxiliares acompanham a escolha,
   // para que colunas, status e clientes sejam os do quadro visualizado.
   const viewedWorkspaceId = filters.workspace;
-  const { data: tasks = [] } = useTasks(viewedWorkspaceId);
+  const { data: tasks = [], pendingTaskIds } = useBoardTasks(viewedWorkspaceId);
   const { data: rawColumns = [] } = useColumns(viewedWorkspaceId);
   const { data: userColOrder = [] } = useUserColumnOrder();
   const { data: userTaskOrder = [] } = useUserTaskOrder();
@@ -910,7 +910,7 @@ function KanbanPage() {
       const next = arrayMove(columns, oldIndex, newIndex);
       // Optimistic local order: refresh user_column_order cache so columns memo recomputes
       qc.setQueryData(
-        ["user_column_order"],
+        ["user_column_order", user.id],
         next.map((c, i) => ({ column_id: c.id, position: i })),
       );
       // Persist per-user ordering only (does NOT affect other users)
@@ -1022,7 +1022,7 @@ function KanbanPage() {
       patchCachedTask<Task>(qc, taskId, { column_id: targetCol! });
     }
     // Optimistic per-user ordering for the target column
-    qc.setQueryData<{ task_id: string; position: number }[]>(["user_task_order"], (curr = []) => {
+    qc.setQueryData<{ task_id: string; position: number }[]>(["user_task_order", user.id], (curr = []) => {
       const filteredOrder = curr.filter((u) => !nextTargetList.some((t) => t.id === u.task_id));
       const newOrders = nextTargetList.map((t, i) => ({ task_id: t.id, position: i }));
       return [...filteredOrder, ...newOrders];
@@ -1498,7 +1498,9 @@ function KanbanPage() {
                     canManage={isAdmin}
                   >
                     {colTasks.map((t) => (
-                      <SortableTaskCard
+                      pendingTaskIds.has(t.id) ? <div key={t.id} aria-busy="true" className="rounded-md border bg-card px-3 py-2 text-sm">
+                        {t.title} <span className="text-xs text-muted-foreground">Salvando…</span>
+                      </div> : <SortableTaskCard
                         key={t.id}
                         task={t}
                         orientation={orientation}

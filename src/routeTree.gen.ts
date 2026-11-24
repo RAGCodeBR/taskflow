@@ -29,9 +29,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppTrashRouteImport } from './routes/_app/trash'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
-import { Route as AppWhatsappRouteImport } from './routes/_app/whatsapp'
 import { Route as ApiAuthSessionRouteImport } from './routes/api.auth-session'
-import { Route as ApiWhatsappPilotRouteImport } from './routes/api.whatsapp-pilot'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as AppClientReportClientIdRouteImport } from './routes/_app/client-report.$clientId'
 import { Route as AppClientsIndexRouteImport } from './routes/_app/clients.index'
@@ -145,19 +143,9 @@ const AppUsersRoute = AppUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AppRoute,
 } as any)
-const AppWhatsappRoute = AppWhatsappRouteImport.update({
-  id: '/whatsapp',
-  path: '/whatsapp',
-  getParentRoute: () => AppRoute,
-} as any)
 const ApiAuthSessionRoute = ApiAuthSessionRouteImport.update({
   id: '/api/auth-session',
   path: '/api/auth-session',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWhatsappPilotRoute = ApiWhatsappPilotRouteImport.update({
-  id: '/api/whatsapp-pilot',
-  path: '/api/whatsapp-pilot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthConsentRoute = OauthConsentRouteImport.update({
@@ -247,9 +235,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AppTasksRouteWithChildren
   '/trash': typeof AppTrashRoute
   '/users': typeof AppUsersRoute
-  '/whatsapp': typeof AppWhatsappRoute
   '/api/auth-session': typeof ApiAuthSessionRoute
-  '/api/whatsapp-pilot': typeof ApiWhatsappPilotRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/client-report/$clientId': typeof AppClientReportClientIdRoute
   '/clients/directory': typeof AppClientsDirectoryRoute
@@ -282,9 +268,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/trash': typeof AppTrashRoute
   '/users': typeof AppUsersRoute
-  '/whatsapp': typeof AppWhatsappRoute
   '/api/auth-session': typeof ApiAuthSessionRoute
-  '/api/whatsapp-pilot': typeof ApiWhatsappPilotRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/client-report/$clientId': typeof AppClientReportClientIdRoute
   '/clients/directory': typeof AppClientsDirectoryRoute
@@ -321,9 +305,7 @@ export interface FileRoutesById {
   '/_app/tasks': typeof AppTasksRouteWithChildren
   '/_app/trash': typeof AppTrashRoute
   '/_app/users': typeof AppUsersRoute
-  '/_app/whatsapp': typeof AppWhatsappRoute
   '/api/auth-session': typeof ApiAuthSessionRoute
-  '/api/whatsapp-pilot': typeof ApiWhatsappPilotRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/_app/client-report/$clientId': typeof AppClientReportClientIdRoute
   '/_app/clients/directory': typeof AppClientsDirectoryRoute
@@ -360,9 +342,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/trash'
     | '/users'
-    | '/whatsapp'
     | '/api/auth-session'
-    | '/api/whatsapp-pilot'
     | '/oauth/consent'
     | '/client-report/$clientId'
     | '/clients/directory'
@@ -395,9 +375,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/trash'
     | '/users'
-    | '/whatsapp'
     | '/api/auth-session'
-    | '/api/whatsapp-pilot'
     | '/oauth/consent'
     | '/client-report/$clientId'
     | '/clients/directory'
@@ -433,9 +411,7 @@ export interface FileRouteTypes {
     | '/_app/tasks'
     | '/_app/trash'
     | '/_app/users'
-    | '/_app/whatsapp'
     | '/api/auth-session'
-    | '/api/whatsapp-pilot'
     | '/oauth/consent'
     | '/_app/client-report/$clientId'
     | '/_app/clients/directory'
@@ -456,7 +432,6 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiAuthSessionRoute: typeof ApiAuthSessionRoute
-  ApiWhatsappPilotRoute: typeof ApiWhatsappPilotRoute
   OauthConsentRoute: typeof OauthConsentRoute
 }
 
@@ -602,25 +577,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppUsersRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/whatsapp': {
-      id: '/_app/whatsapp'
-      path: '/whatsapp'
-      fullPath: '/whatsapp'
-      preLoaderRoute: typeof AppWhatsappRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/api/auth-session': {
       id: '/api/auth-session'
       path: '/api/auth-session'
       fullPath: '/api/auth-session'
       preLoaderRoute: typeof ApiAuthSessionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/whatsapp-pilot': {
-      id: '/api/whatsapp-pilot'
-      path: '/api/whatsapp-pilot'
-      fullPath: '/api/whatsapp-pilot'
-      preLoaderRoute: typeof ApiWhatsappPilotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/consent': {
@@ -773,7 +734,6 @@ interface AppRouteChildren {
   AppTasksRoute: typeof AppTasksRouteWithChildren
   AppTrashRoute: typeof AppTrashRoute
   AppUsersRoute: typeof AppUsersRoute
-  AppWhatsappRoute: typeof AppWhatsappRoute
   AppClientReportClientIdRoute: typeof AppClientReportClientIdRoute
   AppPortalEntregasRoute: typeof AppPortalEntregasRoute
   AppPortalFinanceiroRoute: typeof AppPortalFinanceiroRoute
@@ -797,7 +757,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppTasksRoute: AppTasksRouteWithChildren,
   AppTrashRoute: AppTrashRoute,
   AppUsersRoute: AppUsersRoute,
-  AppWhatsappRoute: AppWhatsappRoute,
   AppClientReportClientIdRoute: AppClientReportClientIdRoute,
   AppPortalEntregasRoute: AppPortalEntregasRoute,
   AppPortalFinanceiroRoute: AppPortalFinanceiroRoute,
@@ -810,7 +769,6 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiAuthSessionRoute: ApiAuthSessionRoute,
-  ApiWhatsappPilotRoute: ApiWhatsappPilotRoute,
   OauthConsentRoute: OauthConsentRoute,
 }
 export const routeTree = rootRouteImport

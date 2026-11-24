@@ -5,8 +5,8 @@
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import type { NitroConfig } from "nitro/types";
 import { VitePWA } from "vite-plugin-pwa";
-import { whatsappLocalPlugin } from "./scripts/whatsapp-local-plugin";
 import { readFileSync } from "node:fs";
 import { deflateSync, inflateSync } from "node:zlib";
 import { appUpdatesPlugin } from "./scripts/app-updates-plugin";
@@ -72,9 +72,15 @@ const timbradoImagePlugin = {
   },
 };
 
+const nitroConfig = {
+  preset: "vercel",
+  routeRules: {
+    "/app-release.json": { headers: { "cache-control": "no-store" } },
+  },
+} satisfies NitroConfig;
+
 export default defineConfig({
   plugins: [
-    whatsappLocalPlugin(),
     timbradoImagePlugin,
     appUpdatesPlugin(),
     VitePWA({
@@ -128,12 +134,7 @@ export default defineConfig({
   ],
   // Generate Vercel Build Output instead of the previous Cloudflare target.
   vite: { server: { host: "127.0.0.1", port: 5173, strictPort: true } },
-  nitro: {
-    preset: "vercel",
-    routeRules: {
-      "/app-release.json": { headers: { "cache-control": "no-store" } },
-    },
-  },
+  nitro: nitroConfig,
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

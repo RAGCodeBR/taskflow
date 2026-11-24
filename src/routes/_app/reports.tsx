@@ -794,7 +794,9 @@ function ReportsPage() {
       return data ?? [];
     },
   });
-  const { data: serviceRequests = [] } = useQuery({
+  const { data: serviceRequests = [] } = useQuery<Array<{
+    status: string; due_date: string | null; created_at: string; resolved_at: string | null;
+  }>>({
     queryKey: ["service_requests_report"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1217,7 +1219,7 @@ function ReportsPage() {
               contributors,
             };
           })
-          .filter(Boolean)
+          .filter((entry) => entry !== null)
       : [];
 
   const marketingObjectiveReport =
@@ -1282,7 +1284,7 @@ function ReportsPage() {
               contributors,
             };
           })
-          .filter(Boolean)
+          .filter((entry) => entry !== null)
       : [];
 
 

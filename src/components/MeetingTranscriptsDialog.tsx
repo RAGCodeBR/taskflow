@@ -300,7 +300,7 @@ export function MeetingTranscriptsDialog({
                                   (transcript.kind === "gemini"
                                     ? "Ata do Gemini.pdf"
                                     : `Transcrição do Meet.${transcript.filePath?.endsWith(".txt") ? "txt" : "pdf"}`),
-                                mime_type: transcript.filePath.endsWith(".txt")
+                                mime_type: transcript.filePath?.endsWith(".txt")
                                   ? "text/plain"
                                   : "application/pdf",
                               })

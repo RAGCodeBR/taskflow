@@ -36,7 +36,7 @@ import {
   type Task,
   type Subtask as CachedSubtask,
 } from "@/hooks/use-data";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Trash2,
@@ -55,6 +55,7 @@ import {
   ImageIcon,
   Pencil,
   LockKeyhole,
+  Save,
   Check,
   UsersRound,
 } from "lucide-react";
@@ -63,10 +64,8 @@ import { AttachmentPreviewDialog } from "@/components/AttachmentPreviewDialog";
 import { TaskConversationPanel } from "@/components/TaskConversationPanel";
 import { FileDropZone } from "@/components/FileDropZone";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
-import {
-  removeTaskAttachmentAndClientCopy,
-  syncTaskAttachmentToClient,
-} from "@/lib/sync-task-attachment-to-client";
+import { removeTaskAttachmentAndClientCopy } from "@/lib/sync-task-attachment-to-client";
+import { createTaskFileSaver } from "@/lib/task-file-save";
 import { RichTextEditor, type PastedEditorImage } from "@/components/RichTextEditor";
 import {
   attachImagesToDescription,
@@ -88,14 +87,15 @@ import { persistTaskCollaborators, refreshTaskListsAfterSave } from "@/lib/task-
 import { canWriteCachedTaskConversation } from "@/lib/task-conversation-access";
 import { subtasksQueryKey } from "@/lib/task-query-keys";
 import { useRecordTaskCardOpen } from "@/hooks/use-task-card-activity";
-import { hasMarketingTaskExperience } from "@/lib/environment-access";
+import { usesSidePanelForTaskEditor } from "@/lib/environment-access";
 import { pastePlainDescription, pasteSingleLine } from "@/lib/paste-single-line";
 import { TaskCardOpenings, TaskPinButton } from "@/components/TaskCardActivity";
+import { overlayPendingSubtasks } from "@/lib/offline-task-overlay";
 import { groupSubtaskAttachments } from "@/lib/subtask-attachment-groups";
 import { formIdSet, formValuesChanged, richTextFormValue } from "@/lib/form-changes";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
-import { findCachedTask } from "@/lib/query-cache";
+import { addCachedTask, findCachedTask } from "@/lib/query-cache";
 
 interface Props {
   open: boolean;
@@ -245,7 +245,6 @@ interface Attachment {
 }
 const LINK_MIME = "text/uri-list";
 const COMPLETED_STATUS_VALUE = "__completed__";
-const storageObjectName = () => `arquivo-${Date.now()}-${crypto.randomUUID()}`;
 const isImageAttachment = (file: File) => file.type.startsWith("image/");
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -306,7 +305,12 @@ export function TaskDialog({
       null,
     [activeWorkspace, defaultWorkspaceId, targetWorkspaceId, task?.workspace_id, workspaces],
   );
-  const isMarketingTask = hasMarketingTaskExperience(targetWorkspace?.slug, user?.email);
+  const isMarketingTask = usesSidePanelForTaskEditor({
+    activeWorkspace: activeWorkspace?.slug,
+    targetWorkspace: targetWorkspace?.slug,
+    editing: Boolean(task),
+    email: user?.email,
+  });
   const isMarketingPanel = isMarketingTask;
   const showMarketingClassification = targetWorkspace?.slug === "marketing";
   // Conclusão é uma situação da tarefa, não uma coluna adicional. Há uma
@@ -324,6 +328,10 @@ export function TaskDialog({
   }, [cols, statuses]);
 
   const [title, setTitle] = useState("");
+  const taskTitleInputRef = useRef<HTMLInputElement>(null);
+  const focusTaskTitleOnSubtaskClose = useRef(false);
+  const returningFromSubtask = useRef(false);
+  const [savingSubtaskBeforeReturn, setSavingSubtaskBeforeReturn] = useState(false);
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Task["status"]>("todo");
   const [priority, setPriority] = useState<Task["priority"]>("medium");
@@ -366,6 +374,8 @@ export function TaskDialog({
     staleTime: 30_000,
     refetchInterval: () => isOffline() ? false : 15_000,
   });
+  const relatedRequest = useRef(0);
+  const [relatedLoadFailed, setRelatedLoadFailed] = useState(false);
   const currentTaskIdRef = useRef<string | null>(null);
   const editBaseRef = useRef<Task | null>(null);
   const initialFormValuesRef = useRef<Record<string, unknown> | null>(null);
@@ -416,6 +426,7 @@ export function TaskDialog({
   const [newComment, setNewComment] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [pendingDescriptionImages, setPendingDescriptionImages] = useState<PastedEditorImage[]>([]);
+  const [saveTaskFile] = useState(createTaskFileSaver);
   const uploadedDescriptionImageIdsRef = useRef(new Map<string, string>());
   const storedDescriptionImagePreviewsRef = useRef(new Map<string, string>());
   const [descriptionImagesUploading, setDescriptionImagesUploading] = useState(false);
@@ -424,7 +435,10 @@ export function TaskDialog({
     current: number;
     total: number;
   } | null>(null);
+  const uploadingFilesRef = useRef(false);
+  const [failedUpload, setFailedUpload] = useState<{ files: File[]; subtask?: Subtask } | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const canDeleteTask = !!currentTaskId && (!!isAdmin || !task || task.created_by === user?.id);
   // A participant can update a task, but only its creator, responsible person
@@ -533,10 +547,12 @@ export function TaskDialog({
 
   useEffect(() => {
     if (!open) {
+      setFailedUpload(null);
       clearPendingSubtaskImages();
       pendingDescriptionImages.forEach((image) => URL.revokeObjectURL(image.src));
       storedDescriptionImagePreviewsRef.current.forEach((url) => URL.revokeObjectURL(url));
       storedDescriptionImagePreviewsRef.current.clear();
+      ++relatedRequest.current;
       initializedFormRef.current = null;
       return;
     }
@@ -544,6 +560,12 @@ export function TaskDialog({
     const formKey = task?.id ?? "new";
     if (initializedFormRef.current === formKey) return;
     initializedFormRef.current = formKey;
+    ++relatedRequest.current;
+    setRelatedLoadFailed(false);
+    setComments([]);
+    setAttachments([]);
+    setSubtasks([]);
+    setSubAttachments({});
     collaboratorsEditedRef.current = false;
     syncedNewTaskCollaboratorsRef.current = null;
     editBaseRef.current = task ?? null;
@@ -688,14 +710,14 @@ export function TaskDialog({
   }, [open, activeTab, currentTaskId]);
 
   const loadRelated = async (taskId: string) => {
+    const version = ++relatedRequest.current;
     const [s, c, a, subFiles] = await Promise.all([
-      supabase.from("subtasks").select("*").eq("task_id", taskId).order("position"),
+      supabase.from("subtasks").select("*").eq("task_id", taskId).order("position").order("id"),
       supabase.from("comments").select("*").eq("task_id", taskId).order("created_at"),
       supabase.from("attachments").select("*").eq("task_id", taskId).order("created_at"),
       supabase.from("subtask_attachments").select("*").eq("task_id", taskId).order("created_at"),
     ]);
-    const loadedSubtasks = (s.data ?? []) as Subtask[];
-    setSubtasks(loadedSubtasks);
+    if (version !== relatedRequest.current) return;
     let pendingAttachments: Awaited<ReturnType<typeof listOfflineOperations>> = [];
     if (user?.id) {
       try {
@@ -704,26 +726,33 @@ export function TaskDialog({
         // The server list remains usable when the local offline store is unavailable.
       }
     }
+    if (version !== relatedRequest.current || taskId !== currentTaskIdRef.current) return;
+    const loadedSubtasks = overlayPendingSubtasks(s.data ?? [], pendingAttachments, new Set([taskId]));
+    if (!s.error) setSubtasks(loadedSubtasks.map((row) => ({ ...row, notes: row.notes ?? null })));
+    setRelatedLoadFailed(Boolean(s.error || c.error || a.error || subFiles.error));
     const groupedSubFiles = groupSubtaskAttachments(
       loadedSubtasks.map((subtask) => subtask.id),
       (subFiles.data ?? []) as SubtaskAttachment[],
       pendingAttachments,
     );
-    if (subFiles.error) {
-      for (const subtaskId of Object.keys(groupedSubFiles)) {
-        if (groupedSubFiles[subtaskId].length === 0) delete groupedSubFiles[subtaskId];
-      }
-    }
-    setSubAttachments(groupedSubFiles);
-    const nextComments = (c.data ?? []) as Comment[];
-    setComments(nextComments);
-    setAttachments((a.data ?? []) as Attachment[]);
+    if (!s.error && !subFiles.error) setSubAttachments(groupedSubFiles);
+    if (!c.error) setComments((c.data ?? []) as Comment[]);
+    if (!a.error) setAttachments((a.data ?? []) as Attachment[]);
   };
 
   useEffect(() => {
     if (!open || !currentTaskId) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const reloadVisible = () => {
+      if (document.hidden || isOffline()) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => void loadRelated(currentTaskId), 200);
+    };
+    document.addEventListener("visibilitychange", reloadVisible);
+    window.addEventListener("online", reloadVisible);
     const channel = supabase
       .channel(`task-comments-${currentTaskId}-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "subtasks", filter: `task_id=eq.${currentTaskId}` }, reloadVisible)
       .on(
         "postgres_changes",
         {
@@ -754,6 +783,9 @@ export function TaskDialog({
       .subscribe();
 
     return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", reloadVisible);
+      window.removeEventListener("online", reloadVisible);
       supabase.removeChannel(channel);
     };
   }, [open, currentTaskId]);
@@ -811,7 +843,7 @@ export function TaskDialog({
     }
     const loadedIds = task ? collaboratorLoad?.loadedIds ?? []
       : syncedNewTaskCollaboratorsRef.current?.taskId === taskId ? syncedNewTaskCollaboratorsRef.current.ids : [];
-    const changed = await persistTaskCollaborators(client, taskId, user?.id ?? null, loadedIds, collaboratorIds);
+    const changed = await persistTaskCollaborators(client, taskId, loadedIds, collaboratorIds);
     if (!task) syncedNewTaskCollaboratorsRef.current = { taskId, ids: [...collaboratorIds] };
     if (changed) void qc.invalidateQueries({ queryKey: ["task_collaborators"] }).catch(() => {});
   };
@@ -870,19 +902,15 @@ export function TaskDialog({
   // expired token. Database writes must use the live session so they are sent
   // as `authenticated`, not `anon` (which RLS correctly rejects).
   const getAuthenticatedUser = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    if (!session?.access_token || session.user.id !== user?.id) {
       toast.error("Sua sessão expirou. Entre novamente para criar uma tarefa.");
       return null;
     }
-    const {
-      data: { user: authenticatedUser },
-      error,
-    } = await supabase.auth.getUser();
-    if (error && isNetworkFailure(error)) throw error;
-    if (error || !authenticatedUser) {
+    const { data: verified, error: authError } = await supabase.auth.getUser(session.access_token);
+    if (authError && isNetworkFailure(authError)) throw authError;
+    if (authError || verified.user?.id !== session.user.id) {
       toast.error("Não foi possível validar sua sessão. Entre novamente para criar uma tarefa.");
       return null;
     }
@@ -894,13 +922,13 @@ export function TaskDialog({
       return null;
     }
 
-    // Use the verified access token explicitly for task creation. This avoids a
+    // Use the current access token explicitly for task creation. This avoids a
     // stale internal auth state causing PostgREST to receive the request as anon.
     const authenticatedClient = createClient<Database>(url, publishableKey, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${session.access_token}` } },
     });
-    return { user: authenticatedUser, client: authenticatedClient };
+    return { user: session.user, client: authenticatedClient };
   };
 
   // Ensures a task row exists so sub-features (subtasks/comments/files) can attach.
@@ -908,8 +936,6 @@ export function TaskDialog({
   const ensureTask = async (): Promise<string | null> => {
     const existingId = currentTaskIdRef.current ?? currentTaskId;
     if (existingId) return existingId;
-    const authenticated = await getAuthenticatedUser();
-    if (!authenticated) return null;
     if (!title.trim()) {
       toast.error("Defina um título antes de adicionar itens");
       return null;
@@ -918,6 +944,8 @@ export function TaskDialog({
       toast.error("Defina um prazo antes de criar a tarefa");
       return null;
     }
+    const authenticated = await getAuthenticatedUser();
+    if (!authenticated) return null;
     // Do not use INSERT ... RETURNING here. The tasks SELECT policy checks
     // visibility through can_view_task(), which cannot see a just-inserted row
     // from inside the same RETURNING statement. A client UUID lets us continue
@@ -962,6 +990,7 @@ export function TaskDialog({
   };
 
   const saveDraft = async (showConversation = false): Promise<boolean> => {
+    if (savingRef.current || saving || uploadingFilesRef.current || failedUpload) return false;
     if (!newSubtask.trim() && (newSubtaskDue || newSubtaskAssignee)) {
       toast.error("Informe o título da nova subtarefa ou limpe seus campos antes de salvar.");
       return false;
@@ -982,6 +1011,7 @@ export function TaskDialog({
       toast.error("Conecte-se à internet para salvar a tarefa em elaboração.");
       return false;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       if (!(await saveInlineSubtaskDrafts())) return false;
@@ -1016,11 +1046,12 @@ export function TaskDialog({
       toast.error(error instanceof Error ? error.message : "Não foi possível salvar o rascunho.");
       return false;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
-  const commitPendingSubtask = async (taskId: string): Promise<boolean> => {
+  const commitPendingSubtask = async (taskId: string, refresh = true): Promise<boolean> => {
     const title = newSubtask.trim();
     if (!title) return true;
 
@@ -1048,10 +1079,10 @@ export function TaskDialog({
     setNewSubtask("");
     setNewSubtaskDue("");
     setNewSubtaskAssignee("");
-    await Promise.all([
-      qc.invalidateQueries({ queryKey: ["tasks"] }),
-      qc.invalidateQueries({ queryKey: ["subtasks"] }),
-    ]);
+    if (refresh) {
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+      void qc.invalidateQueries({ queryKey: ["subtasks"] });
+    }
     return true;
   };
 
@@ -1070,12 +1101,15 @@ export function TaskDialog({
         assignee_id: subtask.assigneeId || null,
         notes: stripPendingDescriptionImages(subtask.notes).trim() || null,
     }));
-    const { error } = await supabase.from("subtasks").insert(rows as any);
+    const { error } = await supabase.from("subtasks").upsert(rows, { onConflict: "id", ignoreDuplicates: true });
     if (error) {
       toast.error(`Não foi possível salvar as subtarefas: ${error.message}`);
       return false;
     }
-    setSubtasks((current) => [...current, ...rows as Subtask[]]);
+    setSubtasks((current) => {
+      const existing = new Set(current.map((item) => item.id));
+      return [...current, ...rows.filter((row) => !existing.has(row.id))];
+    });
     const savedIds = new Set(rows.map((row) => row.id));
     for (const subtask of pending) {
       pendingSubtaskNotesRef.current[subtask.id] = subtask.notes;
@@ -1095,30 +1129,14 @@ export function TaskDialog({
         }
         let attachmentId = uploadedSubtaskImagesRef.current[image.id];
         if (!attachmentId) {
-          const path = `${taskId}/subtasks/${subtaskId}/${storageObjectName()}`;
-          const attachment = {
-            id: crypto.randomUUID(), subtask_id: subtaskId, task_id: taskId,
-            file_name: image.file.name, storage_path: path, mime_type: image.file.type,
-            size_bytes: image.file.size, uploaded_by: user.id, created_at: new Date().toISOString(),
-          };
-          if (queueOffline) {
-            await enqueueOfflineOperation({
-              userId: user.id, entity: "attachment", action: "create", entityId: attachment.id,
-              payload: { table: "subtask_attachments", bucket: "task-attachments", blob: image.file, attachment },
-            });
-          } else {
-            const { error: uploadError } = await supabase.storage.from("task-attachments").upload(path, image.file);
-            if (uploadError) { toast.error(`Não foi possível enviar “${image.file.name}”: ${uploadError.message}`); return false; }
-            const { error: rowError } = await (supabase.from("subtask_attachments") as any).insert(attachment);
-            if (rowError) {
-              await supabase.storage.from("task-attachments").remove([path]);
-              toast.error(`Não foi possível vincular “${image.file.name}”: ${rowError.message}`);
-              return false;
-            }
-          }
+          const attachment = await saveTaskFile(image.file, { taskId, subtaskId, userId: user.id }, queueOffline);
           attachmentId = attachment.id;
           uploadedSubtaskImagesRef.current[image.id] = attachmentId;
-          setSubAttachments((current) => ({ ...current, [subtaskId]: [...(current[subtaskId] ?? []), attachment as SubtaskAttachment] }));
+          setSubAttachments((current) => {
+            const files = current[subtaskId] ?? [];
+            if (files.some((item) => item.id === attachment.id)) return current;
+            return { ...current, [subtaskId]: [...files, { ...attachment, subtask_id: subtaskId }] };
+          });
         }
         if (!image.inline) {
           removePendingSubtaskImage(subtaskId, image.id);
@@ -1130,7 +1148,7 @@ export function TaskDialog({
         if (queueOffline) {
           await enqueueOfflineOperation({ userId: user.id, entity: "subtask", action: "update", entityId: subtaskId, payload: { patch: { notes: persistedNotes } } });
         } else {
-          const { error } = await supabase.from("subtasks").update({ notes: persistedNotes }).eq("id", subtaskId);
+          const { error } = await supabase.from("subtasks").update({ notes: persistedNotes }).eq("id", subtaskId).select("id").single();
           if (error) { toast.error(`Print enviado, mas a posição na descrição não foi salva: ${error.message}`); return false; }
         }
         pendingSubtaskNotesRef.current[subtaskId] = nextNotes;
@@ -1143,6 +1161,29 @@ export function TaskDialog({
     if (Object.keys(pendingSubtaskImagesRef.current).length) await qc.invalidateQueries({ queryKey: ["subtask_attachments"] });
     return true;
   };
+
+  const newTaskPreview = (taskId: string, userId: string, payload: ReturnType<typeof buildPayload>, now: string): Task => ({
+    id: taskId,
+    ...payload,
+    is_draft: false,
+    due_time: payload.due_time ?? null,
+    assigned_by: null,
+    assigned_at: null,
+    position: 0,
+    color: null,
+    created_by: userId,
+    tag_id: payload.tag_id ?? null,
+    deleted_at: null,
+    deleted_by: null,
+    archived_at: null,
+    archived_reason: null,
+    created_at: now,
+    updated_at: now,
+    card_width: null,
+    recurring_meeting_agenda_item_id: recurringMeetingAgendaItemId ?? null,
+    workspace_id: targetWorkspaceId || activeWorkspace?.id || null,
+    origin_workspace_id: activeWorkspace?.id ?? null,
+  });
 
   const queueTaskLocally = async (
     existingTaskId: string | null,
@@ -1170,28 +1211,9 @@ export function TaskDialog({
       });
     } else {
       taskId = createTaskId ?? crypto.randomUUID();
-      const localTask: Task = {
-        id: taskId,
-        ...payload,
-        is_draft: false,
-        due_time: payload.due_time ?? null,
-        assigned_by: null,
-        assigned_at: null,
-        position: 0,
-        color: null,
-        created_by: user.id,
-        tag_id: payload.tag_id ?? null,
-        deleted_at: null,
-        deleted_by: null,
-        archived_at: null,
-        archived_reason: null,
-        created_at: now,
-        updated_at: now,
-        card_width: null,
-        recurring_meeting_agenda_item_id: recurringMeetingAgendaItemId ?? null,
-        workspace_id: targetWorkspaceId || activeWorkspace?.id || null,
-      };
+      const localTask = newTaskPreview(taskId, user.id, payload, now);
       await createTaskWithOfflineSupport({ userId: user.id, task: localTask, queryClient: qc });
+      editBaseRef.current = localTask;
       currentTaskIdRef.current = taskId;
       setCurrentTaskId(taskId);
     }
@@ -1239,7 +1261,7 @@ export function TaskDialog({
 
     if (!(await persistPendingSubtaskImages(taskId, true))) throw new Error("Não foi possível guardar as imagens das subtarefas neste aparelho.");
 
-    const printResult = await uploadDescriptionImages(taskId);
+    const printResult = await uploadDescriptionImages(taskId, true);
     if (!printResult.allUploaded) throw new Error("Não foi possível guardar todos os prints neste aparelho. Tente salvar novamente antes de sair.");
     toast.success("Tarefa salva neste aparelho. Será sincronizada ao reconectar.");
     if (options.stayOnTask) {
@@ -1270,7 +1292,149 @@ export function TaskDialog({
    * salvar ("Salvar e sair" dos detalhes de uma subtarefa nova volta para a
    * tarefa). Sem a opção, o editor fecha, como no botão Salvar.
    */
-  const save = async (options: { stayOnTask?: boolean } = {}) => {
+  const writeOnlineTask = async (
+    existingTaskId: string | null,
+    options: { stayOnTask?: boolean },
+    preview?: Task,
+  ) => {
+    let authenticated: Awaited<ReturnType<typeof getAuthenticatedUser>>;
+    try {
+      authenticated = await getAuthenticatedUser();
+    } catch (error) {
+      if (!isNetworkFailure(error)) {
+        toast.error(
+          error instanceof Error ? error.message : "Não foi possível validar sua sessão.",
+        );
+        return;
+      }
+      try {
+        await queueTaskLocally(existingTaskId, preview?.id, options);
+      } catch (localError) {
+        toast.error(
+          localError instanceof Error
+            ? localError.message
+            : "Não foi possível salvar a tarefa neste aparelho.",
+        );
+      }
+      return;
+    }
+    if (!authenticated) return;
+    let parentConfirmed = false;
+    try {
+      const payload = buildPayload();
+      let savedTaskId = existingTaskId;
+      let savedTaskRow: Task | null = null;
+      if (existingTaskId) {
+        const original = editBaseRef.current;
+        const previousDueDate = original?.due_date ?? null;
+        const dueDateChanged = hasDueDateChanged(previousDueDate, dueDate);
+        // Definir o primeiro prazo não é uma alteração. A justificativa só é
+        // obrigatória a partir da segunda definição/alteração do prazo.
+        const dueChangeReason =
+          dueDateChanged && previousDueDate ? dueDateChangeReason.trim() : null;
+        if (dueDateChanged && previousDueDate && !dueChangeReason) {
+          toast.error("Informe a justificativa para alterar o prazo da tarefa.");
+          return;
+        }
+        const patch = original ? taskEditPatch(original, payload, { preserveDescriptionImages: isMarketingTask }) : payload;
+        const handingOffManagement = !!original && !isAdmin && original.created_by !== user?.id &&
+          original.assignee_id === user?.id && patch.assignee_id !== undefined && patch.assignee_id !== original.assignee_id;
+        if (handingOffManagement) await syncCollaborators(existingTaskId, authenticated.client);
+        savedTaskRow = await persistTaskEdit(
+          authenticated.client, existingTaskId, { ...patch, is_draft: false }, qc,
+        );
+        parentConfirmed = true;
+        if (dueDateChanged && previousDueDate) {
+          const { error: historyError } = await authenticated.client.from("task_due_date_changes").insert({
+            task_id: existingTaskId,
+            user_id: authenticated.user.id,
+            old_due_date: previousDueDate,
+            new_due_date: payload.due_date,
+            reason: dueChangeReason,
+          });
+          if (historyError) throw historyError;
+        }
+        if (!handingOffManagement) await syncCollaborators(existingTaskId, authenticated.client);
+        await authenticated.client
+          .from("task_history")
+          .insert({ task_id: existingTaskId, user_id: authenticated.user.id, action: "updated" });
+        if (!(await commitMarketingSubtasks(existingTaskId))) return;
+        if (!(await commitPendingSubtask(existingTaskId, false))) return;
+      } else {
+        if (!preview || preview.created_by !== authenticated.user.id) {
+          throw new Error("Sua sessão mudou. Reabra a tarefa antes de salvar.");
+        }
+        const taskId = preview.id;
+        // INSERT ... RETURNING may fail the task visibility policy on a fresh row.
+        const { error } = await authenticated.client.from("tasks").insert({
+          ...payload, id: taskId, created_by: authenticated.user.id,
+          is_draft: false, workspace_id: preview.workspace_id,
+          recurring_meeting_agenda_item_id: preview.recurring_meeting_agenda_item_id,
+        });
+        if (error) throw error;
+        savedTaskRow = preview;
+        parentConfirmed = true;
+        currentTaskIdRef.current = taskId;
+        editBaseRef.current = savedTaskRow;
+        setCurrentTaskId(taskId);
+        savedTaskId = taskId;
+        await qc.cancelQueries({ queryKey: ["tasks", authenticated.user.id] });
+        addCachedTask(qc, savedTaskRow);
+        await Promise.all([
+          authenticated.client.from("task_history").insert({ task_id: taskId, user_id: authenticated.user.id, action: "created" }),
+          syncCollaborators(taskId, authenticated.client),
+        ]);
+        if (!(await commitMarketingSubtasks(taskId))) return;
+        if (!(await commitPendingSubtask(taskId, false))) return;
+      }
+      if (savedTaskId) {
+        if (!(await persistPendingSubtaskImages(savedTaskId))) return;
+        const printResult = await uploadDescriptionImages(savedTaskId);
+        if (!printResult.allUploaded) {
+          toast.error("A tarefa foi salva, mas um ou mais prints não foram enviados. Tente salvar novamente.");
+          return;
+        }
+      }
+      toast.success(currentTaskId || task ? "Tarefa atualizada" : "Tarefa criada");
+      if (options.stayOnTask && savedTaskId) {
+        if (!existingTaskId || !savedTaskRow) {
+          const { data } = await authenticated.client.from("tasks").select("*").eq("id", savedTaskId).maybeSingle();
+          savedTaskRow = (data as Task | null) ?? savedTaskRow;
+        }
+        rebaseAfterSave(savedTaskId, savedTaskRow);
+      } else {
+        onOpenChange(false);
+      }
+      refreshTaskListsAfterSave(qc);
+    } catch (error) {
+      if (isNetworkFailure(error) && !parentConfirmed) {
+        try {
+          await queueTaskLocally(existingTaskId, preview?.id, options);
+        } catch (localError) {
+          toast.error(
+            localError instanceof Error
+              ? localError.message
+              : "Não foi possível salvar a tarefa neste aparelho.",
+          );
+        }
+      } else {
+        toast.error(taskEditError(error));
+      }
+    }
+  };
+
+  // React Query exposes this preview only while the entire write is in flight.
+  // The offline mirror receives the parent only after the server acknowledges it.
+  const createTask = useMutation({
+    mutationKey: ["create-task", user?.id, activeWorkspace?.id],
+    networkMode: "always",
+    retry: false,
+    gcTime: 0,
+    mutationFn: ({ preview, options }: { preview: Task; options: { stayOnTask?: boolean } }) =>
+      writeOnlineTask(null, options, preview),
+  });
+
+  const persistForm = async (options: { stayOnTask?: boolean } = {}) => {
     if (!newSubtask.trim() && (newSubtaskDue || newSubtaskAssignee)) {
       toast.error("Informe o título da nova subtarefa ou limpe seus campos antes de salvar.");
       return;
@@ -1306,7 +1470,6 @@ export function TaskDialog({
         toast.error("Prazo é obrigatório para criar uma tarefa");
         return;
       }
-      setSaving(true);
       try {
         await queueTaskLocally(existingTaskId, undefined, options);
       } catch (error) {
@@ -1315,8 +1478,6 @@ export function TaskDialog({
             ? error.message
             : "Não foi possível salvar a tarefa neste aparelho.",
         );
-      } finally {
-        setSaving(false);
       }
       return;
     }
@@ -1324,131 +1485,30 @@ export function TaskDialog({
       toast.error("Prazo é obrigatório para criar uma tarefa");
       return;
     }
-    let authenticated: Awaited<ReturnType<typeof getAuthenticatedUser>>;
-    try {
-      authenticated = await getAuthenticatedUser();
-    } catch (error) {
-      if (!isNetworkFailure(error)) {
-        toast.error(
-          error instanceof Error ? error.message : "Não foi possível validar sua sessão.",
-        );
-        return;
-      }
-      setSaving(true);
-      try {
-        await queueTaskLocally(existingTaskId, undefined, options);
-      } catch (localError) {
-        toast.error(
-          localError instanceof Error
-            ? localError.message
-            : "Não foi possível salvar a tarefa neste aparelho.",
-        );
-      } finally {
-        setSaving(false);
-      }
-      return;
+    if (existingTaskId) {
+      await writeOnlineTask(existingTaskId, options);
+    } else if (user) {
+      const preview = newTaskPreview(crypto.randomUUID(), user.id, buildPayload(), new Date().toISOString());
+      await createTask.mutateAsync({ preview, options });
+    } else {
+      toast.error("Entre novamente para criar a tarefa.");
     }
-    if (!authenticated) return;
-    let attemptedCreateTaskId: string | undefined;
+  };
+
+  const save = async (options: { stayOnTask?: boolean } = {}) => {
+    if (savingRef.current || saving || uploadingFilesRef.current || failedUpload) return;
+    savingRef.current = true;
     setSaving(true);
     try {
-      const payload = buildPayload();
-      let savedTaskId = existingTaskId;
-      let savedTaskRow: Task | null = null;
-      if (existingTaskId) {
-        const original = editBaseRef.current;
-        const previousDueDate = original?.due_date ?? null;
-        const dueDateChanged = hasDueDateChanged(previousDueDate, dueDate);
-        // Definir o primeiro prazo não é uma alteração. A justificativa só é
-        // obrigatória a partir da segunda definição/alteração do prazo.
-        const dueChangeReason =
-          dueDateChanged && previousDueDate ? dueDateChangeReason.trim() : null;
-        if (dueDateChanged && previousDueDate && !dueChangeReason) {
-          toast.error("Informe a justificativa para alterar o prazo da tarefa.");
-          return;
-        }
-        const patch = original ? taskEditPatch(original, payload, { preserveDescriptionImages: isMarketingTask }) : payload;
-        savedTaskRow = await persistTaskEdit(
-          authenticated.client, existingTaskId, { ...patch, is_draft: false }, qc,
-        );
-        if (dueDateChanged && previousDueDate) {
-          const { error: historyError } = await authenticated.client.from("task_due_date_changes").insert({
-            task_id: existingTaskId,
-            user_id: authenticated.user.id,
-            old_due_date: previousDueDate,
-            new_due_date: payload.due_date,
-            reason: dueChangeReason,
-          });
-          if (historyError) throw historyError;
-        }
-        await syncCollaborators(existingTaskId, authenticated.client);
-        await authenticated.client
-          .from("task_history")
-          .insert({ task_id: existingTaskId, user_id: authenticated.user.id, action: "updated" });
-        if (!(await commitMarketingSubtasks(existingTaskId))) return;
-        if (!(await commitPendingSubtask(existingTaskId))) return;
-      } else {
-        const taskId = crypto.randomUUID();
-        attemptedCreateTaskId = taskId;
-        const { error } = await authenticated.client.from("tasks").insert({
-          id: taskId,
-          ...payload,
-          is_draft: false,
-          recurring_meeting_agenda_item_id: recurringMeetingAgendaItemId ?? null,
-          workspace_id: targetWorkspaceId || activeWorkspace?.id || null,
-          created_by: authenticated.user.id,
-        });
-        if (error) throw error;
-        await supabase
-          .from("task_history")
-          .insert({ task_id: taskId, user_id: authenticated.user.id, action: "created" });
-        currentTaskIdRef.current = taskId;
-        setCurrentTaskId(taskId);
-        savedTaskId = taskId;
-        await syncCollaborators(taskId, authenticated.client);
-        if (!(await commitMarketingSubtasks(taskId))) return;
-        if (!(await commitPendingSubtask(taskId))) return;
-      }
-      if (savedTaskId) {
-        if (!(await persistPendingSubtaskImages(savedTaskId))) return;
-        const printResult = await uploadDescriptionImages(savedTaskId);
-        if (!printResult.allUploaded) {
-          toast.error("A tarefa foi salva, mas um ou mais prints não foram enviados. Tente salvar novamente.");
-          return;
-        }
-      }
-      toast.success(currentTaskId || task ? "Tarefa atualizada" : "Tarefa criada");
-      if (options.stayOnTask && savedTaskId) {
-        if (!savedTaskRow) {
-          const { data } = await authenticated.client.from("tasks").select("*").eq("id", savedTaskId).maybeSingle();
-          savedTaskRow = (data as Task | null) ?? null;
-        }
-        rebaseAfterSave(savedTaskId, savedTaskRow);
-      } else {
-        onOpenChange(false);
-      }
-      refreshTaskListsAfterSave(qc);
-    } catch (error) {
-      if (isNetworkFailure(error)) {
-        try {
-          await queueTaskLocally(existingTaskId, attemptedCreateTaskId, options);
-        } catch (localError) {
-          toast.error(
-            localError instanceof Error
-              ? localError.message
-              : "Não foi possível salvar a tarefa neste aparelho.",
-          );
-        }
-      } else {
-        toast.error(taskEditError(error));
-      }
+      await persistForm(options);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const remove = async () => {
-    if (!currentTaskId) return;
+    if (saving || uploadingFilesRef.current || !currentTaskId) return;
     if (!confirm("Mover esta tarefa para a lixeira? Você pode restaurá-la depois.")) return;
     if (!user) return toast.error("Sua sessão local não está disponível.");
     const localTask =
@@ -1488,6 +1548,12 @@ export function TaskDialog({
   };
 
   const addMarketingSubtaskRow = () => {
+    const emptyRow = pendingMarketingSubtasks.find((item) => !item.title.trim());
+    if (emptyRow) {
+      setEditingPendingSubtaskId(emptyRow.id);
+      document.getElementById(`pending-subtask-title-${emptyRow.id}`)?.focus();
+      return;
+    }
     const id = crypto.randomUUID();
     setEditingPendingSubtaskId(id);
     setPendingMarketingSubtasks((current) => [...current, {
@@ -1554,7 +1620,7 @@ export function TaskDialog({
         payload: { patch: { done: nextDone } },
       });
     } else {
-      const { error } = await supabase.from("subtasks").update({ done: nextDone }).eq("id", st.id);
+      const { error } = await supabase.from("subtasks").update({ done: nextDone }).eq("id", st.id).select("id").single();
       if (error) {
         toast.error(error.message);
         return;
@@ -1589,8 +1655,10 @@ export function TaskDialog({
       toast.success("ExclusÃ£o salva neste aparelho. SerÃ¡ sincronizada ao reconectar.");
       return;
     }
-    await supabase.from("subtasks").delete().eq("id", id);
-    setSubtasks(subtasks.filter((s) => s.id !== id));
+    const { error } = await supabase.from("subtasks").delete().eq("id", id).select("id").single();
+    if (error) { toast.error("Não foi possível excluir a subtarefa."); return; }
+    setSubtasks((current) => current.filter((s) => s.id !== id));
+    void qc.invalidateQueries({ queryKey: ["subtasks"] });
   };
   const startEditingSubtaskTitle = (subtask: Subtask) => {
     setEditingSubtaskId(subtask.id);
@@ -1625,7 +1693,7 @@ export function TaskDialog({
     const { error } = await supabase
       .from("subtasks")
       .update({ title: nextTitle })
-      .eq("id", subtask.id);
+      .eq("id", subtask.id).select("id").single();
     if (error) {
       toast.error(error.message);
       return false;
@@ -1655,7 +1723,7 @@ export function TaskDialog({
       toast.success("Prazo salvo neste aparelho. SerÃ¡ sincronizado ao reconectar.");
       return true;
     }
-    const { error } = await supabase.from("subtasks").update({ due_date: next }).eq("id", st.id);
+    const { error } = await supabase.from("subtasks").update({ due_date: next }).eq("id", st.id).select("id").single();
     if (error) {
       setSubDueSaving(false);
       toast.error(`Não foi possível salvar o prazo: ${error.message}`);
@@ -1721,7 +1789,7 @@ export function TaskDialog({
     } else {
       const { error } = await (supabase.from("subtasks") as any)
         .update({ notes: notes || null })
-        .eq("id", st.id);
+        .eq("id", st.id).select("id").single();
       if (error) { toast.error(error.message); return false; }
     }
     setSubtasks((current) => current.map((s) => (s.id === st.id ? { ...s, notes: notes || null } : s)));
@@ -1732,10 +1800,13 @@ export function TaskDialog({
     return true;
   };
   const loadSubAttachments = async (subtaskId: string) => {
-    const { data } = await (supabase.from("subtask_attachments") as any)
+    const version = relatedRequest.current;
+    const { data, error } = await (supabase.from("subtask_attachments") as any)
       .select("*")
       .eq("subtask_id", subtaskId)
       .order("created_at");
+    if (version !== relatedRequest.current) return;
+    if (error) { toast.error("Não foi possível carregar os arquivos da subtarefa."); return; }
     setSubAttachments((prev) => ({ ...prev, [subtaskId]: (data ?? []) as SubtaskAttachment[] }));
   };
   const toggleSubExpanded = async (id: string) => {
@@ -1743,62 +1814,19 @@ export function TaskDialog({
     setSubExpanded((prev) => ({ ...prev, [id]: willOpen }));
     if (willOpen && !subAttachments[id]) await loadSubAttachments(id);
   };
-  const uploadSubFile = async (st: Subtask, file: File) => {
-    if (!user) return;
+  const uploadSubFile = async (st: Subtask, file: File): Promise<boolean> => {
+    if (!user) return false;
     const tid = currentTaskId ?? (await ensureTask());
-    if (!tid) return;
-    const path = `${tid}/subtasks/${st.id}/${storageObjectName()}`;
-    if (isOffline()) {
-      const attachment = {
-        id: crypto.randomUUID(),
-        subtask_id: st.id,
-        task_id: tid,
-        file_name: file.name,
-        storage_path: path,
-        mime_type: file.type || null,
-        size_bytes: file.size,
-        uploaded_by: user.id,
-        created_at: new Date().toISOString(),
-      };
-      await enqueueOfflineOperation({
-        userId: user.id,
-        entity: "attachment",
-        action: "create",
-        entityId: attachment.id,
-        payload: {
-          table: "subtask_attachments",
-          bucket: "task-attachments",
-          blob: file,
-          attachment,
-        },
-      });
-      setSubAttachments((prev) => ({
-        ...prev,
-        [st.id]: [...(prev[st.id] ?? []), attachment as SubtaskAttachment],
-      }));
-      toast.success("Arquivo salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
-      return;
-    }
-    const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
-    if (upErr) return toast.error(upErr.message);
-    const { data, error } = await (supabase.from("subtask_attachments") as any)
-      .insert({
-        subtask_id: st.id,
-        task_id: tid,
-        file_name: file.name,
-        storage_path: path,
-        mime_type: file.type,
-        size_bytes: file.size,
-        uploaded_by: user.id,
-      })
-      .select()
-      .single();
-    if (error) return toast.error(error.message);
-    setSubAttachments((prev) => ({
-      ...prev,
-      [st.id]: [...(prev[st.id] ?? []), data as SubtaskAttachment],
-    }));
-    toast.success("Arquivo enviado");
+    if (!tid) return false;
+    const offline = isOffline();
+    const attachment = await saveTaskFile(file, { taskId: tid, subtaskId: st.id, userId: user.id }, offline);
+    setSubAttachments((prev) => {
+      const files = prev[st.id] ?? [];
+      if (files.some((item) => item.id === attachment.id)) return prev;
+      return { ...prev, [st.id]: [...files, { ...attachment, subtask_id: st.id }] };
+    });
+    if (offline) toast.success("Arquivo salvo neste aparelho. Será enviado ao reconectar.");
+    return true;
   };
 
   const downloadSubFile = async (att: SubtaskAttachment) => {
@@ -1872,7 +1900,7 @@ export function TaskDialog({
     });
   };
 
-  const uploadDescriptionImages = async (taskId: string) => {
+  const uploadDescriptionImages = async (taskId: string, offline = isOffline()) => {
     if (!pendingDescriptionImages.length) return { allUploaded: true };
     setDescriptionImagesUploading(true);
     let allUploaded = true;
@@ -1883,7 +1911,7 @@ export function TaskDialog({
         // A imagem pode ter sido removida do editor antes de salvar.
         if (!visibleIds.has(image.id)) continue;
         if (savedIds.has(image.id)) continue;
-        const uploaded = await uploadFile(image.file, taskId);
+        const uploaded = await uploadFile(image.file, taskId, offline);
         if (uploaded) {
           savedIds.set(image.id, uploaded.id);
           storedDescriptionImagePreviewsRef.current.set(uploaded.id, image.src);
@@ -1895,8 +1923,9 @@ export function TaskDialog({
       if (isMarketingTask && savedIds.size) {
         const nextDescription = attachImagesToDescription(description, savedIds);
         const savedDescription = stripPendingDescriptionImages(nextDescription) || null;
-        if (isOffline()) {
+        if (offline) {
           const localTask = findCachedTask<Task>(qc, taskId)
+            ?? (editBaseRef.current?.id === taskId ? editBaseRef.current : null)
             ?? (task?.id === taskId ? task : null);
           if (!user || !localTask) throw new Error("Não foi possível guardar a posição dos prints neste aparelho.");
           await updateTaskWithOfflineSupport({
@@ -1923,7 +1952,7 @@ export function TaskDialog({
   };
 
   // Attachments
-  const uploadFile = async (file: File, taskId?: string): Promise<Attachment | null> => {
+  const uploadFile = async (file: File, taskId?: string, offline = isOffline()): Promise<Attachment | null> => {
     if (!user) return null;
     if (isTaskAttachmentTooLarge(file)) {
       toast.error(`${file.name} ultrapassa o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`);
@@ -1931,103 +1960,54 @@ export function TaskDialog({
     }
     const tid = taskId ?? (await ensureTask());
     if (!tid) return null;
-    const path = `${tid}/${storageObjectName()}`;
-    if (isOffline()) {
-      const attachment = {
-        id: crypto.randomUUID(),
-        task_id: tid,
-        file_name: file.name,
-        storage_path: path,
-        mime_type: file.type || null,
-        size_bytes: file.size,
-        uploaded_by: user.id,
-        created_at: new Date().toISOString(),
-      };
-      await enqueueOfflineOperation({
-        userId: user.id,
-        entity: "attachment",
-        action: "create",
-        entityId: attachment.id,
-        payload: { table: "attachments", bucket: "task-attachments", blob: file, attachment },
-      });
-      setAttachments((current) => [...current, attachment as Attachment]);
-      toast.success("Arquivo salvo neste aparelho. SerÃ¡ enviado ao reconectar.");
-      return attachment as Attachment;
-    }
-    const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
-    if (upErr) {
-      toast.error(`${file.name}: ${upErr.message}`);
-      return null;
-    }
-    const { data, error } = await supabase
-      .from("attachments")
-      .insert({
-        task_id: tid,
-        file_name: file.name,
-        storage_path: path,
-        mime_type: file.type,
-        size_bytes: file.size,
-        uploaded_by: user.id,
-      })
-      .select()
-      .single();
-    if (error) {
-      await supabase.storage.from("task-attachments").remove([path]);
-      toast.error(`${file.name}: ${error.message}`);
-      return null;
-    }
-    const attachment = data as Attachment;
-    try {
-      await syncTaskAttachmentToClient({
-        file,
-        taskId: tid,
-        sourceAttachmentId: attachment.id,
-        sourceStoragePath: path,
-        uploadedBy: user.id,
-      });
-    } catch (syncError) {
-      await supabase.from("attachments").delete().eq("id", attachment.id);
-      await supabase.storage.from("task-attachments").remove([path]);
-      toast.error(`${file.name}: não foi possível salvar o arquivo do cliente.`);
-      console.error("Could not sync task attachment to client files", syncError);
-      return null;
-    }
-    // A subscription realtime já pode ter inserido este anexo (o INSERT no
-    // banco dispara o evento antes deste await terminar); sem checar, os dois
-    // caminhos somam a mesma linha duas vezes.
+    const attachment = await saveTaskFile(file, { taskId: tid, userId: user.id }, offline);
     setAttachments((current) =>
       current.some((item) => item.id === attachment.id) ? current : [...current, attachment],
     );
+    if (offline) toast.success("Arquivo salvo neste aparelho. Será enviado ao reconectar.");
     return attachment;
   };
 
-  const uploadFiles = async (files: FileList) => {
+  const uploadFiles = async (files: FileList | File[], subtask?: Subtask) => {
     const selectedFiles = Array.from(files);
-    if (!selectedFiles.length || fileUploadProgress) return;
-    const oversizedFiles = selectedFiles.filter(isTaskAttachmentTooLarge);
-    if (oversizedFiles.length) {
-      toast.error(
-        `${oversizedFiles.length} ${oversizedFiles.length === 1 ? "arquivo ultrapassa" : "arquivos ultrapassam"} o limite de ${MAX_TASK_ATTACHMENT_LABEL} por arquivo.`,
-      );
+    if (!selectedFiles.length || uploadingFilesRef.current || saving) return;
+    if (selectedFiles.some(isTaskAttachmentTooLarge)) {
+      toast.error(`Escolha arquivos de até ${MAX_TASK_ATTACHMENT_LABEL} cada.`);
       return;
     }
-    const taskId = await ensureTask();
-    if (!taskId) return;
-    let uploaded = 0;
+    uploadingFilesRef.current = true;
     setFileUploadProgress({ current: 0, total: selectedFiles.length });
+    const remaining = [...selectedFiles];
     try {
+      let taskId = currentTaskIdRef.current;
+      if (!taskId && isOffline()) {
+        if (!user || !title.trim() || !dueDate) throw new Error("Defina o título e o prazo para guardar os arquivos neste aparelho.");
+        const draft = newTaskPreview(crypto.randomUUID(), user.id, buildPayload(), new Date().toISOString());
+        draft.is_draft = true;
+        draft.status = "todo";
+        draft.completed_at = null;
+        draft.status_id = statuses.find((item) => !item.is_completed)?.id ?? null;
+        await createTaskWithOfflineSupport({ userId: user.id, task: draft, queryClient: qc });
+        taskId = draft.id;
+        currentTaskIdRef.current = taskId;
+        editBaseRef.current = draft;
+        setCurrentTaskId(taskId);
+        setIsDraft(true);
+      }
+      taskId ??= await ensureTask();
+      if (!taskId) return;
       for (const [index, file] of selectedFiles.entries()) {
         setFileUploadProgress({ current: index + 1, total: selectedFiles.length });
-        if (await uploadFile(file, taskId)) uploaded += 1;
+        const saved = subtask ? await uploadSubFile(subtask, file) : await uploadFile(file, taskId);
+        if (!saved) return;
+        remaining.shift();
       }
-      if (uploaded === selectedFiles.length) {
-        toast.success(`${uploaded} ${uploaded === 1 ? "arquivo enviado" : "arquivos enviados"}`);
-      } else {
-        toast.error(
-          `${uploaded} de ${selectedFiles.length} arquivos foram enviados. Tente novamente os restantes.`,
-        );
-      }
+      toast.success(selectedFiles.length === 1 ? "Arquivo anexado" : "Arquivos anexados");
+    } catch (error) {
+      toast.error(taskEditError(error, "Falha ao enviar o arquivo."));
     } finally {
+      setFailedUpload(remaining.length ? { files: remaining, subtask } : null);
+      uploadingFilesRef.current = false;
       setFileUploadProgress(null);
     }
   };
@@ -2092,22 +2072,50 @@ export function TaskDialog({
   const hasUnsavedSubtaskNotes = Object.entries(subtaskNotesDrafts).some(([id, notes]) => notes !== (subtasks.find((item) => item.id === id)?.notes ?? ""));
   const hasUnsavedChanges = hasUnsavedFormFields || hasUnsavedCollaborators || hasUnsavedMarketingSubtasks ||
     hasUnsavedSubtaskTitle || hasUnsavedSubtaskNotes || Boolean(newSubtask.trim() || newSubtaskDue || newSubtaskAssignee || dueDateChangeReason.trim()) ||
-    pendingDescriptionImages.length > 0 || Object.values(pendingSubtaskImages).some((images) => images.length > 0);
+    Boolean(failedUpload) || pendingDescriptionImages.length > 0 || Object.values(pendingSubtaskImages).some((images) => images.length > 0);
   const exitGuard = useUnsavedChanges({
-    open, dirty: hasUnsavedChanges, busy: saving || descriptionImagesUploading,
+    open, dirty: hasUnsavedChanges, busy: saving || !!fileUploadProgress || descriptionImagesUploading,
     onClose: () => onOpenChange(false),
     onSave: () => save(),
   });
+  const pendingSubtaskHasContent = Boolean(activePendingSubtask && (
+    activePendingSubtask.title.trim() || activePendingSubtask.notes.trim() || activePendingSubtask.dueDate ||
+    activePendingSubtask.assigneeId || activePendingSubtask.done || pendingSubtaskImages[activePendingSubtask.id]?.length
+  ));
+  const savePendingSubtaskAndReturn = async (returnToParentOnError = false) => {
+    if (!activePendingSubtask || returningFromSubtask.current || saving || descriptionImagesUploading) return;
+    if (!pendingSubtaskHasContent) {
+      setActivePendingSubtaskId(null);
+      return;
+    }
+    const missingParentDate = !currentTaskIdRef.current && !dueDate;
+    if (!title.trim() || missingParentDate || !activePendingSubtask.title.trim()) {
+      focusTaskTitleOnSubtaskClose.current = !title.trim();
+      setActivePendingSubtaskId(null);
+      return;
+    }
+    returningFromSubtask.current = true;
+    setSavingSubtaskBeforeReturn(true);
+    try {
+      await save({ stayOnTask: true });
+      // On success save() returns to the parent. Its breadcrumb also lets the
+      // user reach a parent field that failed validation, retaining the draft.
+      if (returnToParentOnError) setActivePendingSubtaskId(null);
+    } finally {
+      returningFromSubtask.current = false;
+      setSavingSubtaskBeforeReturn(false);
+    }
+  };
   const pendingSubtaskExitGuard = useUnsavedChanges({
     open: Boolean(activePendingSubtask),
-    dirty: Boolean(activePendingSubtask && (activePendingSubtask.title.trim() || activePendingSubtask.notes.trim() || activePendingSubtask.dueDate || activePendingSubtask.assigneeId || activePendingSubtask.done || pendingSubtaskImages[activePendingSubtask.id]?.length)),
-    busy: saving || descriptionImagesUploading,
+    dirty: pendingSubtaskHasContent,
+    busy: saving || savingSubtaskBeforeReturn || descriptionImagesUploading,
     onClose: () => setActivePendingSubtaskId(null),
     onDiscard: () => { if (activePendingSubtask) removeMarketingSubtaskRow(activePendingSubtask.id); },
-    // Salvar e sair dos detalhes da subtarefa volta para a tarefa, não para a lista.
-    onSave: () => save({ stayOnTask: true }),
+    onSave: savePendingSubtaskAndReturn,
   });
   const requestOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && (uploadingFilesRef.current || activePendingSubtask || subtaskDialogOpen || returningFromSubtask.current)) return;
     if (!nextOpen) exitGuard.requestClose();
     else onOpenChange(true);
   };
@@ -2115,9 +2123,12 @@ export function TaskDialog({
   return (
     <Dialog open={open} onOpenChange={requestOpenChange}>
       <DialogContent
+        inert={saving || undefined}
+        aria-busy={saving || !!fileUploadProgress}
+        placement={isMarketingPanel ? "right" : "center"}
         overlayClassName={isMarketingPanel ? "!bg-transparent" : overlayClassName}
         className={isMarketingPanel
-          ? "marketing-task-dialog [&>button]:z-30 !left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0"
+          ? "marketing-task-dialog [&>button]:z-30 !h-dvh !max-h-dvh !w-full !max-w-[720px] gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0"
           : "max-h-[calc(100dvh-1rem)] max-w-4xl gap-0 overflow-y-auto rounded-lg p-0 shadow-2xl sm:max-h-[90vh]"}
       >
         <DialogHeader className={isMarketingPanel
@@ -2182,6 +2193,8 @@ export function TaskDialog({
           <div className={isMarketingPanel ? "marketing-task-title space-y-1 pb-5" : "space-y-2"}>
             <Label className={isMarketingPanel ? "sr-only" : undefined}>Título *</Label>
             <Input
+              ref={taskTitleInputRef}
+              aria-label="Título da tarefa principal"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onPaste={(event) => pasteSingleLine(event, setTitle)}
@@ -2626,7 +2639,7 @@ export function TaskDialog({
                 variant="outline"
                 size="sm"
                 onClick={() => void saveDraft(true)}
-                disabled={saving || descriptionImagesUploading || !collaboratorsReady}
+                disabled={saving || !!fileUploadProgress || !!failedUpload || descriptionImagesUploading || !collaboratorsReady}
               >
                 <MessageSquare className="mr-1.5 h-4 w-4" /> Abrir conversa
               </Button>
@@ -2664,6 +2677,12 @@ export function TaskDialog({
 
           {
             <Tabs value={activeTab} onValueChange={setActiveTab} className={isMarketingPanel ? "marketing-task-tabs pt-5" : undefined}>
+              {relatedLoadFailed && currentTaskId && (
+                <div role="alert" className="flex items-center gap-2 text-sm">
+                  Parte dos dados da tarefa não carregou.
+                  <Button type="button" size="sm" variant="outline" onClick={() => void loadRelated(currentTaskId)}>Tentar novamente</Button>
+                </div>
+              )}
               <TabsList>
                 <TabsTrigger value="subtasks">Subtarefas ({subtasks.length + pendingMarketingSubtasks.length})</TabsTrigger>
                 <TabsTrigger value="comments">Conversa ({comments.length})</TabsTrigger>
@@ -2676,11 +2695,46 @@ export function TaskDialog({
                   <div key={subtask.id} className="space-y-2 border-b px-1 py-2.5">
                     <div className="flex items-center gap-2">
                       <Checkbox checked={subtask.done} onCheckedChange={(checked) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, done: checked === true } : item))} aria-label={`Concluir ${subtask.title}`} />
-                      {editingPendingSubtaskId === subtask.id || !subtask.title.trim() ? <Input value={subtask.title} onFocus={() => setEditingPendingSubtaskId(subtask.id)} onBlur={() => setEditingPendingSubtaskId((current) => current === subtask.id ? null : current)} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: event.target.value } : item))} onPaste={(event) => pasteSingleLine(event, (value) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: value } : item)))} onKeyDown={(event) => {
-                        // Enter (ou OK no teclado do celular) confirma o nome e já abre a próxima subtarefa.
-                        if (event.key === "Enter") { event.preventDefault(); if (subtask.title.trim()) addMarketingSubtaskRow(); }
-                        if (event.key === "Escape" && !subtask.title.trim()) { event.stopPropagation(); removeMarketingSubtaskRow(subtask.id); }
-                      }} autoFocus={editingPendingSubtaskId === subtask.id} placeholder="Nome da subtarefa" aria-label="Título da subtarefa" className="h-8 min-w-0 flex-1 border-0 px-1 shadow-none focus-visible:ring-1" /> : <button type="button" onClick={() => setActivePendingSubtaskId(subtask.id)} aria-label={`Abrir detalhes da subtarefa ${subtask.title}`} className="group flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><span className="truncate">{subtask.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" /></button>}
+                      {editingPendingSubtaskId === subtask.id || !subtask.title.trim() ? (
+                        <div className="flex min-w-0 flex-1 items-center gap-1" onBlur={(event) => {
+                          if (!event.currentTarget.contains(event.relatedTarget)) {
+                            setEditingPendingSubtaskId((current) => current === subtask.id ? null : current);
+                          }
+                        }}>
+                          <Input
+                            id={`pending-subtask-title-${subtask.id}`}
+                            value={subtask.title}
+                            onFocus={() => setEditingPendingSubtaskId(subtask.id)}
+                            onChange={(event) => {
+                              const title = event.currentTarget.value;
+                              setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title } : item));
+                            }}
+                            onPaste={(event) => pasteSingleLine(event, (value) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, title: value } : item)))}
+                            onKeyDown={(event) => {
+                              if (event.nativeEvent.isComposing) return;
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                if (!event.repeat && subtask.title.trim()) addMarketingSubtaskRow();
+                              }
+                              if (event.key === "Escape" && !subtask.title.trim()) {
+                                event.stopPropagation();
+                                removeMarketingSubtaskRow(subtask.id);
+                              }
+                            }}
+                            autoFocus={editingPendingSubtaskId === subtask.id}
+                            enterKeyHint="next"
+                            placeholder="Nome da subtarefa"
+                            aria-label="Título da subtarefa"
+                            className="h-8 min-w-0 flex-1 border-0 px-1 shadow-none focus-visible:ring-1"
+                          />
+                          {activeWorkspace?.slug === "marketing" && (
+                            <Button type="button" size="sm" variant="outline" disabled={!subtask.title.trim()}
+                              aria-label="OK, continuar na próxima subtarefa" onClick={addMarketingSubtaskRow}>
+                              OK
+                            </Button>
+                          )}
+                        </div>
+                      ) : <button type="button" onClick={() => setActivePendingSubtaskId(subtask.id)} aria-label={`Abrir detalhes da subtarefa ${subtask.title}`} className="group flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><span className="truncate">{subtask.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" /></button>}
                       {!subtask.title.trim() && <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title="Abrir detalhes da subtarefa" aria-label={`Abrir detalhes da subtarefa ${index + 1}`} onClick={() => setActivePendingSubtaskId(subtask.id)}><ChevronRight className="h-4 w-4" /></Button>}
                       <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title="Remover subtarefa" onClick={() => removeMarketingSubtaskRow(subtask.id)}><X className="h-4 w-4" /></Button>
                     </div>
@@ -2925,9 +2979,8 @@ export function TaskDialog({
                               </div>
                             ))}
                             <FileDropZone
-                              onFiles={async (files) => {
-                                for (const file of Array.from(files)) await uploadSubFile(s, file);
-                              }}
+                              disabled={saving || !!fileUploadProgress || !!failedUpload}
+                              onFiles={(files) => uploadFiles(files, s)}
                             >
                               <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed py-1.5 text-[11px] text-muted-foreground hover:bg-muted/40">
                                 <Paperclip className="h-3 w-3" /> Anexar arquivo
@@ -2935,13 +2988,10 @@ export function TaskDialog({
                                   type="file"
                                   multiple
                                   className="hidden"
+                                  disabled={saving || !!fileUploadProgress || !!failedUpload}
                                   onChange={(e) => {
                                     const files = e.target.files;
-                                    if (files)
-                                      void (async () => {
-                                        for (const file of Array.from(files))
-                                          await uploadSubFile(s, file);
-                                      })();
+                                    if (files) void uploadFiles(files, s);
                                     e.target.value = "";
                                   }}
                                 />
@@ -3071,7 +3121,7 @@ export function TaskDialog({
                     </Button>
                   </div>
                 ))}
-                <FileDropZone onFiles={uploadFiles} disabled={!!fileUploadProgress}>
+                <FileDropZone onFiles={uploadFiles} disabled={saving || !!fileUploadProgress || !!failedUpload}>
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-3 text-sm text-muted-foreground hover:bg-muted/40">
                     <Paperclip className="h-4 w-4" />{" "}
                     {fileUploadProgress
@@ -3081,7 +3131,7 @@ export function TaskDialog({
                       type="file"
                       multiple
                       className="hidden"
-                      disabled={!!fileUploadProgress}
+                      disabled={saving || !!fileUploadProgress || !!failedUpload}
                       onChange={(e) => {
                         const files = e.target.files;
                         if (files) void uploadFiles(files);
@@ -3094,11 +3144,19 @@ export function TaskDialog({
             </Tabs>
           }
 
+          {failedUpload && (
+            <div role="alert" className="flex flex-wrap items-center gap-2 rounded border p-2 text-sm">
+              <span>Envio pendente: {failedUpload.files.map((file) => file.name).join(", ")}</span>
+              <Button type="button" size="sm" variant="outline" disabled={!!fileUploadProgress} onClick={() => void uploadFiles(failedUpload.files, failedUpload.subtask)}>Tentar novamente</Button>
+              <Button type="button" size="sm" variant="ghost" disabled={!!fileUploadProgress} onClick={() => setFailedUpload(null)}>Remover pendentes</Button>
+            </div>
+          )}
           <div className={isMarketingPanel ? "marketing-task-footer sticky bottom-0 z-10 -mx-5 flex justify-between gap-2 border-t bg-background px-5 py-3 sm:-mx-7 sm:px-7" : "flex justify-between gap-2 pt-2"}>
             <div>
               {currentTaskId && canDeleteTask && (
                 <Button
                   variant="ghost"
+                  disabled={saving || !!fileUploadProgress}
                   onClick={remove}
                   className="text-destructive hover:text-destructive"
                 >
@@ -3107,13 +3165,13 @@ export function TaskDialog({
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" disabled={saving || descriptionImagesUploading} onClick={() => requestOpenChange(false)}>
+              <Button variant="outline" disabled={saving || !!fileUploadProgress || descriptionImagesUploading} onClick={() => requestOpenChange(false)}>
                 Cancelar
               </Button>
               {(!task || isDraft) && (
                 <Button
                   variant="outline"
-                  disabled={saving || descriptionImagesUploading || !collaboratorsReady}
+                  disabled={saving || !!fileUploadProgress || !!failedUpload || descriptionImagesUploading || !collaboratorsReady}
                   onClick={() => void saveDraft().then((saved) => {
                     if (saved) onOpenChange(false);
                   })}
@@ -3123,7 +3181,7 @@ export function TaskDialog({
               )}
               <Button
                 onClick={() => void save()}
-                disabled={saving || descriptionImagesUploading || (!collaboratorsReady && !isOffline())}
+                disabled={saving || !!fileUploadProgress || !!failedUpload || descriptionImagesUploading || (!collaboratorsReady && !isOffline())}
               >
                 {descriptionImagesUploading
                   ? "Enviando prints…"
@@ -3165,14 +3223,19 @@ export function TaskDialog({
           onAttachmentsComplete={(subtaskId) => void loadSubAttachments(subtaskId)}
         />
         <Dialog open={Boolean(activePendingSubtask)} onOpenChange={(nextOpen) => { if (!nextOpen) pendingSubtaskExitGuard.requestClose(); }}>
-          <DialogContent overlayClassName="!bg-transparent" className="[&>button]:z-30 !left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0">
+          <DialogContent inert={saving || undefined} onCloseAutoFocus={(event) => {
+            if (!focusTaskTitleOnSubtaskClose.current) return;
+            focusTaskTitleOnSubtaskClose.current = false;
+            event.preventDefault();
+            taskTitleInputRef.current?.focus();
+          }} overlayClassName="!bg-transparent" className="[&>button]:z-30 !left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0">
             {activePendingSubtask && <>
               <DialogHeader className="sticky top-0 z-20 border-b bg-background px-5 py-4 pr-12 text-left sm:px-7">
-                <button type="button" onClick={pendingSubtaskExitGuard.requestClose} className="flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-primary"><ChevronRight className="h-3.5 w-3.5 rotate-180" />{title.trim() || "Nova tarefa"}</button>
+                <button type="button" disabled={saving || savingSubtaskBeforeReturn} title="Salvar e voltar à tarefa" onClick={() => void savePendingSubtaskAndReturn(true)} className="flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-primary"><ChevronRight className="h-3.5 w-3.5 rotate-180" />{title.trim() || "Nova tarefa"}</button>
                 <DialogTitle className="pt-1 text-lg">Detalhes da subtarefa</DialogTitle>
-                <p className="text-xs text-muted-foreground">Esta subtarefa será salva ao clicar em Salvar na tarefa principal.</p>
+                <p className="text-xs text-muted-foreground">Ao voltar, suas alterações são salvas com a tarefa principal.</p>
               </DialogHeader>
-              <div className="space-y-6 px-5 py-6 sm:px-7">
+              <div inert={savingSubtaskBeforeReturn} className="space-y-6 px-5 py-6 sm:px-7">
                 <Input value={activePendingSubtask.title} onChange={(event) => setPendingMarketingSubtasks((current) => current.map((item) => item.id === activePendingSubtask.id ? { ...item, title: event.target.value } : item))} placeholder="Nome da subtarefa" aria-label="Título da subtarefa" className="h-auto min-h-12 border-0 px-0 text-2xl font-semibold shadow-none focus-visible:ring-0" />
                 <div className="grid gap-4 border-y py-5 sm:grid-cols-[120px_1fr] sm:items-center">
                   <Label htmlFor={`pending-subtask-assignee-${activePendingSubtask.id}`}>Responsável</Label>
@@ -3202,6 +3265,13 @@ export function TaskDialog({
                   {(pendingSubtaskImages[activePendingSubtask.id] ?? []).filter((image) => !image.inline || pendingDescriptionImageIds(activePendingSubtask.notes).has(image.id)).length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{pendingSubtaskImages[activePendingSubtask.id].filter((image) => !image.inline || pendingDescriptionImageIds(activePendingSubtask.notes).has(image.id)).map((image) => <div key={image.id} className="relative rounded-lg border bg-muted/20 p-2">{image.previewUrl ? <img src={image.previewUrl} alt={image.file.name} className="h-28 w-full rounded object-contain" /> : <span className="flex h-28 items-center justify-center text-muted-foreground"><FileText className="h-7 w-7" /></span>}<p className="mt-1 truncate text-xs text-muted-foreground" title={image.file.name}>{image.file.name}</p>{!image.inline && <button type="button" aria-label={`Remover ${image.file.name}`} className="absolute right-1 top-1 rounded-full bg-background p-1 shadow" onClick={() => removePendingSubtaskImage(activePendingSubtask.id, image.id)}><X className="h-3.5 w-3.5" /></button>}</div>)}</div> : <p className="text-xs text-muted-foreground">Nenhum arquivo nesta subtarefa.</p>}
                 </div>
               </div>
+              <DialogFooter className="sticky bottom-0 border-t bg-background px-5 py-3 sm:px-7">
+                <Button type="button" disabled={saving || savingSubtaskBeforeReturn || descriptionImagesUploading}
+                  onClick={() => void savePendingSubtaskAndReturn()}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {savingSubtaskBeforeReturn || saving ? "Salvando…" : "Salvar e voltar à tarefa"}
+                </Button>
+              </DialogFooter>
             </>}
           </DialogContent>
         </Dialog>

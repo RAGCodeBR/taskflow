@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  useTasks,
+  useBoardTasks,
   useClients,
   useColumns,
   useProfiles,
@@ -43,7 +43,7 @@ import { completedSubtaskFilterTask, completedSubtaskHistory, completedSubtasksF
 
 export const Route = createFileRoute("/_app/tasks/list")({
   component: ListPage,
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (s: Record<string, unknown>): { task?: string; mine?: boolean } => ({
     task: typeof s.task === "string" ? s.task : undefined,
     mine: s.mine === "1" || s.mine === true || s.mine === "true" ? true : undefined,
   }),
@@ -61,7 +61,7 @@ function ListPage() {
         : {},
   );
   const viewedWorkspaceId = filters.workspace;
-  const { data: tasks = [] } = useTasks(viewedWorkspaceId);
+  const { data: tasks = [], pendingTaskIds } = useBoardTasks(viewedWorkspaceId);
   const sharedTask = useQuery({
     queryKey: ["shared-task-link", user?.id, activeWorkspace?.id, search.task],
     enabled: !!user?.id && !!search.task,
@@ -129,8 +129,11 @@ function ListPage() {
     if (!search.task || !user?.id || !sharedTask.isSuccess) return;
     const linked = sharedTask.data;
     if (!linked) return;
-    if (linked.workspace_id && linked.workspace_id !== activeWorkspace?.id) {
-      if (!workspaces.some((workspace) => workspace.id === linked.workspace_id)) return;
+    if (!activeWorkspace?.id) return;
+    // RLS also returns individual tasks explicitly shared with non-members.
+    // Open that card in place; switching only applies to a workspace the user belongs to.
+    if (linked.workspace_id !== activeWorkspace.id && linked.workspace_id &&
+        workspaces.some((workspace) => workspace.id === linked.workspace_id)) {
       if (switchingSharedTaskRef.current === linked.workspace_id) return;
       switchingSharedTaskRef.current = linked.workspace_id;
       void setActiveWorkspace(linked.workspace_id).catch(() => {
@@ -187,6 +190,20 @@ function ListPage() {
     () => new Set(collaborators.filter((collaborator) => collaborator.collaborator_id === user?.id).map((collaborator) => collaborator.task_id)),
     [collaborators, user?.id],
   );
+
+  const profilesById = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles]);
+  const clientsById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
+  const collaboratorsByTask = useMemo(() => {
+    const byTask = new Map<string, typeof profiles>();
+    for (const link of collaborators) {
+      const profile = profilesById.get(link.collaborator_id);
+      if (!profile) continue;
+      const people = byTask.get(link.task_id);
+      if (people) people.push(profile);
+      else byTask.set(link.task_id, [profile]);
+    }
+    return byTask;
+  }, [collaborators, profilesById]);
 
   const duplicateTask = async () => {
     if (!user || !duplicateTaskTarget || !duplicateDueDate) return;
@@ -371,7 +388,6 @@ function ListPage() {
       {search.task && sharedTask.isPending && <p role="status" className="text-sm text-muted-foreground">Abrindo tarefa compartilhada…</p>}
       {search.task && sharedTask.isError && <div role="alert" className="flex items-center gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Não foi possível consultar esta tarefa agora.<Button type="button" size="sm" variant="outline" onClick={() => void sharedTask.refetch()}>Tentar novamente</Button></div>}
       {search.task && sharedTask.isSuccess && !sharedTask.data && <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Esta tarefa não foi encontrada ou você não tem acesso a ela.</p>}
-      {search.task && sharedTask.isSuccess && sharedTask.data?.workspace_id && sharedTask.data.workspace_id !== activeWorkspace?.id && !workspaces.some((workspace) => workspace.id === sharedTask.data?.workspace_id) && <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Você não tem acesso ao ambiente desta tarefa.</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <TaskFilters
         filters={filters}
@@ -440,9 +456,14 @@ function ListPage() {
                 </td>
               </tr>
             ) : list.map((t, index) => {
-              const client = clients.find((c) => c.id === t.client_id);
-              const additionalClients = activeWorkspace?.slug === "marketing" ? taskClientIds(t).filter((id) => id !== t.client_id).map((id) => clients.find((c) => c.id === id)).filter((client): client is NonNullable<typeof client> => Boolean(client)) : [];
-              const assignee = profiles.find((p) => p.id === t.assignee_id);
+              if (pendingTaskIds.has(t.id)) return (
+                <tr key={t.id} aria-busy="true" className="border-t">
+                  <td colSpan={8} className="px-3 py-2">{t.title} <span className="text-xs text-muted-foreground">Salvando…</span></td>
+                </tr>
+              );
+              const client = clientsById.get(t.client_id ?? "");
+              const additionalClients = activeWorkspace?.slug === "marketing" ? taskClientIds(t).filter((id) => id !== t.client_id).map((id) => clientsById.get(id)).filter((client): client is NonNullable<typeof client> => Boolean(client)) : [];
+              const assignee = profilesById.get(t.assignee_id ?? "");
               const isCompleted = t.status === "done" || !!t.completed_at;
               const previousTask = list[index - 1];
               const startsCompletedSection =
@@ -467,7 +488,7 @@ function ListPage() {
                       }
                     : null;
               const dueTextClass = dueUrgencyTextClass[dueUrgencyState(t)];
-              const taskCollaborators = collaborators.filter((collaborator) => collaborator.task_id === t.id).map((collaborator) => profiles.find((profile) => profile.id === collaborator.collaborator_id)).filter(Boolean);
+              const taskCollaborators = collaboratorsByTask.get(t.id) ?? [];
 
               return (
                 <Fragment key={t.id}>
@@ -607,8 +628,8 @@ function ListPage() {
                   </tr>
                 )}
                 {completedOpen && completedParts.map(({ subtask, parent }) => {
-                  const client = clients.find((item) => item.id === parent.client_id);
-                  const ownProfile = profiles.find((profile) => profile.id === user?.id);
+                  const client = clientsById.get(parent.client_id ?? "");
+                  const ownProfile = profilesById.get(user?.id ?? "");
                   const dueDate = subtask.due_date ?? parent.due_date;
                   return (
                     <tr

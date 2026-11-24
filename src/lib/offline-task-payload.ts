@@ -23,6 +23,7 @@ const TASK_CREATE_COLUMNS = [
   "updated_at",
   "card_width",
   "workspace_id",
+  "origin_workspace_id",
   "conversation_closed_at",
   "interruptions",
   // Campos acrescentados depois da fila offline. Sem eles, uma tarefa criada

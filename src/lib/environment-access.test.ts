@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasMarketingTaskExperience } from "./environment-access";
+import { hasMarketingTaskExperience, usesSidePanelForTaskEditor } from "./environment-access";
 
 describe("enhanced task editor access", () => {
   it("shows the new workflow to everyone in Marketing and only Reinan in Consultoria", () => {
@@ -8,5 +8,17 @@ describe("enhanced task editor access", () => {
     expect(hasMarketingTaskExperience("marketing", "colaboradora@example.com")).toBe(true);
     expect(hasMarketingTaskExperience("consultoria", "colaboradora@example.com")).toBe(false);
     expect(hasMarketingTaskExperience("other", "reinangrupoahouse@gmail.com")).toBe(false);
+  });
+});
+
+describe("task editor placement across environments", () => {
+  it.each([
+    ["marketing", "consultoria", false, "colaboradora@example.com", true],
+    ["consultoria", "marketing", false, "colaboradora@example.com", false],
+    ["consultoria", "marketing", false, "REINANGRUPOAHOUSE@gmail.com", true],
+    ["marketing", "consultoria", true, "colaboradora@example.com", false],
+    ["consultoria", "marketing", true, "colaboradora@example.com", true],
+  ] as const)("active %s, target %s, editing %s, account %s", (activeWorkspace, targetWorkspace, editing, email, expected) => {
+    expect(usesSidePanelForTaskEditor({ activeWorkspace, targetWorkspace, editing, email })).toBe(expected);
   });
 });

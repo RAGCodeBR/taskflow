@@ -5,7 +5,7 @@ const { deleteKey, clearSyncData } = vi.hoisted(() => ({
   clearSyncData: vi.fn(async () => undefined),
 }));
 
-vi.mock("idb-keyval", () => ({ del: deleteKey }));
+vi.mock("idb-keyval", () => ({ del: deleteKey, keys: async () => ["taskflow-offline-tasks-v2:user-1:A:B", "taskflow-offline-tasks-v2:user-2:A:A"] }));
 vi.mock("@/lib/offline-sync", () => ({ clearOfflineSyncData: clearSyncData }));
 
 import {
@@ -24,7 +24,8 @@ describe("offline user storage", () => {
 
   it("keeps every persisted key scoped to the authenticated user", () => {
     expect(offlineQueryCacheKey("user-1")).toBe("taskflow-query-cache:offline-cache-v2:user-1");
-    expect(offlineTaskCacheKey("user-1")).toBe("taskflow-offline-tasks-v1:user-1");
+    expect(offlineTaskCacheKey("user-1", "A", "B")).toBe("taskflow-offline-tasks-v2:user-1:A:B");
+    expect(offlineTaskCacheKey("user-1", "A")).not.toBe(offlineTaskCacheKey("user-1", "B"));
     expect(offlineAccessKey("user-1")).toBe("taskflow-offline-access-v1:user-1");
   });
 
@@ -34,6 +35,8 @@ describe("offline user storage", () => {
     expect(localStorage.removeItem).toHaveBeenCalledWith("taskflow-offline-access-v1:user-1");
     expect(deleteKey).toHaveBeenCalledWith("taskflow-query-cache:offline-cache-v2:user-1");
     expect(deleteKey).toHaveBeenCalledWith("taskflow-offline-tasks-v1:user-1");
+    expect(deleteKey).toHaveBeenCalledWith("taskflow-offline-tasks-v2:user-1:A:B");
+    expect(deleteKey).not.toHaveBeenCalledWith("taskflow-offline-tasks-v2:user-2:A:A");
     expect(clearSyncData).toHaveBeenCalledWith("user-1");
   });
 });

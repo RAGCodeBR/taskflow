@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "maintenance"
   | "subtask-enter-next-row"
   | "subtask-save-returns-to-task"
   | "task-save-performance"
@@ -82,6 +83,15 @@ export type AppUpdate = {
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "manutencao-2026-11-24",
+    title: "Correção de bugs e erros",
+    date: "2026-11-24",
+    preview: "maintenance",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    details: ["Correção de bugs e erros."],
+  },
   {
     id: "enter-cria-a-proxima-subtarefa-2026-11-23",
     title: "Enter volta a criar a próxima subtarefa",

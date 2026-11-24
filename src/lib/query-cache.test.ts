@@ -56,10 +56,12 @@ describe("addCachedTask", () => {
 
   it("deixa de fora a Lixeira, as arquivadas e a pré-visualização de outro ambiente", () => {
     const queryClient = clientWithBoard();
+    queryClient.setQueryData<Task[]>(["tasks", "user-1", "ws-consultoria", null], []);
     queryClient.setQueryData<Task[]>(["tasks", "deleted"], []);
     queryClient.setQueryData<Task[]>(["tasks", "archived", "client-1", false], []);
     queryClient.setQueryData<Task[]>(["tasks", "user-1", "ws-marketing", "ws-consultoria"], []);
     addCachedTask<Task>(queryClient, { id: "c", title: "C", workspace_id: "ws-marketing" });
+    expect(queryClient.getQueryData(["tasks", "user-1", "ws-consultoria", null])).toEqual([]);
     expect(queryClient.getQueryData(["tasks", "deleted"])).toEqual([]);
     expect(queryClient.getQueryData(["tasks", "archived", "client-1", false])).toEqual([]);
     expect(queryClient.getQueryData(["tasks", "user-1", "ws-marketing", "ws-consultoria"])).toEqual(

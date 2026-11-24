@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
-import { Download, FileText, Loader2, Paperclip, X } from "lucide-react";
+import { Download, FileText, Loader2, Paperclip, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { enqueueOfflineOperation, isOffline, listOfflineOperations } from "@/lib/offline-sync";
 import { isTaskAttachmentTooLarge, MAX_TASK_ATTACHMENT_LABEL } from "@/lib/attachment-limits";
@@ -136,7 +136,7 @@ export function SubtaskDialog({
   onAttachmentsComplete,
 }: SubtaskDialogProps) {
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const { data: assignableProfiles = [] } = useAssignableProfiles(workspaceId);
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -402,7 +402,7 @@ export function SubtaskDialog({
           entity: "subtask",
           action: existing ? "update" : "create",
           entityId: saved.id,
-          payload: existing ? { patch: payload } : { subtask: { ...saved, task_id: taskId } },
+          payload: existing ? { patch: payload } : { subtask: { ...saved, task_id: taskId }, workspaceId: activeWorkspace?.id },
         });
       } else {
         const request = existing
@@ -499,7 +499,7 @@ export function SubtaskDialog({
         ? "[&>button]:z-30 !left-auto !right-0 !top-0 !h-dvh !max-h-dvh !w-full !max-w-[720px] !translate-x-0 !translate-y-0 gap-0 overflow-y-auto !rounded-none !border-y-0 !border-r-0 p-0 shadow-2xl sm:!w-[min(720px,100vw)] sm:!rounded-none sm:!p-0"
         : "max-w-2xl gap-5 p-6 sm:rounded-2xl"}>
         <DialogHeader className={marketingLayout ? "sticky top-0 z-20 border-b bg-background px-5 py-4 text-left sm:px-7" : undefined}>
-          {marketingLayout && <button type="button" onClick={() => handleOpenChange(false)} className="w-fit text-xs text-muted-foreground hover:text-primary">{parentTitle || "Tarefa principal"} /</button>}
+          {marketingLayout && <button type="button" disabled={saving} title="Voltar à tarefa principal" onClick={() => { if (hasUnsavedChanges) void save(); else handleOpenChange(false, true); }} className="w-fit text-xs text-muted-foreground hover:text-primary">{parentTitle || "Tarefa principal"} /</button>}
           <DialogTitle>{subtask ? "Editar subtarefa" : "Nova subtarefa"}</DialogTitle>
         </DialogHeader>
 
@@ -645,8 +645,8 @@ export function SubtaskDialog({
             Cancelar
           </Button>
           <Button onClick={save} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {saving ? "Salvando..." : "Salvar"}
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : marketingLayout && <Save className="mr-2 h-4 w-4" />}
+            {saving ? "Salvando..." : marketingLayout ? "Salvar e voltar à tarefa" : "Salvar"}
           </Button>
         </DialogFooter>
       </DialogContent>
