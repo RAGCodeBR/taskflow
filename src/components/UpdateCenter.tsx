@@ -15,6 +15,7 @@ import {
   readPublishedAppUpdates,
   type PublishedAppUpdate,
 } from "@/lib/published-app-updates";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   formatAppUpdateDate,
   getVisibleAppUpdates,
@@ -109,11 +110,14 @@ function ReleaseSection({
 
 export function UpdateCenter() {
   const { user, isAdmin, activeWorkspace } = useAuth();
+  const isMobile = useIsMobile();
   const updates = useMemo(
-    () => getVisibleAppUpdates(isAdmin, activeWorkspace?.slug, user?.email),
-    [isAdmin, activeWorkspace?.slug, user?.email],
+    () => getVisibleAppUpdates(isAdmin, activeWorkspace?.slug, user?.email, isMobile),
+    [isAdmin, activeWorkspace?.slug, user?.email, isMobile],
   );
   const latestUpdate = updates[0];
+  // Versão anunciada no índice público (sem entradas só do celular).
+  const allDevicesVersion = getVisibleAppUpdates(isAdmin, activeWorkspace?.slug, user?.email, false)[0]?.id ?? "";
   const UPDATE_VERSION = latestUpdate?.id ?? "";
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(true);
@@ -185,7 +189,7 @@ export function UpdateCenter() {
       return;
     }
     if (!pending || typeof pending.id !== "string" || !Number.isInteger(pending.attempts)) return;
-    const progress = advancePendingAppUpdate(pending, UPDATE_VERSION);
+    const progress = advancePendingAppUpdate(pending, UPDATE_VERSION, [allDevicesVersion]);
     if (progress.status === "confirmed") {
       try {
         window.localStorage.setItem(storageKey, UPDATE_VERSION);

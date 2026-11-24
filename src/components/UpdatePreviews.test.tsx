@@ -5,6 +5,15 @@ import { APP_UPDATES } from "@/lib/app-updates";
 import { AppUpdatePreview } from "./UpdatePreviews";
 
 describe("release thumbnails", () => {
+  it("illustrates the phone task list and + button, without push or real actions", () => {
+    const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "mobile-tasks-push" }));
+    expect(html).toContain("data-mobile-tasks-phone");
+    expect(html).toContain("data-mobile-tasks-fab");
+    expect(html).toContain("Atrasadas");
+    expect(html).not.toContain("data-mobile-tasks-push");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("href=");
+  });
   it("shows Enter opening the next new subtask, without real actions", () => {
     const html = renderToStaticMarkup(createElement(AppUpdatePreview, { kind: "subtask-enter-next-row" }));
     expect(html).toContain("data-subtask-enter-typing");

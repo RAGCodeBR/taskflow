@@ -90,7 +90,7 @@ export default defineConfig({
       // arquivos do cache e falhar ao abrir Dashboard/Clientes sem internet.
       registerType: "prompt",
       injectRegister: "auto",
-      includeAssets: ["taskflow-mark.png"],
+      includeAssets: ["taskflow-mark.png", "push-sw.js"],
       manifest: {
         name: "TaskFlow",
         short_name: "TaskFlow",
@@ -108,6 +108,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Push no celular: o arquivo só trata push/notificationclick.
+        importScripts: ["/push-sw.js"],
         // After the user accepts an update, the activated worker must control
         // the open tab before the app reloads into the new cached shell.
         clientsClaim: true,

@@ -10,6 +10,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { ImageUp, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { PushSettingsCard } from "@/components/mobile/PushSettingsCard";
+import { isPushConfigured } from "@/lib/push-subscription";
 
 export const Route = createFileRoute("/_app/settings")({
   component: Settings,
@@ -53,6 +56,7 @@ async function createCroppedAvatar(file: File, zoom: number, offset: { x: number
 }
 
 function Settings() {
+  const isMobile = useIsMobile();
   const { profile, user, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
   const [name, setName] = useState(profile?.full_name ?? "");
@@ -178,6 +182,8 @@ function Settings() {
           Edite seu perfil e escolha a foto usada no Kanban.
         </p>
       </header>
+
+      {isMobile && isPushConfigured() && <PushSettingsCard />}
 
       <Card className="space-y-5 p-6">
         <div className="flex flex-wrap items-center gap-4">

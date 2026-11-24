@@ -1848,7 +1848,41 @@ function TaskCardActivityPreview() {
   );
 }
 
+function MobileTasksPushPreview() {
+  const groups = [
+    { label: "Atrasadas", tone: "text-red-600", items: [{ title: "Petição de exemplo", meta: "20 nov · Cliente A", color: "#dc2626" }] },
+    { label: "Hoje", tone: "text-foreground", items: [{ title: "Reunião de alinhamento", meta: "Hoje · 14:00", color: "#f59e0b" }, { title: "Enviar relatório", meta: "Hoje · Cliente B", color: "#2563eb" }] },
+  ];
+  return (
+    <div aria-label="Prévia de Minhas Tarefas no celular" className="mx-auto flex w-full max-w-72 items-start justify-center gap-3 text-[10px]">
+      <div data-mobile-tasks-phone className="relative w-40 shrink-0 overflow-hidden rounded-[1.4rem] border-4 border-foreground/80 bg-background p-2 pb-10 shadow-md">
+        {groups.map((group) => (
+          <div key={group.label} className="mb-1.5">
+            <span className={`mb-1 flex items-center gap-1 font-semibold ${group.tone}`}>
+              {group.label}<span className="rounded-full bg-muted px-1 text-[9px] text-muted-foreground">{group.items.length}</span>
+            </span>
+            {group.items.map((item) => (
+              <span key={item.title} className="relative mb-1 flex items-center gap-1.5 overflow-hidden rounded-lg border bg-card py-1 pl-2 pr-1">
+                <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5" style={{ background: item.color }} />
+                <span className="h-3 w-3 shrink-0 rounded-full border-2 border-muted-foreground/50" />
+                <span className="min-w-0">
+                  <strong className="block truncate font-medium leading-tight">{item.title}</strong>
+                  <span className="block truncate text-[9px] text-muted-foreground">{item.meta}</span>
+                </span>
+              </span>
+            ))}
+          </div>
+        ))}
+        <span data-mobile-tasks-fab className="absolute bottom-2 right-2 grid h-7 w-7 place-items-center rounded-full bg-primary text-primary-foreground shadow">
+          <Plus className="h-4 w-4" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const UPDATE_PREVIEWS: Record<UpdatePreviewKind, () => ReactNode> = {
+  "mobile-tasks-push": MobileTasksPushPreview,
   "subtask-enter-next-row": SubtaskEnterNextRowPreview,
   "subtask-save-returns-to-task": SubtaskSaveReturnsToTaskPreview,
   "task-save-performance": TaskSavePerformancePreview,

@@ -2,6 +2,7 @@ import { canManageMarketingAccess } from "./environment-access";
 
 export type UpdateWorkspace = "marketing" | "consultoria";
 export type UpdatePreviewKind =
+  | "mobile-tasks-push"
   | "maintenance"
   | "subtask-enter-next-row"
   | "subtask-save-returns-to-task"
@@ -78,11 +79,29 @@ export type AppUpdate = {
   audience: "all" | "admin" | "owner";
   workspaces: readonly UpdateWorkspace[];
   details: readonly string[];
+  /** Mudança só do celular: não aparece nem é anunciada no computador. */
+  devices?: readonly "mobile"[];
 };
 
 // Keep newest first. The first visible entry determines the update notice and
 // acknowledgement key, so a release is registered once, not in several screens.
 export const APP_UPDATES: readonly AppUpdate[] = [
+  {
+    id: "tarefas-no-celular-2026-11-24",
+    title: "Minhas Tarefas mais fácil no celular",
+    date: "2026-11-24",
+    preview: "mobile-tasks-push",
+    audience: "all",
+    workspaces: ["marketing", "consultoria"],
+    devices: ["mobile"],
+    details: [
+      "Lista em cartões agrupados por prazo: Atrasadas, Hoje, Amanhã, Esta semana e Depois. Toque na bolinha para concluir.",
+      "Kanban com uma coluna por vez: deslize para o lado ou toque nas abas. O menu ⋯ move a tarefa de coluna.",
+      "Calendário dia a dia: escolha o dia na faixa da semana e veja as tarefas dele.",
+      "Botão + para criar tarefa rápido com título, cliente, responsável e prazo. Mais detalhes abre o formulário completo.",
+      "No computador nada muda.",
+    ],
+  },
   {
     id: "manutencao-2026-11-24",
     title: "Correção de bugs e erros",
@@ -528,10 +547,11 @@ export const APP_UPDATES: readonly AppUpdate[] = [
   },
 ];
 
-export function getVisibleAppUpdates(isAdmin: boolean, workspace?: string, email?: string | null) {
+export function getVisibleAppUpdates(isAdmin: boolean, workspace?: string, email?: string | null, isMobile = false) {
   return APP_UPDATES.filter(
     (update) =>
       update.workspaces.some((name) => name === workspace) &&
+      (!update.devices || (isMobile && update.devices.includes("mobile"))) &&
       (update.audience === "all" || (update.audience === "admin" && isAdmin) || (update.audience === "owner" && canManageMarketingAccess(email))),
   ).slice(0, 5);
 }

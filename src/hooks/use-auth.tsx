@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { forgetThisDeviceForPush } from "@/lib/push-subscription";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -324,6 +325,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userId = user?.id;
     // Oscilacoes automaticas de sessao preservam o trabalho pendente. A limpeza
     // acontece somente depois de um logout solicitado e confirmado.
+    // Aparelho compartilhado não pode seguir recebendo os avisos de quem saiu.
+    await forgetThisDeviceForPush();
     const { error } = await supabase.auth.signOut();
     if (!error && userId) await clearOfflineUserData(userId);
   };

@@ -297,7 +297,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Mobile sidebar toggle header */}
-      <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between gap-2 border-b bg-background px-3 md:hidden">
+      <div className="fixed inset-x-0 top-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between gap-2 border-b bg-background px-3 pt-[env(safe-area-inset-top)] md:hidden">
         <Button
           size="icon"
           variant="ghost"
@@ -317,7 +317,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             </Button>
           )}
-          {mobileViewport && <NotificationBell key={`${user?.id}:${activeWorkspace?.id}`} />}
+          {mobileViewport && <NotificationBell key={`${user?.id}:${activeWorkspace?.id}`} mobile />}
         </div>
       </div>
 
@@ -328,7 +328,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         inert={!mobileMenuOpen}
       >
           <div
-            className={`flex w-[min(18rem,calc(100vw-3rem))] min-w-0 flex-col border-r bg-background transition-transform duration-300 ease-in-out motion-reduce:transition-none ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
+            className={`flex w-[min(18rem,calc(100vw-3rem))] min-w-0 flex-col border-r bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] transition-transform duration-300 ease-in-out motion-reduce:transition-none ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
             style={{ background: "var(--gradient-sidebar)" }}
           >
             <div className="px-5 py-4">
@@ -446,7 +446,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
       <RecurringMeetingReminderPopup />
-      <main className="min-w-0 flex-1 pt-14 md:pt-0 overflow-x-hidden overflow-y-auto">
+      <main className="min-w-0 flex-1 pt-[calc(3.5rem+env(safe-area-inset-top))] md:pt-0 overflow-x-hidden overflow-y-auto">
         <div className="hidden shrink-0 md:flex sticky top-0 z-40 justify-end gap-2 px-4 py-2 bg-background/80 backdrop-blur border-b">
             <UpdateCenter />
           {canSwitchEnvironments && workspaces.length > 1 && (

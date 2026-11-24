@@ -8,3 +8,8 @@ verify_jwt = false
 
 [functions.taskflow-mcp]
 verify_jwt = false
+
+# Chamada pelo trigger de notifications (pg_net, segredo CRON_SECRET) e pelo
+# botão "Enviar teste" do app (valida o JWT do próprio usuário no código).
+[functions.send-push]
+verify_jwt = false

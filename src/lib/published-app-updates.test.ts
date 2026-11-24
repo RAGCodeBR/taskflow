@@ -9,8 +9,10 @@ import {
 describe("independent published release catalogue", () => {
   it("derives metadata directly from the existing catalogue", () => {
     const releases = readPublishedAppUpdates(publishedAppUpdates());
-    expect(releases.map((release) => release.id)).toEqual(APP_UPDATES.filter((release) => release.audience !== "owner").map((release) => release.id));
-    expect(releases[0].title).toBe(APP_UPDATES.find((release) => release.audience !== "owner")?.title);
+    expect(releases.map((release) => release.id)).toEqual(APP_UPDATES.filter((release) => release.audience !== "owner" && !release.devices).map((release) => release.id));
+    // Aviso só do celular não entra no índice público: o desktop não anuncia.
+    expect(releases.some((release) => release.id === "tarefas-no-celular-2026-11-24")).toBe(false);
+    expect(releases[0].title).toBe(APP_UPDATES.find((release) => release.audience !== "owner" && !release.devices)?.title);
     expect(releases.every((release) => release.audience === "all" || release.audience === "admin")).toBe(true);
   });
   it.each(["marketing", "consultoria"])("detects an old compiled catalogue in %s", (workspace) => {

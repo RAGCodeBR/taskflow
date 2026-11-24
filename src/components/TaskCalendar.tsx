@@ -87,10 +87,18 @@ import {
 } from "@/components/ui/dialog";
 import { normalizeTasksWithOpenSubtasks } from "@/lib/task-utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileDayAgenda } from "@/components/mobile/MobileDayAgenda";
+import { MobileQuickCreate, quickValuesToDialogDefaults } from "@/components/mobile/MobileQuickCreate";
+import { dayKey } from "@/lib/mobile-task-groups";
 
 export function CalendarPage({ clientCalendar = false, clientId }: { clientCalendar?: boolean; clientId?: string } = {}) {
   const teamVisibilityWorkspaceId = useTeamTaskVisibility();
   const { user, isCollaborator, isClient, activeWorkspace, workspaces } = useAuth();
+  // No celular, Minhas Tarefas troca a grade semanal/mensal pela agenda do dia.
+  const mobileAgenda = useIsMobile() && !clientCalendar;
+  const [agendaDay, setAgendaDay] = useState(() => new Date());
+  const [mobileDialogDefaults, setMobileDialogDefaults] = useState<ReturnType<typeof quickValuesToDialogDefaults> | undefined>();
   const queryClient = useQueryClient();
   const [viewFilters, setFilters] = useState<TaskFilterValue>(() =>
     clientCalendar ? {} : defaultsToOwnScope(user?.id, teamVisibilityWorkspaceId, activeWorkspace?.slug)
@@ -613,6 +621,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
+      {!mobileAgenda && (
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium capitalize">{calendarLabel}</span>
@@ -667,6 +676,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
           </Button>
         </div>
       </header>
+      )}
       {!clientCalendar && <TaskFilters
         filters={filters}
         onChange={setFilters}
@@ -684,6 +694,23 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
       />}
 
       {clientCalendar && <p className="text-xs text-muted-foreground sm:hidden">Deslize o calendário para os lados para ler os títulos.</p>}
+      {mobileAgenda ? (
+        <MobileDayAgenda
+          tasks={visible.filter((task) => !showPinnedOnly || pendingPinnedIds.has(task.id))}
+          selectedDay={agendaDay}
+          onSelectDay={setAgendaDay}
+          isDone={(task) => task.status === "done" || !!task.completed_at || Boolean(task.status_id && statusById.get(task.status_id)?.is_completed)}
+          clientNames={clientNames}
+          profiles={profileById}
+          onOpen={(task) => { setMobileDialogDefaults(undefined); setEdit(task); setOpen(true); }}
+          onToggleDone={(task) => { if (canComplete && !completingTaskId && !reschedule) startCompletion(task); }}
+          toolbar={canPin ? (
+            <button type="button" aria-pressed={showPinnedOnly} aria-label="Mostrar somente tarefas fixadas" className={`grid h-11 w-11 place-items-center rounded-full ${showPinnedOnly ? "bg-secondary" : "active:bg-muted"}`} onClick={() => setShowPinnedOnly((current) => !current)}>
+              <Pin className="h-4 w-4" />
+            </button>
+          ) : undefined}
+        />
+      ) : (
       <DndContext
         sensors={sensors}
         collisionDetection={calendarCollisionDetection}
@@ -824,6 +851,7 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
             document.body,
           )}
       </DndContext>
+      )}
       {clientCalendar && visible.some(task => !task.due_date) && <details className="rounded-xl border bg-card p-4">
         <summary className="cursor-pointer text-sm font-medium">Sem prazo ({visible.filter(task => !task.due_date).length})</summary>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{visible.filter(task => !task.due_date).map(task => <CalendarTaskItem key={task.id} titleOnly task={task}
@@ -958,7 +986,14 @@ export function CalendarPage({ clientCalendar = false, clientId }: { clientCalen
         onOpenChange={(nextOpen) => { if (!nextOpen && !completingTask.current) setCompletionTask(null); }}
         onConfirm={(date) => completionTask ? completeTask(completionTask, date) : undefined}
       />
-      <TaskDialog open={open} onOpenChange={setOpen} task={edit} defaultWorkspaceId={viewedWorkspaceId} defaults={{ title: newTaskTitle, dueDate: newTaskDay, clientId: clientCalendar ? clientId : undefined }} />
+      <TaskDialog open={open} onOpenChange={setOpen} task={edit} defaultWorkspaceId={viewedWorkspaceId} defaults={mobileAgenda && mobileDialogDefaults ? mobileDialogDefaults : { title: newTaskTitle, dueDate: newTaskDay, clientId: clientCalendar ? clientId : undefined }} />
+      {mobileAgenda && clientAvailable && (
+        <MobileQuickCreate
+          workspaceId={viewedWorkspaceId}
+          defaults={{ dueDate: dayKey(agendaDay), columnId: columns[0]?.id ?? null }}
+          onMoreDetails={(values) => { setMobileDialogDefaults(quickValuesToDialogDefaults(values)); setEdit(null); setOpen(true); }}
+        />
+      )}
     </div>
   );
 }

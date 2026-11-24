@@ -26,4 +26,10 @@ describe("one click update progress", () => {
         pending: { id: "latest", attempts: 1, automatic: true },
       });
   });
+  it("confirms when the requested version is installed even if the phone shows a newer phone-only entry", () => {
+    expect(
+      advancePendingAppUpdate({ id: "manutencao-2026-11-24", attempts: 1 }, "tarefas-no-celular-2026-11-24", ["manutencao-2026-11-24"]).status,
+    ).toBe("confirmed");
+    expect(advancePendingAppUpdate({ id: "outra", attempts: 1 }, "tarefas-no-celular-2026-11-24", ["manutencao-2026-11-24"]).status).toBe("retry");
+  });
 });

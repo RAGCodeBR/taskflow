@@ -114,6 +114,9 @@ import { isTaskFromAnotherWorkspace, splitTasksByWorkspace } from "@/lib/workspa
 import { updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { enqueueOfflineOperation, isOffline } from "@/lib/offline-sync";
 
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileKanban } from "@/components/mobile/MobileKanban";
+import { MobileQuickCreate, quickValuesToDialogDefaults } from "@/components/mobile/MobileQuickCreate";
 export const Route = createFileRoute("/_app/tasks/kanban")({
   component: KanbanPage,
 });
@@ -381,6 +384,9 @@ function SortableColumn({
 
 function KanbanPage() {
   const teamVisibilityWorkspaceId = useTeamTaskVisibility();
+  const isMobile = useIsMobile();
+  const [mobileColumnId, setMobileColumnId] = useState<string | null>(null);
+  const [mobileDialogDefaults, setMobileDialogDefaults] = useState<ReturnType<typeof quickValuesToDialogDefaults> | undefined>();
   const qc = useQueryClient();
   const { user, isAdmin, isCollaborator, activeWorkspace, workspaces } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
@@ -1066,6 +1072,20 @@ function KanbanPage() {
     qc.invalidateQueries({ queryKey: ["user_task_order"] });
   };
 
+  // No celular não há arrastar: o menu "Mover para…" e a bolinha de concluir
+  // reutilizam exatamente a regra de soltar do quadro (concluir, restaurar,
+  // ordem pessoal e fila offline), simulando a soltura no fim da coluna.
+  const moveTaskFromMobile = async (task: Task, targetColumnId: string) => {
+    if (sharedTaskIds.has(task.id) || task.is_draft) {
+      toast.error("Esta tarefa não pode ser movida neste quadro.");
+      return;
+    }
+    await onDragEnd({
+      active: { id: task.id, data: { current: { type: "task" } } },
+      over: { id: `drop:${targetColumnId}`, data: { current: { type: "column-drop", colId: targetColumnId } } },
+    } as unknown as DragEndEvent);
+  };
+
   const addColumn = () => {
     if (!isAdmin) return toast.error("Apenas administradores podem criar colunas");
     setColumnEditor({ open: true, id: null, name: "", color: "#1e3a8a" });
@@ -1449,6 +1469,22 @@ function KanbanPage() {
 
       <div className="px-4 pb-2 sm:px-6"><TaskPeriodPicker value={filters.date} onChange={(date) => setFilters((current) => ({ ...current, date }))} /></div>
 
+      {isMobile ? (
+        <MobileKanban
+          columns={[...visibleColumns, { id: COMPLETED_COL_ID, name: teamVisibilityWorkspaceId && filters.scope === "mine" ? "Concluídas por mim" : "Concluídas", color: "#10b981" }]}
+          tasksByColumn={new Map([...tasksByCol, [COMPLETED_COL_ID, completedTasks]])}
+          readOnlyColumnIds={new Set([COMPLETED_COL_ID])}
+          isDone={(task) => task.status === "done" || !!task.completed_at}
+          clientNames={new Map(clients.map((client) => [client.id, client.name]))}
+          profiles={new Map(profiles.map((profile) => [profile.id, profile]))}
+          pendingTaskIds={pendingTaskIds}
+          onOpen={(task) => { setMobileDialogDefaults(undefined); setEditTask(task); setDialogOpen(true); }}
+          onToggleDone={(task) => void moveTaskFromMobile(task, COMPLETED_COL_ID)}
+          onActiveColumnChange={setMobileColumnId}
+          onMove={(task, columnId) => void moveTaskFromMobile(task, columnId)}
+          onCreateInColumn={(columnId) => { setMobileDialogDefaults(undefined); setEditTask(null); setDefaultCol(columnId); setDialogOpen(true); }}
+        />
+      ) : (
       <KanbanScrollArea orientation={orientation}>
         <DndContext
           key={orientation}
@@ -1596,6 +1632,7 @@ function KanbanPage() {
           </DragOverlay>
         </DndContext>
       </KanbanScrollArea>
+      )}
 
       <TaskDialog
         open={dialogOpen}
@@ -1603,7 +1640,20 @@ function KanbanPage() {
         task={editTask}
         defaultColumnId={defaultCol}
         defaultWorkspaceId={viewedWorkspaceId}
+        defaults={isMobile ? mobileDialogDefaults : undefined}
       />
+      {isMobile && (
+        <MobileQuickCreate
+          workspaceId={viewedWorkspaceId}
+          defaults={{ columnId: mobileColumnId && mobileColumnId !== COMPLETED_COL_ID ? mobileColumnId : visibleColumns[0]?.id ?? null }}
+          onMoreDetails={(values) => {
+            setMobileDialogDefaults(quickValuesToDialogDefaults(values));
+            setEditTask(null);
+            setDefaultCol(mobileColumnId && mobileColumnId !== COMPLETED_COL_ID ? mobileColumnId : null);
+            setDialogOpen(true);
+          }}
+        />
+      )}
       <Dialog
         open={!!duplicateTaskTarget}
         onOpenChange={(open) => {

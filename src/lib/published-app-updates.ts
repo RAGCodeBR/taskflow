@@ -11,7 +11,10 @@ export function publishedAppUpdates() {
   return {
     // Browsers already in production accept only "all" and "admin". Keep the
     // public version index backward compatible so those clients can upgrade.
-    releases: APP_UPDATES.filter((release) => release.audience !== "owner")
+    // Avisos só do celular ficam fora: aparelhos antigos (inclusive desktop)
+    // não sabem filtrar por aparelho e anunciariam a novidade no computador.
+    // O celular recebe a nova versão pelo service worker atualizado.
+    releases: APP_UPDATES.filter((release) => release.audience !== "owner" && !release.devices)
       .map(({ id, title, date, audience, workspaces }) => ({
       id,
       title,

@@ -7,7 +7,7 @@ import {
 
 describe("application release catalogue", () => {
   it("requires a unique version, date, explanation and preview for every release", () => {
-    expect(APP_UPDATES).toHaveLength(37);
+    expect(APP_UPDATES).toHaveLength(38);
     expect(new Set(APP_UPDATES.map((update) => update.id)).size).toBe(APP_UPDATES.length);
     for (const update of APP_UPDATES) {
       expect(update.id.trim()).not.toBe("");
@@ -61,6 +61,20 @@ describe("application release catalogue", () => {
         expect(getVisibleAppUpdates(false, workspace).some((update) => update.id === privateRelease.id)).toBe(false);
       }
     } finally { releases.shift(); }
+  });
+
+  it("shows the phone release only on phones, never on the desktop", () => {
+    for (const workspace of ["marketing", "consultoria"]) {
+      const phone = getVisibleAppUpdates(false, workspace, undefined, true);
+      expect(phone[0].id).toBe("tarefas-no-celular-2026-11-24");
+      expect(phone[0].title).toContain("celular");
+      // Push ainda depende de configuração no servidor: não anunciar antes.
+      expect(phone[0].details.join(" ")).not.toMatch(/notifica|avisos no celular/i);
+      expect(phone).toHaveLength(5);
+      const desktop = getVisibleAppUpdates(false, workspace);
+      expect(desktop.some((update) => update.id === "tarefas-no-celular-2026-11-24")).toBe(false);
+      expect(desktop[0].id).toBe("manutencao-2026-11-24");
+    }
   });
 
   it("removes older history entries from the release catalogue", () => {

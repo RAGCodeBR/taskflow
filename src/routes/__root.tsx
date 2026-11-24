@@ -9,6 +9,7 @@ import { OfflineConflictDialog } from "@/components/OfflineConflictDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import taskflowMark from "@/assets/taskflow-mark.png";
+import { installedAppMeta } from "@/lib/pwa-meta";
 
 const isGitHubPages = import.meta.env.VITE_GITHUB_PAGES === "true";
 const isLocalDevelopment = import.meta.env.DEV;
@@ -17,7 +18,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      // App instalado na Tela de Início (iPhone): tela cheia e barra de status integrada.
+      ...installedAppMeta,
       { title: "TaskFlow — Gestão de Tarefas" },
       {
         name: "description",

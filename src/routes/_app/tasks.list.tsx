@@ -39,6 +39,10 @@ import { duplicateTask as duplicateTaskWithContents } from "@/lib/duplicate-task
 import { deleteTaskWithOfflineSupport, updateTaskWithOfflineSupport } from "@/lib/offline-task-mutations";
 import { canDeleteTask } from "@/lib/task-delete-permission";
 import { LinkedText } from "@/components/LinkedText";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileTaskList } from "@/components/mobile/MobileTaskList";
+import { MobileTaskActions } from "@/components/mobile/MobileTaskActions";
+import { MobileQuickCreate, quickValuesToDialogDefaults } from "@/components/mobile/MobileQuickCreate";
 import { completedSubtaskFilterTask, completedSubtaskHistory, completedSubtasksForUser, openSubtaskTaskIdsForUser } from "@/lib/task-participation";
 
 export const Route = createFileRoute("/_app/tasks/list")({
@@ -51,6 +55,7 @@ export const Route = createFileRoute("/_app/tasks/list")({
 
 function ListPage() {
   const teamVisibilityWorkspaceId = useTeamTaskVisibility();
+  const isMobile = useIsMobile();
   const search = Route.useSearch();
   const { user, isAdmin, isCollaborator, activeWorkspace, workspaces, setActiveWorkspace, finishWorkspaceTransition } = useAuth();
   const [filters, setFilters] = useState<TaskFilterValue>(() =>
@@ -87,6 +92,7 @@ function ListPage() {
   const pinnedIds = useMemo(() => new Set(pins.filter(pin => pin.is_pinned).map(pin => pin.task_id)), [pins]);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [edit, setEdit] = useState<Task | null>(null);
+  const [mobileDialogDefaults, setMobileDialogDefaults] = useState<ReturnType<typeof quickValuesToDialogDefaults> | undefined>();
   const [dueDateSortDirection, setDueDateSortDirection] = useState<"asc" | "desc">("asc");
   const [duplicateTaskTarget, setDuplicateTaskTarget] = useState<Task | null>(null);
   const [duplicateDueDate, setDuplicateDueDate] = useState("");
@@ -193,6 +199,7 @@ function ListPage() {
 
   const profilesById = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles]);
   const clientsById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
+  const clientNamesById = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const collaboratorsByTask = useMemo(() => {
     const byTask = new Map<string, typeof profiles>();
     for (const link of collaborators) {
@@ -402,7 +409,7 @@ function ListPage() {
           ) : undefined,
         }}
         />
-        <header className="flex items-center justify-end gap-3">
+        {!isMobile && <header className="flex items-center justify-end gap-3">
         <Button
           onClick={() => {
             setEdit(null);
@@ -412,11 +419,53 @@ function ListPage() {
           <Plus className="mr-2 h-4 w-4" />
           Nova tarefa
         </Button>
-        </header>
+        </header>}
       </div>
 
       <TaskPeriodPicker value={filters.date} onChange={(date) => setFilters((current) => ({ ...current, date }))} />
 
+      {isMobile ? (
+        <MobileTaskList
+          tasks={list}
+          isDone={(task) => task.status === "done" || !!task.completed_at}
+          clientNames={clientNamesById}
+          profiles={profilesById}
+          pendingTaskIds={pendingTaskIds}
+          onOpen={(task) => { setMobileDialogDefaults(undefined); setEdit(task); setOpen(true); }}
+          onToggleDone={startCompletion}
+          renderActions={(task) => (
+            <MobileTaskActions
+              task={task}
+              columns={openColumns}
+              canDelete={canDeleteTask(task, { userId: user?.id, isAdmin })}
+              onMove={(columnId) => void changeColumn(task, columnId)}
+              onDuplicate={() => { setDuplicateTaskTarget(task); setDuplicateDueDate(""); }}
+              onDelete={() => void deleteFromList(task)}
+            />
+          )}
+          footer={completedParts.length > 0 ? (
+            <details className="group/section">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-1 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                {teamVisibilityWorkspaceId && filters.scope === "mine" ? "Subtarefas concluídas por mim" : "Subtarefas concluídas hoje"}
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{completedParts.length}</span>
+              </summary>
+              <ul className="space-y-2">
+                {completedParts.map(({ subtask, parent }) => (
+                  <li key={`subtask:${subtask.id}`}>
+                    <button type="button" className="flex min-h-11 w-full items-center gap-2 rounded-xl border bg-emerald-50/40 px-3 py-2 text-left dark:bg-emerald-950/10" onClick={() => { setEdit(parent); setOpen(true); }}>
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium line-through">{subtask.title}</span>
+                        <span className="block truncate text-xs text-muted-foreground">Subtarefa de {parent.title}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : undefined}
+        />
+      ) : (
       <div className="overflow-hidden rounded-lg border bg-card">
         <table className="w-full table-fixed border-collapse text-xs">
           <thead className="border-b bg-muted/50 text-left text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -659,7 +708,15 @@ function ListPage() {
           </tbody>
         </table>
       </div>
-      <TaskDialog open={open} onOpenChange={setOpen} task={edit} defaultWorkspaceId={viewedWorkspaceId} />
+      )}
+      <TaskDialog open={open} onOpenChange={setOpen} task={edit} defaultWorkspaceId={viewedWorkspaceId} defaults={isMobile ? mobileDialogDefaults : undefined} />
+      {isMobile && (
+        <MobileQuickCreate
+          workspaceId={viewedWorkspaceId}
+          defaults={{ columnId: openColumns[0]?.id ?? null }}
+          onMoreDetails={(values) => { setMobileDialogDefaults(quickValuesToDialogDefaults(values)); setEdit(null); setOpen(true); }}
+        />
+      )}
       <CompletionDateDialog
         open={!!completionTaskTarget}
         onOpenChange={(isOpen) => !isOpen && setCompletionTaskTarget(null)}

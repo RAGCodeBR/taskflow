@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { isOffline } from "@/lib/offline-sync";
+import { isStandaloneApp, setAppBadge } from "@/lib/push-subscription";
 
 interface Notification {
   id: string;
@@ -30,7 +31,14 @@ const NAVIGATION_NOTIFICATION_TYPES = new Set([
   "mention",
 ]);
 
-export function NotificationBell() {
+/** Avisos de prazo ("Vence hoje/amanhã") existem só para o celular. */
+const MOBILE_ONLY_NOTIFICATION_TYPES = new Set(["due_soon"]);
+
+export function excludedNotificationTypes(mobile: boolean): string[] {
+  return [...NAVIGATION_NOTIFICATION_TYPES, ...(mobile ? [] : MOBILE_ONLY_NOTIFICATION_TYPES)];
+}
+
+export function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
   const { user, activeWorkspace } = useAuth();
   const navigate = useNavigate();
   const generation = useRef(0);
@@ -46,7 +54,7 @@ export function NotificationBell() {
       .select("*, tasks(id), recurring_meeting_occurrences(workspace_id)")
       .eq("user_id", user.id)
       .or("task_id.is.null,tasks.not.is.null")
-      .not("type", "in", `(${[...NAVIGATION_NOTIFICATION_TYPES].join(",")})`)
+      .not("type", "in", `(${excludedNotificationTypes(mobile).join(",")})`)
       .order("created_at", { ascending: false })
       .limit(30);
     if (error || !data || version !== generation.current) return;
@@ -77,7 +85,7 @@ export function NotificationBell() {
         { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
         (payload: any) => {
           const type = payload.new?.type ?? payload.old?.type;
-          if (NAVIGATION_NOTIFICATION_TYPES.has(type)) return;
+          if (excludedNotificationTypes(mobile).includes(type)) return;
           onVisible();
         },
       )
@@ -94,6 +102,11 @@ export function NotificationBell() {
   }, [user?.id, activeWorkspace?.id]);
 
   const unread = items.filter((n) => !n.is_read).length;
+
+  // Número no ícone do app instalado no celular. No computador nada muda.
+  useEffect(() => {
+    if (mobile && isStandaloneApp()) setAppBadge(unread);
+  }, [mobile, unread]);
 
   const markRead = async (id: string) => {
     const { error } = await (supabase.from("notifications") as any).update({ is_read: true }).eq("id", id);
